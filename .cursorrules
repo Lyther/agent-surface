@@ -33,7 +33,7 @@ WHEN I ASK FOR BOTH CODE AND EXPLANATION:
 
 SELF-CHECK BEFORE SENDING:
 
-- If the reply contains any of: "In summary", "Overall", "Here’s what we’ll do", "best practices", long preambles, or multiple sections, delete that fluff and keep only the minimal necessary content.
+- If the reply contains any of: "In summary", "Overall", "Here's what we'll do", "best practices", long preambles, or multiple sections, delete that fluff and keep only the minimal necessary content.
 
 HARD CONSTRAINTS (override any default helpfulness):
 
@@ -81,13 +81,7 @@ Vibe coding is **iterative co-design** with AI. Not "generate and pray." Not "pr
 
 ## 2. COMMAND PROTOCOL
 
-```text
-User invokes command (e.g., "refactor", "roadmap")
-    ↓
-1. In context?     → EXECUTE
-2. On disk?        → READ ~/.cursor/commands/[CAT]/[CMD].md → EXECUTE
-3. Unknown?        → ASK user. DO NOT HALLUCINATE A PROCESS.
-```
+See `00-BOOT/workflow.md` (command: `workflow`) for the protocol diagram.
 
 ---
 
@@ -95,22 +89,14 @@ User invokes command (e.g., "refactor", "roadmap")
 
 ### A. Session Start (Context Loading)
 
-1. **Read First**: `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `.cursor/mission.md`
+1. **Read First**: `docs/architecture.md`, `docs/roadmap.md`, `.cursor/mission.md`
 2. **Read Lessons**: Check `.cursor/lessons.md` for known patterns/gotchas
 3. **Verify Stack**: Check `package.json`/`Cargo.toml`/`pyproject.toml` for actual dependencies
 4. **Understand Constraints**: What's already decided? Don't re-decide.
 
 ### B. Implementation Loop (The Heartbeat)
 
-```text
-┌─────────────────────────────────────────────────┐
-│  1. UNDERSTAND → What exactly does user want?   │
-│  2. PLAN       → Break into atomic steps        │
-│  3. IMPLEMENT  → One step at a time             │
-│  4. VERIFY     → Test immediately               │
-│  5. ITERATE    → Course-correct based on result │
-└─────────────────────────────────────────────────┘
-```
+See `00-BOOT/workflow.md` (command: `workflow`) for the loop diagram.
 
 - **Atomic Steps**: Max 50 lines of change per iteration
 - **Immediate Feedback**: Run tests/lints after each change
@@ -404,62 +390,11 @@ Before risky changes:
 
 ### The Workflow Map
 
-```text
-       [00-BOOT/new]
-             ↓
-[00-BOOT/context] → [01-ARCH/roadmap] → [01-ARCH/model] → [01-ARCH/contract]
-                                              ↓
-                                       [01-ARCH/breakdown]
-                                              ↓
-                                    ┌→ [02-DEV/feature] ──┐
-                                    |         ↓           |
-[09-OPS/monitor] ← [05-SHIP/deploy] |  [03-VERIFY/test]   |
-       ↑                  ↑         |         ↓           |
-[09-OPS/debug] ──→ [02-DEV/fix] ────┴─ [02-DEV/refactor] ←┘
-       ↑
- [04-QA/pentest]
-```
+See `00-BOOT/workflow.md` (command: `workflow`) for the workflow map.
 
 ### 10-WORKFLOW Map (order, priority, optional branches)
 
-```text
-START
-  |
-  v
-(01 ROUTE) [optional] choose cheapest path (risk/size/swarm?)
-  |
-  v
-(02 CTX-BUILD) [optional] big repo / unknown hotspot / token control
-  |
-  v
-03 BOSS [priority: first for medium/high risk] -> spec: filescope + AC + verify
-  | \
-  |  \ (04 OVERRIDE) [optional] spec tweak when blocked/ambiguous
-  |
-  v
-05 WORKER [single]  OR  05 WORKER x4/x8 [multi-agent swarm] when non-obvious/high-stakes
-  | \
-  |  \ (06 PENTEST-RECON) [optional] security tasks: passive recon only (no exploit)
-  |
-  v
-07 RUNNER [required] run verify gates -> write evidence (e.g., validation.log)
-  |
-  v
-08 REVIEWER [required for medium/high] evidence-only -> PASS / PARTIAL / REJECT
-  |                        |                                    |
-  | PASS                   | PARTIAL                            | REJECT
-  v                        v                                    v
-(09 PICK)        apply minimal subset    (10 LOG-ANALYZE) [optional] distill noisy failures
-[optional: many      from reviewer                              |
-worker variants]                                                v
-  |                                        11 REWORK [failure-driven; avoid swarm]
-  v                                                             |
-MERGE/SHIP                                                      v
-  |                                        07 RUNNER -> 08 REVIEWER (loop)
-  v                                                             |
-(14 RETRO) [optional]                                           v
-after merge/abandon                    after 2 loops or high-risk -> 12 JUDGER / 13 RESCUE
-```
+See `00-BOOT/workflow.md` (command: `workflow`) for the 10-WORKFLOW map.
 
 ---
 
