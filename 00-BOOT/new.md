@@ -52,17 +52,18 @@ This command creates the **context infrastructure** that enables smooth vibe cod
     - **System Trash**: `.DS_Store`, `Thumbs.db`.
     - **Build Artifacts**: `target/`, `dist/`, `build/`, `node_modules/`, `venv/`, `__pycache__/`, `*.lock` (optional, depends on stack).
     - **Sensitive**: `.env`, `*.pem`, `*.key`, `secrets/`.
-    - **AI & IDE Vendor Trash**:
+    - **AI & IDE Config** (MANDATORY — all of these):
         - `.idea/` (JetBrains)
         - `.vscode/` (VS Code local settings)
-        - `.claude/` (Anthropic config)
-        - `.obsidian/` (Notes config)
-        - `.cursor/` (Cursor config)
-        - `.gemini/` (Gemini config)
-        - `.cursorrules` (Cursor rules)
-        - `.cursorignore` (Cursor ignore)
-        - `*.code-workspace` (VS Code workspace)
-        - Other vendor trash...
+        - `.claude/` (Anthropic)
+        - `.obsidian/` (Notes)
+        - `.cursor/` (Cursor local)
+        - `.gemini/` (Gemini local)
+        - `.agent/` (Antigravity local)
+        - `.cursorrules` (Cursor rules symlink)
+        - `.geminirules` (Gemini rules symlink)
+        - `.cursorignore`
+        - `*.code-workspace`
 3. **Env Safety**:
     - If `.env` exists: **IMMEDIATELY CHECK** if it is in `.gitignore`. If not, STOP and warn the user.
     - Generate `.env.example` with dummy values for all keys found in `.env` (or expected keys).
@@ -77,15 +78,18 @@ This command creates the **context infrastructure** that enables smooth vibe cod
         - Global: `root=true`, UTF-8, LF, `insert_final_newline`, `trim_trailing_whitespace`, `indent_style=space`, `indent_size=4`.
         - **Overrides**: 2 spaces for Web/Config (JSON/YAML/HTML/JS/CSS); Tabs for Makefile/Go; 72 chars for git commit messages.
 2. **`.cursorignore`**:
-    - **Logic**: Aggressively exclude files to save context window tokens.
-    - **Include**: lockfiles (`*.lock`), huge assets, build targets, `node_modules`, `venv`.
-    - **Exclude**: workspace files (`*.code-workspace`), key and secret files (`*.env`, `*.pem`, `*.key`, `secrets/`), IDE config files (`*.idea/`, `.vscode/`, `.claude/`, `.obsidian/`, `.cursor/`, `.gemini/`).
+    - **Logic**: Exclude ONLY large files that waste context tokens. AI needs to see configs/secrets to avoid mistakes.
+    - **Include**: lockfiles (`*.lock`, `package-lock.json`, `uv.lock`), build artifacts (`target/`, `dist/`, `node_modules/`, `venv/`, `__pycache__/`), large assets (`*.wasm`, `*.so`, `*.dylib`, media files).
+    - **DO NOT exclude**: `.env`, secrets, IDE configs, workspace files — AI must see these to avoid committing them or duplicating config.
 3. **`<project-name>.code-workspace`**:
     - Analyze the project’s code and manifests, then auto-generate or update a VS Code `.code-workspace` with: folders, search/files excludes, `formatOnSave`, per-language default formatters/linters, common build/test/lint tasks, and required launch configurations.
     - Output valid JSONC only.
-4. **`.cursorrules`**:
-    - Make sure the global Cursor rules exist in the project folder. If not, use `ln -sf ~/.cursor/commands/.cursorrules ./` command to link the local device's Cursor rules to the folder root.
-    - Don't use the write tool to create the rules file. Don't use the move or copy command. Symbolic link is the only correct option.
+4. **Agentic Rules (Symbolic Links)**:
+    - **MANDATORY**: Create symbolic links for both Cursor and Gemini rules.
+    - **Cursor**: `ln -sf ~/.cursor/commands/.cursorrules ./`
+    - **Gemini/Antigravity**: `ln -sf ~/.cursor/commands/.geminirules ./.agent/rules/gemini-rules.md`
+    - **Never copy**: Symbolic link ensures all projects stay in sync with global rules.
+    - **Antigravity Naming**: If syncing to `~/.gemini/antigravity/global_workflows/`, names must be lowercase with hyphens only (e.g., `00-boot-new.md`).
 
 ### Phase 4: Entrypoint Standardization
 
@@ -115,8 +119,10 @@ This command creates the **context infrastructure** that enables smooth vibe cod
     - Generate `.pre-commit-config.yaml`.
     - **Mandatory Hooks**: `trailing-whitespace`, `end-of-file-fixer`, `check-yaml`.
     - **Language Hooks**: `ruff` (Python), `fmt` (Rust), `prettier` (Web).
-3. **Symbolic Link Global Rules**: Link `~/.cursor/commands/.cursorrules` to project root.
-4. **Customize if Needed**: Add project-specific rules.
+3. **Symbolic Link Global Rules**:
+    - `ln -sf ~/.cursor/commands/.cursorrules ./`
+    - `ln -sf ~/.cursor/commands/.geminirules ./.agent/rules/gemini-rules.md`
+4. **Customize if Needed**: Add project-specific rules in `.cursor/` or `.agent/rules/` directories.
 
 ### Phase 6: Vibe Coding Infrastructure (The Brain)
 
