@@ -313,11 +313,11 @@ If `pyproject.toml` is missing or incomplete, **you must generate it** with this
 
 ```toml
 [project]
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = [
@@ -410,7 +410,7 @@ docstring-code-format = true
 
 [tool.pyright]
 typeCheckingMode = "strict"
-pythonVersion = "3.11"
+pythonVersion = "3.13"
 reportMissingTypeStubs = false
 reportUnknownMemberType = false
 reportUnknownArgumentType = false
