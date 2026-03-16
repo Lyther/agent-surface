@@ -87,7 +87,7 @@ See `00-BOOT/workflow.md` (command: `workflow`) for the protocol diagram.
 
 ### A. Session Start (Context Loading)
 
-1. **Read First**: `docs/architecture.md`, `docs/roadmap.md`, `.cursor/mission.md`
+1. **Read First** (if they exist in the target project): `docs/architecture.md`, `docs/roadmap.md`, `.cursor/mission.md`
 2. **Read Lessons**: Check `.cursor/lessons.md` for known patterns/gotchas
 3. **Verify Stack**: Check `package.json`/`Cargo.toml`/`pyproject.toml` for actual dependencies
 4. **Understand Constraints**: What's already decided? Don't re-decide.
@@ -338,7 +338,7 @@ main (protected)
 Before risky changes:
 1. Ensure tests pass
 2. Create checkpoint: git tag checkpoint-$(date +%Y%m%d-%H%M%S)
-3. Document in .cursor/mission.md
+3. Document in .cursor/mission.md (if target project uses one)
 4. Then experiment freely
 ```
 
@@ -388,11 +388,7 @@ Before risky changes:
 
 ### The Workflow Map
 
-See `00-BOOT/workflow.md` (command: `workflow`) for the workflow map.
-
-### 10-WORKFLOW Map (order, priority, optional branches)
-
-See `00-BOOT/workflow.md` (command: `workflow`) for the 10-WORKFLOW map.
+See `00-BOOT/workflow.md` (command: `workflow`) for workflow maps and the structured BOSS → REVIEWER → JUDGER pipeline.
 
 ---
 

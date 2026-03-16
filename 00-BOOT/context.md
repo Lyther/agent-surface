@@ -100,7 +100,7 @@ AI has no memory between sessions. You must reload the battlefield map every tim
 ```text
        [00-BOOT/new]
              ↓
-[00-BOOT/context] → [01-ARCH/roadmap] → [01-ARCH/model] → [01-ARCH/contract]
+[00-BOOT/context] → [01-ARCH/roadmap] → [01-ARCH/model] → [01-ARCH/api]
                                               ↓
                                        [01-ARCH/breakdown]
                                               ↓

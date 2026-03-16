@@ -41,7 +41,7 @@ Vibe coding is **iterative co-design** with AI.
 
 ### Session Start
 
-1. Read: `docs/architecture.md`, `docs/roadmap.md`, `.cursor/mission.md`
+1. Read (if they exist in the target project): `docs/architecture.md`, `docs/roadmap.md`, `.cursor/mission.md`
 2. Check `.cursor/lessons.md` for known patterns/gotchas
 3. Verify stack in manifest files
 
