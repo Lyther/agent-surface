@@ -35,7 +35,7 @@ User invokes command (e.g., "refactor", "roadmap")
 ```text
        [00-BOOT/new]
              ↓
-[00-BOOT/context] → [01-ARCH/roadmap] → [01-ARCH/model] → [01-ARCH/contract]
+[00-BOOT/context] → [01-ARCH/roadmap] → [01-ARCH/model] → [01-ARCH/api]
                                               ↓
                                        [01-ARCH/breakdown]
                                               ↓
@@ -48,43 +48,25 @@ User invokes command (e.g., "refactor", "roadmap")
  [04-QA/pentest]
 ```
 
-### 10-WORKFLOW map (order, priority, optional branches)
+### Structured workflow (10-WORKFLOW)
+
+For medium/high-risk tasks requiring formal spec → implement → verify → review cycles.
 
 ```text
-START
+[10-WORKFLOW/boss] [spec: filescope + AC + verify gates]
   |
   v
-(01 ROUTE) [optional] choose cheapest path (risk/size/swarm?)
+IMPLEMENT (agent or human)
   |
   v
-(02 CTX-BUILD) [optional] big repo / unknown hotspot / token control
+VERIFY [run gates → write evidence]
   |
   v
-03 BOSS [priority: first for medium/high risk] -> spec: filescope + AC + verify
-  | \
-  |  \ (04 OVERRIDE) [optional] spec tweak when blocked/ambiguous
-  |
-  v
-05 WORKER [single]  OR  05 WORKER x4/x8 [multi-agent swarm] when non-obvious/high-stakes
-  | \
-  |  \ (06 PENTEST-RECON) [optional] security tasks: passive recon only (no exploit)
-  |
-  v
-07 RUNNER [required] run verify gates -> write evidence (e.g., validation.log)
-  |
-  v
-08 REVIEWER [required for medium/high] evidence-only -> PASS / PARTIAL / REJECT
-  |                        |                                    |
-  | PASS                   | PARTIAL                            | REJECT
-  v                        v                                    v
-(09 PICK)        apply minimal subset    (10 LOG-ANALYZE) [optional] distill noisy failures
-[optional: many      from reviewer                              |
-worker variants]                                                v
-  |                                        11 REWORK [failure-driven; avoid swarm]
-  v                                                             |
-MERGE/SHIP                                                      v
-  |                                        07 RUNNER -> 08 REVIEWER (loop)
-  v                                                             |
-(14 RETRO) [optional]                                           v
-after merge/abandon                    after 2 loops or high-risk -> 12 JUDGER / 13 RESCUE
+[10-WORKFLOW/reviewer] [evidence-only → PASS / PARTIAL / REJECT]
+  |                        |                    |
+  | PASS                   | PARTIAL            | REJECT
+  v                        v                    v
+MERGE/SHIP          apply subset          FIX → VERIFY → REVIEWER (loop)
+                                                            |
+                                    after 2 loops → [10-WORKFLOW/judger] / [10-WORKFLOW/rescue]
 ```
