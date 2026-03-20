@@ -35,12 +35,12 @@ User invokes command (e.g., "dev-refactor", "arch-roadmap")
                                         ↓
                                   [arch-breakdown]
                                         ↓
-                                  ┌→ [dev-feature] ──┐
-                                  |       ↓          |
-[ops-monitor] ← [ship-deploy]    | [verify-test]    |
-     ↑                ↑          |       ↓          |
-[ops-debug] ──→ [dev-fix] ───────┴─ [dev-refactor] ←┘
-     ↑
+                                ┌→ [dev-feature] ──┐
+                                ↓       ↓          ↓
+[ops-monitor] ← [ship-deploy]   | [verify-test]    |
+     ↑                ↑         ↓       ↓          ↓
+[ops-debug] ──→ [dev-fix] ──────┴─ [dev-refactor] ←┘
+     ↑                                ↑
  [qa-pentest]
 ```
 

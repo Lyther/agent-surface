@@ -2,101 +2,6 @@
 trigger: always_on
 ---
 
-# Cursor Rules — LOVE (Linus Oriented Vibe Enforcement)
-
-
-## AI-Specific Guardrails
-
-### A. Anti-Hallucination Checklist (Before Every Output)
-
-```text
-Did I verify imports exist in manifest?
-Did I check API exists in installed version?
-Did I actually read the file before editing?
-Am I copying patterns from THIS codebase, not random memory?
-Does my code handle all error cases, not just happy path?
-```
-
-### B. Common AI Failure Modes
-
-| Pattern | Detection | Prevention |
-|---------|-----------|------------|
-| **Phantom Import** | Package not in manifest | Search manifest before importing |
-| **Version Mismatch** | Deprecated API syntax | Check version, read changelog |
-| **Over-Engineering** | Interface with 1 implementation | YAGNI — do the simple thing |
-| **Context Amnesia** | Contradicting earlier code | Re-read relevant files |
-| **Test Theater** | `expect(x).toBe(x)` | Assert actual behavior |
-| **Error Optimism** | No error handling | Handle every failure path |
-| **Copy-Paste Drift** | Duplicated code diverging | Extract shared function |
-
-### C. Context Management
-
-| Situation | Action |
-|-----------|--------|
-| Starting new file | Read related files first |
-| Editing existing file | Read the whole file, not just snippet |
-| After 5+ turns | Re-read core context files |
-| User seems confused | Summarize current state |
-| Build/test fails | Read full error, trace to source |
-
-
-## Code of Law
-
-### A. Reliability (No Suicide)
-
-| BANNED | REQUIRED |
-|--------|----------|
-| `unwrap()`, `expect()`, `panic!()` | `Result<T,E>`, `Option<T>` |
-| `throw` without catch | `try/catch` with recovery |
-| `any`, unnarrowed `unknown` | Explicit types |
-| `// @ts-ignore`, `#[allow(...)]` | Fix root cause |
-| `sys.exit()`, `os.Exit()` in libs | Return error to caller |
-
-### B. Integrity (No Hallucination)
-
-| Check | Before | Action |
-|-------|--------|--------|
-| **Imports** | Using a library | Verify in manifest file |
-| **APIs** | Calling a method | Check it exists in current version |
-| **Types** | Using a type | Ensure it's defined or imported |
-| **Tests** | Asserting behavior | Test real logic, not `expect(true).toBe(true)` |
-
-### C. Maintenance (No Rot)
-
-| BANNED | REQUIRED |
-|--------|----------|
-| `var`, `require` (in ESM) | `const`/`let`, `import` |
-| `console.log` in production | Structured logger or delete |
-| Functions > 50 lines | Extract helper functions |
-| Nesting > 3 levels | Flatten with early returns |
-| Magic numbers/strings | Named constants |
-
-### D. Security (Zero Trust)
-
-- **Secrets**: `.env` only. No hardcoded keys. No "test" keys in code.
-- **Input**: Validate at boundary (Zod/Serde/Pydantic).
-- **Dependencies**: Pin versions. Audit before adding.
-- **Web**: CSP, HTTPS, cookie flags, CSRF, SSRF protections (OWASP Top 10).
-
-### E. Data (Datastores & Queries)
-
-- **Database**: Use PostgreSQL. No MySQL, no SQL Server.
-- **Queries**: Parameterized only. No string-concatenated SQL.
-- **Migrations**: Required for schema changes; reversible; reviewed.
-- **Backups**: Automate and test restores.
-
-### F. Frontend (Languages & Frameworks)
-
-- **No raw web assets**: No raw JS/TS/CSS/HTML in source.
-- **Approved stacks**: Rust (Leptos) or Python (Reflex) for UI.
-- **Exceptions**: Only for FFI bindings, vendored third-party, or minimal interop shims.
-- **Build artifacts**: Never committed.
-
-### G. Scripts
-
-- **One-off**: If it runs once, it does not live in the repo.
-- **Retention**: Use tickets/runbooks or ephemeral gists; link in PR if needed.
-
 
 # Cursor Rules — LOVE (Linus Oriented Vibe Enforcement)
 
@@ -150,82 +55,6 @@ Does my code handle all error cases, not just happy path?
 | Explaining decisions | Bullet points, max 5 items |
 | Status update | icons, high density |
 | Code volume | No code dumps; summarize and point to diffs/paths |
-
-
-## Test Policy
-
-| Type | Status | Notes |
-|------|--------|-------|
-| Integration tests | Required | Real code paths |
-| Contract tests | Required | External boundaries |
-| Property-based | Encouraged | Hypothesis/fast-check |
-| Mocks/spies/stubs | Banned | Couples to implementation |
-| Snapshot tests | UI only | Requires review |
-
-**Isolation**: Inject providers for time/IO/randomness. One behavior per test.
-
-
-## Tooling
-
-### Python (uv required)
-
-```bash
-uv init                    # New project
-uv add <pkg> [--dev]       # Add dependency
-uv sync                    # Lock & sync
-uv run <cmd>               # Execute in venv
-```
-
-Banned: `pip install`, `pipenv`, global installs.
-
-### Node (restricted)
-
-- For tooling/CI only (bundlers, linters). Not for shipping UI.
-- ESM only (`import`, not `require`).
-- Structured logging (pino/winston).
-- No global installs.
-
-### Rust
-
-```bash
-cargo new / cargo init
-cargo add <crate>
-cargo clippy -- -D warnings
-cargo fmt --check
-```
-
-### Go
-
-```bash
-go mod init / go mod tidy
-golangci-lint run
-gofmt -s -w .
-```
-
-### Git
-
-- Atomic commits, imperative voice: `Add X`, `Fix Y`, `Remove Z`
-- Feature branches for AI-generated code
-- CI green before merge
-- No `--no-verify`
-
-**Branch Strategy for AI Coding**:
-
-```text
-main (protected)
-  +-- feat/[feature-name]     <- AI works here
-        +-- checkpoint tags   <- Before risky changes
-```
-
-- Never commit AI code directly to `main`
-- Create checkpoint tags before experiments
-- Squash merge after review
-
-### Databases
-
-- Default: PostgreSQL only.
-- Use migration tools; no manual schema drifts.
-- Use connection pooling and statement timeouts.
 
 
 # Vibe Coding Protocol v2.1
@@ -399,4 +228,173 @@ When AI makes a mistake:
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [Leptos (Rust)](https://leptos.dev/)
 - [Reflex (Python)](https://reflex.dev/)
+
+
+## Code of Law
+
+### A. Reliability (No Suicide)
+
+| BANNED | REQUIRED |
+|--------|----------|
+| `unwrap()`, `expect()`, `panic!()` | `Result<T,E>`, `Option<T>` |
+| `throw` without catch | `try/catch` with recovery |
+| `any`, unnarrowed `unknown` | Explicit types |
+| `// @ts-ignore`, `#[allow(...)]` | Fix root cause |
+| `sys.exit()`, `os.Exit()` in libs | Return error to caller |
+
+### B. Integrity (No Hallucination)
+
+| Check | Before | Action |
+|-------|--------|--------|
+| **Imports** | Using a library | Verify in manifest file |
+| **APIs** | Calling a method | Check it exists in current version |
+| **Types** | Using a type | Ensure it's defined or imported |
+| **Tests** | Asserting behavior | Test real logic, not `expect(true).toBe(true)` |
+
+### C. Maintenance (No Rot)
+
+| BANNED | REQUIRED |
+|--------|----------|
+| `var`, `require` (in ESM) | `const`/`let`, `import` |
+| `console.log` in production | Structured logger or delete |
+| Functions > 50 lines | Extract helper functions |
+| Nesting > 3 levels | Flatten with early returns |
+| Magic numbers/strings | Named constants |
+
+### D. Security (Zero Trust)
+
+- **Secrets**: `.env` only. No hardcoded keys. No "test" keys in code.
+- **Input**: Validate at boundary (Zod/Serde/Pydantic).
+- **Dependencies**: Pin versions. Audit before adding.
+- **Web**: CSP, HTTPS, cookie flags, CSRF, SSRF protections (OWASP Top 10).
+
+### E. Data (Datastores & Queries)
+
+- **Database**: Use PostgreSQL. No MySQL, no SQL Server.
+- **Queries**: Parameterized only. No string-concatenated SQL.
+- **Migrations**: Required for schema changes; reversible; reviewed.
+- **Backups**: Automate and test restores.
+
+### F. Frontend (Languages & Frameworks)
+
+- **No raw web assets**: No raw JS/TS/CSS/HTML in source.
+- **Approved stacks**: Rust (Leptos) or Python (Reflex) for UI.
+- **Exceptions**: Only for FFI bindings, vendored third-party, or minimal interop shims.
+- **Build artifacts**: Never committed.
+
+### G. Scripts
+
+- **One-off**: If it runs once, it does not live in the repo.
+- **Retention**: Use tickets/runbooks or ephemeral gists; link in PR if needed.
+
+
+## AI-Specific Guardrails
+
+### A. Anti-Hallucination Checklist (Before Every Output)
+
+```text
+Did I verify imports exist in manifest?
+Did I check API exists in installed version?
+Did I actually read the file before editing?
+Am I copying patterns from THIS codebase, not random memory?
+Does my code handle all error cases, not just happy path?
+```
+
+### B. Common AI Failure Modes
+
+| Pattern | Detection | Prevention |
+|---------|-----------|------------|
+| **Phantom Import** | Package not in manifest | Search manifest before importing |
+| **Version Mismatch** | Deprecated API syntax | Check version, read changelog |
+| **Over-Engineering** | Interface with 1 implementation | YAGNI — do the simple thing |
+| **Context Amnesia** | Contradicting earlier code | Re-read relevant files |
+| **Test Theater** | `expect(x).toBe(x)` | Assert actual behavior |
+| **Error Optimism** | No error handling | Handle every failure path |
+| **Copy-Paste Drift** | Duplicated code diverging | Extract shared function |
+
+### C. Context Management
+
+| Situation | Action |
+|-----------|--------|
+| Starting new file | Read related files first |
+| Editing existing file | Read the whole file, not just snippet |
+| After 5+ turns | Re-read core context files |
+| User seems confused | Summarize current state |
+| Build/test fails | Read full error, trace to source |
+
+
+## Tooling
+
+### Python (uv required)
+
+```bash
+uv init                    # New project
+uv add <pkg> [--dev]       # Add dependency
+uv sync                    # Lock & sync
+uv run <cmd>               # Execute in venv
+```
+
+Banned: `pip install`, `pipenv`, global installs.
+
+### Node (restricted)
+
+- For tooling/CI only (bundlers, linters). Not for shipping UI.
+- ESM only (`import`, not `require`).
+- Structured logging (pino/winston).
+- No global installs.
+
+### Rust
+
+```bash
+cargo new / cargo init
+cargo add <crate>
+cargo clippy -- -D warnings
+cargo fmt --check
+```
+
+### Go
+
+```bash
+go mod init / go mod tidy
+golangci-lint run
+gofmt -s -w .
+```
+
+### Git
+
+- Atomic commits, imperative voice: `Add X`, `Fix Y`, `Remove Z`
+- Feature branches for AI-generated code
+- CI green before merge
+- No `--no-verify`
+
+**Branch Strategy for AI Coding**:
+
+```text
+main (protected)
+  +-- feat/[feature-name]     <- AI works here
+        +-- checkpoint tags   <- Before risky changes
+```
+
+- Never commit AI code directly to `main`
+- Create checkpoint tags before experiments
+- Squash merge after review
+
+### Databases
+
+- Default: PostgreSQL only.
+- Use migration tools; no manual schema drifts.
+- Use connection pooling and statement timeouts.
+
+
+## Test Policy
+
+| Type | Status | Notes |
+|------|--------|-------|
+| Integration tests | Required | Real code paths |
+| Contract tests | Required | External boundaries |
+| Property-based | Encouraged | Hypothesis/fast-check |
+| Mocks/spies/stubs | Banned | Couples to implementation |
+| Snapshot tests | UI only | Requires review |
+
+**Isolation**: Inject providers for time/IO/randomness. One behavior per test.
 

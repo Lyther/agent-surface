@@ -34,8 +34,8 @@ Build the candidate file list, sort by this priority, then process head-of-queue
 
 **Phase 0 | Init**
 
-* If `.cursor/review-log.md` does not exist, create it with `# Code Autopsy Log`.
-* Write a one-line header for this run (timestamp + discovered file count).
+* If `.cursor/review-log.md` exists, read it to avoid re-reviewing the same files.
+* Optionally write a one-line header for this run (timestamp + discovered file count).
 
 **Phase 1 | Structure sniff (cheap)**
 
@@ -63,7 +63,7 @@ Build the candidate file list, sort by this priority, then process head-of-queue
 
 **Phase 4 | Append & continue**
 
-* Append Markdown to `.cursor/review-log.md`.
+* Optionally append Markdown to `.cursor/review-log.md` if the project uses it.
 * If budget remains, continue with next file; else append a stop marker:
   `[REVIEW STOPPED: reached context budget]`.
 
@@ -136,7 +136,7 @@ End of round @ <ISO8601 timestamp>
 2. **Verify imports** actually exist/are used (e.g., `utils/helper`).
 3. **No “looks fine”**: either list specific issues or write “No blockers found in this file (within this round’s budget).”
 4. **No apologies**; critique behavior and fix paths.
-5. **Always append** to `.cursor/review-log.md` (never overwrite).
+5. If `.cursor/review-log.md` exists, **append** findings (never overwrite).
 
 ## STARTUP PROMPT (RUNTIME BEHAVIOR)
 

@@ -10,7 +10,7 @@ Before you declare "Done", you must pause and look in the mirror.
 
 1. **Wait State**:
     - Do NOT run this on every single line change.
-    - Run this **after** a `feature` implementation but **before** `commit`.
+    - Run this **after** a `dev-feature` implementation but **before** `ship-commit`.
 2. **Fresh Eyes**:
     - "Forget" the prompt that generated the code. Look at the *Result* as if a stranger wrote it.
 

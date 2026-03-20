@@ -48,7 +48,7 @@ AI often suggests outdated packages from training data. This command:
     - **Python**: `uv pip install -U <package>` then `uv sync`.
     - **Constraint**: DO NOT use `--legacy-peer-deps` or `--force`. Resolve conflicts.
 3. **Verify**:
-    - Run `test` (Unit) + type-check
+    - Run `verify-test` (Unit) + type-check
     - Run `build` where applicable
 
 ### Phase 3: The Breakage Protocol (Fix Forward)

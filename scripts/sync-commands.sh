@@ -25,10 +25,8 @@ generate_rules() {
     tmp=$(mktemp)
     trap 'rm -f "$tmp"' RETURN
 
-    echo "# Cursor Rules — LOVE (Linus Oriented Vibe Enforcement)" > "$tmp"
-    echo "" >> "$tmp"
-
-    for f in $(ls "$CURSOR_RULES"/*.mdc 2>/dev/null | sort); do
+    # Only include alwaysApply rules (01-06), skip glob-scoped lang-* rules (10-14)
+    for f in $(ls "$CURSOR_RULES"/0[0-9]-*.mdc 2>/dev/null | sort); do
         strip_frontmatter "$f" >> "$tmp"
         echo "" >> "$tmp"
     done
@@ -72,7 +70,7 @@ generate_rules() {
         echo ""
         echo "> Auto-generated from .cursor/rules/*.mdc. Do not edit directly."
         echo ""
-        for f in $(ls "$CURSOR_RULES"/*.mdc 2>/dev/null | sort); do
+        for f in $(ls "$CURSOR_RULES"/0[0-9]-*.mdc 2>/dev/null | sort); do
             strip_frontmatter "$f"
             echo ""
         done

@@ -44,7 +44,7 @@ Keep changes **atomic** (< 50 lines). Test **immediately**. Course-correct **fas
 
 *Lock the target before writing code.*
 
-1. **Read the Spec**: Load test file from `.cursor/mission.md`
+1. **Read the Spec**: Load test file (from `.cursor/mission.md` if present, or from user-specified target)
 2. **Understand Assertions**: What exactly must pass?
 3. **Self-Check**: "If I change the test to match my code, I have failed."
 
@@ -100,7 +100,7 @@ Before outputting, verify:
     - **PASS** → Continue
     - **FAIL** → Fix CODE, not test
 3. **Refactor**:
-    - Once Green, run `refactor` to clean up.
+    - Once Green, run `dev-refactor` to clean up.
 
 ### Phase 6: Commit
 

@@ -8,7 +8,7 @@ Empty databases are useless. You need Data to see the Vibe.
 ## CONTEXT STRATEGY (TOKEN ECONOMICS)
 
 1. **Factory Reuse**:
-    - Reuse factories from `spec` (TDD) if available.
+    - Reuse factories from `verify-spec` (TDD) if available.
     - If not, create shared factories in `src/factories`.
 2. **Deterministic Chaos**:
     - Use a **Seed** (e.g., 12345) for random generators (Faker).

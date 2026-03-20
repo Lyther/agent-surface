@@ -1,7 +1,7 @@
 ## OBJECTIVE
 
 **REALITY IS EXPENSIVE. FAKE IT CHEAP.**
-The `spec` command bans mocks. Dependencies are hard to setup.
+The `verify-spec` command bans mocks. Dependencies are hard to setup.
 **Your Goal**: Generate **In-Memory Fakes** that behave exactly like the real dependencies but run instantly and deterministically.
 **The Standard**: A Fake must pass the *same contract tests* as the real implementation.
 

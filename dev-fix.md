@@ -31,7 +31,7 @@ issue/debug → RCA → FIX → verify → commit
 
 1. **Minimal Scope**:
     - Touch only the lines necessary.
-    - Avoid "cleanup" or "refactoring" unrelated code (do that later in `refactor`).
+    - Avoid "cleanup" or "refactoring" unrelated code (do that later in `dev-refactor`).
 2. **Defensive Coding**:
     - Add Guard Clauses.
     - Validate inputs.

@@ -37,7 +37,7 @@ Code that isn't executed by tests is a bug waiting to happen.
 ### Phase 3: Remediation
 
 1. **Write Tests**:
-    - Use `spec` command to generate tests for the missing paths.
+    - Use `verify-spec` command to generate tests for the missing paths.
     - Focus on **Edge Cases** and **Error States**.
 2. **Delete Dead Code**:
     - If code is unreachable and unreachable in production -> **DELETE**.

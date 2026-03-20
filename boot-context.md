@@ -46,9 +46,9 @@ AI has no memory between sessions. You must reload the battlefield map every tim
 
 *What are we working on RIGHT NOW?*
 
-1. **Mission File**:
-    - Read `.cursor/mission.md` (if exists)
-    - **Output**: "Active mission: [Name]. Status: [Status]."
+1. **Mission File** (optional):
+    - If `.cursor/mission.md` exists, read it for active task context.
+    - **Output**: "Active mission: [Name]. Status: [Status]." or "No mission file found."
 
 2. **Lessons Learned**:
     - Read `.cursor/lessons.md` (if exists)

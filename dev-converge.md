@@ -37,7 +37,7 @@ When AI tries multiple approaches in parallel:
 
 *Dead code tells no tales.*
 
-1. **Parallel Test**: Run `test` (unit/integration) on ALL active agent worktrees
+1. **Parallel Test**: Run `verify-test` (unit/integration) on ALL active agent worktrees
 2. **The Cull**:
     - If an Agent fails compilation or tests → **DELETE WORKTREE**: `git worktree remove ../wt-X`
     - Do not inspect further
@@ -61,7 +61,7 @@ When AI tries multiple approaches in parallel:
     - **Do NOT** `git merge`
     - **Do NOT** commit-level `cherry-pick`
     - **DO** copy the specific **Logical Block** (Function/Class/Enum) wholly
-3. **Verify**: Run `test` immediately after each transplant. Revert if failing.
+3. **Verify**: Run `verify-test` immediately after each transplant. Revert if failing.
 
 ### Phase 4: The Final Polish
 

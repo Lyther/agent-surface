@@ -6,7 +6,7 @@ Output must be sufficient for any agent (human, Cursor, Claude Code, Codex) to i
 ## INPUT CONTRACT
 
 You receive: a task description (plus any constraints).
-If essential repo context is missing, run `context` first.
+If essential repo context is missing, run `boot-context` first.
 
 ## PROTOCOL
 

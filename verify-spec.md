@@ -56,7 +56,7 @@ spec (RED) → feature (GREEN) → refactor (CLEAN) → commit
 
 ### Phase 3: The Test Suite (The Requirements)
 
-Translate `.cursor/mission.md` requirements into `it()` blocks.
+Translate requirements (from `.cursor/mission.md` if present, otherwise from user intent) into `it()` blocks.
 
 **A. The Happy Path (0-1)**
 
@@ -140,4 +140,4 @@ describe('Login Feature', () => {
 
 ## NEXT STEP
 
-Run `feature` to implement the code that satisfies this spec.
+Run `dev-feature` to implement the code that satisfies this spec.

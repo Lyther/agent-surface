@@ -111,7 +111,7 @@ Create/Update `docs/roadmap.md`:
 
 ### Phase 5: Vibe Coding Preparation
 
-1. **Create Initial Mission**: Write `.cursor/mission.md` with first task
+1. **Create Initial Mission** (optional): Write `.cursor/mission.md` with first task if the project uses mission tracking
 2. **Identify Hot Files**: List files that will be touched first
 3. **Define Checkpoints**: When to commit, when to review
 
@@ -138,11 +138,11 @@ Plus summary:
 - Phase 2: [N] enhancement tasks
 
 ## Next Steps (MANDATORY)
-1. Run `model` to define the data schema.
-2. Run `contract` to define API interfaces.
-3. Run `breakdown` to create the first mission.
-4. For maintenance/bugs, use `chore` or `fix`.
-5. For security, use `sec` or `pentest`.
+1. Run `arch-model` to define the data schema.
+2. Run `arch-api` to define API interfaces.
+3. Run `arch-breakdown` to create the first mission.
+4. For maintenance/bugs, use `dev-chore` or `dev-fix`.
+5. For security, use `qa-sec` or `qa-pentest`.
 ```
 
 ## EXECUTION RULES

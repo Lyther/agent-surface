@@ -3,7 +3,7 @@
 **CONTEXT LOADING & MISSION CREATION.**
 You are the Tactical Commander.
 **Your Goal**: Create a **Single, Atomic, Disposable Mission** for vibe coding.
-**The Output**: `.cursor/mission.md` — One active task, clear scope, defined completion.
+**The Output**: A single, atomic task definition. Optionally written to `.cursor/mission.md` if the project uses mission tracking.
 
 ## VIBE CODING INTEGRATION
 
@@ -49,7 +49,7 @@ Define **atomic changes** that can be implemented iteratively:
 
 ### Phase 4: Mission Document
 
-**Output**: Overwrite `.cursor/mission.md`
+**Output**: Optionally write to `.cursor/mission.md` if the project uses mission tracking, or present inline
 
 ```markdown
 # MISSION: [Task Name]
@@ -102,10 +102,10 @@ Commit when Steps 1-4 complete with message:
 - Estimated: [S/M/L] complexity
 
 ## First Step
-Run `spec` to write failing tests, then `feature` to implement.
+Run `verify-spec` to write failing tests, then `dev-feature` to implement.
 
 ## Mission File
-`.cursor/mission.md` updated and ready.
+Mission defined and ready. (Written to `.cursor/mission.md` if project uses it.)
 ```
 
 ## EXECUTION RULES
