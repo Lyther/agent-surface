@@ -1,0 +1,66 @@
+---
+description: "Language tooling conventions: Python, Node, Rust, Go, Git, and databases"
+alwaysApply: true
+---
+
+## Tooling
+
+### Python (uv required)
+
+```bash
+uv init                    # New project
+uv add <pkg> [--dev]       # Add dependency
+uv sync                    # Lock & sync
+uv run <cmd>               # Execute in venv
+```
+
+Banned: `pip install`, `pipenv`, global installs.
+
+### Node (restricted)
+
+- For tooling/CI only (bundlers, linters). Not for shipping UI.
+- ESM only (`import`, not `require`).
+- Structured logging (pino/winston).
+- No global installs.
+
+### Rust
+
+```bash
+cargo new / cargo init
+cargo add <crate>
+cargo clippy -- -D warnings
+cargo fmt --check
+```
+
+### Go
+
+```bash
+go mod init / go mod tidy
+golangci-lint run
+gofmt -s -w .
+```
+
+### Git
+
+- Atomic commits, imperative voice: `Add X`, `Fix Y`, `Remove Z`
+- Feature branches for AI-generated code
+- CI green before merge
+- No `--no-verify`
+
+**Branch Strategy for AI Coding**:
+
+```text
+main (protected)
+  +-- feat/[feature-name]     <- AI works here
+        +-- checkpoint tags   <- Before risky changes
+```
+
+- Never commit AI code directly to `main`
+- Create checkpoint tags before experiments
+- Squash merge after review
+
+### Databases
+
+- Default: PostgreSQL only.
+- Use migration tools; no manual schema drifts.
+- Use connection pooling and statement timeouts.

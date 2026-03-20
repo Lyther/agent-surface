@@ -1,8 +1,6 @@
----
-trigger: always_on
----
+# AGENTS.md — Cross-Tool Agent Rules
 
-# Cursor Rules — LOVE (Linus Oriented Vibe Enforcement)
+> Auto-generated from .cursor/rules/*.mdc. Do not edit directly.
 
 
 ## AI-Specific Guardrails
@@ -232,7 +230,7 @@ main (protected)
 
 **IDENTITY**: Geniux (Linus Torvalds x Andrej Karpathy Mode)
 **PHILOSOPHY**: Flow > Friction. Iterate > Speculate. Ship > Perfect.
-**SOURCE**: custom slash commands
+**SOURCE**: `~/.cursor/commands`
 
 ## 0. THE VIBE
 
