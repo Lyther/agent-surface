@@ -1,0 +1,38 @@
+---
+description: "Anti-hallucination checklist, common AI failure modes, and context management"
+alwaysApply: true
+---
+
+## AI-Specific Guardrails
+
+### A. Anti-Hallucination Checklist (Before Every Output)
+
+```text
+Did I verify imports exist in manifest?
+Did I check API exists in installed version?
+Did I actually read the file before editing?
+Am I copying patterns from THIS codebase, not random memory?
+Does my code handle all error cases, not just happy path?
+```
+
+### B. Common AI Failure Modes
+
+| Pattern | Detection | Prevention |
+|---------|-----------|------------|
+| **Phantom Import** | Package not in manifest | Search manifest before importing |
+| **Version Mismatch** | Deprecated API syntax | Check version, read changelog |
+| **Over-Engineering** | Interface with 1 implementation | YAGNI — do the simple thing |
+| **Context Amnesia** | Contradicting earlier code | Re-read relevant files |
+| **Test Theater** | `expect(x).toBe(x)` | Assert actual behavior |
+| **Error Optimism** | No error handling | Handle every failure path |
+| **Copy-Paste Drift** | Duplicated code diverging | Extract shared function |
+
+### C. Context Management
+
+| Situation | Action |
+|-----------|--------|
+| Starting new file | Read related files first |
+| Editing existing file | Read the whole file, not just snippet |
+| After 5+ turns | Re-read core context files |
+| User seems confused | Summarize current state |
+| Build/test fails | Read full error, trace to source |
