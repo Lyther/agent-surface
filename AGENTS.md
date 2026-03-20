@@ -2,7 +2,6 @@
 
 > Auto-generated from .cursor/rules/*.mdc. Do not edit directly.
 
-
 # Cursor Rules — LOVE (Linus Oriented Vibe Enforcement)
 
 ## Response Style
@@ -55,7 +54,6 @@
 | Explaining decisions | Bullet points, max 5 items |
 | Status update | icons, high density |
 | Code volume | No code dumps; summarize and point to diffs/paths |
-
 
 # Vibe Coding Protocol v2.1
 
@@ -229,7 +227,6 @@ When AI makes a mistake:
 - [Leptos (Rust)](https://leptos.dev/)
 - [Reflex (Python)](https://reflex.dev/)
 
-
 ## Code of Law
 
 ### A. Reliability (No Suicide)
@@ -287,7 +284,6 @@ When AI makes a mistake:
 - **One-off**: If it runs once, it does not live in the repo.
 - **Retention**: Use tickets/runbooks or ephemeral gists; link in PR if needed.
 
-
 ## AI-Specific Guardrails
 
 ### A. Anti-Hallucination Checklist (Before Every Output)
@@ -321,7 +317,6 @@ Does my code handle all error cases, not just happy path?
 | After 5+ turns | Re-read core context files |
 | User seems confused | Summarize current state |
 | Build/test fails | Read full error, trace to source |
-
 
 ## Tooling
 
@@ -385,7 +380,6 @@ main (protected)
 - Use migration tools; no manual schema drifts.
 - Use connection pooling and statement timeouts.
 
-
 ## Test Policy
 
 | Type | Status | Notes |
@@ -397,4 +391,3 @@ main (protected)
 | Snapshot tests | UI only | Requires review |
 
 **Isolation**: Inject providers for time/IO/randomness. One behavior per test.
-
