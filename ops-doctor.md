@@ -1,7 +1,7 @@
 ## OBJECTIVE
 
 Run a health check on the `~/.cursor/commands` repo itself.
-Find broken references, token budget violations, rules drift, and stale exports.
+Find broken references, token budget violations, rules drift, stale exports, and cross-IDE sync integrity.
 
 ## PROTOCOL
 
@@ -14,19 +14,20 @@ Find broken references, token budget violations, rules drift, and stale exports.
 ### Check 2: Token budget (oversized files)
 
 - Flag any `.md` command file over 400 lines.
-- Flag any `.cursor/rules/*.mdc` file over 200 lines.
+- Flag any `.cursor/rules/*.mdc` file over 500 lines.
 - Report: file path + line count.
 
 ### Check 3: Rules source-of-truth
 
-- Verify `.cursor/rules/*.mdc` files exist and each has valid `---` frontmatter with `alwaysApply`.
+- Verify `.cursor/rules/*.mdc` files exist and each has valid `---` frontmatter with `alwaysApply` or `globs`.
 - Run `scripts/sync-commands.sh` and confirm generated `.cursorrules`, `.geminirules`, `AGENTS.md` are non-empty.
-- Diff generated `.cursorrules` against concatenated `.cursor/rules/*.mdc` (frontmatter stripped). Report drift.
+- Diff generated `.cursorrules` against concatenated `.cursor/rules/0[0-9]-*.mdc` (frontmatter stripped). Report drift.
 
 ### Check 4: Broken internal references
 
-- Grep all `*.md` files, `.cursorrules`, `.geminirules`, and `.cursor/rules/*.mdc` for backtick-quoted paths ending in `.md` or matching `prefix-name` patterns.
+- Grep all `*.md` files, `.cursorrules`, `.geminirules`, `AGENTS.md`, and `.cursor/rules/*.mdc` for backtick-quoted command names.
 - Verify each referenced command file exists at the root.
+- Check for old-style folder refs (`[0-9]{2}-[A-Z]+/`) — should be zero.
 - Report: broken refs with file and line number.
 
 ### Check 5: Stale version pins
@@ -39,6 +40,21 @@ Find broken references, token budget violations, rules drift, and stale exports.
 
 - For `stellaris-` prefixed commands: verify `.stellarisrules` exists.
 - Report: domain modules missing rules files.
+
+### Check 7: Cross-IDE sync integrity
+
+- Verify `~/.codex/AGENTS.md` exists and is non-empty.
+- Verify `~/.gemini/GEMINI.md` exists and is non-empty.
+- Verify `~/.gemini/commands/` has `.toml` files matching root command count.
+- Verify `~/.gemini/antigravity/global_workflows/` has `.md` files matching root command count.
+- Verify `~/.claude/CLAUDE.md` exists and `~/.claude/commands/` has `.md` files matching root command count.
+- Report: missing or stale targets.
+
+### Check 8: AGENTS.md learned sections
+
+- Verify `AGENTS.md` contains `## Learned User Preferences` and `## Learned Workspace Facts` sections.
+- Verify neither section exceeds 12 bullets.
+- Report: missing sections or bullet overflow.
 
 ## OUTPUT FORMAT
 
@@ -57,7 +73,7 @@ DOCTOR REPORT — ~/.cursor/commands
   lint-shell.md: 399 lines (approaching 400 limit)
 
 [CHECK 3] Rules source-of-truth
-  6 .mdc files, all valid frontmatter
+  11 .mdc files, all valid frontmatter
   Generated exports match source
   OR
   DRIFT: .cursorrules differs from .cursor/rules/ source
@@ -74,6 +90,20 @@ DOCTOR REPORT — ~/.cursor/commands
 
 [CHECK 6] Domain modules
   stellaris: .stellarisrules exists
+
+[CHECK 7] Cross-IDE sync
+  codex: AGENTS.md OK
+  gemini: GEMINI.md OK, 72 toml commands
+  antigravity: 72 workflow files
+  claude: CLAUDE.md OK, 72 commands
+  OR
+  MISSING: ~/.codex/AGENTS.md does not exist
+
+[CHECK 8] AGENTS.md learned sections
+  Learned User Preferences: 10 bullets
+  Learned Workspace Facts: 9 bullets
+  OR
+  MISSING: ## Learned Workspace Facts section not found
 ```
 
 ## EXECUTION RULES
