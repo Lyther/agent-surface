@@ -58,12 +58,14 @@ This command creates the **context infrastructure** that enables smooth vibe cod
         - `.agent/` (Antigravity local)
         - `.cursorrules` (Cursor rules symlink)
         - `.geminirules` (Gemini rules symlink)
-        - `.cursorignore`
-        - `*.code-workspace`
+        - `.cursorignore` (Cursor ignore file)
+        - `AGENTS.md` (Agentic rules)
+        - `*.code-workspace` (Workspace file)
 3. **Env Safety**:
     - If `.env` exists: **IMMEDIATELY CHECK** if it is in `.gitignore`. If not, STOP and warn the user.
-    - Generate `.env.example` with dummy values for all keys found in `.env` (or expected keys).
+    - Generate `.env.example` with dummy values for all keys found in `.env` (or expected keys). Generate a `.env.example.md` file with the dummy values.
 4. **Add `LICENSE`**: Choose an explicit license.
+5. **Add `README.md`**: Generate a README.md file with the project description, usage instructions, and any other relevant information.
 
 ### Phase 3: IDE Standardization (The Vibe)
 
