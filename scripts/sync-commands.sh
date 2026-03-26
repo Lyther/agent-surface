@@ -22,7 +22,13 @@ removed=0
 # --- Phase 1: Generate rules exports from .cursor/rules/*.mdc (authoritative source) ---
 
 strip_frontmatter() {
-    sed '/^---$/,/^---$/d' "$1"
+    sed '/^---$/,/^---$/d' "$1" | sed '/./,$!d'
+}
+
+extract_learned_sections() {
+    local file="$1"
+    [ ! -f "$file" ] && return
+    sed -n '/^## Learned /,$p' "$file"
 }
 
 generate_rules() {
@@ -34,6 +40,9 @@ generate_rules() {
         strip_frontmatter "$f" >> "$tmp"
         echo "" >> "$tmp"
     done
+
+    # Trim leading/trailing blank lines
+    sed -i '' -e '/./,$!d' -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$tmp" 2>/dev/null || true
 
     if [ ! -f "$CURSORRULES" ] || ! diff -q "$tmp" "$CURSORRULES" >/dev/null 2>&1; then
         cp "$tmp" "$CURSORRULES"
@@ -66,7 +75,11 @@ generate_rules() {
     fi
     rm -f "$gemini_tmp"
 
-    # Generate AGENTS.md (cross-tool)
+    # Generate AGENTS.md (cross-tool), preserving learned sections
+    local learned_tmp
+    learned_tmp=$(mktemp)
+    extract_learned_sections "$AGENTSMD" > "$learned_tmp"
+
     local agents_tmp
     agents_tmp=$(mktemp)
     {
@@ -78,6 +91,9 @@ generate_rules() {
             strip_frontmatter "$f"
             echo ""
         done
+        if [ -s "$learned_tmp" ]; then
+            cat "$learned_tmp"
+        fi
     } > "$agents_tmp"
 
     if [ ! -f "$AGENTSMD" ] || ! diff -q "$agents_tmp" "$AGENTSMD" >/dev/null 2>&1; then
@@ -86,7 +102,7 @@ generate_rules() {
     else
         echo "  AGENTS.md unchanged"
     fi
-    rm -f "$agents_tmp"
+    rm -f "$agents_tmp" "$learned_tmp"
     rm -f "$tmp"
 }
 

@@ -391,3 +391,28 @@ main (protected)
 | Snapshot tests | UI only | Requires review |
 
 **Isolation**: Inject providers for time/IO/randomness. One behavior per test.
+
+## Learned User Preferences
+
+- Never delete red-team/security commands (ai-biter, ai-encode, ai-frog, ai-spam, ai-tap-gardener) — owner is a security expert running active pentests
+- Never delete boot-facade.md — kept for creative/fun use
+- Never delete ops-server.md — saves retyping SSH/proxy configuration
+- Keep theatrical personas in commands — they are intentional and drive aggressive behavior
+- Do not relax the Leptos/Reflex UI policy or raw-web-asset ban — this is an architectural decision
+- Plans must have exact, verifiable file counts and category totals — do not estimate or round
+- Acceptance checks must scan ALL files including .cursorrules, .geminirules, AGENTS.md, and .cursor/rules/*.mdc — not just root*.md
+- Shell scripts must always use `set -euo pipefail` — the `-u` flag is mandatory, no exceptions
+- When citing version pins, verify the actual file content first — do not name nonexistent hits
+- Single source of truth for rules must be unambiguous — .cursor/rules/*.mdc is authoritative, everything else is generated
+
+## Learned Workspace Facts
+
+- This repo is ~/.cursor/commands — global Cursor commands, not a regular project
+- .cursor/rules/*.mdc files are the authoritative rule source; .cursorrules, .geminirules, AGENTS.md are generated exports
+- sync-commands.sh targets: Claude Code (~/.claude), Codex CLI (~/.codex/AGENTS.md), Gemini CLI (~/.gemini/GEMINI.md + ~/.gemini/commands/*.toml), Antigravity (~/.gemini/antigravity/global_workflows/)
+- 72+ commands across 13 categories: boot, arch, dev, verify, qa, ship, ops, workflow, lint, stellaris, ai, fanfic
+- Language policy lives in glob-scoped .cursor/rules/1[0-4]-lang-*.mdc — commands are thin wrappers
+- .cursor/mission.md, .cursor/review-log.md, .cursor/nuke-state.md are optional legacy state files, not required by commands
+- Gemini CLI custom commands use TOML format, not markdown
+- Antigravity workflows need YAML description frontmatter
+- VS Code Copilot reads AGENTS.md from repo root; TRAE rules path is unverified locally
