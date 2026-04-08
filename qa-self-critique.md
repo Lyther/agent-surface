@@ -1,180 +1,218 @@
 ## OBJECTIVE
 
-**THE MIRROR TEST.**
-You are your own harshest critic.
-Before you declare "Done", you must pause and look in the mirror.
-**Your Goal**: Catch your own mistakes (logic, style, incomplete thoughts) before the human does.
-**The Standard**: If the human finds a trivial bug you could have found, you failed.
+**PRE-COMMIT SELF-VERIFICATION & AUTO-FIX.**
+You are verifying and correcting your own recent changes before commit.
+**Your Goal**: Find issues in recently modified files and fix them immediately.
+**The Standard**: Verify the fix is correct before applying it. A wrong fix is worse than no fix.
 
-## CONTEXT STRATEGY (TOKEN ECONOMICS)
+## COMPUTE DIRECTIVE
 
-1. **Wait State**:
-    - Do NOT run this on every single line change.
-    - Run this **after** a `dev-feature` implementation but **before** `ship-commit`.
-2. **Fresh Eyes**:
-    - "Forget" the prompt that generated the code. Look at the *Result* as if a stranger wrote it.
+Before emitting any fix, reason through each finding in your thinking block. Verify the fix is correct before applying it. Do not rush to output — a wrong fix is worse than no fix.
+
+## SYNTAX
+
+```text
+/audit <target> [--fix | --dry-run] [--focus <domains>]
+```
+
+## PARAMETERS
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `<target>` | required | File(s) or directory just modified |
+| `--fix` | default | Find issues and fix them immediately |
+| `--dry-run` | off | Report issues without fixing (for review before commit) |
+| `--focus <domains>` | all | Comma-separated: `completeness`, `logic`, `types`, `arch`, `tests` |
+
+## WHEN TO RUN
+
+After implementing a feature or fix, before committing. This is a self-correction pass on YOUR OWN recent output — not a review of someone else's code.
 
 ## PROTOCOL
 
-### Phase 1: The Completion Audit (Did I finish?)
+### Pass 1: Tool Scan (EXECUTE, DO NOT GUESS)
 
-*AI often gets tired and leaves `// TODO` or `...`.*
+**If you have bash/tool access, run these commands first.** Ingest stdout. Fix based on tool output, not visual inspection.
 
-1. **Scan for Placeholders**:
-    - Grep for: `TODO`, `FIXME`, `...`, `pass`, `impl later`.
-    - **Action**: If found, **STOP**. You are not done.
-    - **Self-Correction**: Implement the missing piece immediately.
-2. **Scan for Hallucinations**:
-    - Look at imports. Do they look "too convenient"? (e.g., `import { magicFix } from 'utils'`).
-    - **Action**: Verify the file/export actually exists.
+```bash
+# 1a. Incomplete work
+grep -rnE 'TODO|FIXME|HACK|XXX|STUB|NotImplementedError|pass$|\.\.\.($| #)' {{target}}
 
-### Phase 2: The Logic Interrogation
+# 1b. Type laziness
+grep -rnE '\bAny\b|dict\[str,\s*Any\]|#\s*type:\s*ignore' {{target}}
 
-*Does it actually work, or does it just look like code?*
+# 1c. Hardcoded strings (potential prompt/config leaks)
+# Multi-line string detection needs Python, not single-line grep
+python3 -c "
+import ast, sys, os
+for root, _, files in os.walk('{{target}}'):
+    for f in files:
+        if not f.endswith('.py'): continue
+        path = os.path.join(root, f)
+        try:
+            tree = ast.parse(open(path).read())
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Constant) and isinstance(node.value, str) and len(node.value) > 200:
+                    print(f'{path}:{node.lineno}: long string ({len(node.value)} chars)')
+        except: pass
+"
 
-1. **The "Happy Path" Check**:
-    - Trace the inputs. If `user` is null, what happens?
-    - If `api` times out, does it crash?
-2. **The "Off-By-One" Check**:
-    - Loops and array indexing.
-    - Ranges (`start..end` vs `start..=end`).
+# 1d. Mock poisoning in tests
+grep -rnE 'Mock|MagicMock|AsyncMock|@patch|@mock' tests/ 2>/dev/null
 
-### Phase 3: The Refinement Loop
+# 1e. Phantom imports (Python)
+python3 -c "
+import ast, sys, os
+for root, _, files in os.walk('{{target}}'):
+    for f in files:
+        if not f.endswith('.py'): continue
+        path = os.path.join(root, f)
+        try:
+            tree = ast.parse(open(path).read())
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    module = node.module if isinstance(node, ast.ImportFrom) else node.names[0].name
+                    if module:
+                        print(f'{path}:{node.lineno}: import {module}')
+        except: pass
+" | while read line; do
+    mod=\$(echo "\$line" | grep -oP 'import \K.*')
+    python3 -c "import \$mod" 2>/dev/null || echo "PHANTOM: \$line"
+done
 
-*Polishing the stone.*
+# 1f. Secrets scan
+grep -rnEi 'password\s*=|api_key\s*=|secret\s*=|token\s*=.*['\''\"]\w{8,}' {{target}}
+```
 
-1. **Complexity Check**:
-    - "Is this `if/else` nested 4 levels deep?" → **Flatten it**.
-    - "Is this function 50 lines?" → **Split it**.
-2. **Naming Check**:
-    - "Is variable `x` descriptive?" → Rename to `userIndex`.
-    - "Is function `doIt` descriptive?" → Rename to `processTransaction`.
+**If you do NOT have tool access:** Skip Pass 1. Proceed to Pass 2 with visual inspection only, and note that your coverage is reduced.
 
-### Phase 4: Architecture Alignment (NEW)
+### Pass 2: Semantic Checks (ONE DOMAIN AT A TIME)
 
-*Does the code respect project principles?*
+Process each domain sequentially against the files in scope. Do not attempt all at once.
 
-1. **Hard-Coded Strings Check**:
-    - Grep for: long strings in `.py` files, especially multi-line strings with instructions.
-    - **Red Flag**: System prompts, schema instructions, or templates embedded in code.
-    - **Action**: Move to external files (`.txt`, `.md`, `.yaml`) and load via a loader module.
+#### 2a. Completeness
 
-2. **Strict Typing Check**:
-    - Grep for: `Any`, `dict[str, Any]`, `object`, `# type: ignore`.
-    - **Red Flag**: Using `Any` because you were lazy, not because it's necessary.
-    - **Action**: Replace with bounded types (`JsonValue`, `TypedDict`, protocols).
-    - **Exception**: `# type: ignore` with a comment explaining WHY is acceptable.
+- Any placeholder logic? Stub returns? Empty except blocks?
+- Any function that was declared but never fully implemented?
+- Do all imports resolve to real modules/exports?
+- **Action if found:** Implement immediately. Do not report and move on.
 
-3. **Interface Contract Check**:
-    - For each interface/protocol, verify the implementation signature matches.
-    - **Red Flag**: Interface says `returns X`, implementation returns `Y`.
-    - **Action**: Align them. Pick one source of truth.
+#### 2b. Logic & Error Handling
 
-4. **Dependency Direction Check**:
-    - Check `__init__` params. Do they reference concrete classes or protocols?
-    - **Red Flag**: `def __init__(self, sandbox: KaliSandbox)` (concrete).
-    - **Action**: Use protocols: `def __init__(self, sandbox: SandboxProtocol)`.
+- Trace the primary input. What happens when it's null/empty/malformed?
+- External I/O (network, file, DB): wrapped in error handling?
+- Off-by-one: loop bounds, array indexing, range boundaries (`..` vs `..=`)
+- State transitions: are all branches covered? Any unreachable code?
+- **Action if found:** Fix immediately.
 
-5. **Duplicate Definition Check**:
-    - Before creating a new class/enum, grep for existing definitions.
-    - **Red Flag**: `class Discovery` in two places with different fields.
-    - **Action**: One canonical definition + mappers if layers need different shapes.
+#### 2c. Type Strictness
 
-### Phase 5: Test Policy Compliance (NEW)
+- `Any` used out of laziness (not necessity)?
+  → Replace with `TypedDict`, `Protocol`, bounded generics, or concrete types
+- `# type: ignore` without explanation?
+  → Fix the underlying type issue, not the symptom
+- Return types match declared signatures?
+- **Action if found:** Fix immediately.
+- **Exception:** `# type: ignore  # <reason>` with genuine justification is acceptable.
 
-*Are tests written correctly?*
+#### 2d. Architecture
 
-1. **Mock/Spy/Stub Audit**:
-    - Grep for: `Mock`, `MagicMock`, `AsyncMock`, `patch`, `@mock`.
-    - **Policy**: Fakes are preferred. Mocks hide behavior.
-    - **Action**: Replace mocks with hand-written Fake classes.
-    - Example: `FakeSandbox` with explicit methods instead of `MockSandbox` with `AsyncMock`.
+- Multi-line strings containing instructions/prompts/schemas embedded in code?
+  → Extract to external file, load via utility
+- `__init__` params referencing concrete classes instead of protocols?
+  → Replace with protocol/interface
+- Duplicate type/class definitions across files?
+  → Consolidate to one canonical definition
+- Config values hardcoded instead of read from environment/config file?
+  → Extract
+- **Action if found:** Fix immediately.
 
-2. **Type Ignore in Tests**:
-    - Grep for: `# type: ignore` in test files.
-    - **Red Flag**: Indicates your production code has bad typing.
-    - **Action**: Fix the production code's type hints, not the test.
+#### 2e. Test Quality
 
-## PROMPT PAYLOAD
+- `Mock`/`MagicMock`/`AsyncMock` used where a hand-written Fake would be clearer?
+  → Replace with `Fake<Class>` implementation
+- `# type: ignore` in tests hiding production type bugs?
+  → Fix the production types, not the test
+- Tests asserting implementation details (mock call counts) instead of behavior?
+  → Rewrite to assert outputs/state
+- **Action if found:** Fix immediately.
+
+### Pass 3: Apply Fixes
+
+**`--fix` mode (default):**
+
+Output ONLY the file modifications. For each fix, emit:
 
 ```text
-Act as a Senior Software Engineer reviewing a Junior's PR.
-Analyze the code I just wrote/modified in: {{files}}.
-
-**1. Completion Check**:
-- Are there any `TODO`s, `...`, or missing implementations?
-- **Action**: If YES, list them and implement them NOW.
-
-**2. Hallucination Check**:
-- Are all imports real?
-- Are all variable names defined?
-
-**3. Quality Check**:
-- Are there any "Happy Path" assumptions (missing error handling)?
-- Is there any code that is overly complex (nesting > 3)?
-- Are type definitions strict (no `any`)?
-
-**4. Architecture Check** (NEW):
-- Are there hard-coded prompts or strings that should be external?
-- Do interface contracts match implementations?
-- Are dependencies on protocols (good) or concrete classes (bad)?
-- Are there duplicate type definitions across layers?
-
-**5. Test Policy Check** (NEW):
-- Are tests using mocks/spies (bad) or fakes (good)?
-- Are there `# type: ignore` comments hiding production bugs?
-
-**OUTPUT**:
-- If Clean: "✅ SELF-CRITIQUE PASSED. Ready to commit."
-- If Issues: List specific issues and the **Corrected Code Block**.
+# [one-line description of what was fixed]
+[file edit / diff / tool call to apply the change]
 ```
 
-## OUTPUT FORMAT
+No apologies. No "I noticed that...". No Markdown report sections. Just the fix with a one-line label.
 
-```markdown
-# 🪞 SELF-CRITIQUE REPORT
+After all fixes are applied:
 
-## 🔴 Unfinished Business
-- Found `// TODO: Handle error` in `src/auth.ts`.
-- **Fix**: Implemented `try/catch` block.
-
-## ⚠️ Code Smells
-- Nested `if` in `calculateTax` (Depth 4).
-- **Fix**: Refactored to Guard Clauses.
-
-## 🏗️ Architecture Violations (NEW)
-- Hard-coded SYSTEM_PROMPT in `conversation.py`.
-- **Fix**: Moved to `prompts/conversation_system.txt`, loaded via `get_prompt()`.
-
-## 🧪 Test Policy Violations (NEW)
-- `AsyncMock` used in `test_conversation.py`.
-- **Fix**: Replaced with `FakeRouter` class.
-
-## ✅ Verdict
-Code is now clean. Running tests...
+```text
+[AUDIT_COMPLETE]: {N} issues fixed across {M} files.
 ```
+
+**`--dry-run` mode:**
+
+Output a compact finding list (no fixes applied):
+
+```text
+[AUDIT_DRY_RUN]:
+- {file}:{line}: {one-line description} [{domain}]
+- {file}:{line}: {one-line description} [{domain}]
+...
+{N} issues found. Run /audit --fix to apply.
+```
+
+**If clean:**
+
+```text
+[AUDIT_PASS]: Clean. Ready to commit.
+```
+
+## CAPABILITY BOUNDARIES
+
+**Can do:**
+
+- Pattern-match incomplete code, bad types, structural smells
+- Trace logic paths for null/error/edge cases
+- Identify architecture violations by inspection
+- Fix all of the above in-place
+
+**Cannot do without tools:**
+
+- Verify imports actually resolve (needs Python interpreter)
+- Run tests (needs execution environment)
+- Check dependency versions for CVEs (needs package audit tools)
+- Measure actual complexity metrics (needs AST tooling)
+
+If a check requires tools you don't have, skip it. Do not pretend.
 
 ## EXECUTION RULES
 
-1. **AUTO-FIX**: Do not just "report" the error. **FIX IT**.
-2. **NO APOLOGIES**: Don't say "I forgot X". Just say "Fixed X".
-3. **STRICT TYPES**: If you used `any` because you were lazy, fix it now.
-4. **REALITY**: If you imported a ghost library, delete it and write the util yourself.
-5. **PROTOCOLS OVER CONCRETE** (NEW): If `__init__` takes a concrete class, make it a protocol.
-6. **FAKES OVER MOCKS** (NEW): If tests use `Mock`/`AsyncMock`, replace with hand-written fakes.
-7. **PROMPTS ARE EXTERNAL** (NEW): If you wrote a multi-line string with instructions, extract it.
+1. **FIX, don't report.** This is not `/review`. You are correcting your own work.
+2. **Tool output overrides visual inspection.** If grep found it, it's real. Don't rationalize it away.
+3. **One domain at a time.** Don't scan for type issues while thinking about error handling.
+4. **No apologies, no narrative.** "Fixed X" not "I noticed I forgot X, sorry about that."
+5. **Wrong fix > no fix? NO.** If you're unsure about a fix, flag it for human review instead of applying a bad patch.
 
-## GREP COMMANDS FOR AUDIT
+## PLATFORM DEPLOYMENT
 
-```bash
-# Phase 1: Placeholders
-grep -rn "TODO\|FIXME\|pass$" src/
+| Platform | Location |
+|----------|----------|
+| Claude Code | `.claude/commands/audit.md` |
+| Cursor | `.cursor/rules/audit.mdc` or `.cursorrules` |
+| Other | System prompt / custom instructions |
 
-# Phase 4: Architecture
-grep -rn "Any\|dict\[str, Any\]\|# type: ignore" src/
-grep -rn '""".*\n.*\n.*"""' src/  # Multi-line strings (potential prompts)
+## EXAMPLES
 
-# Phase 5: Test Policy
-grep -rn "Mock\|MagicMock\|AsyncMock\|@patch" tests/
-grep -rn "# type: ignore" tests/
+```text
+/audit src/auth/
+/audit . --dry-run
+/audit src/ tests/ --focus types,arch
+/audit src/api/router.py --fix
 ```

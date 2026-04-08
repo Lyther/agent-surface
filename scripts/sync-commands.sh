@@ -6,6 +6,7 @@ CURSOR_RULES="$CURSOR_COMMANDS/.cursor/rules"
 CURSORRULES="$CURSOR_COMMANDS/.cursorrules"
 GEMINIRULES="$CURSOR_COMMANDS/.geminirules"
 AGENTSMD="$CURSOR_COMMANDS/AGENTS.md"
+PROJECT_GEMINI_MD="$CURSOR_COMMANDS/GEMINI.md"
 
 CLAUDE_DIR="$HOME/.claude"
 CLAUDE_COMMANDS="$CLAUDE_DIR/commands"
@@ -254,33 +255,43 @@ sync_codex() {
     fi
 }
 
-# --- Phase 5: Gemini CLI ---
+# --- Phase 5: Gemini CLI + Code Assist ---
+
+emit_gemini_markdown() {
+    local target="$1"
+    local label="$2"
+    local title="$3"
+    local tmp
+    tmp=$(mktemp)
+
+    {
+        printf '# %s\n\n' "$title"
+        echo "> Auto-generated from ~/.cursor/commands/.cursor/rules/. Do not edit directly."
+        echo ""
+        strip_frontmatter "$GEMINIRULES"
+    } > "$tmp"
+
+    if [ ! -f "$target" ]; then
+        mv "$tmp" "$target"
+        echo "  created $label"
+    elif ! diff -q "$tmp" "$target" >/dev/null 2>&1; then
+        mv "$tmp" "$target"
+        echo "  updated $label"
+    else
+        rm -f "$tmp"
+        echo "  $label unchanged"
+    fi
+}
 
 sync_gemini_rules() {
-    local target="$GEMINI_DIR/GEMINI.md"
-
-    if [ ! -f "$CURSORRULES" ]; then
-        echo "  ERROR: .cursorrules not generated yet"
+    if [ ! -f "$GEMINIRULES" ]; then
+        echo "  ERROR: .geminirules not generated yet"
         return 1
     fi
 
-    local tmp
-    tmp=$(mktemp)
-    {
-        echo "# GEMINI.md — Global Agent Rules"
-        echo ""
-        echo "> Auto-generated from ~/.cursor/commands/.cursor/rules/. Do not edit directly."
-        echo ""
-        strip_frontmatter "$CURSORRULES"
-    } > "$tmp"
-
-    if [ ! -f "$target" ] || ! diff -q "$tmp" "$target" >/dev/null 2>&1; then
-        cp "$tmp" "$target"
-        echo "  updated ~/.gemini/GEMINI.md"
-    else
-        echo "  ~/.gemini/GEMINI.md unchanged"
-    fi
-    rm -f "$tmp"
+    mkdir -p "$GEMINI_DIR"
+    emit_gemini_markdown "$PROJECT_GEMINI_MD" "GEMINI.md" "GEMINI.md — Project Agent Rules"
+    emit_gemini_markdown "$GEMINI_DIR/GEMINI.md" "~/.gemini/GEMINI.md" "GEMINI.md — Global Agent Rules"
 }
 
 sync_gemini_commands() {
@@ -429,7 +440,7 @@ sync_settings
 echo "[5/7 codex: AGENTS.md]"
 sync_codex
 
-echo "[6/7 gemini: GEMINI.md + commands]"
+echo "[6/7 gemini: project/home GEMINI.md + commands]"
 sync_gemini_rules
 sync_gemini_commands
 
@@ -439,7 +450,7 @@ sync_antigravity
 echo ""
 echo "--- summary ---"
 echo "claude commands: $added added, $updated updated, $unchanged unchanged, $removed removed"
-echo "targets: claude, codex, gemini, antigravity"
+echo "targets: claude, codex, gemini-cli, gemini-code-assist, antigravity"
 echo "note: VS Code Copilot reads AGENTS.md from repo root (already generated)"
 echo "note: TRAE skipped (rules path unverified locally)"
 echo "done."

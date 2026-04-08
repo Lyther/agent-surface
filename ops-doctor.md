@@ -20,7 +20,7 @@ Find broken references, token budget violations, rules drift, stale exports, and
 ### Check 3: Rules source-of-truth
 
 - Verify `.cursor/rules/*.mdc` files exist and each has valid `---` frontmatter with `alwaysApply` or `globs`.
-- Run `scripts/sync-commands.sh` and confirm generated `.cursorrules`, `.geminirules`, `AGENTS.md` are non-empty.
+- Run `scripts/sync-commands.sh` and confirm generated `.cursorrules`, `.geminirules`, `AGENTS.md`, `GEMINI.md` are non-empty.
 - Diff generated `.cursorrules` against concatenated `.cursor/rules/0[0-9]-*.mdc` (frontmatter stripped). Report drift.
 
 ### Check 4: Broken internal references
@@ -44,6 +44,7 @@ Find broken references, token budget violations, rules drift, stale exports, and
 ### Check 7: Cross-IDE sync integrity
 
 - Verify `~/.codex/AGENTS.md` exists and is non-empty.
+- Verify `GEMINI.md` exists and is non-empty.
 - Verify `~/.gemini/GEMINI.md` exists and is non-empty.
 - Verify `~/.gemini/commands/` has `.toml` files matching root command count.
 - Verify `~/.gemini/antigravity/global_workflows/` has `.md` files matching root command count.
@@ -93,7 +94,7 @@ DOCTOR REPORT — ~/.cursor/commands
 
 [CHECK 7] Cross-IDE sync
   codex: AGENTS.md OK
-  gemini: GEMINI.md OK, 72 toml commands
+  gemini: repo GEMINI.md OK, ~/.gemini/GEMINI.md OK, 72 toml commands
   antigravity: 72 workflow files
   claude: CLAUDE.md OK, 72 commands
   OR
