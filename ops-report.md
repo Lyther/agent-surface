@@ -17,6 +17,10 @@ Code is the engine. Research is the story. Business is the reason to exist.
 3. **Use Web Search Selectively**:
     - Use it for publication fit, benchmark norms, market comparables, and best-practice guidance.
     - Do not waste time searching for facts already visible in the repo.
+4. **Forced I/O — No Passive Reading**:
+    - When tool execution is available (bash, CLI, file-read tools), you MUST use them to gather evidence. Do not claim to have "read" or "reviewed" a file without physically opening it via a tool call.
+    - Every factual assertion about the codebase must trace to a specific tool invocation (file read, grep, ls, git command, or test execution). If you cannot execute tools, explicitly mark report confidence as `Low (no tool access)` and note which claims are unverified.
+    - Passive pattern matching on filenames or directory structure is NOT evidence of implementation.
 
 ## SYNTAX
 
@@ -45,17 +49,22 @@ Code is the engine. Research is the story. Business is the reason to exist.
 
 ### Phase 0: Evidence Inventory
 
-*No report without a corpus.*
+*No report without a corpus. No corpus without tool execution.*
 
-1. **Concept & Intent**:
-    - Read `docs/context/*` first.
-    - If missing, fall back to `README*`, `docs/architecture.md`, `docs/roadmap.md`, proposal docs, manuals, whitebooks, and whitepapers.
-2. **Reality & State**:
-    - Read manifests (`package.json`, `Cargo.toml`, `pyproject.toml`, etc.).
-    - Read `AGENTS.md`, `.cursor/lessons.md`, `.cursor/mission.md`, and recent git state.
-    - Identify key code paths, tests, demos, and CI artifacts.
-3. **Confidence Label**:
+1. **Discover Project Structure** (mandatory tool calls):
+    - Execute: `find . -maxdepth 3 -type f \( -name "*.md" -o -name "*.toml" -o -name "*.json" -o -name "*.yaml" -o -name "*.lock" \) | head -40` to inventory docs and manifests.
+    - Execute: `ls -la` at project root to confirm top-level layout.
+    - If `docs/context/` exists, read each file inside it. If missing, fall back to `README*`, `docs/architecture.md`, `docs/roadmap.md`.
+2. **Extract Claims**:
+    - From the concept/architecture docs, extract up to **8 core claims** the project makes about itself: features, capabilities, architecture decisions, research contributions, and business goals.
+    - Cache these claims internally as the verification checklist for Phase 1.
+3. **Snapshot Reality**:
+    - Read manifests (`package.json`, `Cargo.toml`, `pyproject.toml`, etc.) to identify actual stack, dependencies, and version constraints.
+    - Execute: `git log --oneline -20` and `git diff --stat HEAD~5` (if git is available) to detect active development areas, stale modules, and recent velocity.
+    - Read `AGENTS.md`, `.cursor/lessons.md`, `.cursor/mission.md` if present.
+4. **Confidence Label**:
     - If concept docs are weak or missing, explicitly mark the report confidence as reduced.
+    - If tool execution is unavailable, mark confidence as `Low (no tool access)`.
 
 ### Phase 1: Technology Analysis
 
@@ -63,21 +72,33 @@ Code is the engine. Research is the story. Business is the reason to exist.
 
 1. **Project Purpose**:
     - Summarize what the project does in plain language.
-2. **Progress vs Concept**:
-    - Build a concept-to-implementation matrix:
+2. **Progress vs Concept — Probed Verification**:
+    - For EACH claim extracted in Phase 0, execute a probe command to find physical evidence:
+        - Claim says "async pipeline"? → `grep -rnI "async\|await" src/ | head -10`
+        - Claim says "RBAC"? → `grep -rnI "auth\|role\|permission" src/ | head -10`
+        - Claim says "reproducible tests"? → `ls Makefile Dockerfile` or `pytest --collect-only 2>&1 | tail -5`
+    - Build the verification matrix:
         - concept claim
-        - evidence in code/docs/tests/demo
+        - probe command executed
+        - evidence found (filepath + stdout excerpt, or `[NOT OBSERVED]`)
         - status: implemented / partial / missing
+        - risk: critical / high / medium / low (critical = blocks demo or delivery; high = blocks research or business claim; medium = technical debt; low = cosmetic or nice-to-have)
         - notable gap
 3. **Doc/Code Drift**:
-    - Identify mismatches between `docs/context/`, architecture/roadmap docs, and actual implementation.
-4. **Potential Issues**:
+    - Identify mismatches between `docs/context/`, architecture/roadmap docs, and actual implementation found during probing.
+4. **Security & Dependency Baseline** (mandatory, cannot be skipped):
+    - Execute: `grep -rnI "password\|secret\|API_KEY\|api_key\|PRIVATE_KEY\|token.*=.*['\"]" src/ --include="*.py" --include="*.js" --include="*.ts" --include="*.rs" --include="*.go" | head -20`
+    - Execute: `grep -rnI "TODO.*[Ss]ecur\|FIXME\|HACK\|XXX" src/ | head -15`
+    - Check dependency pinning: are lockfiles (`Cargo.lock`, `package-lock.json`, `poetry.lock`, `uv.lock`) present and committed?
+    - Check for known-vulnerable or wildcard dependency ranges in manifests.
+    - If nothing found, state "No hardcoded secrets or critical FIXMEs detected in grep scan" — do not silently omit this section.
+5. **Potential Issues**:
     - Surface technical risks, weak testing, missing metrics, unclear ownership, brittle dependencies, and delivery blockers.
-5. **Key Design Failures**:
+6. **Key Design Failures**:
     - Call out architecture mistakes, wrong abstractions, unclear boundaries, missing interfaces, or feedback loops that will cause pain later.
-6. **Improvements & Next Steps**:
+7. **Improvements & Next Steps**:
     - Recommend the highest-leverage technical changes.
-7. **Others (agent decides)**:
+8. **Others (agent decides)**:
     - Include demo readiness, operational readiness, documentation quality, and dependency health when relevant.
 
 ### Phase 2: Research Analysis
@@ -157,10 +178,11 @@ Code is the engine. Research is the story. Business is the reason to exist.
     - No web research. Repo-only analysis.
 2. **`--with-web auto`**:
     - Search only for:
-        - publication/venue fit
-        - benchmark and artifact-evaluation expectations
-        - market comparables or product positioning
-        - best-practice guidance for identified weak spots
+        - publication/venue fit (acceptance rates, scope, deadlines)
+        - benchmark and artifact-evaluation expectations for identified target venues
+        - comparable open-source projects when the repo makes differentiation claims
+        - best-practice guidance for specific identified weak spots (not generic tutorials)
+    - Do NOT search for generic best practices, prompt engineering guides, or tutorial content.
 3. **`--with-web required`**:
     - Use web research for all `depends on you` fields that benefit from external context.
 4. **Citation Rule**:
@@ -187,7 +209,7 @@ Code is the engine. Research is the story. Business is the reason to exist.
 ## Executive Summary
 - **Overall Status**: Amber
 - **Audience**: full
-- **Confidence**: Medium
+- **Confidence**: Medium (tool access: yes; docs coverage: partial)
 - **One-liner**: This project builds X for Y by doing Z.
 - **Top Risks**: weak evaluation, doc/code drift, unclear demo path
 
@@ -196,10 +218,17 @@ Code is the engine. Research is the story. Business is the reason to exist.
 ### What This Project Does
 - Builds an agent-driven evaluation platform that turns project intent into implementation, verification, and reporting loops.
 
-### Progress vs Concept
-| Concept | Evidence | Status | Gap |
-|--------|----------|--------|-----|
-| Research-grade evaluation workflow | `ai-bench.md`, benchmark tables, protocol docs | partial | strong benchmark menu exists, but project-specific experiment pipeline is not yet frozen |
+### Progress vs Concept (Probed)
+| Concept Claim | Probe | Evidence | Status | Risk | Gap |
+|---------------|-------|----------|--------|------|-----|
+| Research-grade evaluation workflow | `grep -rnI "eval\|benchmark" src/` | `src/eval/runner.py:12`, `src/eval/metrics.py:45` | partial | high | benchmark menu exists, but experiment pipeline not frozen |
+| Async agent orchestration | `grep -rnI "async\|await" src/` | `[NOT OBSERVED]` | missing | critical | no async code found despite architecture doc claims |
+
+### Security & Dependency Baseline
+- **Hardcoded Secrets**: No hardcoded secrets detected in grep scan.
+- **Critical TODOs**: `src/auth/handler.py:88: TODO Security: validate JWT expiry` — HIGH.
+- **Dependency Pinning**: `poetry.lock` present and committed. No wildcard ranges in `pyproject.toml`.
+- **Supply Chain**: 47 direct dependencies; no advisory scan run (recommend `pip-audit` or `cargo-audit`).
 
 ### Gaps Between Documents and Code
 - `docs/context/` promises a broader end-to-end workflow than the current runnable implementation proves.
@@ -287,8 +316,10 @@ Code is the engine. Research is the story. Business is the reason to exist.
 3. **COMPARE CLAIMS TO CODE**: The primary job is reality-checking documents against implementation.
 4. **USE WEB SEARCH WHERE IT PAYS OFF**: Especially for publication fit, benchmark standards, market comparables, and best-practice remediation ideas.
 5. **REDUCE CONFIDENCE WHEN INPUTS ARE THIN**: Missing `docs/context/` or weak documentation must lower confidence, not increase guesswork.
-6. **NO SPECIALIST DUPLICATION**: `ops-report` synthesizes; it does not replace deep-dive commands.
+6. **NO SPECIALIST DUPLICATION**: `/report` synthesizes; it does not replace deep-dive commands.
 7. **ACTIONABLE ENDING**: Always end with concrete improvements, decisions, and next steps.
+8. **CITE OR MARK UNOBSERVED**: Every factual claim in the report must trace to a specific file path, command output, git artifact, or search result. If evidence was sought but not found, write `[NOT OBSERVED]` in the relevant field. Never infer existence from naming conventions, doc promises, or adjacency to other evidence.
+9. **FORCED TOOL I/O**: When shell or file-read tools are available, you MUST use them for evidence gathering. Do not substitute tool execution with assertions like "based on the project structure" or "likely implemented in". If a probe command returns empty, record the empty result honestly. The only acceptable evidence sources are: tool output (stdout/stderr), file contents read via tool, git command output, and web search results.
 
 ## RELATED COMMANDS
 
@@ -302,7 +333,7 @@ Code is the engine. Research is the story. Business is the reason to exist.
 
 ## NON-GOALS
 
-- Not a replacement for a security review
+- Not a replacement for a security review (but includes a mandatory security baseline probe)
 - Not a replacement for benchmark execution
 - Not a pure docs audit
 - Not a roadmap generator
