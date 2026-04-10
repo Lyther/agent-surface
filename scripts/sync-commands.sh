@@ -11,6 +11,8 @@ PROJECT_GEMINI_MD="$CURSOR_COMMANDS/GEMINI.md"
 CLAUDE_DIR="$HOME/.claude"
 CLAUDE_COMMANDS="$CLAUDE_DIR/commands"
 CODEX_DIR="$HOME/.codex"
+CODEX_SKILLS_DIR="$HOME/.agents/skills"
+CODEX_SYNC_MARKER=".cursor-sync-origin"
 GEMINI_DIR="$HOME/.gemini"
 GEMINI_COMMANDS="$GEMINI_DIR/commands"
 ANTIGRAVITY_WORKFLOWS="$GEMINI_DIR/antigravity/global_workflows"
@@ -30,6 +32,96 @@ extract_learned_sections() {
     local file="$1"
     [ ! -f "$file" ] && return
     sed -n '/^## Learned /,$p' "$file"
+}
+
+strip_markdown_inline() {
+    printf '%s\n' "$1" | sed -E \
+        -e 's/\*\*([^*]+)\*\*/\1/g' \
+        -e 's/`([^`]+)`/\1/g' \
+        -e 's/[[:space:]]+/ /g' \
+        -e 's/^ +//; s/ +$//'
+}
+
+extract_goal_line() {
+    local file="$1"
+    awk '
+        /^\*\*Your Goal\*\*:/ { sub(/^\*\*Your Goal\*\*:[[:space:]]*/, ""); print; exit }
+        /^\*\*Your Job\*\*:/ { sub(/^\*\*Your Job\*\*:[[:space:]]*/, ""); print; exit }
+        /^\*\*Goal\*\*:/ { sub(/^\*\*Goal\*\*:[[:space:]]*/, ""); print; exit }
+        /^\*\*The Goal\*\*:/ { sub(/^\*\*The Goal\*\*:[[:space:]]*/, ""); print; exit }
+    ' "$file"
+}
+
+extract_objective_blurb() {
+    local file="$1"
+    awk '
+        /^## OBJECTIVE$/ { in_objective=1; next }
+        in_objective && /^## / { exit }
+        in_objective && /^[[:space:]]*$/ { next }
+        in_objective && /^\*\*The Standard\*\*:/ { next }
+        in_objective && /^\*\*The Law\*\*:/ { next }
+        in_objective && /^\*\*The Boundary\*\*:/ { next }
+        in_objective {
+            line=$0
+            sub(/^\*\*/, "", line)
+            sub(/\*\*$/, "", line)
+            print line
+            exit
+        }
+    ' "$file"
+}
+
+extract_when_line() {
+    local file="$1"
+    awk '
+        /^## WHEN TO (INVOKE|RUN)$/ { in_when=1; next }
+        in_when && /^## / { exit }
+        in_when && /^[*-] / {
+            sub(/^[*-] /, "")
+            print
+            exit
+        }
+        in_when && NF {
+            print
+            exit
+        }
+    ' "$file"
+}
+
+build_codex_description() {
+    local file="$1"
+    local skill_name="$2"
+    local goal when desc
+
+    goal=$(strip_markdown_inline "$(extract_goal_line "$file")")
+    if [ -z "$goal" ]; then
+        goal=$(strip_markdown_inline "$(extract_objective_blurb "$file")")
+    fi
+    if [ -z "$goal" ]; then
+        goal="Run the ${skill_name//-/ } workflow."
+    fi
+
+    when=$(strip_markdown_inline "$(extract_when_line "$file")")
+    desc="$goal"
+    if [ -n "$when" ]; then
+        desc="$desc Relevant when: $when"
+    fi
+
+    case "$desc" in
+        *[.!?]) ;;
+        *) desc="$desc." ;;
+    esac
+
+    printf '%s\n' "$desc"
+}
+
+emit_codex_skill_body() {
+    local file="$1"
+    awk '
+        /^## PLATFORM DEPLOYMENT$/ { skip=1; next }
+        skip && /^## / { skip=0 }
+        !skip { print }
+    ' "$file"
 }
 
 generate_rules() {
@@ -238,7 +330,7 @@ SETTINGS
 
 # --- Phase 4: Codex CLI/Desktop ---
 
-sync_codex() {
+sync_codex_rules() {
     mkdir -p "$CODEX_DIR"
     local target="$CODEX_DIR/AGENTS.md"
 
@@ -253,6 +345,130 @@ sync_codex() {
     else
         echo "  ~/.codex/AGENTS.md unchanged"
     fi
+}
+
+sync_codex_skills() {
+    mkdir -p "$CODEX_SKILLS_DIR"
+
+    local tracked_file
+    tracked_file=$(mktemp)
+    local c_added=0 c_updated=0 c_unchanged=0 c_removed=0
+
+    for md_file in "$CURSOR_COMMANDS"/*.md; do
+        [ ! -f "$md_file" ] && continue
+        local fname
+        fname=$(basename "$md_file")
+
+        local target_cat="${fname%%-*}"
+        [ -z "$target_cat" ] && continue
+        [ "$target_cat" = "$fname" ] && continue
+
+        local skill_name="${fname%.md}"
+        local skill_dir="$CODEX_SKILLS_DIR/$skill_name"
+        local desc
+        desc=$(build_codex_description "$md_file" "$skill_name")
+
+        echo "$skill_name" >> "$tracked_file"
+
+        local skill_tmp
+        skill_tmp=$(mktemp)
+        {
+            echo "---"
+            printf 'name: %s\n' "$skill_name"
+            echo "description: >-"
+            printf '  %s\n' "$desc"
+            echo "---"
+            echo ""
+            printf '# %s\n\n' "$skill_name"
+            printf 'Use explicit invocation: `$%s`.\n' "$skill_name"
+            printf 'This skill is synced from `%s` in `~/.cursor/commands`.\n' "$fname"
+            printf '%s\n' 'Prefer Codex built-ins like `/plan`, `/review`, and `/fork` when they already cover the task; use this skill when you want the specific workflow below.'
+            printf 'Treat any legacy slash-command syntax below as source documentation from Cursor. In Codex, invoke `$%s` and express the same options in natural language or inline parameters.\n' "$skill_name"
+            echo ""
+            emit_codex_skill_body "$md_file"
+        } > "$skill_tmp"
+
+        local metadata_tmp
+        metadata_tmp=$(mktemp)
+        {
+            echo "interface:"
+            printf '  display_name: "%s"\n' "$skill_name"
+            echo "  short_description: >-"
+            printf '    %s\n' "$desc"
+            echo "policy:"
+            echo "  allow_implicit_invocation: false"
+        } > "$metadata_tmp"
+
+        local marker_tmp
+        marker_tmp=$(mktemp)
+        {
+            echo "managed_by: scripts/sync-commands.sh"
+            printf 'source_repo: %s\n' "$CURSOR_COMMANDS"
+            printf 'source_file: %s\n' "$fname"
+        } > "$marker_tmp"
+
+        local existed=0
+        local changed=0
+        [ -d "$skill_dir" ] && existed=1
+
+        mkdir -p "$skill_dir/agents"
+
+        if [ ! -f "$skill_dir/SKILL.md" ] || ! diff -q "$skill_tmp" "$skill_dir/SKILL.md" >/dev/null 2>&1; then
+            mv "$skill_tmp" "$skill_dir/SKILL.md"
+            changed=1
+        else
+            rm -f "$skill_tmp"
+        fi
+
+        if [ ! -f "$skill_dir/agents/openai.yaml" ] || ! diff -q "$metadata_tmp" "$skill_dir/agents/openai.yaml" >/dev/null 2>&1; then
+            mv "$metadata_tmp" "$skill_dir/agents/openai.yaml"
+            changed=1
+        else
+            rm -f "$metadata_tmp"
+        fi
+
+        if [ ! -f "$skill_dir/$CODEX_SYNC_MARKER" ] || ! diff -q "$marker_tmp" "$skill_dir/$CODEX_SYNC_MARKER" >/dev/null 2>&1; then
+            mv "$marker_tmp" "$skill_dir/$CODEX_SYNC_MARKER"
+            changed=1
+        else
+            rm -f "$marker_tmp"
+        fi
+
+        if [ "$existed" -eq 0 ]; then
+            c_added=$((c_added + 1))
+        elif [ "$changed" -eq 1 ]; then
+            c_updated=$((c_updated + 1))
+        else
+            c_unchanged=$((c_unchanged + 1))
+        fi
+    done
+
+    while read -r marker; do
+        [ -z "$marker" ] && continue
+        local skill_dir
+        skill_dir=$(dirname "$marker")
+        local skill_name
+        skill_name=$(basename "$skill_dir")
+
+        if ! grep -qxF "$skill_name" "$tracked_file"; then
+            rm -f \
+                "$skill_dir/SKILL.md" \
+                "$skill_dir/agents/openai.yaml" \
+                "$skill_dir/$CODEX_SYNC_MARKER"
+            rmdir "$skill_dir/agents" 2>/dev/null || true
+            rmdir "$skill_dir" 2>/dev/null || true
+            c_removed=$((c_removed + 1))
+            echo "  removed stale codex skill: $skill_name"
+        fi
+    done < <(find "$CODEX_SKILLS_DIR" -name "$CODEX_SYNC_MARKER" -type f 2>/dev/null)
+
+    rm -f "$tracked_file"
+    echo "  codex skills: $c_added added, $c_updated updated, $c_unchanged unchanged, $c_removed removed"
+}
+
+sync_codex() {
+    sync_codex_rules
+    sync_codex_skills
 }
 
 # --- Phase 5: Gemini CLI + Code Assist ---
@@ -437,7 +653,7 @@ sync_rules
 echo "[4/7 claude: settings]"
 sync_settings
 
-echo "[5/7 codex: AGENTS.md]"
+echo "[5/7 codex: AGENTS.md + skills]"
 sync_codex
 
 echo "[6/7 gemini: project/home GEMINI.md + commands]"
@@ -450,7 +666,7 @@ sync_antigravity
 echo ""
 echo "--- summary ---"
 echo "claude commands: $added added, $updated updated, $unchanged unchanged, $removed removed"
-echo "targets: claude, codex, gemini-cli, gemini-code-assist, antigravity"
+echo "targets: claude, codex-agents, codex-skills, gemini-cli, gemini-code-assist, antigravity"
 echo "note: VS Code Copilot reads AGENTS.md from repo root (already generated)"
 echo "note: TRAE skipped (rules path unverified locally)"
 echo "done."

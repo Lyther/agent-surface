@@ -44,6 +44,7 @@ Find broken references, token budget violations, rules drift, stale exports, and
 ### Check 7: Cross-IDE sync integrity
 
 - Verify `~/.codex/AGENTS.md` exists and is non-empty.
+- Verify `~/.agents/skills/` contains one skill directory per root command, each with `SKILL.md` and `agents/openai.yaml`.
 - Verify `GEMINI.md` exists and is non-empty.
 - Verify `~/.gemini/GEMINI.md` exists and is non-empty.
 - Verify `~/.gemini/commands/` has `.toml` files matching root command count.
@@ -93,12 +94,13 @@ DOCTOR REPORT — ~/.cursor/commands
   stellaris: .stellarisrules exists
 
 [CHECK 7] Cross-IDE sync
-  codex: AGENTS.md OK
-  gemini: repo GEMINI.md OK, ~/.gemini/GEMINI.md OK, 72 toml commands
-  antigravity: 72 workflow files
-  claude: CLAUDE.md OK, 72 commands
+  codex: AGENTS.md OK, 80 skills under ~/.agents/skills
+  gemini: repo GEMINI.md OK, ~/.gemini/GEMINI.md OK, 80 toml commands
+  antigravity: 80 workflow files
+  claude: CLAUDE.md OK, 80 commands
   OR
   MISSING: ~/.codex/AGENTS.md does not exist
+  MISSING: ~/.agents/skills does not contain synced Codex skills
 
 [CHECK 8] AGENTS.md learned sections
   Learned User Preferences: 10 bullets
