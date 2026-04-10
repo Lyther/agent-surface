@@ -4,4 +4,8 @@
 
 # IDE Files
 .vscode/
+.cursor/hooks/
+
+# Private local configuration
+ops-server.md
 

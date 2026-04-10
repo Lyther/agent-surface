@@ -456,7 +456,7 @@ Each document type has a required structure. When creating, use these as skeleto
 
 ## OUTPUT FORMAT
 
-### No-arg catalog output:
+### No-arg catalog output
 
 ```markdown
 # 📄 DOCUMENT STATUS: {Project Name}
@@ -487,7 +487,7 @@ Each document type has a required structure. When creating, use these as skeleto
 - **Premature**: `runbook`, `smp` — project is pre-production.
 ```
 
-### Create/Update output:
+### Create/Update output
 
 Write the document to the target path, then summarize:
 
@@ -499,7 +499,7 @@ Write the document to the target path, then summarize:
 - **Recommended next action**: Fill TODO sections, then run `/docs sdd --check` to verify freshness.
 ```
 
-### Audit output:
+### Audit output
 
 ```markdown
 # 🧹 DOCS AUDIT: {Project Name}
