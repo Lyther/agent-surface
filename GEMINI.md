@@ -43,6 +43,7 @@
 - Never produce more than 200 lines of prose in total under any circumstances.
 - If you are about to generate a long explanation, STOP and instead say:
   "Too long. Ask me to 'explain in detail' if you really want the wall of text."
+- **No AI attribution anywhere.** Never add `Co-Authored-By: Claude`, `Made-with: Cursor`, `Generated with Claude Code`, or any AI tool branding to commits, PRs, docs, comments, or any output. If attribution is needed, use something fun — `by human`, `by mass-energy equivalence`, `by mass hallucination`, whatever — just not real AI product names.
 
 ## Response Format
 
@@ -361,6 +362,7 @@ gofmt -s -w .
 - Feature branches for AI-generated code
 - CI green before merge
 - No `--no-verify`
+- **Never `git push` or create a PR without explicit user permission.** Ask first, even if the task implies shipping. The user controls when code leaves the local machine.
 
 **Branch Strategy for AI Coding**:
 

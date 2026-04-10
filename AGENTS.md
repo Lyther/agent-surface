@@ -43,6 +43,7 @@
 - Never produce more than 200 lines of prose in total under any circumstances.
 - If you are about to generate a long explanation, STOP and instead say:
   "Too long. Ask me to 'explain in detail' if you really want the wall of text."
+- **No AI attribution anywhere.** Never add `Co-Authored-By: Claude`, `Made-with: Cursor`, `Generated with Claude Code`, or any AI tool branding to commits, PRs, docs, comments, or any output. If attribution is needed, use something fun — `by human`, `by mass-energy equivalence`, `by mass hallucination`, whatever — just not real AI product names.
 
 ## Response Format
 
@@ -361,6 +362,7 @@ gofmt -s -w .
 - Feature branches for AI-generated code
 - CI green before merge
 - No `--no-verify`
+- **Never `git push` or create a PR without explicit user permission.** Ask first, even if the task implies shipping. The user controls when code leaves the local machine.
 
 **Branch Strategy for AI Coding**:
 
@@ -411,7 +413,8 @@ main (protected)
 
 - This repo is ~/.cursor/commands — global Cursor commands, not a regular project
 - .cursor/rules/*.mdc files are the authoritative rule source; .cursorrules, .geminirules, GEMINI.md, and AGENTS.md are generated exports
-- sync-commands.sh targets: Claude Code (~/.claude), Codex (~/.codex/AGENTS.md + ~/.agents/skills/*), Gemini CLI (~/.gemini/GEMINI.md + ~/.gemini/commands/*.toml), Antigravity (~/.gemini/antigravity/global_workflows/)
+- sync-commands.sh targets: Claude Code (~/.claude), OpenAI Codex (~/.codex/AGENTS.md + ~/.agents/skills/*/SKILL.md), Gemini CLI and Gemini Code Assist (repo + ~/.gemini/GEMINI.md, ~/.gemini/commands/**/*.toml), Antigravity (~/.gemini/antigravity/global_workflows/)
+- ops-server.md and .cursor/hooks/ are gitignored for local-only configuration and hook state; do not commit them
 - 80 commands across 12 categories: boot, arch, dev, verify, qa, ship, ops, workflow, lint, stellaris, ai, fanfic
 - Language policy lives in glob-scoped .cursor/rules/1[0-4]-lang-*.mdc — commands are thin wrappers
 - .cursor/mission.md, .cursor/review-log.md, .cursor/nuke-state.md are optional legacy state files, not required by commands

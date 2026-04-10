@@ -46,6 +46,7 @@ gofmt -s -w .
 - Feature branches for AI-generated code
 - CI green before merge
 - No `--no-verify`
+- **Never `git push` or create a PR without explicit user permission.** Ask first, even if the task implies shipping. The user controls when code leaves the local machine.
 
 **Branch Strategy for AI Coding**:
 
