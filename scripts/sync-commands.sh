@@ -1,52 +1,209 @@
 #!/usr/bin/env bash
+# sync-commands.sh — Universal sync from one IDE/agent to all others
+#
+# Syncs commands, rules, settings, and keybindings from a single "king"
+# IDE to every other supported tool on the machine. Auto-detects which
+# targets are installed; skips the rest.
+#
+# Usage:
+#   ./sync-commands.sh                     # default king: cursor
+#   ./sync-commands.sh --king=cursor       # explicit
+#   ./sync-commands.sh --king=roo          # Roo Code as source
+#   ./sync-commands.sh --king=code         # VS Code as source
+#   ./sync-commands.sh --dry-run           # preview without writing
+#   ./sync-commands.sh --list              # show detected targets
+#
+# Supported kings: cursor, code, windsurf, trae, roo
+#
+# Sync targets (auto-detected):
+#   IDEs:       Cursor, VS Code, Windsurf, Trae, VSCodium, Positron, Void
+#   Agents:     Claude Code, OpenAI Codex, Gemini CLI, opencode
+#   Extensions: Roo Code, Cline
+#   Platforms:  Gemini Code Assist (Antigravity)
+#   Project:    .cursorrules, .windsurfrules, .traerules, .clinerules,
+#               .roorules, AGENTS.md, CLAUDE.md, GEMINI.md
+#
+# Requirements: bash 4+, sed, diff, python3 (for settings JSON filtering)
+# License: MIT
 set -euo pipefail
 
-CURSOR_COMMANDS="$HOME/.cursor/commands"
-CURSOR_RULES="$CURSOR_COMMANDS/.cursor/rules"
-CURSORRULES="$CURSOR_COMMANDS/.cursorrules"
-GEMINIRULES="$CURSOR_COMMANDS/.geminirules"
-AGENTSMD="$CURSOR_COMMANDS/AGENTS.md"
-PROJECT_GEMINI_MD="$CURSOR_COMMANDS/GEMINI.md"
+# ── Argument parsing ──────────────────────────────────────────
 
-# --- VS Code family: settings & keybindings sync (Cursor = golden source) ---
+KING="cursor"
+DRY_RUN=false
+LIST_ONLY=false
 
-CURSOR_APP_SUPPORT="$HOME/Library/Application Support/Cursor/User"
-VSCODE_IDES=(
-    "Code:$HOME/Library/Application Support/Code/User"
-    "Windsurf:$HOME/Library/Application Support/Windsurf/User"
-    "Trae:$HOME/Library/Application Support/Trae/User"
+for arg in "$@"; do
+    case "$arg" in
+        --king=*) KING="${arg#--king=}" ;;
+        --dry-run) DRY_RUN=true ;;
+        --list) LIST_ONLY=true ;;
+        -h|--help)
+            awk '/^#/{sub(/^# ?/,"");print} /^set /{exit}' "$0" | tail -n +2
+            exit 0
+            ;;
+        *) echo "Unknown argument: $arg"; exit 1 ;;
+    esac
+done
+
+# ── Platform detection ────────────────────────────────────────
+
+case "$(uname -s)" in
+    Darwin)
+        APP_SUPPORT="$HOME/Library/Application Support"
+        SED_INPLACE=(sed -i '')
+        ;;
+    Linux)
+        APP_SUPPORT="${XDG_CONFIG_HOME:-$HOME/.config}"
+        SED_INPLACE=(sed -i)
+        ;;
+    *)
+        echo "Unsupported platform: $(uname -s)"
+        exit 1
+        ;;
+esac
+
+# ── Source resolution ─────────────────────────────────────────
+# Each king defines where commands, rules, and settings live.
+
+resolve_king() {
+    case "$KING" in
+        cursor)
+            COMMANDS_SRC="$HOME/.cursor/commands"
+            RULES_SRC="$COMMANDS_SRC/.cursor/rules"
+            SETTINGS_SRC="$APP_SUPPORT/Cursor/User"
+            KING_LABEL="Cursor"
+            ;;
+        code|vscode)
+            COMMANDS_SRC="$HOME/.cursor/commands"  # VS Code has no commands dir; fall back
+            RULES_SRC="$COMMANDS_SRC/.cursor/rules"
+            SETTINGS_SRC="$APP_SUPPORT/Code/User"
+            KING_LABEL="VS Code"
+            ;;
+        windsurf)
+            COMMANDS_SRC="$HOME/.cursor/commands"  # Windsurf has no commands dir
+            RULES_SRC="$COMMANDS_SRC/.cursor/rules"
+            SETTINGS_SRC="$APP_SUPPORT/Windsurf/User"
+            KING_LABEL="Windsurf"
+            ;;
+        trae)
+            COMMANDS_SRC="$HOME/.cursor/commands"  # Trae has no commands dir
+            RULES_SRC="$COMMANDS_SRC/.cursor/rules"
+            SETTINGS_SRC="$APP_SUPPORT/Trae/User"
+            KING_LABEL="Trae"
+            ;;
+        roo)
+            COMMANDS_SRC="$HOME/.roo/commands"
+            RULES_SRC="$HOME/.roo/rules"
+            SETTINGS_SRC="$APP_SUPPORT/Code/User"  # Roo runs inside VS Code
+            KING_LABEL="Roo Code"
+            ;;
+        *)
+            echo "Unknown king: $KING"
+            echo "Supported: cursor, code, windsurf, trae, roo"
+            exit 1
+            ;;
+    esac
+
+    if [ ! -d "$COMMANDS_SRC" ]; then
+        echo "ERROR: commands source not found: $COMMANDS_SRC"
+        exit 1
+    fi
+}
+
+# ── Target registry ───────────────────────────────────────────
+# All known VS Code family IDEs (name:app_support_subdir:dot_dir:rulesfile)
+
+ALL_VSCODE_IDES=(
+    "Cursor:Cursor:cursor:cursorrules"
+    "Code:Code:vscode:NA"
+    "Windsurf:Windsurf:windsurf:windsurfrules"
+    "Trae:Trae:trae:traerules"
+    "VSCodium:VSCodium:vscode-oss:NA"
+    "Positron:Positron:positron:NA"
+    "Void:Void:void:NA"
 )
 
-# Keys that are Cursor-specific and must be stripped for vanilla VS Code
-CURSOR_ONLY_KEY_PREFIXES=(
-    '"cursor\.'
-    '"claudeCode\.'
-)
+# IDE-specific settings key prefixes (stripped when syncing TO other IDEs)
+ide_specific_prefixes() {
+    case "$1" in
+        Cursor)    echo "cursor. claudeCode." ;;
+        Windsurf)  echo "windsurf." ;;
+        Trae)      echo "trae." ;;
+        *)         echo "" ;;
+    esac
+}
 
-# Keys that are IDE-specific and should be stripped for ALL non-origin IDEs
-# (each IDE may have its own equivalent; we remove stale ones from Cursor's export)
-STRIP_FOREIGN_KEY_PREFIXES=(
-    '"github\.copilot'
-    '"geminicodeassist\.'
-    '"windsurf\.'
-    '"trae\.'
-)
+# ── Derived paths (set after resolve_king) ────────────────────
+# These use COMMANDS_SRC which is set by resolve_king().
+# We declare them as empty here; resolve_derived_paths() fills them.
+
+CURSORRULES_FILE=""
+GEMINIRULES_FILE=""
+AGENTSMD_FILE=""
+GEMINI_MD_FILE=""
+
+resolve_derived_paths() {
+    CURSORRULES_FILE="$COMMANDS_SRC/.cursorrules"
+    GEMINIRULES_FILE="$COMMANDS_SRC/.geminirules"
+    AGENTSMD_FILE="$COMMANDS_SRC/AGENTS.md"
+    GEMINI_MD_FILE="$COMMANDS_SRC/GEMINI.md"
+}
 
 CLAUDE_DIR="$HOME/.claude"
 CLAUDE_COMMANDS="$CLAUDE_DIR/commands"
 CODEX_DIR="$HOME/.codex"
 CODEX_SKILLS_DIR="$HOME/.agents/skills"
-CODEX_SYNC_MARKER=".cursor-sync-origin"
+CODEX_SYNC_MARKER=".sync-origin"
 GEMINI_DIR="$HOME/.gemini"
 GEMINI_COMMANDS="$GEMINI_DIR/commands"
 ANTIGRAVITY_WORKFLOWS="$GEMINI_DIR/antigravity/global_workflows"
+ROO_DIR="$HOME/.roo"
+ROO_COMMANDS="$ROO_DIR/commands"
+ROO_RULES="$ROO_DIR/rules"
+CLINE_RULES="$HOME/.clinerules"
+OPENCODE_DIR="$HOME/.config/opencode"
 
 added=0
 updated=0
 unchanged=0
 removed=0
 
-# --- Phase 1: Generate rules exports from .cursor/rules/*.mdc (authoritative source) ---
+# ── Utility: write-or-skip ────────────────────────────────────
+
+# Compare $1 (tmp file) with $2 (target). Update if different.
+# $3 = label for logging. Respects DRY_RUN.
+sync_file() {
+    local tmp="$1" target="$2" label="$3"
+
+    if [ ! -s "$tmp" ]; then
+        echo "  $label: ERROR empty source"
+        rm -f "$tmp"
+        return 1
+    fi
+
+    if [ ! -f "$target" ]; then
+        if $DRY_RUN; then
+            echo "  $label: would create"
+        else
+            mkdir -p "$(dirname "$target")"
+            mv "$tmp" "$target"
+            echo "  $label: created"
+        fi
+    elif ! diff -q "$tmp" "$target" >/dev/null 2>&1; then
+        if $DRY_RUN; then
+            echo "  $label: would update"
+        else
+            mv "$tmp" "$target"
+            echo "  $label: updated"
+        fi
+    else
+        echo "  $label: unchanged"
+        rm -f "$tmp"
+    fi
+}
+
+# ── Helpers (shared) ──────────────────────────────────────────
 
 strip_frontmatter() {
     sed '/^---$/,/^---$/d' "$1" | sed '/./,$!d'
@@ -148,93 +305,106 @@ emit_codex_skill_body() {
     ' "$file"
 }
 
+# ── Phase 1: Generate rule exports ───────────────────────────
+
 generate_rules() {
-    local tmp
-    tmp=$(mktemp)
+    # If king is Cursor, generate from .cursor/rules/*.mdc
+    # Otherwise, the king's rules are already flat — just copy
+    if [ "$KING" = "cursor" ] && [ -d "$RULES_SRC" ]; then
+        local tmp
+        tmp=$(mktemp)
 
-    # Only include alwaysApply rules (01-06), skip glob-scoped lang-* rules (10-14)
-    for f in $(ls "$CURSOR_RULES"/0[0-9]-*.mdc 2>/dev/null | sort); do
-        strip_frontmatter "$f" >> "$tmp"
-        echo "" >> "$tmp"
-    done
-
-    # Trim leading/trailing blank lines
-    sed -i '' -e '/./,$!d' -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$tmp" 2>/dev/null || true
-
-    if [ ! -f "$CURSORRULES" ] || ! diff -q "$tmp" "$CURSORRULES" >/dev/null 2>&1; then
-        cp "$tmp" "$CURSORRULES"
-        echo "  updated .cursorrules"
-    else
-        echo "  .cursorrules unchanged"
-    fi
-
-    # Generate .geminirules (condensed version)
-    local gemini_tmp
-    gemini_tmp=$(mktemp)
-    {
-        echo "---"
-        echo "trigger: always_on"
-        echo "---"
-        echo ""
-        cat "$tmp"
-    } > "$gemini_tmp"
-
-    sed -i '' \
-        -e 's|`~/.cursor/commands`|custom slash commands|g' \
-        -e 's|`\.cursor/commands`|custom slash commands|g' \
-        "$gemini_tmp" 2>/dev/null || true
-
-    if [ ! -f "$GEMINIRULES" ] || ! diff -q "$gemini_tmp" "$GEMINIRULES" >/dev/null 2>&1; then
-        cp "$gemini_tmp" "$GEMINIRULES"
-        echo "  updated .geminirules"
-    else
-        echo "  .geminirules unchanged"
-    fi
-    rm -f "$gemini_tmp"
-
-    # Generate AGENTS.md (cross-tool), preserving learned sections
-    local learned_tmp
-    learned_tmp=$(mktemp)
-    extract_learned_sections "$AGENTSMD" > "$learned_tmp"
-
-    local agents_tmp
-    agents_tmp=$(mktemp)
-    {
-        echo "# AGENTS.md — Cross-Tool Agent Rules"
-        echo ""
-        echo "> Auto-generated from .cursor/rules/*.mdc. Do not edit directly."
-        echo ""
-        for f in $(ls "$CURSOR_RULES"/0[0-9]-*.mdc 2>/dev/null | sort); do
-            strip_frontmatter "$f"
-            echo ""
+        for f in $(ls "$RULES_SRC"/0[0-9]-*.mdc 2>/dev/null | sort); do
+            strip_frontmatter "$f" >> "$tmp"
+            echo "" >> "$tmp"
         done
-        if [ -s "$learned_tmp" ]; then
-            cat "$learned_tmp"
-        fi
-    } > "$agents_tmp"
 
-    if [ ! -f "$AGENTSMD" ] || ! diff -q "$agents_tmp" "$AGENTSMD" >/dev/null 2>&1; then
-        cp "$agents_tmp" "$AGENTSMD"
-        echo "  updated AGENTS.md"
+        "${SED_INPLACE[@]}" -e '/./,$!d' -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$tmp" 2>/dev/null || true
+
+        sync_file "$tmp" "$CURSORRULES_FILE" ".cursorrules"
+
+        # .geminirules
+        local gemini_tmp
+        gemini_tmp=$(mktemp)
+        {
+            echo "---"
+            echo "trigger: always_on"
+            echo "---"
+            echo ""
+            cat "$CURSORRULES_FILE"
+        } > "$gemini_tmp"
+
+        "${SED_INPLACE[@]}" \
+            -e 's|`~/.cursor/commands`|custom slash commands|g' \
+            -e 's|`\.cursor/commands`|custom slash commands|g' \
+            "$gemini_tmp" 2>/dev/null || true
+
+        sync_file "$gemini_tmp" "$GEMINIRULES_FILE" ".geminirules"
+
+        # AGENTS.md
+        local learned_tmp
+        learned_tmp=$(mktemp)
+        extract_learned_sections "$AGENTSMD_FILE" > "$learned_tmp"
+
+        local agents_tmp
+        agents_tmp=$(mktemp)
+        {
+            echo "# AGENTS.md — Cross-Tool Agent Rules"
+            echo ""
+            echo "> Auto-generated by sync-commands.sh from $KING_LABEL rules. Do not edit directly."
+            echo ""
+            for f in $(ls "$RULES_SRC"/0[0-9]-*.mdc 2>/dev/null | sort); do
+                strip_frontmatter "$f"
+                echo ""
+            done
+            if [ -s "$learned_tmp" ]; then
+                cat "$learned_tmp"
+            fi
+        } > "$agents_tmp"
+
+        sync_file "$agents_tmp" "$AGENTSMD_FILE" "AGENTS.md"
+        rm -f "$learned_tmp"
+    elif [ "$KING" = "roo" ]; then
+        # Roo rules are flat .md files in ~/.roo/rules/ — concat them
+        local tmp
+        tmp=$(mktemp)
+        for f in $(ls "$RULES_SRC"/*.md 2>/dev/null | sort); do
+            cat "$f" >> "$tmp"
+            echo "" >> "$tmp"
+        done
+        if [ -s "$tmp" ]; then
+            local agents_tmp
+            agents_tmp=$(mktemp)
+            {
+                echo "# AGENTS.md — Cross-Tool Agent Rules"
+                echo ""
+                echo "> Auto-generated by sync-commands.sh from $KING_LABEL rules. Do not edit directly."
+                echo ""
+                cat "$tmp"
+            } > "$agents_tmp"
+            sync_file "$agents_tmp" "$AGENTSMD_FILE" "AGENTS.md"
+            sync_file "$tmp" "$CURSORRULES_FILE" ".cursorrules"
+        else
+            echo "  no rules found in $RULES_SRC"
+            rm -f "$tmp"
+        fi
     else
-        echo "  AGENTS.md unchanged"
+        echo "  rules generation: skipped (king=$KING has no structured rules)"
     fi
-    rm -f "$agents_tmp" "$learned_tmp"
-    rm -f "$tmp"
 }
 
-# --- Phase 2: Sync flat commands to Claude Code ---
+# ── Phase 2: Sync commands to Claude Code ─────────────────────
 
-sync_commands() {
+sync_claude_commands() {
+    [ ! -d "$CLAUDE_DIR" ] && { echo "  Claude Code: not installed, skipping"; return; }
     local tracked_file
     tracked_file=$(mktemp)
 
-    for md_file in "$CURSOR_COMMANDS"/*.md; do
+    for md_file in "$COMMANDS_SRC"/*.md; do
         [ ! -f "$md_file" ] && continue
         local fname
         fname=$(basename "$md_file")
 
-        # Extract category from prefix: "boot-context.md" -> "boot"
         local target_cat="${fname%%-*}"
         local target_name="${fname#*-}"
 
@@ -247,10 +417,10 @@ sync_commands() {
         echo "$target_cat/$target_name" >> "$tracked_file"
 
         if [ ! -f "$target" ]; then
-            cp "$md_file" "$target"
+            $DRY_RUN || cp "$md_file" "$target"
             added=$((added + 1))
         elif ! diff -q "$md_file" "$target" >/dev/null 2>&1; then
-            cp "$md_file" "$target"
+            $DRY_RUN || cp "$md_file" "$target"
             updated=$((updated + 1))
         else
             unchanged=$((unchanged + 1))
@@ -260,7 +430,7 @@ sync_commands() {
     while read -r existing; do
         local rel="${existing#"$CLAUDE_COMMANDS/"}"
         if ! grep -qxF "$rel" "$tracked_file"; then
-            rm "$existing"
+            $DRY_RUN || rm "$existing"
             removed=$((removed + 1))
             echo "  removed stale: $rel"
         fi
@@ -268,7 +438,7 @@ sync_commands() {
     rm -f "$tracked_file"
 }
 
-# --- Phase 3: Sync rules to Claude Code ---
+# ── Phase 3: Sync CLAUDE.md ──────────────────────────────────
 
 CLAUDE_TRANSFORMS=(
     's|^# Cursor Rules.*|# CLAUDE.md — Global Agent Rules|'
@@ -281,52 +451,32 @@ CLAUDE_TRANSFORMS=(
     's|Use `ops-ask`|Use `/ops:ask`|g'
 )
 
-emit_rules() {
-    local source="$1" target="$2" label="$3"
-    shift 3
-    local -a transforms=("$@")
+sync_claude_rules() {
+    [ ! -d "$CLAUDE_DIR" ] && { echo "  Claude Code: not installed, skipping"; return; }
+    [ ! -f "$CURSORRULES_FILE" ] && { echo "  ERROR: no .cursorrules to transform"; return; }
 
-    if [ ! -f "$source" ]; then
-        echo "  ERROR: $source not found"
-        return 1
-    fi
-
+    local target="$CLAUDE_DIR/CLAUDE.md"
     local tmp
     tmp=$(mktemp)
 
     local sed_args=()
-    for t in "${transforms[@]}"; do
+    for t in "${CLAUDE_TRANSFORMS[@]}"; do
         sed_args+=(-e "$t")
     done
 
-    if [ ${#sed_args[@]} -eq 0 ]; then
-        cp "$source" "$tmp"
-    else
-        sed "${sed_args[@]}" "$source" > "$tmp"
-    fi
-
-    if [ ! -f "$target" ]; then
-        mv "$tmp" "$target"
-        echo "  created $label"
-    elif ! diff -q "$tmp" "$target" >/dev/null 2>&1; then
-        mv "$tmp" "$target"
-        echo "  updated $label"
-    else
-        rm -f "$tmp"
-        echo "  $label unchanged"
-    fi
+    sed "${sed_args[@]}" "$CURSORRULES_FILE" > "$tmp"
+    sync_file "$tmp" "$target" "CLAUDE.md"
 }
 
-sync_rules() {
-    emit_rules "$CURSORRULES" "$CLAUDE_DIR/CLAUDE.md" "CLAUDE.md" "${CLAUDE_TRANSFORMS[@]}"
-}
-
-sync_settings() {
+sync_claude_settings() {
+    [ ! -d "$CLAUDE_DIR" ] && return
     local target="$CLAUDE_DIR/settings.json"
     if [ -f "$target" ]; then
         echo "  settings.json exists, not overwriting"
         return
     fi
+
+    $DRY_RUN && { echo "  would create settings.json"; return; }
 
     cat > "$target" << 'SETTINGS'
 {
@@ -352,33 +502,30 @@ SETTINGS
     echo "  created settings.json"
 }
 
-# --- Phase 4: Codex CLI/Desktop ---
+# ── Phase 4: Sync to OpenAI Codex ────────────────────────────
 
-sync_codex_rules() {
+sync_codex() {
+    [ ! -d "$CODEX_DIR" ] && [ ! -d "$CODEX_SKILLS_DIR" ] && {
+        echo "  Codex: not installed, skipping"
+        return
+    }
+
+    # AGENTS.md
     mkdir -p "$CODEX_DIR"
-    local target="$CODEX_DIR/AGENTS.md"
-
-    if [ ! -f "$AGENTSMD" ]; then
-        echo "  ERROR: AGENTS.md not generated yet"
-        return 1
+    if [ -f "$AGENTSMD_FILE" ]; then
+        local tmp
+        tmp=$(mktemp)
+        cp "$AGENTSMD_FILE" "$tmp"
+        sync_file "$tmp" "$CODEX_DIR/AGENTS.md" "~/.codex/AGENTS.md"
     fi
 
-    if [ ! -f "$target" ] || ! diff -q "$AGENTSMD" "$target" >/dev/null 2>&1; then
-        cp "$AGENTSMD" "$target"
-        echo "  updated ~/.codex/AGENTS.md"
-    else
-        echo "  ~/.codex/AGENTS.md unchanged"
-    fi
-}
-
-sync_codex_skills() {
+    # Skills
     mkdir -p "$CODEX_SKILLS_DIR"
-
     local tracked_file
     tracked_file=$(mktemp)
     local c_added=0 c_updated=0 c_unchanged=0 c_removed=0
 
-    for md_file in "$CURSOR_COMMANDS"/*.md; do
+    for md_file in "$COMMANDS_SRC"/*.md; do
         [ ! -f "$md_file" ] && continue
         local fname
         fname=$(basename "$md_file")
@@ -405,9 +552,9 @@ sync_codex_skills() {
             echo ""
             printf '# %s\n\n' "$skill_name"
             printf 'Use explicit invocation: `$%s`.\n' "$skill_name"
-            printf 'This skill is synced from `%s` in `~/.cursor/commands`.\n' "$fname"
+            printf 'This skill is synced from `%s` in the commands source.\n' "$fname"
             printf '%s\n' 'Prefer Codex built-ins like `/plan`, `/review`, and `/fork` when they already cover the task; use this skill when you want the specific workflow below.'
-            printf 'Treat any legacy slash-command syntax below as source documentation from Cursor. In Codex, invoke `$%s` and express the same options in natural language or inline parameters.\n' "$skill_name"
+            printf 'Treat any legacy slash-command syntax below as source documentation. In Codex, invoke `$%s` and express the same options in natural language.\n' "$skill_name"
             echo ""
             emit_codex_skill_body "$md_file"
         } > "$skill_tmp"
@@ -427,32 +574,33 @@ sync_codex_skills() {
         marker_tmp=$(mktemp)
         {
             echo "managed_by: scripts/sync-commands.sh"
-            printf 'source_repo: %s\n' "$CURSOR_COMMANDS"
+            printf 'source: %s\n' "$COMMANDS_SRC"
             printf 'source_file: %s\n' "$fname"
+            printf 'king: %s\n' "$KING"
         } > "$marker_tmp"
 
         local existed=0
         local changed=0
         [ -d "$skill_dir" ] && existed=1
 
-        mkdir -p "$skill_dir/agents"
+        $DRY_RUN || mkdir -p "$skill_dir/agents"
 
         if [ ! -f "$skill_dir/SKILL.md" ] || ! diff -q "$skill_tmp" "$skill_dir/SKILL.md" >/dev/null 2>&1; then
-            mv "$skill_tmp" "$skill_dir/SKILL.md"
+            $DRY_RUN || mv "$skill_tmp" "$skill_dir/SKILL.md"
             changed=1
         else
             rm -f "$skill_tmp"
         fi
 
         if [ ! -f "$skill_dir/agents/openai.yaml" ] || ! diff -q "$metadata_tmp" "$skill_dir/agents/openai.yaml" >/dev/null 2>&1; then
-            mv "$metadata_tmp" "$skill_dir/agents/openai.yaml"
+            $DRY_RUN || mv "$metadata_tmp" "$skill_dir/agents/openai.yaml"
             changed=1
         else
             rm -f "$metadata_tmp"
         fi
 
         if [ ! -f "$skill_dir/$CODEX_SYNC_MARKER" ] || ! diff -q "$marker_tmp" "$skill_dir/$CODEX_SYNC_MARKER" >/dev/null 2>&1; then
-            mv "$marker_tmp" "$skill_dir/$CODEX_SYNC_MARKER"
+            $DRY_RUN || mv "$marker_tmp" "$skill_dir/$CODEX_SYNC_MARKER"
             changed=1
         else
             rm -f "$marker_tmp"
@@ -475,12 +623,14 @@ sync_codex_skills() {
         skill_name=$(basename "$skill_dir")
 
         if ! grep -qxF "$skill_name" "$tracked_file"; then
-            rm -f \
-                "$skill_dir/SKILL.md" \
-                "$skill_dir/agents/openai.yaml" \
-                "$skill_dir/$CODEX_SYNC_MARKER"
-            rmdir "$skill_dir/agents" 2>/dev/null || true
-            rmdir "$skill_dir" 2>/dev/null || true
+            $DRY_RUN || {
+                rm -f \
+                    "$skill_dir/SKILL.md" \
+                    "$skill_dir/agents/openai.yaml" \
+                    "$skill_dir/$CODEX_SYNC_MARKER"
+                rmdir "$skill_dir/agents" 2>/dev/null || true
+                rmdir "$skill_dir" 2>/dev/null || true
+            }
             c_removed=$((c_removed + 1))
             echo "  removed stale codex skill: $skill_name"
         fi
@@ -490,12 +640,7 @@ sync_codex_skills() {
     echo "  codex skills: $c_added added, $c_updated updated, $c_unchanged unchanged, $c_removed removed"
 }
 
-sync_codex() {
-    sync_codex_rules
-    sync_codex_skills
-}
-
-# --- Phase 5: Gemini CLI + Code Assist ---
+# ── Phase 5: Sync to Gemini CLI + Code Assist ─────────────────
 
 emit_gemini_markdown() {
     local target="$1"
@@ -506,31 +651,21 @@ emit_gemini_markdown() {
 
     {
         printf '# %s\n\n' "$title"
-        echo "> Auto-generated from ~/.cursor/commands/.cursor/rules/. Do not edit directly."
+        echo "> Auto-generated by sync-commands.sh from $KING_LABEL. Do not edit directly."
         echo ""
-        strip_frontmatter "$GEMINIRULES"
+        if [ -f "$GEMINIRULES_FILE" ]; then
+            strip_frontmatter "$GEMINIRULES_FILE"
+        elif [ -f "$CURSORRULES_FILE" ]; then
+            cat "$CURSORRULES_FILE"
+        fi
     } > "$tmp"
 
-    if [ ! -f "$target" ]; then
-        mv "$tmp" "$target"
-        echo "  created $label"
-    elif ! diff -q "$tmp" "$target" >/dev/null 2>&1; then
-        mv "$tmp" "$target"
-        echo "  updated $label"
-    else
-        rm -f "$tmp"
-        echo "  $label unchanged"
-    fi
+    sync_file "$tmp" "$target" "$label"
 }
 
 sync_gemini_rules() {
-    if [ ! -f "$GEMINIRULES" ]; then
-        echo "  ERROR: .geminirules not generated yet"
-        return 1
-    fi
-
     mkdir -p "$GEMINI_DIR"
-    emit_gemini_markdown "$PROJECT_GEMINI_MD" "GEMINI.md" "GEMINI.md — Project Agent Rules"
+    emit_gemini_markdown "$GEMINI_MD_FILE" "GEMINI.md" "GEMINI.md — Project Agent Rules"
     emit_gemini_markdown "$GEMINI_DIR/GEMINI.md" "~/.gemini/GEMINI.md" "GEMINI.md — Global Agent Rules"
 }
 
@@ -540,7 +675,7 @@ sync_gemini_commands() {
     tracked_file=$(mktemp)
     local g_added=0 g_updated=0 g_unchanged=0 g_removed=0
 
-    for md_file in "$CURSOR_COMMANDS"/*.md; do
+    for md_file in "$COMMANDS_SRC"/*.md; do
         [ ! -f "$md_file" ] && continue
         local fname
         fname=$(basename "$md_file")
@@ -574,10 +709,10 @@ sync_gemini_commands() {
         } > "$new_toml"
 
         if [ ! -f "$toml_path" ]; then
-            mv "$new_toml" "$toml_path"
+            $DRY_RUN || mv "$new_toml" "$toml_path"
             g_added=$((g_added + 1))
         elif ! diff -q "$new_toml" "$toml_path" >/dev/null 2>&1; then
-            mv "$new_toml" "$toml_path"
+            $DRY_RUN || mv "$new_toml" "$toml_path"
             g_updated=$((g_updated + 1))
         else
             rm -f "$new_toml"
@@ -588,7 +723,7 @@ sync_gemini_commands() {
     while read -r existing; do
         local rel="${existing#"$GEMINI_COMMANDS/"}"
         if ! grep -qxF "$rel" "$tracked_file"; then
-            rm "$existing"
+            $DRY_RUN || rm "$existing"
             g_removed=$((g_removed + 1))
             echo "  removed stale: $rel"
         fi
@@ -598,7 +733,7 @@ sync_gemini_commands() {
     echo "  gemini commands: $g_added added, $g_updated updated, $g_unchanged unchanged, $g_removed removed"
 }
 
-# --- Phase 6: Antigravity workflows ---
+# ── Phase 6: Antigravity workflows ────────────────────────────
 
 sync_antigravity() {
     mkdir -p "$ANTIGRAVITY_WORKFLOWS"
@@ -606,7 +741,7 @@ sync_antigravity() {
     tracked_file=$(mktemp)
     local a_added=0 a_updated=0 a_unchanged=0 a_removed=0
 
-    for md_file in "$CURSOR_COMMANDS"/*.md; do
+    for md_file in "$COMMANDS_SRC"/*.md; do
         [ ! -f "$md_file" ] && continue
         local fname
         fname=$(basename "$md_file")
@@ -633,10 +768,10 @@ sync_antigravity() {
         } > "$new_wf"
 
         if [ ! -f "$target_path" ]; then
-            mv "$new_wf" "$target_path"
+            $DRY_RUN || mv "$new_wf" "$target_path"
             a_added=$((a_added + 1))
         elif ! diff -q "$new_wf" "$target_path" >/dev/null 2>&1; then
-            mv "$new_wf" "$target_path"
+            $DRY_RUN || mv "$new_wf" "$target_path"
             a_updated=$((a_updated + 1))
         else
             rm -f "$new_wf"
@@ -648,7 +783,7 @@ sync_antigravity() {
         local rel
         rel=$(basename "$existing")
         if ! grep -qxF "$rel" "$tracked_file"; then
-            rm "$existing"
+            $DRY_RUN || rm "$existing"
             a_removed=$((a_removed + 1))
             echo "  removed stale: $rel"
         fi
@@ -658,147 +793,254 @@ sync_antigravity() {
     echo "  antigravity: $a_added added, $a_updated updated, $a_unchanged unchanged, $a_removed removed"
 }
 
-# --- Phase 7: VS Code family settings & keybindings sync ---
+# ── Phase 7: Roo Code ────────────────────────────────────────
 
-# Filter Cursor settings.json for a target IDE.
-# $1 = target IDE name (Code, Windsurf, Trae)
-# Reads from CURSOR_APP_SUPPORT/settings.json, writes filtered JSON to stdout.
-filter_settings_for_ide() {
-    local ide_name="$1"
-    local source="$CURSOR_APP_SUPPORT/settings.json"
-
-    if [ ! -f "$source" ]; then
-        echo "  ERROR: Cursor settings.json not found at $source" >&2
-        return 1
+sync_roo() {
+    if [ "$KING" = "roo" ]; then
+        echo "  Roo Code is king — skipping (source, not target)"
+        return
     fi
 
-    local tmp
-    tmp=$(mktemp)
-    cp "$source" "$tmp"
+    [ ! -d "$ROO_DIR" ] && { echo "  Roo Code: not installed, skipping"; return; }
 
-    # Strip Cursor-specific keys for non-Cursor IDEs
-    case "$ide_name" in
-        Code)
-            # VS Code doesn't understand cursor.* or claudeCode.* keys
-            for prefix in "${CURSOR_ONLY_KEY_PREFIXES[@]}"; do
-                # Remove lines matching "cursor.xxx": ... (handles single-line and start of multi-line)
-                # Use python for reliable JSON-aware filtering
-                :
-            done
-            ;;
-    esac
+    # Commands: flat .md files in ~/.roo/commands/
+    $DRY_RUN || mkdir -p "$ROO_COMMANDS"
+    local tracked_file
+    tracked_file=$(mktemp)
+    local r_added=0 r_updated=0 r_unchanged=0 r_removed=0
 
-    # Use python for reliable JSON key filtering (jq not guaranteed)
+    for md_file in "$COMMANDS_SRC"/*.md; do
+        [ ! -f "$md_file" ] && continue
+        local fname
+        fname=$(basename "$md_file")
+
+        local target_cat="${fname%%-*}"
+        [ -z "$target_cat" ] && continue
+        [ "$target_cat" = "$fname" ] && continue
+
+        echo "$fname" >> "$tracked_file"
+
+        # Roo commands use frontmatter with description
+        local first_heading
+        first_heading=$(grep -m1 '^## ' "$md_file" 2>/dev/null | sed 's/^## //' || true)
+
+        local roo_tmp
+        roo_tmp=$(mktemp)
+        {
+            echo "---"
+            printf 'description: "%s"\n' "${first_heading:-$fname}"
+            echo "---"
+            echo ""
+            echo ""
+            cat "$md_file"
+        } > "$roo_tmp"
+
+        local target="$ROO_COMMANDS/$fname"
+        if [ ! -f "$target" ]; then
+            $DRY_RUN || mv "$roo_tmp" "$target"
+            r_added=$((r_added + 1))
+        elif ! diff -q "$roo_tmp" "$target" >/dev/null 2>&1; then
+            $DRY_RUN || mv "$roo_tmp" "$target"
+            r_updated=$((r_updated + 1))
+        else
+            rm -f "$roo_tmp"
+            r_unchanged=$((r_unchanged + 1))
+        fi
+    done
+
+    # Remove stale commands that no longer exist in source
+    while read -r existing; do
+        local rel
+        rel=$(basename "$existing")
+        if ! grep -qxF "$rel" "$tracked_file"; then
+            $DRY_RUN || rm "$existing"
+            r_removed=$((r_removed + 1))
+            echo "  removed stale: $rel"
+        fi
+    done < <(find "$ROO_COMMANDS" -name '*.md' -type f 2>/dev/null)
+
+    rm -f "$tracked_file"
+    echo "  roo commands: $r_added added, $r_updated updated, $r_unchanged unchanged, $r_removed removed"
+
+    # Rules: copy .cursorrules content as ~/.roo/rules/00-global.md
+    $DRY_RUN || mkdir -p "$ROO_RULES"
+    if [ -f "$CURSORRULES_FILE" ]; then
+        local rules_tmp
+        rules_tmp=$(mktemp)
+        cp "$CURSORRULES_FILE" "$rules_tmp"
+        sync_file "$rules_tmp" "$ROO_RULES/00-global.md" "~/.roo/rules/00-global.md"
+    fi
+}
+
+# ── Phase 8: Cline ───────────────────────────────────────────
+
+sync_cline() {
+    # Cline uses ~/.clinerules (global) or .clinerules/ dir in workspace
+    # We sync global rules only
+    [ ! -d "$HOME/.cline" ] && { echo "  Cline: not installed, skipping"; return; }
+
+    if [ -f "$CURSORRULES_FILE" ]; then
+        local tmp
+        tmp=$(mktemp)
+        cp "$CURSORRULES_FILE" "$tmp"
+        sync_file "$tmp" "$CLINE_RULES" "~/.clinerules"
+    else
+        echo "  Cline: no rules to sync"
+    fi
+}
+
+# ── Phase 9: opencode ────────────────────────────────────────
+
+sync_opencode() {
+    # opencode reads ~/.config/opencode/AGENTS.md for global rules
+    [ ! -d "$OPENCODE_DIR" ] && [ ! -d "$HOME/.opencode" ] && {
+        echo "  opencode: not installed, skipping"
+        return
+    }
+
+    mkdir -p "$OPENCODE_DIR"
+
+    # AGENTS.md
+    if [ -f "$AGENTSMD_FILE" ]; then
+        local tmp
+        tmp=$(mktemp)
+        cp "$AGENTSMD_FILE" "$tmp"
+        sync_file "$tmp" "$OPENCODE_DIR/AGENTS.md" "~/.config/opencode/AGENTS.md"
+    fi
+
+    # Commands: opencode uses ~/.opencode/commands/ (may be symlinked)
+    local oc_commands="$HOME/.opencode/commands"
+    if [ -d "$oc_commands" ] && [ ! -L "$oc_commands" ]; then
+        # Only sync if it's a real dir, not a symlink to another project
+        local tracked_file
+        tracked_file=$(mktemp)
+        local o_added=0 o_updated=0 o_unchanged=0 o_removed=0
+
+        for md_file in "$COMMANDS_SRC"/*.md; do
+            [ ! -f "$md_file" ] && continue
+            local fname
+            fname=$(basename "$md_file")
+
+            local target_cat="${fname%%-*}"
+            [ -z "$target_cat" ] && continue
+            [ "$target_cat" = "$fname" ] && continue
+
+            echo "$fname" >> "$tracked_file"
+            local target="$oc_commands/$fname"
+
+            if [ ! -f "$target" ]; then
+                $DRY_RUN || cp "$md_file" "$target"
+                o_added=$((o_added + 1))
+            elif ! diff -q "$md_file" "$target" >/dev/null 2>&1; then
+                $DRY_RUN || cp "$md_file" "$target"
+                o_updated=$((o_updated + 1))
+            else
+                o_unchanged=$((o_unchanged + 1))
+            fi
+        done
+        rm -f "$tracked_file"
+        echo "  opencode commands: $o_added added, $o_updated updated, $o_unchanged unchanged"
+    elif [ -L "$oc_commands" ]; then
+        echo "  opencode commands: symlinked, skipping"
+    fi
+}
+
+# ── Phase 10: VS Code family settings & keybindings ──────────
+
+filter_settings_for_ide() {
+    local ide_name="$1"
+    local source="$SETTINGS_SRC/settings.json"
+
+    [ ! -f "$source" ] && { echo "  ERROR: settings.json not found at $source" >&2; return 1; }
+
     python3 -c "
 import json, sys, re
 
-with open('$tmp') as f:
-    # Strip comments (JSONC -> JSON)
+with open('$source') as f:
     lines = f.readlines()
     cleaned = []
     for line in lines:
         stripped = line.lstrip()
         if stripped.startswith('//'):
             continue
-        # Remove inline comments (naive but works for settings.json)
         cleaned.append(re.sub(r'(?<!:)//.*$', '', line))
     text = '\n'.join(cleaned)
-
-    # Handle trailing commas before } or ]
     text = re.sub(r',(\s*[}\]])', r'\1', text)
 
 data = json.loads(text)
-
 ide = '$ide_name'
+king = '$KING_LABEL'
 
-# Keys to always strip (foreign IDE specific)
-foreign = set()
+# Build set of prefixes to strip for this target IDE
+strip = set()
 for k in list(data.keys()):
-    # Strip cursor.* and claudeCode.* for non-Cursor IDEs
-    if ide != 'Cursor':
-        if k.startswith('cursor.') or k.startswith('claudeCode.'):
-            foreign.add(k)
+    # Strip king-specific keys for non-king IDEs
+    if ide == 'Cursor' and king != 'Cursor':
+        pass  # Don't strip cursor.* if target IS Cursor
+    elif ide != 'Cursor' and (k.startswith('cursor.') or k.startswith('claudeCode.')):
+        strip.add(k)
 
-    # Strip windsurf.* for non-Windsurf, trae.* for non-Trae
     if ide != 'Windsurf' and k.startswith('windsurf.'):
-        foreign.add(k)
+        strip.add(k)
     if ide != 'Trae' and k.startswith('trae.'):
-        foreign.add(k)
+        strip.add(k)
 
-for k in foreign:
+for k in strip:
     del data[k]
 
 json.dump(data, sys.stdout, indent=2, ensure_ascii=False)
-print()  # trailing newline
+print()
 " 2>/dev/null
-
-    rm -f "$tmp"
 }
 
 sync_ide_settings() {
-    echo "  source: $CURSOR_APP_SUPPORT/settings.json"
+    local source="$SETTINGS_SRC/settings.json"
+    [ ! -f "$source" ] && { echo "  settings source not found: $source"; return; }
 
-    for entry in "${VSCODE_IDES[@]}"; do
-        local ide_name="${entry%%:*}"
-        local ide_dir="${entry#*:}"
+    echo "  source: $source"
 
-        if [ ! -d "$ide_dir" ]; then
-            echo "  $ide_name: skipped (not installed)"
+    for entry in "${ALL_VSCODE_IDES[@]}"; do
+        IFS=: read -r ide_name app_dir _dot_dir _rules_file <<< "$entry"
+        local ide_dir="$APP_SUPPORT/$app_dir/User"
+
+        # Skip the king itself
+        if [ "$ide_dir" = "$SETTINGS_SRC" ]; then
+            echo "  $ide_name: king (source), skipping"
             continue
         fi
 
-        local target="$ide_dir/settings.json"
+        [ ! -d "$ide_dir" ] && { echo "  $ide_name: not installed, skipping"; continue; }
+
         local tmp
         tmp=$(mktemp)
 
-        if ! filter_settings_for_ide "$ide_name" > "$tmp" 2>/dev/null; then
-            echo "  $ide_name: ERROR filtering settings"
+        if ! filter_settings_for_ide "$ide_name" > "$tmp" 2>/dev/null || [ ! -s "$tmp" ]; then
+            echo "  $ide_name: settings filter failed, skipping"
             rm -f "$tmp"
             continue
         fi
 
-        # Check for empty/invalid output
-        if [ ! -s "$tmp" ]; then
-            echo "  $ide_name: ERROR empty filtered output"
-            rm -f "$tmp"
-            continue
-        fi
-
-        if [ ! -f "$target" ]; then
-            mv "$tmp" "$target"
-            echo "  $ide_name: created settings.json"
-        elif ! diff -q "$tmp" "$target" >/dev/null 2>&1; then
-            mv "$tmp" "$target"
-            echo "  $ide_name: updated settings.json"
-        else
-            rm -f "$tmp"
-            echo "  $ide_name: settings.json unchanged"
-        fi
+        sync_file "$tmp" "$ide_dir/settings.json" "$ide_name settings.json"
     done
 }
 
 sync_ide_keybindings() {
-    local source="$CURSOR_APP_SUPPORT/keybindings.json"
-
-    if [ ! -f "$source" ]; then
-        echo "  keybindings: no source file, skipping"
-        return
-    fi
+    local source="$SETTINGS_SRC/keybindings.json"
+    [ ! -f "$source" ] && { echo "  keybindings source not found, skipping"; return; }
 
     echo "  source: $source"
 
-    for entry in "${VSCODE_IDES[@]}"; do
-        local ide_name="${entry%%:*}"
-        local ide_dir="${entry#*:}"
+    for entry in "${ALL_VSCODE_IDES[@]}"; do
+        IFS=: read -r ide_name app_dir _dot_dir _rules_file <<< "$entry"
+        local ide_dir="$APP_SUPPORT/$app_dir/User"
 
-        if [ ! -d "$ide_dir" ]; then
-            echo "  $ide_name: skipped (not installed)"
+        if [ "$ide_dir" = "$SETTINGS_SRC" ]; then
+            echo "  $ide_name: king (source), skipping"
             continue
         fi
 
-        local target="$ide_dir/keybindings.json"
+        [ ! -d "$ide_dir" ] && { echo "  $ide_name: not installed, skipping"; continue; }
 
-        # Filter out Cursor-specific keybindings for non-Cursor IDEs
         local tmp
         tmp=$(mktemp)
 
@@ -807,7 +1049,6 @@ import json, re
 
 with open('$source') as f:
     text = f.read()
-    # Strip JSONC comments
     text = re.sub(r'//.*$', '', text, flags=re.MULTILINE)
     text = re.sub(r',(\s*[}\]])', r'\1', text)
 
@@ -818,11 +1059,8 @@ filtered = []
 for binding in data:
     when = binding.get('when', '')
     cmd = binding.get('command', '')
-
-    # Skip Cursor-specific bindings for non-Cursor IDEs
     if ide != 'Cursor' and ('cursor.' in when or 'cursor.' in cmd or 'composerMode' in cmd):
         continue
-
     filtered.append(binding)
 
 json.dump(filtered, __import__('sys').stdout, indent=4, ensure_ascii=False)
@@ -835,94 +1073,155 @@ print()
             continue
         fi
 
-        if [ ! -f "$target" ]; then
-            mv "$tmp" "$target"
-            echo "  $ide_name: created keybindings.json"
-        elif ! diff -q "$tmp" "$target" >/dev/null 2>&1; then
-            mv "$tmp" "$target"
-            echo "  $ide_name: updated keybindings.json"
-        else
-            rm -f "$tmp"
-            echo "  $ide_name: keybindings.json unchanged"
-        fi
+        sync_file "$tmp" "$ide_dir/keybindings.json" "$ide_name keybindings.json"
     done
 }
 
-sync_ide_family() {
-    sync_ide_settings
-    echo ""
-    sync_ide_keybindings
-}
-
-# --- Phase 8: Project-level rules sync for Windsurf & Trae ---
+# ── Phase 11: Project-level rule files ────────────────────────
+# Syncs .cursorrules -> .windsurfrules, .traerules, .clinerules, .roorules
 
 sync_project_rules() {
-    # Windsurf uses .windsurfrules at project root (same format as .cursorrules)
-    # Trae uses .traerules at project root
-    # These are synced per-project, not globally — but we sync them for the commands repo itself
-    local commands_root="$CURSOR_COMMANDS"
+    [ ! -f "$CURSORRULES_FILE" ] && { echo "  no .cursorrules to propagate"; return; }
 
-    if [ -f "$commands_root/.cursorrules" ]; then
-        local wr="$commands_root/.windsurfrules"
-        if [ ! -f "$wr" ] || ! diff -q "$commands_root/.cursorrules" "$wr" >/dev/null 2>&1; then
-            cp "$commands_root/.cursorrules" "$wr"
-            echo "  updated .windsurfrules"
-        else
-            echo "  .windsurfrules unchanged"
-        fi
+    local src="$CURSORRULES_FILE"
 
-        local tr="$commands_root/.traerules"
-        if [ ! -f "$tr" ] || ! diff -q "$commands_root/.cursorrules" "$tr" >/dev/null 2>&1; then
-            cp "$commands_root/.cursorrules" "$tr"
-            echo "  updated .traerules"
-        else
-            echo "  .traerules unchanged"
-        fi
-    fi
+    # .windsurfrules
+    local tmp
+    tmp=$(mktemp) && cp "$src" "$tmp"
+    sync_file "$tmp" "$COMMANDS_SRC/.windsurfrules" ".windsurfrules"
+
+    # .traerules
+    tmp=$(mktemp) && cp "$src" "$tmp"
+    sync_file "$tmp" "$COMMANDS_SRC/.traerules" ".traerules"
+
+    # .clinerules (project-level)
+    tmp=$(mktemp) && cp "$src" "$tmp"
+    sync_file "$tmp" "$COMMANDS_SRC/.clinerules" ".clinerules"
+
+    # .roorules (legacy format, some projects still use it)
+    tmp=$(mktemp) && cp "$src" "$tmp"
+    sync_file "$tmp" "$COMMANDS_SRC/.roorules" ".roorules"
 }
 
-# --- Main ---
+# ── --list: show detected targets ─────────────────────────────
 
-echo "=== Cursor -> All Targets sync ==="
+cmd_list() {
+    echo "=== Detected Targets ==="
+    echo ""
+    echo "King: $KING_LABEL (source: $COMMANDS_SRC)"
+    echo ""
+
+    echo "VS Code Family IDEs:"
+    for entry in "${ALL_VSCODE_IDES[@]}"; do
+        IFS=: read -r ide_name app_dir _dot_dir _rules_file <<< "$entry"
+        local ide_dir="$APP_SUPPORT/$app_dir/User"
+        if [ -d "$ide_dir" ]; then
+            printf "  %-12s INSTALLED  %s\n" "$ide_name" "$ide_dir"
+        else
+            printf "  %-12s %-9s  %s\n" "$ide_name" "-" "$ide_dir"
+        fi
+    done
+
+    echo ""
+    echo "Agents & Extensions:"
+    local -a agents=(
+        "Claude Code:$CLAUDE_DIR"
+        "OpenAI Codex:$CODEX_DIR"
+        "Gemini CLI:$GEMINI_DIR"
+        "opencode:$OPENCODE_DIR"
+        "Roo Code:$ROO_DIR"
+        "Cline:$HOME/.cline"
+        "Antigravity:$ANTIGRAVITY_WORKFLOWS"
+    )
+    for entry in "${agents[@]}"; do
+        local name="${entry%%:*}"
+        local dir="${entry#*:}"
+        if [ -d "$dir" ]; then
+            printf "  %-16s INSTALLED  %s\n" "$name" "$dir"
+        else
+            printf "  %-16s %-9s  %s\n" "$name" "-" "$dir"
+        fi
+    done
+
+    echo ""
+    echo "Project Rules (from .cursorrules):"
+    for f in .cursorrules .windsurfrules .traerules .clinerules .roorules AGENTS.md CLAUDE.md GEMINI.md .geminirules; do
+        printf "  %s\n" "$f"
+    done
+}
+
+# ── Main ──────────────────────────────────────────────────────
+
+resolve_king
+resolve_derived_paths
+
+if $LIST_ONLY; then
+    cmd_list
+    exit 0
+fi
+
+PHASE=0
+TOTAL=12
+
+phase() {
+    PHASE=$((PHASE + 1))
+    echo "[$PHASE/$TOTAL $1]"
+}
+
+echo "=== sync-commands.sh ==="
 echo ""
-echo "source: $CURSOR_COMMANDS"
+echo "king:   $KING_LABEL ($KING)"
+echo "source: $COMMANDS_SRC"
+$DRY_RUN && echo "mode:   DRY RUN (no writes)"
 echo ""
 
-echo "[1/10 rules: generate from .cursor/rules/]"
+phase "rules: generate exports"
 generate_rules
 
-echo "[2/10 claude: commands]"
-sync_commands
+phase "claude-code: commands"
+sync_claude_commands
 
-echo "[3/10 claude: CLAUDE.md]"
-sync_rules
+phase "claude-code: CLAUDE.md + settings"
+sync_claude_rules
+sync_claude_settings
 
-echo "[4/10 claude: settings]"
-sync_settings
-
-echo "[5/10 codex: AGENTS.md + skills]"
+phase "codex: AGENTS.md + skills"
 sync_codex
 
-echo "[6/10 gemini: project/home GEMINI.md + commands]"
+phase "gemini: rules + commands"
 sync_gemini_rules
 sync_gemini_commands
 
-echo "[7/10 antigravity: workflows]"
+phase "antigravity: workflows"
 sync_antigravity
 
-echo "[8/10 vscode-family: settings]"
+phase "roo-code: commands + rules"
+sync_roo
+
+phase "cline: global rules"
+sync_cline
+
+phase "opencode: AGENTS.md + commands"
+sync_opencode
+
+phase "vscode-family: settings"
 sync_ide_settings
 
-echo "[9/10 vscode-family: keybindings]"
+phase "vscode-family: keybindings"
 sync_ide_keybindings
+echo ""
 
-echo "[10/10 project-rules: .windsurfrules, .traerules]"
+phase "project-rules: .windsurfrules, .traerules, .clinerules, .roorules"
 sync_project_rules
 
 echo ""
 echo "--- summary ---"
-echo "claude commands: $added added, $updated updated, $unchanged unchanged, $removed removed"
-echo "targets: claude, codex-agents, codex-skills, gemini-cli, gemini-code-assist, antigravity"
-echo "vscode family: Code, Windsurf, Trae (settings + keybindings from Cursor)"
-echo "project rules: .windsurfrules, .traerules (from .cursorrules)"
+echo "king: $KING_LABEL | commands: $added added, $updated updated, $unchanged unchanged, $removed removed"
+echo ""
+echo "targets:"
+echo "  agents:  claude-code, codex, gemini-cli, opencode, antigravity"
+echo "  exts:    roo-code, cline"
+echo "  ides:    $(for e in "${ALL_VSCODE_IDES[@]}"; do IFS=: read -r n _ _ _ <<< "$e"; printf '%s ' "$n"; done)"
+echo "  project: .cursorrules .windsurfrules .traerules .clinerules .roorules AGENTS.md CLAUDE.md GEMINI.md"
+echo ""
 echo "done."
