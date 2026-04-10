@@ -8,6 +8,30 @@ GEMINIRULES="$CURSOR_COMMANDS/.geminirules"
 AGENTSMD="$CURSOR_COMMANDS/AGENTS.md"
 PROJECT_GEMINI_MD="$CURSOR_COMMANDS/GEMINI.md"
 
+# --- VS Code family: settings & keybindings sync (Cursor = golden source) ---
+
+CURSOR_APP_SUPPORT="$HOME/Library/Application Support/Cursor/User"
+VSCODE_IDES=(
+    "Code:$HOME/Library/Application Support/Code/User"
+    "Windsurf:$HOME/Library/Application Support/Windsurf/User"
+    "Trae:$HOME/Library/Application Support/Trae/User"
+)
+
+# Keys that are Cursor-specific and must be stripped for vanilla VS Code
+CURSOR_ONLY_KEY_PREFIXES=(
+    '"cursor\.'
+    '"claudeCode\.'
+)
+
+# Keys that are IDE-specific and should be stripped for ALL non-origin IDEs
+# (each IDE may have its own equivalent; we remove stale ones from Cursor's export)
+STRIP_FOREIGN_KEY_PREFIXES=(
+    '"github\.copilot'
+    '"geminicodeassist\.'
+    '"windsurf\.'
+    '"trae\.'
+)
+
 CLAUDE_DIR="$HOME/.claude"
 CLAUDE_COMMANDS="$CLAUDE_DIR/commands"
 CODEX_DIR="$HOME/.codex"
@@ -634,6 +658,229 @@ sync_antigravity() {
     echo "  antigravity: $a_added added, $a_updated updated, $a_unchanged unchanged, $a_removed removed"
 }
 
+# --- Phase 7: VS Code family settings & keybindings sync ---
+
+# Filter Cursor settings.json for a target IDE.
+# $1 = target IDE name (Code, Windsurf, Trae)
+# Reads from CURSOR_APP_SUPPORT/settings.json, writes filtered JSON to stdout.
+filter_settings_for_ide() {
+    local ide_name="$1"
+    local source="$CURSOR_APP_SUPPORT/settings.json"
+
+    if [ ! -f "$source" ]; then
+        echo "  ERROR: Cursor settings.json not found at $source" >&2
+        return 1
+    fi
+
+    local tmp
+    tmp=$(mktemp)
+    cp "$source" "$tmp"
+
+    # Strip Cursor-specific keys for non-Cursor IDEs
+    case "$ide_name" in
+        Code)
+            # VS Code doesn't understand cursor.* or claudeCode.* keys
+            for prefix in "${CURSOR_ONLY_KEY_PREFIXES[@]}"; do
+                # Remove lines matching "cursor.xxx": ... (handles single-line and start of multi-line)
+                # Use python for reliable JSON-aware filtering
+                :
+            done
+            ;;
+    esac
+
+    # Use python for reliable JSON key filtering (jq not guaranteed)
+    python3 -c "
+import json, sys, re
+
+with open('$tmp') as f:
+    # Strip comments (JSONC -> JSON)
+    lines = f.readlines()
+    cleaned = []
+    for line in lines:
+        stripped = line.lstrip()
+        if stripped.startswith('//'):
+            continue
+        # Remove inline comments (naive but works for settings.json)
+        cleaned.append(re.sub(r'(?<!:)//.*$', '', line))
+    text = '\n'.join(cleaned)
+
+    # Handle trailing commas before } or ]
+    text = re.sub(r',(\s*[}\]])', r'\1', text)
+
+data = json.loads(text)
+
+ide = '$ide_name'
+
+# Keys to always strip (foreign IDE specific)
+foreign = set()
+for k in list(data.keys()):
+    # Strip cursor.* and claudeCode.* for non-Cursor IDEs
+    if ide != 'Cursor':
+        if k.startswith('cursor.') or k.startswith('claudeCode.'):
+            foreign.add(k)
+
+    # Strip windsurf.* for non-Windsurf, trae.* for non-Trae
+    if ide != 'Windsurf' and k.startswith('windsurf.'):
+        foreign.add(k)
+    if ide != 'Trae' and k.startswith('trae.'):
+        foreign.add(k)
+
+for k in foreign:
+    del data[k]
+
+json.dump(data, sys.stdout, indent=2, ensure_ascii=False)
+print()  # trailing newline
+" 2>/dev/null
+
+    rm -f "$tmp"
+}
+
+sync_ide_settings() {
+    echo "  source: $CURSOR_APP_SUPPORT/settings.json"
+
+    for entry in "${VSCODE_IDES[@]}"; do
+        local ide_name="${entry%%:*}"
+        local ide_dir="${entry#*:}"
+
+        if [ ! -d "$ide_dir" ]; then
+            echo "  $ide_name: skipped (not installed)"
+            continue
+        fi
+
+        local target="$ide_dir/settings.json"
+        local tmp
+        tmp=$(mktemp)
+
+        if ! filter_settings_for_ide "$ide_name" > "$tmp" 2>/dev/null; then
+            echo "  $ide_name: ERROR filtering settings"
+            rm -f "$tmp"
+            continue
+        fi
+
+        # Check for empty/invalid output
+        if [ ! -s "$tmp" ]; then
+            echo "  $ide_name: ERROR empty filtered output"
+            rm -f "$tmp"
+            continue
+        fi
+
+        if [ ! -f "$target" ]; then
+            mv "$tmp" "$target"
+            echo "  $ide_name: created settings.json"
+        elif ! diff -q "$tmp" "$target" >/dev/null 2>&1; then
+            mv "$tmp" "$target"
+            echo "  $ide_name: updated settings.json"
+        else
+            rm -f "$tmp"
+            echo "  $ide_name: settings.json unchanged"
+        fi
+    done
+}
+
+sync_ide_keybindings() {
+    local source="$CURSOR_APP_SUPPORT/keybindings.json"
+
+    if [ ! -f "$source" ]; then
+        echo "  keybindings: no source file, skipping"
+        return
+    fi
+
+    echo "  source: $source"
+
+    for entry in "${VSCODE_IDES[@]}"; do
+        local ide_name="${entry%%:*}"
+        local ide_dir="${entry#*:}"
+
+        if [ ! -d "$ide_dir" ]; then
+            echo "  $ide_name: skipped (not installed)"
+            continue
+        fi
+
+        local target="$ide_dir/keybindings.json"
+
+        # Filter out Cursor-specific keybindings for non-Cursor IDEs
+        local tmp
+        tmp=$(mktemp)
+
+        python3 -c "
+import json, re
+
+with open('$source') as f:
+    text = f.read()
+    # Strip JSONC comments
+    text = re.sub(r'//.*$', '', text, flags=re.MULTILINE)
+    text = re.sub(r',(\s*[}\]])', r'\1', text)
+
+data = json.loads(text)
+ide = '$ide_name'
+
+filtered = []
+for binding in data:
+    when = binding.get('when', '')
+    cmd = binding.get('command', '')
+
+    # Skip Cursor-specific bindings for non-Cursor IDEs
+    if ide != 'Cursor' and ('cursor.' in when or 'cursor.' in cmd or 'composerMode' in cmd):
+        continue
+
+    filtered.append(binding)
+
+json.dump(filtered, __import__('sys').stdout, indent=4, ensure_ascii=False)
+print()
+" > "$tmp" 2>/dev/null
+
+        if [ ! -s "$tmp" ]; then
+            rm -f "$tmp"
+            echo "  $ide_name: keybindings filter failed, skipping"
+            continue
+        fi
+
+        if [ ! -f "$target" ]; then
+            mv "$tmp" "$target"
+            echo "  $ide_name: created keybindings.json"
+        elif ! diff -q "$tmp" "$target" >/dev/null 2>&1; then
+            mv "$tmp" "$target"
+            echo "  $ide_name: updated keybindings.json"
+        else
+            rm -f "$tmp"
+            echo "  $ide_name: keybindings.json unchanged"
+        fi
+    done
+}
+
+sync_ide_family() {
+    sync_ide_settings
+    echo ""
+    sync_ide_keybindings
+}
+
+# --- Phase 8: Project-level rules sync for Windsurf & Trae ---
+
+sync_project_rules() {
+    # Windsurf uses .windsurfrules at project root (same format as .cursorrules)
+    # Trae uses .traerules at project root
+    # These are synced per-project, not globally — but we sync them for the commands repo itself
+    local commands_root="$CURSOR_COMMANDS"
+
+    if [ -f "$commands_root/.cursorrules" ]; then
+        local wr="$commands_root/.windsurfrules"
+        if [ ! -f "$wr" ] || ! diff -q "$commands_root/.cursorrules" "$wr" >/dev/null 2>&1; then
+            cp "$commands_root/.cursorrules" "$wr"
+            echo "  updated .windsurfrules"
+        else
+            echo "  .windsurfrules unchanged"
+        fi
+
+        local tr="$commands_root/.traerules"
+        if [ ! -f "$tr" ] || ! diff -q "$commands_root/.cursorrules" "$tr" >/dev/null 2>&1; then
+            cp "$commands_root/.cursorrules" "$tr"
+            echo "  updated .traerules"
+        else
+            echo "  .traerules unchanged"
+        fi
+    fi
+}
+
 # --- Main ---
 
 echo "=== Cursor -> All Targets sync ==="
@@ -641,32 +888,41 @@ echo ""
 echo "source: $CURSOR_COMMANDS"
 echo ""
 
-echo "[1/7 rules: generate from .cursor/rules/]"
+echo "[1/10 rules: generate from .cursor/rules/]"
 generate_rules
 
-echo "[2/7 claude: commands]"
+echo "[2/10 claude: commands]"
 sync_commands
 
-echo "[3/7 claude: CLAUDE.md]"
+echo "[3/10 claude: CLAUDE.md]"
 sync_rules
 
-echo "[4/7 claude: settings]"
+echo "[4/10 claude: settings]"
 sync_settings
 
-echo "[5/7 codex: AGENTS.md + skills]"
+echo "[5/10 codex: AGENTS.md + skills]"
 sync_codex
 
-echo "[6/7 gemini: project/home GEMINI.md + commands]"
+echo "[6/10 gemini: project/home GEMINI.md + commands]"
 sync_gemini_rules
 sync_gemini_commands
 
-echo "[7/7 antigravity: workflows]"
+echo "[7/10 antigravity: workflows]"
 sync_antigravity
+
+echo "[8/10 vscode-family: settings]"
+sync_ide_settings
+
+echo "[9/10 vscode-family: keybindings]"
+sync_ide_keybindings
+
+echo "[10/10 project-rules: .windsurfrules, .traerules]"
+sync_project_rules
 
 echo ""
 echo "--- summary ---"
 echo "claude commands: $added added, $updated updated, $unchanged unchanged, $removed removed"
 echo "targets: claude, codex-agents, codex-skills, gemini-cli, gemini-code-assist, antigravity"
-echo "note: VS Code Copilot reads AGENTS.md from repo root (already generated)"
-echo "note: TRAE skipped (rules path unverified locally)"
+echo "vscode family: Code, Windsurf, Trae (settings + keybindings from Cursor)"
+echo "project rules: .windsurfrules, .traerules (from .cursorrules)"
 echo "done."
