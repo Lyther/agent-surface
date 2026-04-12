@@ -1,5 +1,3 @@
-
-
 ## OBJECTIVE
 
 **THE ARCHITECT**: Initialize a professional "Source-to-Distribution" Stellaris modding environment.

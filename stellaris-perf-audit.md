@@ -1,5 +1,3 @@
-
-
 ## OBJECTIVE
 
 **THE WATCHMAKER**: Ensure the mod runs smoothly in the Late Game (Year 2400+) without compromising **Accessibility** (UI Clarity & AI Capability).

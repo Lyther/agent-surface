@@ -1,5 +1,3 @@
-
-
 ## OBJECTIVE
 
 **THE CONSTRUCTOR**: Translate Design (ADR) into high-quality, defensive Paradox Script (`.txt`).

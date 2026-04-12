@@ -1,5 +1,3 @@
-
-
 ## OBJECTIVE
 
 **THE SCIENCE OFFICER**: Ingest "Gold Standard" Vanilla data and cross-reference with the Syntax Submodule and Reference Mods.

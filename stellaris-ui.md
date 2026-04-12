@@ -1,5 +1,3 @@
-
-
 ## OBJECTIVE
 
 **THE ARTIFICER**: Design and Implement safe, robust User Interfaces.
@@ -99,7 +97,7 @@ guiTypes = {
             orientation = center_down
             buttonText = "[NS]_btn_text"
             buttonFont = "cg_16b"
-            
+
             # The Link to Logic
             effect = "[NS]_effect_do_something"
         }

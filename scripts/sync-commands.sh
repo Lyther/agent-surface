@@ -18,10 +18,11 @@
 # Sync targets (auto-detected):
 #   IDEs:       Cursor, VS Code, Windsurf, Trae, VSCodium, Positron, Void
 #   Agents:     Claude Code, OpenAI Codex, Gemini CLI, opencode
-#   Extensions: Roo Code, Cline
-#   Platforms:  Gemini Code Assist (Antigravity)
+#   Extensions: Roo Code, Cline, Gemini Code Assist (workspace files)
+#   Platforms:  Antigravity
 #   Project:    .cursorrules, .windsurfrules, .traerules, .clinerules,
-#               .roorules, AGENTS.md, CLAUDE.md, GEMINI.md
+#               .roorules, AGENTS.md, CLAUDE.md, GEMINI.md,
+#               .gemini/commands/**/*.toml
 #
 # Requirements: bash 4+, sed, diff, python3 (for settings JSON filtering)
 # License: MIT
@@ -142,12 +143,14 @@ CURSORRULES_FILE=""
 GEMINIRULES_FILE=""
 AGENTSMD_FILE=""
 GEMINI_MD_FILE=""
+PROJECT_GEMINI_COMMANDS=""
 
 resolve_derived_paths() {
     CURSORRULES_FILE="$COMMANDS_SRC/.cursorrules"
     GEMINIRULES_FILE="$COMMANDS_SRC/.geminirules"
     AGENTSMD_FILE="$COMMANDS_SRC/AGENTS.md"
     GEMINI_MD_FILE="$COMMANDS_SRC/GEMINI.md"
+    PROJECT_GEMINI_COMMANDS="$COMMANDS_SRC/.gemini/commands"
 }
 
 CLAUDE_DIR="$HOME/.claude"
@@ -221,6 +224,12 @@ strip_markdown_inline() {
         -e 's/`([^`]+)`/\1/g' \
         -e 's/[[:space:]]+/ /g' \
         -e 's/^ +//; s/ +$//'
+}
+
+escape_toml_basic_string() {
+    printf '%s\n' "$1" | sed \
+        -e 's/\\/\\\\/g' \
+        -e 's/"/\\"/g'
 }
 
 extract_goal_line() {
@@ -669,11 +678,14 @@ sync_gemini_rules() {
     emit_gemini_markdown "$GEMINI_DIR/GEMINI.md" "~/.gemini/GEMINI.md" "GEMINI.md — Global Agent Rules"
 }
 
-sync_gemini_commands() {
-    mkdir -p "$GEMINI_COMMANDS"
+sync_gemini_command_tree() {
+    local target_dir="$1"
+    local label="$2"
     local tracked_file
     tracked_file=$(mktemp)
     local g_added=0 g_updated=0 g_unchanged=0 g_removed=0
+
+    $DRY_RUN || mkdir -p "$target_dir"
 
     for md_file in "$COMMANDS_SRC"/*.md; do
         [ ! -f "$md_file" ] && continue
@@ -687,14 +699,16 @@ sync_gemini_commands() {
         [ -z "$target_cat" ] && continue
         [ "$target_cat" = "$fname" ] && continue
 
-        mkdir -p "$GEMINI_COMMANDS/$target_cat"
-        local toml_path="$GEMINI_COMMANDS/$target_cat/$cmd_name.toml"
+        $DRY_RUN || mkdir -p "$target_dir/$target_cat"
+        local toml_path="$target_dir/$target_cat/$cmd_name.toml"
         echo "$target_cat/$cmd_name.toml" >> "$tracked_file"
 
         local first_line
         first_line=$(head -1 "$md_file")
         local desc="${first_line#\#\# }"
         [ "$desc" = "$first_line" ] && desc="$target_cat $cmd_name command"
+        local desc_escaped
+        desc_escaped=$(escape_toml_basic_string "$desc")
 
         local content
         content=$(cat "$md_file")
@@ -702,17 +716,25 @@ sync_gemini_commands() {
         local new_toml
         new_toml=$(mktemp)
         {
-            printf 'description = "%s"\n\n' "$desc"
+            printf 'description = "%s"\n\n' "$desc_escaped"
             printf 'prompt = """\n'
             printf '%s\n' "$content"
             printf '"""\n'
         } > "$new_toml"
 
         if [ ! -f "$toml_path" ]; then
-            $DRY_RUN || mv "$new_toml" "$toml_path"
+            if $DRY_RUN; then
+                rm -f "$new_toml"
+            else
+                mv "$new_toml" "$toml_path"
+            fi
             g_added=$((g_added + 1))
         elif ! diff -q "$new_toml" "$toml_path" >/dev/null 2>&1; then
-            $DRY_RUN || mv "$new_toml" "$toml_path"
+            if $DRY_RUN; then
+                rm -f "$new_toml"
+            else
+                mv "$new_toml" "$toml_path"
+            fi
             g_updated=$((g_updated + 1))
         else
             rm -f "$new_toml"
@@ -721,16 +743,21 @@ sync_gemini_commands() {
     done
 
     while read -r existing; do
-        local rel="${existing#"$GEMINI_COMMANDS/"}"
+        local rel="${existing#"$target_dir/"}"
         if ! grep -qxF "$rel" "$tracked_file"; then
             $DRY_RUN || rm "$existing"
             g_removed=$((g_removed + 1))
             echo "  removed stale: $rel"
         fi
-    done < <(find "$GEMINI_COMMANDS" -name '*.toml' -type f 2>/dev/null)
+    done < <(find "$target_dir" -name '*.toml' -type f 2>/dev/null)
 
     rm -f "$tracked_file"
-    echo "  gemini commands: $g_added added, $g_updated updated, $g_unchanged unchanged, $g_removed removed"
+    echo "  $label: $g_added added, $g_updated updated, $g_unchanged unchanged, $g_removed removed"
+}
+
+sync_gemini_commands() {
+    sync_gemini_command_tree "$GEMINI_COMMANDS" "gemini global commands"
+    sync_gemini_command_tree "$PROJECT_GEMINI_COMMANDS" "gemini project commands"
 }
 
 # ── Phase 6: Antigravity workflows ────────────────────────────
@@ -1128,6 +1155,7 @@ cmd_list() {
         "Claude Code:$CLAUDE_DIR"
         "OpenAI Codex:$CODEX_DIR"
         "Gemini CLI:$GEMINI_DIR"
+        "Gemini Code Assist Workspace:$PROJECT_GEMINI_COMMANDS"
         "opencode:$OPENCODE_DIR"
         "Roo Code:$ROO_DIR"
         "Cline:$HOME/.cline"
@@ -1145,7 +1173,7 @@ cmd_list() {
 
     echo ""
     echo "Project Rules (from .cursorrules):"
-    for f in .cursorrules .windsurfrules .traerules .clinerules .roorules AGENTS.md CLAUDE.md GEMINI.md .geminirules; do
+    for f in .cursorrules .windsurfrules .traerules .clinerules .roorules AGENTS.md CLAUDE.md GEMINI.md .geminirules .gemini/commands/**/*.toml; do
         printf "  %s\n" "$f"
     done
 }
@@ -1219,9 +1247,10 @@ echo "--- summary ---"
 echo "king: $KING_LABEL | commands: $added added, $updated updated, $unchanged unchanged, $removed removed"
 echo ""
 echo "targets:"
-echo "  agents:  claude-code, codex, gemini-cli, opencode, antigravity"
-echo "  exts:    roo-code, cline"
+echo "  agents:  claude-code, codex, gemini-cli, opencode"
+echo "  exts:    roo-code, cline, gemini-code-assist"
+echo "  tools:   antigravity"
 echo "  ides:    $(for e in "${ALL_VSCODE_IDES[@]}"; do IFS=: read -r n _ _ _ <<< "$e"; printf '%s ' "$n"; done)"
-echo "  project: .cursorrules .windsurfrules .traerules .clinerules .roorules AGENTS.md CLAUDE.md GEMINI.md"
+echo "  project: .cursorrules .windsurfrules .traerules .clinerules .roorules AGENTS.md CLAUDE.md GEMINI.md .gemini/commands/**/*.toml"
 echo ""
 echo "done."

@@ -20,7 +20,7 @@ Find broken references, token budget violations, rules drift, stale exports, and
 ### Check 3: Rules source-of-truth
 
 - Verify `.cursor/rules/*.mdc` files exist and each has valid `---` frontmatter with `alwaysApply` or `globs`.
-- Run `scripts/sync-commands.sh` and confirm generated `.cursorrules`, `.geminirules`, `AGENTS.md`, `GEMINI.md` are non-empty.
+- Run `scripts/sync-commands.sh` and confirm generated `.cursorrules`, `.geminirules`, `AGENTS.md`, `GEMINI.md`, and repo `.gemini/commands/**/*.toml` exports are present.
 - Diff generated `.cursorrules` against concatenated `.cursor/rules/0[0-9]-*.mdc` (frontmatter stripped). Report drift.
 
 ### Check 4: Broken internal references
@@ -44,12 +44,13 @@ Find broken references, token budget violations, rules drift, stale exports, and
 ### Check 7: Cross-IDE sync integrity
 
 - Verify `~/.codex/AGENTS.md` exists and is non-empty.
-- Verify `~/.agents/skills/` contains one skill directory per root command, each with `SKILL.md` and `agents/openai.yaml`.
+- Verify `~/.agents/skills/` contains one skill directory per syncable root command (`category-name.md` files only), each with `SKILL.md` and `agents/openai.yaml`.
 - Verify `GEMINI.md` exists and is non-empty.
+- Verify `.gemini/commands/` has `.toml` files matching syncable root command count (`category-name.md` files only).
 - Verify `~/.gemini/GEMINI.md` exists and is non-empty.
-- Verify `~/.gemini/commands/` has `.toml` files matching root command count.
-- Verify `~/.gemini/antigravity/global_workflows/` has `.md` files matching root command count.
-- Verify `~/.claude/CLAUDE.md` exists and `~/.claude/commands/` has `.md` files matching root command count.
+- Verify `~/.gemini/commands/` has `.toml` files matching syncable root command count (`category-name.md` files only).
+- Verify `~/.gemini/antigravity/global_workflows/` has `.md` files matching syncable root command count (`category-name.md` files only).
+- Verify `~/.claude/CLAUDE.md` exists and `~/.claude/commands/` has `.md` files matching syncable root command count (`category-name.md` files only).
 - Report: missing or stale targets.
 
 ### Check 8: AGENTS.md learned sections
@@ -95,12 +96,13 @@ DOCTOR REPORT — ~/.cursor/commands
 
 [CHECK 7] Cross-IDE sync
   codex: AGENTS.md OK, 80 skills under ~/.agents/skills
-  gemini: repo GEMINI.md OK, ~/.gemini/GEMINI.md OK, 80 toml commands
+  gemini: repo GEMINI.md OK, repo .gemini commands OK (80), ~/.gemini/GEMINI.md OK, 80 global toml commands
   antigravity: 80 workflow files
   claude: CLAUDE.md OK, 80 commands
   OR
   MISSING: ~/.codex/AGENTS.md does not exist
   MISSING: ~/.agents/skills does not contain synced Codex skills
+  MISSING: .gemini/commands does not contain synced Gemini workspace commands
 
 [CHECK 8] AGENTS.md learned sections
   Learned User Preferences: 10 bullets

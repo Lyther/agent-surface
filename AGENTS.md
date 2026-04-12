@@ -406,14 +406,14 @@ main (protected)
 - Shell scripts must always use `set -euo pipefail` — the `-u` flag is mandatory, no exceptions
 - When citing version pins, verify the actual file content first — do not name nonexistent hits
 - Single source of truth for rules must be unambiguous — .cursor/rules/*.mdc is authoritative, everything else is generated
-- After editing `.cursor/rules/*.mdc` or other generated rule exports in this repo, run `scripts/sync-commands.sh` so Claude Code, Codex, Gemini, and Antigravity copies stay aligned
+- After editing `.cursor/rules/*.mdc` or other generated rule exports in this repo, run `scripts/sync-commands.sh` so Claude Code, Codex, Gemini CLI, Gemini Code Assist, and Antigravity copies stay aligned
 - Fanfic commands should be written in Chinese and support both web-fiction and serious-literary modes; metanarrative/fourth-wall/philosophical voice is intentional
 
 ## Learned Workspace Facts
 
 - This repo is ~/.cursor/commands — global Cursor commands, not a regular project
 - .cursor/rules/*.mdc files are the authoritative rule source; .cursorrules, .geminirules, GEMINI.md, and AGENTS.md are generated exports
-- sync-commands.sh targets: Claude Code (~/.claude), OpenAI Codex (~/.codex/AGENTS.md + ~/.agents/skills/*/SKILL.md), Gemini CLI and Gemini Code Assist (repo + ~/.gemini/GEMINI.md, ~/.gemini/commands/**/*.toml), Antigravity (~/.gemini/antigravity/global_workflows/)
+- sync-commands.sh targets: Claude Code (~/.claude), OpenAI Codex (~/.codex/AGENTS.md + ~/.agents/skills/*/SKILL.md), Gemini CLI (~/.gemini/GEMINI.md + ~/.gemini/commands/**/*.toml), Gemini Code Assist (repo GEMINI.md + repo .gemini/commands/**/*.toml), Antigravity (~/.gemini/antigravity/global_workflows/)
 - ops-server.md and .cursor/hooks/ are gitignored for local-only configuration and hook state; do not commit them
 - 80 commands across 12 categories: boot, arch, dev, verify, qa, ship, ops, workflow, lint, stellaris, ai, fanfic
 - Language policy lives in glob-scoped .cursor/rules/1[0-4]-lang-*.mdc — commands are thin wrappers

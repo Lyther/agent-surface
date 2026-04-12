@@ -1,5 +1,3 @@
-
-
 ## OBJECTIVE
 
 **THE DIPLOMAT**: Manage Localisation (`.yml`) files with strict encoding discipline.
