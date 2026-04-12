@@ -414,7 +414,7 @@ main (protected)
 - This repo is ~/.cursor/commands — global Cursor commands, not a regular project
 - .cursor/rules/*.mdc files are the authoritative rule source; .cursorrules, .geminirules, GEMINI.md, and AGENTS.md are generated exports
 - sync-commands.sh targets: Claude Code (~/.claude), OpenAI Codex (~/.codex/AGENTS.md + ~/.agents/skills/*/SKILL.md), Gemini CLI (~/.gemini/GEMINI.md + ~/.gemini/commands/**/*.toml), Gemini Code Assist (repo GEMINI.md + repo .gemini/commands/**/*.toml), Antigravity (~/.gemini/antigravity/global_workflows/)
-- ops-server.md and .cursor/hooks/ are gitignored for local-only configuration and hook state; do not commit them
+- ops-server.md, .cursor/hooks/, and repo .gemini/commands/ are local-only/private or generated workspace artifacts; do not commit them
 - 80 commands across 12 categories: boot, arch, dev, verify, qa, ship, ops, workflow, lint, stellaris, ai, fanfic
 - Language policy lives in glob-scoped .cursor/rules/1[0-4]-lang-*.mdc — commands are thin wrappers
 - .cursor/mission.md, .cursor/review-log.md, .cursor/nuke-state.md are optional legacy state files, not required by commands

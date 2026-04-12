@@ -9,3 +9,6 @@
 # Private local configuration
 ops-server.md
 
+# Generated Gemini workspace commands
+.gemini/commands/
+
