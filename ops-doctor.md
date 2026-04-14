@@ -49,7 +49,7 @@ Find broken references, token budget violations, rules drift, stale exports, and
 - Verify `.gemini/commands/` has `.toml` files matching syncable root command count (`category-name.md` files only).
 - Verify `~/.gemini/GEMINI.md` exists and is non-empty.
 - Verify `~/.gemini/commands/` has `.toml` files matching syncable root command count (`category-name.md` files only).
-- Verify `~/.gemini/antigravity/global_workflows/` has `.md` files matching syncable root command count (`category-name.md` files only).
+- Verify `~/.gemini/antigravity/global_workflows/` has `.md` files matching all root `*.md` files in this repo.
 - Verify `~/.claude/CLAUDE.md` exists and `~/.claude/commands/` has `.md` files matching syncable root command count (`category-name.md` files only).
 - Report: missing or stale targets.
 
@@ -97,7 +97,7 @@ DOCTOR REPORT — ~/.cursor/commands
 [CHECK 7] Cross-IDE sync
   codex: AGENTS.md OK, 80 skills under ~/.agents/skills
   gemini: repo GEMINI.md OK, repo .gemini commands OK (80), ~/.gemini/GEMINI.md OK, 80 global toml commands
-  antigravity: 80 workflow files
+  antigravity: 82 workflow files mirroring all root markdown files
   claude: CLAUDE.md OK, 80 commands
   OR
   MISSING: ~/.codex/AGENTS.md does not exist
@@ -105,8 +105,8 @@ DOCTOR REPORT — ~/.cursor/commands
   MISSING: .gemini/commands does not contain synced Gemini workspace commands
 
 [CHECK 8] AGENTS.md learned sections
-  Learned User Preferences: 10 bullets
-  Learned Workspace Facts: 9 bullets
+  Learned User Preferences: 12 bullets
+  Learned Workspace Facts: 10 bullets
   OR
   MISSING: ## Learned Workspace Facts section not found
 ```

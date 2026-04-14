@@ -413,11 +413,11 @@ main (protected)
 
 - This repo is ~/.cursor/commands — global Cursor commands, not a regular project
 - .cursor/rules/*.mdc files are the authoritative rule source; .cursorrules, .geminirules, GEMINI.md, and AGENTS.md are generated exports
-- sync-commands.sh targets: Claude Code (~/.claude), OpenAI Codex (~/.codex/AGENTS.md + ~/.agents/skills/*/SKILL.md), Gemini CLI (~/.gemini/GEMINI.md + ~/.gemini/commands/**/*.toml), Gemini Code Assist (repo GEMINI.md + repo .gemini/commands/**/*.toml), Antigravity (~/.gemini/antigravity/global_workflows/)
+- sync-commands.sh targets: Claude Code (~/.claude), OpenAI Codex (~/.codex/AGENTS.md + ~/.agents/skills/*/SKILL.md), Gemini CLI (~/.gemini/GEMINI.md + ~/.gemini/commands/**/*.toml), Gemini Code Assist (repo GEMINI.md + repo .gemini/commands/**/*.toml), Antigravity (~/.gemini/antigravity/global_workflows/ mirroring all 82 root `*.md` files)
 - ops-server.md, .cursor/hooks/, and repo .gemini/commands/ are local-only/private or generated workspace artifacts; do not commit them
 - 80 commands across 12 categories: boot, arch, dev, verify, qa, ship, ops, workflow, lint, stellaris, ai, fanfic
 - Language policy lives in glob-scoped .cursor/rules/1[0-4]-lang-*.mdc — commands are thin wrappers
 - .cursor/mission.md, .cursor/review-log.md, .cursor/nuke-state.md are optional legacy state files, not required by commands
 - Gemini CLI custom commands use TOML format, not markdown
-- Antigravity workflows need YAML description frontmatter
+- Antigravity workflows mirror all 82 root `*.md` files (80 command files plus `AGENTS.md` and `GEMINI.md`) and need YAML description frontmatter
 - VS Code Copilot reads AGENTS.md from repo root; TRAE rules path is unverified locally

@@ -232,6 +232,12 @@ escape_toml_basic_string() {
         -e 's/"/\\"/g'
 }
 
+escape_yaml_double_quoted() {
+    printf '%s\n' "$1" | sed \
+        -e 's/\\/\\\\/g' \
+        -e 's/"/\\"/g'
+}
+
 extract_goal_line() {
     local file="$1"
     awk '
@@ -278,6 +284,14 @@ extract_when_line() {
     ' "$file"
 }
 
+extract_first_markdown_heading() {
+    local file="$1"
+    awk '
+        /^# / { sub(/^# /, ""); print; exit }
+        /^## / { sub(/^## /, ""); print; exit }
+    ' "$file"
+}
+
 build_codex_description() {
     local file="$1"
     local skill_name="$2"
@@ -301,6 +315,26 @@ build_codex_description() {
         *[.!?]) ;;
         *) desc="$desc." ;;
     esac
+
+    printf '%s\n' "$desc"
+}
+
+build_antigravity_description() {
+    local file="$1"
+    local workflow_name="$2"
+    local desc heading
+
+    desc=$(strip_markdown_inline "$(extract_goal_line "$file")")
+    if [ -z "$desc" ]; then
+        desc=$(strip_markdown_inline "$(extract_objective_blurb "$file")")
+    fi
+    if [ -z "$desc" ]; then
+        heading=$(strip_markdown_inline "$(extract_first_markdown_heading "$file")")
+        desc="$heading"
+    fi
+    if [ -z "$desc" ]; then
+        desc="Run the ${workflow_name//-/ } workflow."
+    fi
 
     printf '%s\n' "$desc"
 }
@@ -772,33 +806,37 @@ sync_antigravity() {
         [ ! -f "$md_file" ] && continue
         local fname
         fname=$(basename "$md_file")
-
-        local target_cat="${fname%%-*}"
-        [ -z "$target_cat" ] && continue
-        [ "$target_cat" = "$fname" ] && continue
+        local workflow_name="${fname%.md}"
 
         local target_path="$ANTIGRAVITY_WORKFLOWS/$fname"
         echo "$fname" >> "$tracked_file"
 
-        local first_heading
-        first_heading=$(grep -m1 '^## ' "$md_file" 2>/dev/null | sed 's/^## //' || true)
-        [ -z "$first_heading" ] && first_heading=""
+        local workflow_desc
+        workflow_desc=$(escape_yaml_double_quoted "$(build_antigravity_description "$md_file" "$workflow_name")")
 
         local new_wf
         new_wf=$(mktemp)
         {
             echo "---"
-            printf 'description: %s\n' "$first_heading"
+            printf 'description: "%s"\n' "$workflow_desc"
             echo "---"
             echo ""
             cat "$md_file"
         } > "$new_wf"
 
         if [ ! -f "$target_path" ]; then
-            $DRY_RUN || mv "$new_wf" "$target_path"
+            if $DRY_RUN; then
+                rm -f "$new_wf"
+            else
+                mv "$new_wf" "$target_path"
+            fi
             a_added=$((a_added + 1))
         elif ! diff -q "$new_wf" "$target_path" >/dev/null 2>&1; then
-            $DRY_RUN || mv "$new_wf" "$target_path"
+            if $DRY_RUN; then
+                rm -f "$new_wf"
+            else
+                mv "$new_wf" "$target_path"
+            fi
             a_updated=$((a_updated + 1))
         else
             rm -f "$new_wf"
