@@ -58,12 +58,15 @@ This command creates the **context infrastructure** that enables smooth vibe cod
         - `.agent/` (Antigravity local)
         - `.cursorrules` (Cursor rules symlink)
         - `.geminirules` (Gemini rules symlink)
+        - `.roorules`, `.clinerules`, `.traerules`, `.windsurfrules` (other tool-local overlays)
         - `.cursorignore` (Cursor ignore file)
-        - `AGENTS.md` (Agentic rules)
+        - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` (project-level AI instructions)
         - `*.code-workspace` (Workspace file)
+    - **Remote Ban**: Project-level AI files are allowed and should exist when useful, but they MUST remain local-only overlays in `.gitignore`. Never commit or push them to the remote repo.
+    - **Safety Check**: If any agentic file is already tracked, stop and untrack it before proceeding.
 3. **Env Safety**:
     - If `.env` exists: **IMMEDIATELY CHECK** if it is in `.gitignore`. If not, STOP and warn the user.
-    - Generate `.env.example` with dummy values for all keys found in `.env` (or expected keys). Generate a `.env.example.md` file with the dummy values.
+    - Generate `.env.example` with dummy values for all keys found in `.env` (or expected keys).
 4. **Add `LICENSE`**: Choose an explicit license.
 5. **Add `README.md`**: Generate a README.md file with the project description, usage instructions, and any other relevant information.
 
@@ -85,9 +88,10 @@ This command creates the **context infrastructure** that enables smooth vibe cod
 4. **Agentic Rules (`.cursor/rules/` scaffolding)**:
     - **MANDATORY**: Scaffold `.cursor/rules/` in the target project with `.mdc` files.
     - **Source**: Copy templates from `~/.cursor/commands/.cursor/rules/*.mdc` as starting points.
-    - **Cross-tool**: Generate `AGENTS.md` at project root (read by Cursor, Claude Code, Copilot, Gemini).
-    - **Gemini/Antigravity**: `ln -sf ~/.cursor/commands/.geminirules ./.agent/rules/gemini-rules.md`
-    - **Legacy**: If the project needs `.cursorrules` for older tooling, generate it from `.cursor/rules/` via `sync-commands.sh`.
+    - **Cross-tool**: Generate `AGENTS.md` at project root for local cross-tool compatibility (gitignored).
+    - **Gemini/Antigravity**: `ln -sf ~/.cursor/commands/.geminirules ./.agent/rules/gemini-rules.md` as a local-only overlay (gitignored).
+    - **Legacy**: If the project needs `.cursorrules` for older tooling, generate it from `.cursor/rules/` via `sync-commands.sh` and keep it gitignored.
+    - **Git Scope**: Treat all of these as local project overlays only. They belong in `.gitignore`, not in the remote repository.
 
 ### Phase 4: Entrypoint Standardization
 
@@ -119,8 +123,9 @@ This command creates the **context infrastructure** that enables smooth vibe cod
     - **Language Hooks**: `ruff` (Python), `fmt` (Rust), `prettier` (Web).
 3. **Scaffold Project Rules**:
     - Copy `.cursor/rules/*.mdc` templates into the project's `.cursor/rules/`.
-    - Generate `AGENTS.md` at project root for cross-tool compatibility.
-    - Symlink `.geminirules` for Gemini: `ln -sf ~/.cursor/commands/.geminirules ./.agent/rules/gemini-rules.md`
+    - Generate `AGENTS.md` at project root for local cross-tool compatibility.
+    - Symlink `.geminirules` for Gemini as a local-only overlay: `ln -sf ~/.cursor/commands/.geminirules ./.agent/rules/gemini-rules.md`
+    - Keep all agentic rule files ignored and unstaged. They are for local assistant context, not remote source control.
 4. **Customize if Needed**: Add project-specific rules in `.cursor/rules/` or `.agent/rules/` directories.
 
 ### Phase 6: Vibe Coding Infrastructure (The Brain)
@@ -129,6 +134,7 @@ This command creates the **context infrastructure** that enables smooth vibe cod
 
 1. **Ensure `.cursor/` exists (Locally)**:
     - Create the folder so the user can drop private context files if needed.
+    - Keep `.cursor/` gitignored. Local memory, lessons, and review notes must never be pushed.
 2. **Create `docs/context/README.md`**:
     - **Content**: Insert a template explaining: "DUMP CONTEXT HERE. Paste raw requirements, emails, or brain dumps. The AI reads this folder to understand *Intent*."
 3. **Bootstrap CI (Minimal)**:
@@ -169,3 +175,4 @@ This command creates the **context infrastructure** that enables smooth vibe cod
 4. **TOKEN ECONOMY**: Do not generate massive boilerplate comments. Code explains itself.
 5. **TRASH COLLECTION**: If `.claude`, `.vscode` exist, ensure they are in `.gitignore` immediately.
 6. **DOCS**: Keep docs technical and tied to code.
+7. **LOCAL AI FILES ONLY**: Project AI files are allowed, but they must stay local-only and gitignored. Remote repos must not contain agentic rules, memories, or assistant-specific config.
