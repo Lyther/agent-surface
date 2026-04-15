@@ -44,13 +44,14 @@ Find broken references, token budget violations, rules drift, stale exports, and
 ### Check 7: Cross-IDE sync integrity
 
 - Verify `~/.codex/AGENTS.md` exists and is non-empty.
-- Verify `~/.agents/skills/` contains one skill directory per syncable root command (`category-name.md` files only), each with `SKILL.md` and `agents/openai.yaml`.
+- Verify `~/.agents/skills/` contains one exported skill per syncable root command plus generated compatibility aliases, each with `SKILL.md` and `agents/openai.yaml`.
 - Verify `GEMINI.md` exists and is non-empty.
-- Verify `.gemini/commands/` has `.toml` files matching syncable root command count (`category-name.md` files only).
+- Verify `.gemini/commands/` has `.toml` files matching exported command count (syncable root commands plus generated compatibility aliases).
 - Verify `~/.gemini/GEMINI.md` exists and is non-empty.
-- Verify `~/.gemini/commands/` has `.toml` files matching syncable root command count (`category-name.md` files only).
-- Verify `~/.gemini/antigravity/global_workflows/` has `.md` files matching syncable root command count (`category-name.md` files only).
-- Verify `~/.claude/CLAUDE.md` exists and `~/.claude/commands/` has `.md` files matching syncable root command count (`category-name.md` files only).
+- Verify `~/.gemini/commands/` has `.toml` files matching exported command count (syncable root commands plus generated compatibility aliases).
+- Verify `~/.gemini/antigravity/global_workflows/` has `.md` files matching exported command count (syncable root commands plus generated compatibility aliases).
+- Verify `~/.claude/CLAUDE.md` exists and `~/.claude/commands/` has `.md` files matching exported command count (syncable root commands plus generated compatibility aliases).
+- Current compatibility alias set: `dev-component` -> `dev-feature`.
 - Report: missing or stale targets.
 
 ### Check 8: AGENTS.md learned sections
@@ -95,10 +96,10 @@ DOCTOR REPORT — ~/.cursor/commands
   stellaris: .stellarisrules exists
 
 [CHECK 7] Cross-IDE sync
-  codex: AGENTS.md OK, 80 skills under ~/.agents/skills
-  gemini: repo GEMINI.md OK, repo .gemini commands OK (80), ~/.gemini/GEMINI.md OK, 80 global toml commands
-  antigravity: 80 workflow files
-  claude: CLAUDE.md OK, 80 commands
+  codex: AGENTS.md OK, exported skills count matches source + aliases
+  gemini: repo GEMINI.md OK, repo .gemini commands count matches source + aliases, ~/.gemini/GEMINI.md OK, global toml count matches
+  antigravity: exported workflow count matches source + aliases
+  claude: CLAUDE.md OK, exported command count matches source + aliases
   OR
   MISSING: ~/.codex/AGENTS.md does not exist
   MISSING: ~/.agents/skills does not contain synced Codex skills

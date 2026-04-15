@@ -135,6 +135,7 @@ This command creates the **context infrastructure** that enables smooth vibe cod
 1. **Ensure `.cursor/` exists (Locally)**:
     - Create the folder so the user can drop private context files if needed.
     - Keep `.cursor/` gitignored. Local memory, lessons, and review notes must never be pushed.
+    - If the workflow command set is used, `.cursor/.workflow/*.json` are the local-only handoff files.
 2. **Create `docs/context/README.md`**:
     - **Content**: Insert a template explaining: "DUMP CONTEXT HERE. Paste raw requirements, emails, or brain dumps. The AI reads this folder to understand *Intent*."
 3. **Bootstrap CI (Minimal)**:

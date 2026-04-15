@@ -13,6 +13,16 @@ You must be provided:
 
 If runner logs are missing or incomplete for the AC, REJECT due to missing evidence.
 
+### Workflow mode
+
+- If `.cursor/.workflow/boss.json` exists, load the workflow files instead of requiring the human to paste every artifact manually.
+- Load:
+  - `boss.json`
+  - `boss.json.workflow.route` decides whether to read `worker.json` or `debugger.json`
+  - runner evidence referenced by the current implementation handoff file
+- There is no separate self-critique workflow file. For feature work, any self-audit should already be embedded in `worker.json`.
+- If the expected implementation handoff file is missing, empty, or clearly stale for the current `boss.json`, fail closed and tell the human to rerun `dev-feature` or `dev-fix`.
+
 ## REVIEW CHECKLIST
 
 - AC compliance: each AC is PASS/FAIL/UNKNOWN with evidence.
@@ -23,6 +33,7 @@ If runner logs are missing or incomplete for the AC, REJECT due to missing evide
 - Sandbox: for security tasks, confirm simulation-only unless authorized.
 - No self-certification: only runner evidence counts, not claims.
 - Reject lazy patterns: `assert True`, empty tests, mock-only tests, deleted tests, TODO placeholders.
+- Feature worker handoff: enforce `dev-feature -> worker.json -> workflow-reviewer` when workflow mode is active.
 
 ## OUTPUT FORMAT
 
@@ -45,7 +56,12 @@ Output ONLY valid JSON (no markdown fences):
     "accept": ["commits/paths/hunks to accept"],
     "reject": ["commits/paths/hunks to reject"]
   },
-  "escalation": { "recommend": "NONE|REWORK|JUDGER", "reason": "" }
+  "escalation": { "recommend": "NONE|REWORK|JUDGER", "reason": "" },
+  "workflow": {
+    "dir": ".cursor/.workflow",
+    "file": "reviewer.json",
+    "next_command": "workflow-boss|dev-feature|dev-fix|workflow-judger"
+  }
 }
 
 ## HARD RULES
@@ -54,3 +70,8 @@ Output ONLY valid JSON (no markdown fences):
 2. REJECT: at least one blocker or major.
 3. PARTIAL: `partial.accept` and `partial.reject` must be non-empty.
 4. No speculation. Missing evidence = UNKNOWN = REJECT.
+5. In workflow mode, write the review JSON into `.cursor/.workflow/reviewer.json` before returning it.
+6. Deterministic next command in workflow mode:
+   - PASS -> `workflow-boss`
+   - REJECT or PARTIAL without escalation -> `dev-feature` for feature route, `dev-fix` for fix route
+   - Escalation -> `workflow-judger`

@@ -33,14 +33,32 @@ Keep changes **atomic** (< 50 lines). Test **immediately**. Course-correct **fas
 
 ## PROTOCOL
 
-### Phase 0: Guardrails
+### Phase 0: Workflow mode (role-file handoff)
+
+1. **Workflow Detection**:
+    - If `.cursor/.workflow/boss.json` exists and the route is `feature`, workflow mode is ON.
+    - If no workflow folder exists, behave exactly like normal `dev-feature`.
+2. **Load Active Handoff**:
+    - In workflow mode, load `.cursor/.workflow/boss.json`.
+    - If `reviewer.json`, `judger.json`, or `rescue.json` exists and `workflow.next_command = 'dev-feature'`, treat it as the latest rework handoff layered on top of `boss.json`.
+    - If more than one of those files points back to `dev-feature`, prefer the newest one by mtime and treat the others as stale.
+    - Use the stored FILESCOPE, AC, and verify gates instead of asking the human to paste them again.
+3. **Write Worker Artifact**:
+    - Persist a normalized worker artifact to `.cursor/.workflow/worker.json` with summary, touched paths, proof, and diff/log refs.
+    - Fold self-audit into the same `worker.json` payload. Do not create a separate self-critique handoff file.
+    - Set `workflow.next_command = 'workflow-reviewer'`.
+4. **No Forced Commit in Workflow Mode**:
+    - In workflow mode, hand off via `worker.json` + runner evidence first.
+    - Do not auto-commit unless the user explicitly asks.
+
+### Phase 1: Guardrails
 
 1. **Stack Policy**: Respect architecture: no raw JS/TS/CSS/HTML; UI = Leptos (Rust) or Reflex (Python) unless explicit FFI.
 2. **Contracts**: Public contracts are frozen unless mission says otherwise.
 3. **Determinism**: Inject time/IO/random providers; avoid flaky tests.
 4. **Manifests**: Verify libraries in `package.json`/`Cargo.toml`/`pyproject.toml` before importing.
 
-### Phase 1: Integrity Check
+### Phase 2: Integrity Check
 
 *Lock the target before writing code.*
 
@@ -48,7 +66,7 @@ Keep changes **atomic** (< 50 lines). Test **immediately**. Course-correct **fas
 2. **Understand Assertions**: What exactly must pass?
 3. **Self-Check**: "If I change the test to match my code, I have failed."
 
-### Phase 2: Knowledge Retrieval
+### Phase 3: Knowledge Retrieval
 
 1. **Verify Libraries**:
     - Check manifests before importing
@@ -57,7 +75,27 @@ Keep changes **atomic** (< 50 lines). Test **immediately**. Course-correct **fas
     - Import from `arch-model` definitions
     - Don't invent new types on the fly
 
-### Phase 3: Implementation
+### Phase 3b: UI / component path
+
+Apply this when the task touches UI, components, or async user-facing state:
+
+1. **Boundary Discipline**:
+    - Fetch through API/resource boundaries. Never pull DB drivers or backend-only logic into the view layer.
+    - Reuse shared data shapes from `arch-model` or equivalent.
+2. **State Topology**:
+    - Local state: UI transients
+    - Server state: async data/resources
+    - Global state: app-wide context only when genuinely shared
+3. **Interaction Quality**:
+    - Handle loading, error, empty, and success states
+    - Keep touch targets usable and keyboard/focus behavior intact
+    - Preserve accessibility and responsiveness, not just happy-path rendering
+4. **Observability Hooks**:
+    - Add stable selectors like `data-component` / `data-testid` when they materially improve debugging or testing
+5. **Composition**:
+    - Prefer small components with clear boundaries over giant UI files or prop explosions
+
+### Phase 4: Implementation
 
 **The Atomic Loop**:
 
@@ -80,7 +118,7 @@ Keep changes **atomic** (< 50 lines). Test **immediately**. Course-correct **fas
 | Helpers | Inline everything | Extract & test complex helpers |
 | Logging | `console.log` noise | Structured logs or none |
 
-### Phase 4: Fraud Detection (Self-Audit)
+### Phase 5: Fraud Detection (Self-Audit)
 
 Before outputting, verify:
 
@@ -93,7 +131,7 @@ Before outputting, verify:
 | Determinism | Are time/randomness injected? |
 | **Logic Integrity** | Did I just invert the `if` to make it pass? |
 
-### Phase 5: Proof (Tests)
+### Phase 6: Proof (Tests)
 
 1. **Run Tests**: Execute specific test file
 2. **Analyze Output**:
@@ -102,10 +140,16 @@ Before outputting, verify:
 3. **Refactor**:
     - Once Green, run `dev-refactor` to clean up.
 
-### Phase 6: Commit
+### Phase 7: Handoff / Commit
 
-- Conventional Commit: `feat(scope): concise summary`
-- Include links to mission/spec and any contracts touched
+- **Workflow mode ON**:
+  - Record the implementation artifact in `.cursor/.workflow/worker.json`
+  - Include the self-audit in that same file
+  - Set the next recommended command to `workflow-reviewer`
+  - Do not force a commit before reviewer handoff unless the user explicitly requests it
+- **Workflow mode OFF**:
+  - Conventional Commit: `feat(scope): concise summary`
+  - Include links to mission/spec and any contracts touched
 
 ## OUTPUT FORMAT
 
@@ -134,6 +178,14 @@ export class LoginService {
 > No test files were modified.
 ```
 
+**Workflow Handoff (workflow mode only)**
+
+```markdown
+> Workflow File: `.cursor/.workflow/worker.json`
+> Includes: implementation summary + self-audit
+> Next: `workflow-reviewer`
+```
+
 ## AI GUARDRAILS
 
 | ⛔ Banned | ✅ Required |
@@ -154,3 +206,5 @@ export class LoginService {
 4. **ATOMIC ITERATION**: Small changes, frequent tests
 5. **CONTEXT REFRESH**: Re-read relevant files if stuck
 6. **INTEGRITY**: If you cannot solve it, Admit it. Do not fake a solution.
+7. **WORKFLOW MODE ONLY**: In workflow mode, merge self-audit into `worker.json` instead of creating a separate self-critique stage.
+8. **LOCAL HANDOFF FIRST**: In workflow mode, write the worker artifact to `.cursor/.workflow/worker.json` before asking reviewer-style commands to act.

@@ -29,8 +29,8 @@ User invokes command (e.g., "dev-refactor", "arch-roadmap")
 ### Workflow map
 
 ```text
-       [boot-new]
-             ↓
+                  [boot-new]
+                       ↓
 [boot-context] → [arch-roadmap] → [arch-model] → [arch-api]
                                         ↓
                                   [arch-breakdown]
@@ -40,8 +40,8 @@ User invokes command (e.g., "dev-refactor", "arch-roadmap")
 [ops-monitor] ← [ship-deploy]   | [verify-test]    |
      ↑                ↑         ↓       ↓          ↓
 [ops-debug] ──→ [dev-fix] ──────┴─ [dev-refactor] ←┘
-     ↑                                ↑
- [qa-pentest]
+     ↑                ↑
+       [qa-pentest]
 ```
 
 ### Structured workflow
@@ -50,19 +50,92 @@ For medium/high-risk tasks requiring formal spec → implement → verify → re
 
 ```text
 [workflow-boss] [spec: filescope + AC + verify gates]
-  |
-  v
-IMPLEMENT (agent or human)
-  |
-  v
-VERIFY [run gates → write evidence]
-  |
-  v
+    |
+    v
+feature path: [dev-feature] -> VERIFY [run gates → write evidence]
+    |
+    v
+fix path: [dev-fix] -> VERIFY [run gates → write evidence]
+    |
+    v
 [workflow-reviewer] [evidence-only → PASS / PARTIAL / REJECT]
-  |                        |                    |
-  | PASS                   | PARTIAL            | REJECT
-  v                        v                    v
-MERGE/SHIP          apply subset          FIX → VERIFY → REVIEWER (loop)
+    |                      |               |
+    | PASS                 | PARTIAL       | REJECT
+    v                      v               v
+MERGE/SHIP           apply subset         FIX → VERIFY → REVIEWER (loop)
                                                             |
-                                    after 2 loops → [workflow-judger] / [workflow-rescue]
+                                                            v
+                                    after 2 loops → [workflow-judger] → [workflow-rescue] if needed
 ```
+
+### File workflow mode
+
+Use this only for the **manual stage workflow**. There is no background daemon, no database, and no shared state file.
+
+```text
+[workflow-boss] -> writes spec + handoff into `.cursor/.workflow/boss.json`
+
+feature route:
+  [dev-feature] -> writes `.cursor/.workflow/worker.json` (includes self-audit) -> [workflow-reviewer]
+
+fix route:
+  [dev-fix] -> writes `.cursor/.workflow/debugger.json` -> [workflow-reviewer]
+
+review outcomes:
+  PASS    -> [workflow-boss] decides next task or closes run
+  REJECT  -> back to implementation
+  ESCALATE -> [workflow-judger] -> [workflow-rescue] when takeover is needed
+```
+
+## ROLE FILE CONTRACT
+
+### Scope
+
+- Project-local only: `.cursor/.workflow/`
+- Gitignored local state only. Never commit or push it.
+- Single active run only.
+- Workflow mode starts when `.cursor/.workflow/boss.json` exists.
+- `dev-feature` uses workflow mode when `boss.json` says the route is `feature`.
+- `dev-fix` uses workflow mode when `boss.json` says the route is `fix`.
+- No `state.json`. No `next-command.txt`. The role files themselves are the handoff surface.
+- At most one downstream handoff file should point back to `dev-feature` or `dev-fix`. If multiple do, prefer the newest file by mtime and treat older ones as stale.
+
+### Required files
+
+- `boss.json` — always present in workflow mode
+- `worker.json` — feature-route implementation handoff, created on demand
+- `debugger.json` — fix-route implementation handoff, created on demand
+- `reviewer.json` — review handoff, created on demand
+- `judger.json` — escalation handoff, created only when reviewer escalates
+- `rescue.json` — takeover handoff, created only when judger or the user escalates to rescue
+
+### Stage rules
+
+- `workflow-boss` writes the BOSS spec into `boss.json` and clears stale downstream files: `worker.json`, `debugger.json`, `reviewer.json`, `judger.json`, and `rescue.json`.
+- `dev-feature` reads `boss.json` plus the latest reviewer/judger/rescue rework notes when `workflow.next_command = 'dev-feature'`, then writes `worker.json`.
+- `dev-feature` folds self-audit into `worker.json`. There is no separate self-critique stage file.
+- `dev-fix` reads `boss.json` plus the latest reviewer/judger/rescue rework notes when `workflow.next_command = 'dev-fix'`, then writes `debugger.json`.
+- `workflow-reviewer` reads `boss.json`, uses `boss.json.workflow.route` to choose `worker.json` or `debugger.json`, and treats any mismatched file as stale.
+- `workflow-judger` and `workflow-rescue` read the current role files instead of requiring manual copy-paste when workflow mode is active.
+
+### Artifact contract
+
+Every workflow-aware command should write a normalized JSON payload into its own role file.
+Every role file should carry a `workflow.next_command` field so the next handoff is machine-readable without a separate state file.
+
+Minimum expectations:
+
+- boss: full BOSS JSON plus route and next handoff
+- worker: summary, touched paths, proof, diff/log refs, merged self-audit
+- debugger: summary, touched paths, proof, diff/log refs. A merged self-audit is optional on the fix route, not required.
+- reviewer/judger/rescue: full JSON output plus next recommended command
+
+### Visibility rule
+
+No dedicated `workflow-status` command.
+
+Instead, each workflow-aware command should:
+
+- read the relevant role files before acting
+- show a short current-run summary when helpful
+- replace its own role file after writing its artifact

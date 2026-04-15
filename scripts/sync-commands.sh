@@ -339,6 +339,29 @@ build_antigravity_description() {
     printf '%s\n' "$desc"
 }
 
+is_syncable_command_filename() {
+    local fname="$1"
+    local target_cat="${fname%%-*}"
+    [ -n "$target_cat" ] || return 1
+    [ "$target_cat" != "$fname" ] || return 1
+    return 0
+}
+
+list_sync_command_sources() {
+    local md_file fname
+
+    for md_file in "$COMMANDS_SRC"/*.md; do
+        [ ! -f "$md_file" ] && continue
+        fname=$(basename "$md_file")
+        is_syncable_command_filename "$fname" || continue
+        printf '%s\t%s\n' "$md_file" "$fname"
+    done
+
+    if [ -f "$COMMANDS_SRC/dev-feature.md" ] && [ ! -f "$COMMANDS_SRC/dev-component.md" ]; then
+        printf '%s\t%s\n' "$COMMANDS_SRC/dev-feature.md" "dev-component.md"
+    fi
+}
+
 emit_codex_skill_body() {
     local file="$1"
     awk '
@@ -443,10 +466,8 @@ sync_claude_commands() {
     local tracked_file
     tracked_file=$(mktemp)
 
-    for md_file in "$COMMANDS_SRC"/*.md; do
-        [ ! -f "$md_file" ] && continue
-        local fname
-        fname=$(basename "$md_file")
+    while IFS=$'\t' read -r md_file fname; do
+        [ -z "$md_file" ] && continue
 
         local target_cat="${fname%%-*}"
         local target_name="${fname#*-}"
@@ -468,7 +489,7 @@ sync_claude_commands() {
         else
             unchanged=$((unchanged + 1))
         fi
-    done
+    done < <(list_sync_command_sources)
 
     while read -r existing; do
         local rel="${existing#"$CLAUDE_COMMANDS/"}"
@@ -568,10 +589,10 @@ sync_codex() {
     tracked_file=$(mktemp)
     local c_added=0 c_updated=0 c_unchanged=0 c_removed=0
 
-    for md_file in "$COMMANDS_SRC"/*.md; do
-        [ ! -f "$md_file" ] && continue
-        local fname
-        fname=$(basename "$md_file")
+    while IFS=$'\t' read -r md_file fname; do
+        [ -z "$md_file" ] && continue
+        local source_fname
+        source_fname=$(basename "$md_file")
 
         local target_cat="${fname%%-*}"
         [ -z "$target_cat" ] && continue
@@ -595,7 +616,7 @@ sync_codex() {
             echo ""
             printf '# %s\n\n' "$skill_name"
             printf 'Use explicit invocation: `$%s`.\n' "$skill_name"
-            printf 'This skill is synced from `%s` in the commands source.\n' "$fname"
+            printf 'This skill is synced from `%s` in the commands source.\n' "$source_fname"
             printf '%s\n' 'Prefer Codex built-ins like `/plan`, `/review`, and `/fork` when they already cover the task; use this skill when you want the specific workflow below.'
             printf 'Treat any legacy slash-command syntax below as source documentation. In Codex, invoke `$%s` and express the same options in natural language.\n' "$skill_name"
             echo ""
@@ -618,7 +639,8 @@ sync_codex() {
         {
             echo "managed_by: scripts/sync-commands.sh"
             printf 'source: %s\n' "$COMMANDS_SRC"
-            printf 'source_file: %s\n' "$fname"
+            printf 'source_file: %s\n' "$source_fname"
+            printf 'export_file: %s\n' "$fname"
             printf 'king: %s\n' "$KING"
         } > "$marker_tmp"
 
@@ -656,7 +678,7 @@ sync_codex() {
         else
             c_unchanged=$((c_unchanged + 1))
         fi
-    done
+    done < <(list_sync_command_sources)
 
     while read -r marker; do
         [ -z "$marker" ] && continue
@@ -721,10 +743,8 @@ sync_gemini_command_tree() {
 
     $DRY_RUN || mkdir -p "$target_dir"
 
-    for md_file in "$COMMANDS_SRC"/*.md; do
-        [ ! -f "$md_file" ] && continue
-        local fname
-        fname=$(basename "$md_file")
+    while IFS=$'\t' read -r md_file fname; do
+        [ -z "$md_file" ] && continue
 
         local target_cat="${fname%%-*}"
         local cmd_name="${fname#*-}"
@@ -774,7 +794,7 @@ sync_gemini_command_tree() {
             rm -f "$new_toml"
             g_unchanged=$((g_unchanged + 1))
         fi
-    done
+    done < <(list_sync_command_sources)
 
     while read -r existing; do
         local rel="${existing#"$target_dir/"}"
@@ -802,10 +822,8 @@ sync_antigravity() {
     tracked_file=$(mktemp)
     local a_added=0 a_updated=0 a_unchanged=0 a_removed=0
 
-    for md_file in "$COMMANDS_SRC"/*.md; do
-        [ ! -f "$md_file" ] && continue
-        local fname
-        fname=$(basename "$md_file")
+    while IFS=$'\t' read -r md_file fname; do
+        [ -z "$md_file" ] && continue
         local target_cat="${fname%%-*}"
         [ -z "$target_cat" ] && continue
         [ "$target_cat" = "$fname" ] && continue
@@ -845,7 +863,7 @@ sync_antigravity() {
             rm -f "$new_wf"
             a_unchanged=$((a_unchanged + 1))
         fi
-    done
+    done < <(list_sync_command_sources)
 
     while read -r existing; do
         local rel
@@ -877,10 +895,8 @@ sync_roo() {
     tracked_file=$(mktemp)
     local r_added=0 r_updated=0 r_unchanged=0 r_removed=0
 
-    for md_file in "$COMMANDS_SRC"/*.md; do
-        [ ! -f "$md_file" ] && continue
-        local fname
-        fname=$(basename "$md_file")
+    while IFS=$'\t' read -r md_file fname; do
+        [ -z "$md_file" ] && continue
 
         local target_cat="${fname%%-*}"
         [ -z "$target_cat" ] && continue
@@ -914,7 +930,7 @@ sync_roo() {
             rm -f "$roo_tmp"
             r_unchanged=$((r_unchanged + 1))
         fi
-    done
+    done < <(list_sync_command_sources)
 
     # Remove stale commands that no longer exist in source
     while read -r existing; do
@@ -984,10 +1000,8 @@ sync_opencode() {
         tracked_file=$(mktemp)
         local o_added=0 o_updated=0 o_unchanged=0 o_removed=0
 
-        for md_file in "$COMMANDS_SRC"/*.md; do
-            [ ! -f "$md_file" ] && continue
-            local fname
-            fname=$(basename "$md_file")
+        while IFS=$'\t' read -r md_file fname; do
+            [ -z "$md_file" ] && continue
 
             local target_cat="${fname%%-*}"
             [ -z "$target_cat" ] && continue
@@ -1005,7 +1019,7 @@ sync_opencode() {
             else
                 o_unchanged=$((o_unchanged + 1))
             fi
-        done
+        done < <(list_sync_command_sources)
         rm -f "$tracked_file"
         echo "  opencode commands: $o_added added, $o_updated updated, $o_unchanged unchanged"
     elif [ -L "$oc_commands" ]; then

@@ -28,6 +28,8 @@ Before emitting any fix, reason through each finding in your thinking block. Ver
 
 After implementing a feature or fix, before committing. This is a self-correction pass on YOUR OWN recent output — not a review of someone else's code.
 
+- This is a standalone manual audit, not a required workflow handoff stage.
+
 ## PROTOCOL
 
 ### Pass 1: Tool Scan (EXECUTE, DO NOT GUESS)
@@ -76,7 +78,7 @@ for root, _, files in os.walk('{{target}}'):
                         print(f'{path}:{node.lineno}: import {module}')
         except: pass
 " | while read line; do
-    mod=\$(echo "\$line" | grep -oP 'import \K.*')
+    mod=\$(echo "\$line" | sed -E 's/^.*import //')
     python3 -c "import \$mod" 2>/dev/null || echo "PHANTOM: \$line"
 done
 

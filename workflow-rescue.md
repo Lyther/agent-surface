@@ -12,10 +12,15 @@ Handle repeated failures with one decisive move:
 You must be provided:
 
 - Original BOSS JSON (goal/filescope/ac/verify/plan)
-- Attempt history (diffs/commits) and runner evidence for each attempt
-- Number of attempts so far
+- Current implementation handoff and runner evidence
+- Reviewer/judger evidence for the current failure
 
 If runner evidence is missing, request it and stop.
+
+### Workflow mode
+
+- If `.cursor/.workflow/boss.json` exists, load `boss.json`, the current implementation handoff file (`worker.json` or `debugger.json`), plus `reviewer.json` and `judger.json` when present instead of requiring the human to restate them.
+- Use the current role files to diagnose whether the failure is best solved by RESPEC, CONTEXT, PATCH, or HUMAN escalation.
 
 ## DIAGNOSIS CATEGORIES
 
@@ -33,10 +38,15 @@ Output ONLY valid JSON (no markdown fences):
 {
   "decision": "RESPEC|CONTEXT|PATCH|HUMAN",
   "diagnosis": { "type": "<category>", "evidence": [] },
-  "next": { "command": "boss|context|fix|test|reviewer|judger|HUMAN", "why": "" },
+  "next": { "command": "workflow-boss|boot-context|dev-feature|dev-fix|verify-test|workflow-reviewer|workflow-judger|HUMAN", "why": "" },
   "respec": null,
   "context_request": null,
-  "patch": null
+  "patch": null,
+  "workflow": {
+    "dir": ".cursor/.workflow",
+    "file": "rescue.json",
+    "next_command": "workflow-boss|boot-context|dev-feature|dev-fix|verify-test|workflow-reviewer|workflow-judger|HUMAN"
+  }
 }
 
 Rules:
@@ -45,6 +55,8 @@ Rules:
 - CONTEXT: set `context_request` to a short task string + filescope hint.
 - PATCH: set `patch` to `{ "diff": "<unified diff>", "verify": ["..."] }`.
 - HUMAN: explain the blocker in `diagnosis.evidence`.
+- In workflow mode, write the rescue JSON into `.cursor/.workflow/rescue.json` before returning it.
+- `workflow.next_command` must exactly mirror `next.command`. Downstream commands should follow `workflow.next_command`.
 
 ## HARD RULES
 

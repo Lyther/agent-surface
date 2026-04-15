@@ -19,6 +19,11 @@ You must be provided:
 - Runner evidence (gate results + failure summary)
 - Rework history (brief)
 
+### Workflow mode
+
+- If `.cursor/.workflow/boss.json` exists, load `boss.json`, the latest implementation handoff file (`worker.json` or `debugger.json`), and `reviewer.json` instead of requiring manual copy-paste.
+- Treat the current role files as the canonical handoff surface for workflow mode.
+
 ## OUTPUT FORMAT
 
 Output ONLY valid JSON (no markdown fences):
@@ -34,7 +39,12 @@ Output ONLY valid JSON (no markdown fences):
   ],
   "action_plan": [
     { "owner": "WORKER|REVIEWER|BOSS", "action": "concrete bounded instruction", "verify": "exact command(s)" }
-  ]
+  ],
+  "workflow": {
+    "dir": ".cursor/.workflow",
+    "file": "judger.json",
+    "next_command": "workflow-boss|dev-feature|dev-fix|workflow-rescue"
+  }
 }
 
 ## HARD RULES
@@ -42,4 +52,9 @@ Output ONLY valid JSON (no markdown fences):
 1. Evidence-based: cite AC + runner evidence or diff location.
 2. Prefer smallest change that restores correctness.
 3. No extra features. No unrelated refactors.
-4. Treat `validation.log` (or equivalent runner artifact) as the only truth.
+4. Treat the runner evidence referenced by the current handoff file (`validation.log` or equivalent) as the only truth.
+5. In workflow mode, write the final verdict JSON into `.cursor/.workflow/judger.json` before returning it.
+6. Deterministic next command in workflow mode:
+   - `MERGE` -> `workflow-boss`
+   - `REWORK` -> `dev-feature` for feature route, `dev-fix` for fix route
+   - `RESPEC` -> `workflow-boss`

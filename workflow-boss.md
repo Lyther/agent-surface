@@ -10,6 +10,16 @@ If essential repo context is missing, run `boot-context` first.
 
 ## PROTOCOL
 
+### Phase 0: Workflow bootstrap (role files)
+
+- `workflow-boss` is the entrypoint that starts or refreshes workflow mode.
+- Use the project-local workflow folder: `.cursor/.workflow/`
+- Single active run only. `workflow-boss` is allowed to overwrite stale downstream role files when starting a fresh handoff.
+- Choose the route:
+  - `feature` -> next command `dev-feature`
+  - `fix` -> next command `dev-fix`
+- Write the final BOSS JSON into `.cursor/.workflow/boss.json`.
+
 ### Phase 1: Requirements (no guessing)
 
 - Extract requirements from **exact user quotes**.
@@ -42,6 +52,11 @@ If essential repo context is missing, run `boot-context` first.
 
 - Security/pentest tasks: `sandbox_required: true` (simulation-only unless user authorizes).
 
+### Phase 7: Workflow handoff
+
+- In workflow mode, `boss.json` is the source handoff for downstream stages. Do not ask the human to manually paste it into `dev-feature`, `dev-fix`, or `workflow-reviewer`.
+- Include the route and next recommended command directly in the BOSS JSON.
+
 ## OUTPUT FORMAT
 
 Output **ONLY valid JSON** (no markdown fences):
@@ -70,7 +85,13 @@ Output **ONLY valid JSON** (no markdown fences):
     { "id": "AC1", "text": "verifiable statement", "verify": "how to verify" }
   ],
   "verify": ["ordered runner commands"],
-  "risk": { "level": "low|medium|high", "sandbox_required": false, "notes": [] }
+  "risk": { "level": "low|medium|high", "sandbox_required": false, "notes": [] },
+  "workflow": {
+    "dir": ".cursor/.workflow",
+    "file": "boss.json",
+    "route": "feature|fix",
+    "next_command": "dev-feature|dev-fix"
+  }
 }
 
 ## EXECUTION RULES
