@@ -203,11 +203,14 @@ The audit ignores `[type]` and sweeps the entire `docs/` tree plus code comments
     - Execute: `grep -roh 'process\.env\.\w\+\|os\.environ\[.\+\]\|env::\w\+' src/` (adapt to project language) to extract env var references.
     - Compare against `.env.example` or equivalent.
     - Flag env vars found in code but missing from documentation/example files.
-2. **Internal link validation**:
+2. **Artifact / Bundle parity**:
+    - Compare deployment guides, runbooks, and release notes against actual artifact names, bundle contents, manifest filenames, and version strings.
+    - Flag docs that describe files or commands users cannot actually obtain from the shipped bundle.
+3. **Internal link validation**:
     - Execute: `grep -roh '\[.*\](.*\.md.*)' docs/` to extract markdown links.
     - Verify each target exists via `ls`. Do NOT open target files — existence check only.
     - Flag broken links.
-3. **Diagram freshness**:
+4. **Diagram freshness**:
     - If Mermaid or other diagram files exist, flag those not updated within 90 days of related code changes.
 
 ## TEMPLATES

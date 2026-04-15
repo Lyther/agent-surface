@@ -21,23 +21,27 @@ Turn code into a portable artifact that can be traced, verified, and rejected au
 3. **Semantic Tag**: `v1.2.3` only for an intentional release.
 4. **Latest Tag**: **DANGER**. Only update `latest` after successful verification and deployment.
 5. **Release Bundle**: For non-OCI artifacts, publish `SHA256SUMS`, signatures, SBOM, and provenance together.
+6. **Release Manifest**: Publish one machine-readable record that binds Git SHA, artifact digest/checksum, bundle hash, version, SBOM path, and provenance path.
 
 ### Phase 2: Build for Portability
 
 *The world is not just Intel.*
 
 1. **Setup**: Use `docker buildx` for OCI artifacts and an isolated builder for non-container releases.
-2. **Platforms**: `linux/amd64` (Server), `linux/arm64` (Apple Silicon/AWS Graviton).
-3. **Minimize Runtime**:
+2. **Canonical Builder**:
+    - Build through one checked-in entrypoint such as `scripts/build_artifact.sh` or `make artifact`.
+    - No ad-hoc builder hosts with hidden state.
+3. **Platforms**: `linux/amd64` (Server), `linux/arm64` (Apple Silicon/AWS Graviton).
+4. **Minimize Runtime**:
     - **Multi-Stage**: The final image MUST NOT contain a compiler, package manager, or source tree.
     - **Minimal Final Layer**: Use distroless or another minimal base pinned by digest.
     - **Language-Neutral Caching**: Copy dependency manifests before application source so cache reuse works across rebuilds.
-4. **Static / Self-Contained CLI Builds**:
+5. **Static / Self-Contained CLI Builds**:
     - Prefer self-contained binaries for public CLI releases. They reduce install friction and improve accessibility on clean hosts.
     - Go: prefer `CGO_ENABLED=0`, `-trimpath`, and verify the result with `file` / `ldd`.
     - Rust: prefer a `*-unknown-linux-musl` target when Linux portability matters and dependencies allow it.
     - Treat `upx` as optional. It can trigger AV heuristics and make debugging harder.
-5. **Reproducibility Controls**:
+6. **Reproducibility Controls**:
     - Set `SOURCE_DATE_EPOCH` from the commit timestamp.
     - Pin base images, dependencies, and lockfiles by digest or checksum.
     - Strip non-deterministic metadata and absolute paths where the toolchain supports it.
@@ -63,21 +67,25 @@ Turn code into a portable artifact that can be traced, verified, and rejected au
     - Verify signatures and attestations with pinned identity / OIDC issuer or equivalent admission policy.
     - Only promote `latest` or production channels after verification passes.
 
-### Phase 4: Platform Packaging
+### Phase 4: Platform Packaging & Customer Bundle
 
-1. **Desktop (Tauri/Electron)**:
+1. **Bundle Generation Is the Single Source of Truth**:
+    - Generate customer-facing archives, installers, manifests, docs, and checksum files from one packaging step.
+    - Do not hand-assemble release zips on a builder host.
+
+2. **Desktop (Tauri/Electron)**:
     - Build: `tauri build` / `electron-builder`
     - Output: `.msi` (Win), `.dmg` (Mac), `.AppImage` (Linux)
     - **Security**: Codesign (Cert) + Notarize (Apple).
-2. **Mobile (iOS/Android)**:
+3. **Mobile (iOS/Android)**:
     - Build: Gradle (Android) / Xcode (iOS)
     - Output: `.aab` / `.ipa`
     - **Security**: Keystores in CI Secrets. Never commit `.jks` or `.p12`.
-3. **CLI (Binary)**:
+4. **CLI (Binary)**:
     - Build: `cargo build --release --target x86_64-unknown-linux-musl` / `CGO_ENABLED=0 go build -trimpath -ldflags="-s -w"`
     - **Verification**: Check linkage with `file` / `ldd`; smoke test on a clean host or container.
     - **Distribution**: Publish binaries, `SHA256SUMS`, signatures, SBOM, and install instructions together.
-4. **IoT (Firmware/Edge)**:
+5. **IoT (Firmware/Edge)**:
     - Build: Cross-compile (`GOARCH=arm` / `armv7-unknown-linux-gnueabihf`)
     - Output: Static Binary or Multi-arch Docker Image (`linux/arm/v7`)
     - **Constraint**: Check binary size, startup memory, and read-only filesystem limits.
@@ -92,6 +100,11 @@ Turn code into a portable artifact that can be traced, verified, and rejected au
 4. **Check Signature**: `cosign verify` (or equivalent) with expected identity and issuer.
 5. **Check Attestations**: Confirm provenance and SBOM exist and are inspectable.
 6. **Check Runtime**: Confirm non-root execution and expected entrypoint / linkage.
+7. **Check the Bundle in a Clean Room**:
+    - Install or unpack the exact shipped bundle on a fresh host or container.
+    - Verify required files exist and forbidden files are absent.
+8. **Check for Internal Leaks**:
+    - No source tree, test fixtures, internal prompts, debug endpoints, or private config should ship unless explicitly intended.
 
 ## OUTPUT FORMAT
 
@@ -103,8 +116,11 @@ set -euo pipefail
 
 IMAGE_NAME="${IMAGE_NAME:-ghcr.io/OWNER/IMAGE}"
 REPO_URL="${REPO_URL:-https://github.com/OWNER/REPO}"
+RELEASE_MANIFEST="${RELEASE_MANIFEST:-release-manifest.json}"
 COMMIT_SHA="$(git rev-parse HEAD)"
 COMMIT_SHORT="$(git rev-parse --short HEAD)"
+VERSION="${VERSION:-}"
+BUNDLE_SHA256="${BUNDLE_SHA256:-}"
 SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
 BUILD_METADATA="$(mktemp)"
 BUILD_DATE="$(
@@ -149,6 +165,23 @@ cosign verify \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
   "${IMAGE_REF}" >/dev/null
 
+COMMIT_SHA="${COMMIT_SHA}" IMAGE_REF="${IMAGE_REF}" IMAGE_DIGEST="${IMAGE_DIGEST}" REPO_URL="${REPO_URL}" BUILD_DATE="${BUILD_DATE}" VERSION="${VERSION}" BUNDLE_SHA256="${BUNDLE_SHA256}" python3 - <<'PY' > "${RELEASE_MANIFEST}"
+import json
+import os
+
+print(json.dumps({
+    "repo": os.environ["REPO_URL"],
+    "git_sha": os.environ["COMMIT_SHA"],
+    "version": os.environ["VERSION"] or None,
+    "image_ref": os.environ["IMAGE_REF"],
+    "image_digest": os.environ["IMAGE_DIGEST"],
+    "bundle_sha256": os.environ["BUNDLE_SHA256"] or None,
+    "built_at": os.environ["BUILD_DATE"],
+    "sbom": "sbom.cdx.json",
+    "provenance": "oci-attestation",
+}, indent=2))
+PY
+
 docker buildx imagetools inspect "${IMAGE_REF}" --format '{{json .Provenance}}' >/dev/null
 docker buildx imagetools inspect "${IMAGE_REF}" --format '{{json .SBOM}}' >/dev/null
 
@@ -164,3 +197,4 @@ docker run --rm "${IMAGE_REF}" --version
 5. **DIGESTS ONLY**: Deploy by image digest, not mutable tags.
 6. **SIGN, VERIFY, ENFORCE**: Verification is not optional. The pipeline or admission policy must reject unsigned or unverifiable artifacts.
 7. **STATIC DOES NOT MEAN MAGIC**: Prefer self-contained binaries for CLI accessibility, but verify libc, TLS, CGO, and target-runtime reality before claiming portability.
+8. **PROMOTE THE MANIFEST, NOT A MEMORY**: Every downstream step should consume the generated release manifest / bundle manifest, not hand-copied values.

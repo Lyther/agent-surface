@@ -806,6 +806,9 @@ sync_antigravity() {
         [ ! -f "$md_file" ] && continue
         local fname
         fname=$(basename "$md_file")
+        local target_cat="${fname%%-*}"
+        [ -z "$target_cat" ] && continue
+        [ "$target_cat" = "$fname" ] && continue
         local workflow_name="${fname%.md}"
 
         local target_path="$ANTIGRAVITY_WORKFLOWS/$fname"
