@@ -37,7 +37,9 @@ If runner logs are missing or incomplete for the AC, REJECT due to missing evide
 
 ## OUTPUT FORMAT
 
-Output ONLY valid JSON (no markdown fences):
+1. Write the review JSON to `.cursor/.workflow/reviewer.json`.
+
+Use this shape for the file:
 
 {
   "status": "PASS|REJECT|PARTIAL",
@@ -64,14 +66,24 @@ Output ONLY valid JSON (no markdown fences):
   }
 }
 
+2. Chat output: concise review summary only. Do not repeat the JSON body already written to `reviewer.json`.
+
+```text
+REVIEWER written: `.cursor/.workflow/reviewer.json`
+Status: PASS|REJECT|PARTIAL
+Next: workflow-boss|dev-feature|dev-fix|workflow-judger
+Top issue: <short summary or none>
+```
+
 ## HARD RULES
 
 1. PASS: `issues` must be empty or minor-only.
 2. REJECT: at least one blocker or major.
 3. PARTIAL: `partial.accept` and `partial.reject` must be non-empty.
 4. No speculation. Missing evidence = UNKNOWN = REJECT.
-5. In workflow mode, write the review JSON into `.cursor/.workflow/reviewer.json` before returning it.
+5. In workflow mode, write the review JSON into `.cursor/.workflow/reviewer.json` before responding in chat.
 6. Deterministic next command in workflow mode:
    - PASS -> `workflow-boss`
    - REJECT or PARTIAL without escalation -> `dev-feature` for feature route, `dev-fix` for fix route
    - Escalation -> `workflow-judger`
+7. `reviewer.json` is the machine-readable artifact. Chat output should stay brief and human-readable.

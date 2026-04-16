@@ -28,6 +28,7 @@ issue/debug → RCA → FIX → verify → commit
 3. **Write Debugger Artifact**:
     - Persist a normalized debugger artifact to `.cursor/.workflow/debugger.json` with regression proof, touched paths, and diff/log refs.
     - Set `workflow.next_command = 'workflow-reviewer'`.
+    - `debugger.json` is the machine-readable handoff. Do not repeat its JSON body in chat.
 4. **No Forced Commit in Workflow Mode**:
     - In workflow mode, hand off via `debugger.json` + runner evidence first.
     - Do not auto-commit unless the user explicitly asks.
@@ -71,6 +72,7 @@ issue/debug → RCA → FIX → verify → commit
   - Record the debugger artifact in `.cursor/.workflow/debugger.json`
   - Set the next recommended command to `workflow-reviewer`
   - Do not force a commit before reviewer handoff unless the user explicitly requests it
+  - Do not dump the `debugger.json` contents in chat; summarize only
 - **Workflow mode OFF**:
   - Proceed with the normal fix proof flow and commit only when appropriate for the task
 

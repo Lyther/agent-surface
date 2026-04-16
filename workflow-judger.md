@@ -26,7 +26,9 @@ You must be provided:
 
 ## OUTPUT FORMAT
 
-Output ONLY valid JSON (no markdown fences):
+1. Write the final verdict JSON to `.cursor/.workflow/judger.json`.
+
+Use this shape for the file:
 
 {
   "final_verdict": "MERGE|REWORK|RESPEC",
@@ -47,14 +49,24 @@ Output ONLY valid JSON (no markdown fences):
   }
 }
 
+2. Chat output: concise verdict summary only. Do not repeat the JSON body already written to `judger.json`.
+
+```text
+JUDGER written: `.cursor/.workflow/judger.json`
+Verdict: MERGE|REWORK|RESPEC
+Next: workflow-boss|dev-feature|dev-fix|workflow-rescue
+Key finding: <short summary>
+```
+
 ## HARD RULES
 
 1. Evidence-based: cite AC + runner evidence or diff location.
 2. Prefer smallest change that restores correctness.
 3. No extra features. No unrelated refactors.
 4. Treat the runner evidence referenced by the current handoff file (`validation.log` or equivalent) as the only truth.
-5. In workflow mode, write the final verdict JSON into `.cursor/.workflow/judger.json` before returning it.
+5. In workflow mode, write the final verdict JSON into `.cursor/.workflow/judger.json` before responding in chat.
 6. Deterministic next command in workflow mode:
    - `MERGE` -> `workflow-boss`
    - `REWORK` -> `dev-feature` for feature route, `dev-fix` for fix route
    - `RESPEC` -> `workflow-boss`
+7. `judger.json` is the machine-readable artifact. Chat output should stay brief and human-readable.

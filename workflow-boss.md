@@ -56,10 +56,13 @@ If essential repo context is missing, run `boot-context` first.
 
 - In workflow mode, `boss.json` is the source handoff for downstream stages. Do not ask the human to manually paste it into `dev-feature`, `dev-fix`, or `workflow-reviewer`.
 - Include the route and next recommended command directly in the BOSS JSON.
+- Once `boss.json` is written, do not repeat the full JSON body in chat. Point to the file and summarize the handoff briefly.
 
 ## OUTPUT FORMAT
 
-Output **ONLY valid JSON** (no markdown fences):
+1. Write the full BOSS JSON to `.cursor/.workflow/boss.json`.
+
+Use this shape for the file:
 
 {
   "goal": "1–2 sentences",
@@ -94,8 +97,18 @@ Output **ONLY valid JSON** (no markdown fences):
   }
 }
 
+2. Chat output: concise handoff only. Do not repeat the JSON body already written to `boss.json`.
+
+```text
+BOSS written: `.cursor/.workflow/boss.json`
+Route: feature|fix
+Next: dev-feature|dev-fix
+Goal: <1-line summary>
+```
+
 ## EXECUTION RULES
 
 1. No code. No diffs. No file edits.
 2. If ambiguous, ask EXACTLY ONE question. Do not proceed with unresolvable ambiguity.
 3. If you proceed without an answer, list assumptions explicitly and make them testable via AC.
+4. `boss.json` is the machine-readable artifact. Chat output should stay brief and human-readable.

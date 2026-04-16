@@ -33,7 +33,9 @@ If runner evidence is missing, request it and stop.
 
 ## OUTPUT FORMAT
 
-Output ONLY valid JSON (no markdown fences):
+1. Write the rescue decision JSON to `.cursor/.workflow/rescue.json`.
+
+Use this shape for the file:
 
 {
   "decision": "RESPEC|CONTEXT|PATCH|HUMAN",
@@ -49,13 +51,22 @@ Output ONLY valid JSON (no markdown fences):
   }
 }
 
+2. Chat output: concise rescue summary only. Do not repeat the JSON body already written to `rescue.json`.
+
+```text
+RESCUE written: `.cursor/.workflow/rescue.json`
+Decision: RESPEC|CONTEXT|PATCH|HUMAN
+Next: workflow-boss|boot-context|dev-feature|dev-fix|verify-test|workflow-reviewer|workflow-judger|HUMAN
+Reason: <short summary>
+```
+
 Rules:
 
 - RESPEC: set `respec` to a full replacement BOSS JSON.
 - CONTEXT: set `context_request` to a short task string + filescope hint.
 - PATCH: set `patch` to `{ "diff": "<unified diff>", "verify": ["..."] }`.
 - HUMAN: explain the blocker in `diagnosis.evidence`.
-- In workflow mode, write the rescue JSON into `.cursor/.workflow/rescue.json` before returning it.
+- In workflow mode, write the rescue JSON into `.cursor/.workflow/rescue.json` before responding in chat.
 - `workflow.next_command` must exactly mirror `next.command`. Downstream commands should follow `workflow.next_command`.
 
 ## HARD RULES
@@ -63,3 +74,4 @@ Rules:
 1. Evidence-driven: every diagnosis must cite runner lines or diff locations.
 2. One rescue attempt only: choose the highest-leverage action.
 3. No scope creep without RESPEC.
+4. `rescue.json` is the machine-readable artifact. Chat output should stay brief and human-readable.

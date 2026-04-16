@@ -138,4 +138,6 @@ Instead, each workflow-aware command should:
 
 - read the relevant role files before acting
 - show a short current-run summary when helpful
+- point to the role file path and next recommended command
 - replace its own role file after writing its artifact
+- do not paste or repeat the full JSON body in chat after writing the role file

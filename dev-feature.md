@@ -47,6 +47,7 @@ Keep changes **atomic** (< 50 lines). Test **immediately**. Course-correct **fas
     - Persist a normalized worker artifact to `.cursor/.workflow/worker.json` with summary, touched paths, proof, and diff/log refs.
     - Fold self-audit into the same `worker.json` payload. Do not create a separate self-critique handoff file.
     - Set `workflow.next_command = 'workflow-reviewer'`.
+    - `worker.json` is the machine-readable handoff. Do not repeat its JSON body in chat.
 4. **No Forced Commit in Workflow Mode**:
     - In workflow mode, hand off via `worker.json` + runner evidence first.
     - Do not auto-commit unless the user explicitly asks.
@@ -147,6 +148,7 @@ Before outputting, verify:
   - Include the self-audit in that same file
   - Set the next recommended command to `workflow-reviewer`
   - Do not force a commit before reviewer handoff unless the user explicitly requests it
+  - Do not dump the `worker.json` contents in chat; summarize only
 - **Workflow mode OFF**:
   - Conventional Commit: `feat(scope): concise summary`
   - Include links to mission/spec and any contracts touched
