@@ -100,7 +100,7 @@ Use this shape for the file:
 2. Chat output: concise handoff only. Do not repeat the JSON body already written to `boss.json`.
 
 ```text
-BOSS written: `.cursor/.workflow/boss.json`
+BOSS file: `.cursor/.workflow/boss.json`
 Route: feature|fix
 Next: dev-feature|dev-fix
 Goal: <1-line summary>

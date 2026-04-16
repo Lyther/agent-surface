@@ -25,12 +25,12 @@ issue/debug → RCA → FIX → verify → commit
     - If `reviewer.json`, `judger.json`, or `rescue.json` exists and `workflow.next_command = 'dev-fix'`, treat it as the latest rework handoff layered on top of `boss.json`.
     - If more than one of those files points back to `dev-fix`, prefer the newest one by mtime and treat the others as stale.
     - Reuse the stored FILESCOPE, AC, and runner context instead of asking the human to paste them again.
-3. **Write Debugger Artifact**:
-    - Persist a normalized debugger artifact to `.cursor/.workflow/debugger.json` with regression proof, touched paths, and diff/log refs.
+3. **Write Worker Artifact**:
+    - Persist a normalized worker artifact to `.cursor/.workflow/worker.json` with regression proof, touched paths, and diff/log refs.
     - Set `workflow.next_command = 'workflow-reviewer'`.
-    - `debugger.json` is the machine-readable handoff. Do not repeat its JSON body in chat.
+    - `worker.json` is the shared machine-readable handoff for both feature and fix routes. Do not repeat its JSON body in chat.
 4. **No Forced Commit in Workflow Mode**:
-    - In workflow mode, hand off via `debugger.json` + runner evidence first.
+    - In workflow mode, hand off via `worker.json` + runner evidence first.
     - Do not auto-commit unless the user explicitly asks.
 
 ### Phase 1: The Regression Test (The Vow)
@@ -69,10 +69,10 @@ issue/debug → RCA → FIX → verify → commit
 ### Phase 5: Handoff / Commit
 
 - **Workflow mode ON**:
-  - Record the debugger artifact in `.cursor/.workflow/debugger.json`
+  - Record the implementation artifact in `.cursor/.workflow/worker.json`
   - Set the next recommended command to `workflow-reviewer`
   - Do not force a commit before reviewer handoff unless the user explicitly requests it
-  - Do not dump the `debugger.json` contents in chat; summarize only
+  - Do not dump the `worker.json` contents in chat; summarize only
 - **Workflow mode OFF**:
   - Proceed with the normal fix proof flow and commit only when appropriate for the task
 
@@ -101,7 +101,7 @@ if (!user.hasCard) {
 **Workflow Handoff (workflow mode only)**
 
 ```markdown
-> Workflow File: `.cursor/.workflow/debugger.json`
+> Workflow File: `.cursor/.workflow/worker.json`
 > Next: `workflow-reviewer`
 ```
 
@@ -118,4 +118,4 @@ if (!user.hasCard) {
 
 1. Regression test first.
 2. Minimal patch only.
-3. In workflow mode, write the debugger artifact to `.cursor/.workflow/debugger.json` before handing off to `workflow-reviewer`.
+3. In workflow mode, write the worker artifact to `.cursor/.workflow/worker.json` before handing off to `workflow-reviewer`.

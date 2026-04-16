@@ -21,7 +21,7 @@ You must be provided:
 
 ### Workflow mode
 
-- If `.cursor/.workflow/boss.json` exists, load `boss.json`, the latest implementation handoff file (`worker.json` or `debugger.json`), and `reviewer.json` instead of requiring manual copy-paste.
+- If `.cursor/.workflow/boss.json` exists, load `boss.json`, `worker.json`, and `reviewer.json` instead of requiring manual copy-paste.
 - Treat the current role files as the canonical handoff surface for workflow mode.
 
 ## OUTPUT FORMAT
@@ -52,7 +52,7 @@ Use this shape for the file:
 2. Chat output: concise verdict summary only. Do not repeat the JSON body already written to `judger.json`.
 
 ```text
-JUDGER written: `.cursor/.workflow/judger.json`
+JUDGER file: `.cursor/.workflow/judger.json`
 Verdict: MERGE|REWORK|RESPEC
 Next: workflow-boss|dev-feature|dev-fix|workflow-rescue
 Key finding: <short summary>

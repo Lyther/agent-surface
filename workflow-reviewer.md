@@ -18,10 +18,10 @@ If runner logs are missing or incomplete for the AC, REJECT due to missing evide
 - If `.cursor/.workflow/boss.json` exists, load the workflow files instead of requiring the human to paste every artifact manually.
 - Load:
   - `boss.json`
-  - `boss.json.workflow.route` decides whether to read `worker.json` or `debugger.json`
-  - runner evidence referenced by the current implementation handoff file
-- There is no separate self-critique workflow file. For feature work, any self-audit should already be embedded in `worker.json`.
-- If the expected implementation handoff file is missing, empty, or clearly stale for the current `boss.json`, fail closed and tell the human to rerun `dev-feature` or `dev-fix`.
+  - `worker.json`
+  - runner evidence referenced by `worker.json`
+- There is no separate self-critique workflow file. For feature work, any self-audit should already be embedded in `worker.json`; fix work uses the same `worker.json` handoff without requiring self-audit.
+- If `worker.json` is missing, empty, or clearly stale for the current `boss.json`, fail closed and tell the human to rerun `dev-feature` or `dev-fix`.
 
 ## REVIEW CHECKLIST
 
@@ -33,7 +33,7 @@ If runner logs are missing or incomplete for the AC, REJECT due to missing evide
 - Sandbox: for security tasks, confirm simulation-only unless authorized.
 - No self-certification: only runner evidence counts, not claims.
 - Reject lazy patterns: `assert True`, empty tests, mock-only tests, deleted tests, TODO placeholders.
-- Feature worker handoff: enforce `dev-feature -> worker.json -> workflow-reviewer` when workflow mode is active.
+- Worker handoff: enforce `dev-feature` or `dev-fix` -> `worker.json` -> `workflow-reviewer` when workflow mode is active.
 
 ## OUTPUT FORMAT
 
@@ -69,7 +69,7 @@ Use this shape for the file:
 2. Chat output: concise review summary only. Do not repeat the JSON body already written to `reviewer.json`.
 
 ```text
-REVIEWER written: `.cursor/.workflow/reviewer.json`
+REVIEWER file: `.cursor/.workflow/reviewer.json`
 Status: PASS|REJECT|PARTIAL
 Next: workflow-boss|dev-feature|dev-fix|workflow-judger
 Top issue: <short summary or none>

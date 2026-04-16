@@ -79,7 +79,7 @@ feature route:
   [dev-feature] -> writes `.cursor/.workflow/worker.json` (includes self-audit) -> [workflow-reviewer]
 
 fix route:
-  [dev-fix] -> writes `.cursor/.workflow/debugger.json` -> [workflow-reviewer]
+  [dev-fix] -> writes `.cursor/.workflow/worker.json` -> [workflow-reviewer]
 
 review outcomes:
   PASS    -> [workflow-boss] decides next task or closes run
@@ -103,19 +103,18 @@ review outcomes:
 ### Required files
 
 - `boss.json` — always present in workflow mode
-- `worker.json` — feature-route implementation handoff, created on demand
-- `debugger.json` — fix-route implementation handoff, created on demand
+- `worker.json` — implementation handoff for both feature and fix routes, created on demand
 - `reviewer.json` — review handoff, created on demand
 - `judger.json` — escalation handoff, created only when reviewer escalates
 - `rescue.json` — takeover handoff, created only when judger or the user escalates to rescue
 
 ### Stage rules
 
-- `workflow-boss` writes the BOSS spec into `boss.json` and clears stale downstream files: `worker.json`, `debugger.json`, `reviewer.json`, `judger.json`, and `rescue.json`.
+- `workflow-boss` writes the BOSS spec into `boss.json` and clears stale downstream files: `worker.json`, `reviewer.json`, `judger.json`, and `rescue.json`.
 - `dev-feature` reads `boss.json` plus the latest reviewer/judger/rescue rework notes when `workflow.next_command = 'dev-feature'`, then writes `worker.json`.
 - `dev-feature` folds self-audit into `worker.json`. There is no separate self-critique stage file.
-- `dev-fix` reads `boss.json` plus the latest reviewer/judger/rescue rework notes when `workflow.next_command = 'dev-fix'`, then writes `debugger.json`.
-- `workflow-reviewer` reads `boss.json`, uses `boss.json.workflow.route` to choose `worker.json` or `debugger.json`, and treats any mismatched file as stale.
+- `dev-fix` reads `boss.json` plus the latest reviewer/judger/rescue rework notes when `workflow.next_command = 'dev-fix'`, then writes `worker.json`.
+- `workflow-reviewer` reads `boss.json` and `worker.json`, and uses `boss.json.workflow.route` to interpret the expected contents.
 - `workflow-judger` and `workflow-rescue` read the current role files instead of requiring manual copy-paste when workflow mode is active.
 
 ### Artifact contract
@@ -126,8 +125,7 @@ Every role file should carry a `workflow.next_command` field so the next handoff
 Minimum expectations:
 
 - boss: full BOSS JSON plus route and next handoff
-- worker: summary, touched paths, proof, diff/log refs, merged self-audit
-- debugger: summary, touched paths, proof, diff/log refs. A merged self-audit is optional on the fix route, not required.
+- worker: summary, touched paths, proof, diff/log refs. Feature route must include merged self-audit; fix route may include one, but it is optional.
 - reviewer/judger/rescue: full JSON output plus next recommended command
 
 ### Visibility rule

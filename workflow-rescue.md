@@ -19,7 +19,7 @@ If runner evidence is missing, request it and stop.
 
 ### Workflow mode
 
-- If `.cursor/.workflow/boss.json` exists, load `boss.json`, the current implementation handoff file (`worker.json` or `debugger.json`), plus `reviewer.json` and `judger.json` when present instead of requiring the human to restate them.
+- If `.cursor/.workflow/boss.json` exists, load `boss.json`, `worker.json`, plus `reviewer.json` and `judger.json` when present instead of requiring the human to restate them.
 - Use the current role files to diagnose whether the failure is best solved by RESPEC, CONTEXT, PATCH, or HUMAN escalation.
 
 ## DIAGNOSIS CATEGORIES
@@ -54,7 +54,7 @@ Use this shape for the file:
 2. Chat output: concise rescue summary only. Do not repeat the JSON body already written to `rescue.json`.
 
 ```text
-RESCUE written: `.cursor/.workflow/rescue.json`
+RESCUE file: `.cursor/.workflow/rescue.json`
 Decision: RESPEC|CONTEXT|PATCH|HUMAN
 Next: workflow-boss|boot-context|dev-feature|dev-fix|verify-test|workflow-reviewer|workflow-judger|HUMAN
 Reason: <short summary>
