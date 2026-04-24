@@ -23,6 +23,9 @@ You must be provided:
 
 - If `.cursor/.workflow/boss.json` exists, load `boss.json`, `worker.json`, and `reviewer.json` instead of requiring manual copy-paste.
 - Treat the current role files as the canonical handoff surface for workflow mode.
+- Invoke after reviewer escalation, including the mandatory path after two consecutive reviewer rejections for the same run.
+- Role-file ownership is strict: `workflow-judger` may only create or replace `.cursor/.workflow/judger.json`. It may read other role files and runner evidence, but must not edit, repair, delete, or rewrite them.
+- If role files disagree on `workflow.run_id`, fail closed with `UNKNOWN` findings and send the run back to `workflow-boss` for respec.
 
 ## OUTPUT FORMAT
 
@@ -31,6 +34,8 @@ You must be provided:
 Use this shape for the file:
 
 {
+  "schema_version": "workflow.v1",
+  "run_id": "same value as boss.workflow.run_id",
   "final_verdict": "MERGE|REWORK|RESPEC",
   "findings": [
     {
@@ -45,6 +50,8 @@ Use this shape for the file:
   "workflow": {
     "dir": ".cursor/.workflow",
     "file": "judger.json",
+    "owner": "workflow-judger",
+    "run_id": "same value as top-level run_id",
     "next_command": "workflow-boss|dev-feature|dev-fix|workflow-rescue"
   }
 }
@@ -69,4 +76,6 @@ Key finding: <short summary>
    - `MERGE` -> `workflow-boss`
    - `REWORK` -> `dev-feature` for feature route, `dev-fix` for fix route
    - `RESPEC` -> `workflow-boss`
-7. `judger.json` is the machine-readable artifact. Chat output should stay brief and human-readable.
+   - unresolved process/tooling blocker that cannot be assigned to BOSS, WORKER, or REVIEWER -> `workflow-rescue`
+7. In workflow mode, write only `.cursor/.workflow/judger.json`; never modify any other role file.
+8. `judger.json` is the machine-readable artifact. Chat output should stay brief and human-readable.

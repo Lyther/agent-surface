@@ -21,6 +21,9 @@ If runner evidence is missing, request it and stop.
 
 - If `.cursor/.workflow/boss.json` exists, load `boss.json`, `worker.json`, plus `reviewer.json` and `judger.json` when present instead of requiring the human to restate them.
 - Use the current role files to diagnose whether the failure is best solved by RESPEC, CONTEXT, PATCH, or HUMAN escalation.
+- Role-file ownership is strict: `workflow-rescue` may only create or replace `.cursor/.workflow/rescue.json` inside the workflow folder. It may read other role files, but must not edit, repair, delete, or rewrite them.
+- If `PATCH` is selected, put the unified diff and verify commands in `rescue.json`. Apply source changes only when the user explicitly asks rescue to take over implementation.
+- If role files disagree on `workflow.run_id`, choose RESPEC or HUMAN instead of guessing which handoff is current.
 
 ## DIAGNOSIS CATEGORIES
 
@@ -38,6 +41,8 @@ If runner evidence is missing, request it and stop.
 Use this shape for the file:
 
 {
+  "schema_version": "workflow.v1",
+  "run_id": "same value as boss.workflow.run_id",
   "decision": "RESPEC|CONTEXT|PATCH|HUMAN",
   "diagnosis": { "type": "<category>", "evidence": [] },
   "next": { "command": "workflow-boss|boot-context|dev-feature|dev-fix|verify-test|workflow-reviewer|workflow-judger|HUMAN", "why": "" },
@@ -47,6 +52,8 @@ Use this shape for the file:
   "workflow": {
     "dir": ".cursor/.workflow",
     "file": "rescue.json",
+    "owner": "workflow-rescue",
+    "run_id": "same value as top-level run_id",
     "next_command": "workflow-boss|boot-context|dev-feature|dev-fix|verify-test|workflow-reviewer|workflow-judger|HUMAN"
   }
 }
@@ -74,4 +81,5 @@ Rules:
 1. Evidence-driven: every diagnosis must cite runner lines or diff locations.
 2. One rescue attempt only: choose the highest-leverage action.
 3. No scope creep without RESPEC.
-4. `rescue.json` is the machine-readable artifact. Chat output should stay brief and human-readable.
+4. In workflow mode, write only `.cursor/.workflow/rescue.json`; never modify any other role file.
+5. `rescue.json` is the machine-readable artifact. Chat output should stay brief and human-readable.
