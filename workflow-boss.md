@@ -14,7 +14,16 @@ If essential repo context is missing, run `boot-context` first.
 
 - `workflow-boss` is the entrypoint that starts or refreshes workflow mode.
 - Use the project-local workflow folder: `.cursor/.workflow/`
-- Single active run only. `workflow-boss` is allowed to overwrite stale downstream role files when starting a fresh handoff.
+- Single active run only.
+- Role-file ownership is strict:
+  - `workflow-boss` owns `.cursor/.workflow/boss.json` only.
+  - `dev-feature` and `dev-fix` own `.cursor/.workflow/worker.json` only.
+  - `workflow-reviewer` owns `.cursor/.workflow/reviewer.json` only.
+  - `workflow-judger` owns `.cursor/.workflow/judger.json` only.
+  - `workflow-rescue` owns `.cursor/.workflow/rescue.json` only.
+- A role may read other role files, but it must not edit, repair, truncate, or rewrite another role's file.
+- Exception: when starting a fresh handoff, `workflow-boss` may remove stale downstream role files (`worker.json`, `reviewer.json`, `judger.json`, `rescue.json`) before writing a new `boss.json`.
+- Generate a stable `run_id` for each fresh run and carry it in every downstream role file.
 - Choose the route:
   - `feature` -> next command `dev-feature`
   - `fix` -> next command `dev-fix`
@@ -36,12 +45,14 @@ If essential repo context is missing, run `boot-context` first.
 - 3–12 steps max.
 - Each step must be independently reviewable and verifiable.
 - Prefer minimal surface area and existing dependencies.
+- Keep the process deterministic: route by explicit `workflow.next_command`, not free-form agent debate.
 
 ### Phase 4: Acceptance Criteria (evidence-driven)
 
 - Every AC must be verifiable by a command output, test report, or log.
 - No vague AC ("works", "looks good").
 - Include: success path, failure path, edge cases.
+- Include at least one failure-mode AC when the task changes behavior, security posture, or data mutation.
 
 ### Phase 5: Verify gates
 
@@ -56,6 +67,7 @@ If essential repo context is missing, run `boot-context` first.
 
 - In workflow mode, `boss.json` is the source handoff for downstream stages. Do not ask the human to manually paste it into `dev-feature`, `dev-fix`, or `workflow-reviewer`.
 - Include the route and next recommended command directly in the BOSS JSON.
+- Include enough context references for downstream roles to ground their work in files already inspected, but do not paste large code bodies.
 - Once `boss.json` is written, do not repeat the full JSON body in chat. Point to the file and summarize the handoff briefly.
 
 ## OUTPUT FORMAT
@@ -65,7 +77,9 @@ If essential repo context is missing, run `boot-context` first.
 Use this shape for the file:
 
 {
+  "schema_version": "workflow.v1",
   "goal": "1–2 sentences",
+  "run_id": "stable id for this workflow run",
   "filescope": {
     "allowed": ["paths/modules allowed to change"],
     "forbidden": ["paths/modules forbidden to change"]
@@ -92,6 +106,8 @@ Use this shape for the file:
   "workflow": {
     "dir": ".cursor/.workflow",
     "file": "boss.json",
+    "owner": "workflow-boss",
+    "run_id": "same value as top-level run_id",
     "route": "feature|fix",
     "next_command": "dev-feature|dev-fix"
   }
@@ -108,7 +124,8 @@ Goal: <1-line summary>
 
 ## EXECUTION RULES
 
-1. No code. No diffs. No file edits.
+1. No code changes. No implementation diffs. Only the BOSS role file may be written.
 2. If ambiguous, ask EXACTLY ONE question. Do not proceed with unresolvable ambiguity.
 3. If you proceed without an answer, list assumptions explicitly and make them testable via AC.
-4. `boss.json` is the machine-readable artifact. Chat output should stay brief and human-readable.
+4. In workflow mode, write only `.cursor/.workflow/boss.json`; never edit downstream role files except deleting stale downstream files when starting a fresh handoff.
+5. `boss.json` is the machine-readable artifact. Chat output should stay brief and human-readable.

@@ -65,7 +65,7 @@ fix path: [dev-fix] -> VERIFY [run gates → write evidence]
 MERGE/SHIP           apply subset         FIX → VERIFY → REVIEWER (loop)
                                                             |
                                                             v
-                                    after 2 loops → [workflow-judger] → [workflow-rescue] if needed
+                                    after 2 rejected rounds → [workflow-judger] → [workflow-rescue] if needed
 ```
 
 ### File workflow mode
@@ -83,7 +83,7 @@ fix route:
 
 review outcomes:
   PASS    -> [workflow-boss] decides next task or closes run
-  REJECT  -> back to implementation
+  REJECT  -> first rejection goes back to implementation; second consecutive rejection goes to [workflow-judger]
   ESCALATE -> [workflow-judger] -> [workflow-rescue] when takeover is needed
 ```
 
@@ -99,6 +99,20 @@ review outcomes:
 - `dev-fix` uses workflow mode when `boss.json` says the route is `fix`.
 - No `state.json`. No `next-command.txt`. The role files themselves are the handoff surface.
 - At most one downstream handoff file should point back to `dev-feature` or `dev-fix`. If multiple do, prefer the newest file by mtime and treat older ones as stale.
+- Every role file should carry `schema_version`, `workflow.owner`, `workflow.run_id`, and `workflow.next_command`.
+- `workflow.run_id` must match across active role files. A mismatch means the handoff is stale and the command must fail closed or route to `workflow-boss`.
+
+### Ownership
+
+- Inside `.cursor/.workflow/`, each role may only create or replace its own role file.
+- `workflow-boss` owns `boss.json`.
+- `dev-feature` and `dev-fix` own `worker.json`.
+- `workflow-reviewer` owns `reviewer.json`.
+- `workflow-judger` owns `judger.json`.
+- `workflow-rescue` owns `rescue.json`.
+- A role may read other role files, but it must not edit, repair, delete, truncate, or rewrite them.
+- Exception: `workflow-boss` may delete stale downstream role files when starting a fresh run.
+- Worker commands may still edit source/test files within BOSS FILESCOPE; this ownership rule only governs `.cursor/.workflow/*.json`.
 
 ### Required files
 
@@ -114,7 +128,8 @@ review outcomes:
 - `dev-feature` reads `boss.json` plus the latest reviewer/judger/rescue rework notes when `workflow.next_command = 'dev-feature'`, then writes `worker.json`.
 - `dev-feature` folds self-audit into `worker.json`. There is no separate self-critique stage file.
 - `dev-fix` reads `boss.json` plus the latest reviewer/judger/rescue rework notes when `workflow.next_command = 'dev-fix'`, then writes `worker.json`.
-- `workflow-reviewer` reads `boss.json` and `worker.json`, and uses `boss.json.workflow.route` to interpret the expected contents.
+- `workflow-reviewer` reads `boss.json`, `worker.json`, prior `reviewer.json`, and runner evidence, then writes `reviewer.json`.
+- `workflow-reviewer` routes first rejection back to the route-specific worker, but two consecutive rejected rounds for the same `run_id` must route to `workflow-judger`.
 - `workflow-judger` and `workflow-rescue` read the current role files instead of requiring manual copy-paste when workflow mode is active.
 
 ### Artifact contract
@@ -125,8 +140,9 @@ Every role file should carry a `workflow.next_command` field so the next handoff
 Minimum expectations:
 
 - boss: full BOSS JSON plus route and next handoff
-- worker: summary, touched paths, proof, diff/log refs. Feature route must include merged self-audit; fix route may include one, but it is optional.
-- reviewer/judger/rescue: full JSON output plus next recommended command
+- worker: summary, touched paths, proof, diff/log refs, attempt number. Feature route must include merged self-audit; fix route may include one, but it is optional.
+- reviewer: AC verdicts, issues, escalation recommendation, review round, consecutive rejection count, and next recommended command
+- judger/rescue: full JSON output plus next recommended command
 
 ### Visibility rule
 

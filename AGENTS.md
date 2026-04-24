@@ -352,9 +352,17 @@ cargo fmt --check
 
 ```bash
 go mod init / go mod tidy
-golangci-lint run
-gofmt -s -w .
+gofumpt -w .                    # stricter superset of gofmt — USE THIS, not plain gofmt
+goimports -w .                  # import grouping + unused-import removal
+go vet ./...
+golangci-lint run ./...         # config: full §5.3 recipe from 12-lang-go.mdc, not 6-linter minimum
+govulncheck ./...               # blocking on known-vuln deps; required in CI
+go test -race -count=1 ./...    # -race is mandatory for any concurrent code
 ```
+
+Formatters: `gofumpt` supersedes `gofmt -s`. Install: `go install mvdan.cc/gofumpt@latest`. `goimports` via `go install golang.org/x/tools/cmd/goimports@latest`. `govulncheck` via `go install golang.org/x/vuln/cmd/govulncheck@latest`.
+
+Pre-commit: use `TekWizely/pre-commit-golang` (active fork). Do NOT use `dnephin/pre-commit-golang` — archived since ~2023.
 
 ### Git
 
@@ -396,7 +404,6 @@ main (protected)
 
 ## Learned User Preferences
 
-- Never delete red-team/security commands (ai-biter, ai-encode, ai-frog, ai-spam, ai-tap-gardener) — owner is a security expert running active pentests
 - Never delete boot-facade.md — kept for creative/fun use
 - Never delete ops-server.md — saves retyping SSH/proxy configuration
 - Keep theatrical personas in commands — they are intentional and drive aggressive behavior
@@ -407,7 +414,6 @@ main (protected)
 - When citing version pins, verify the actual file content first — do not name nonexistent hits
 - Single source of truth for rules must be unambiguous — .cursor/rules/*.mdc is authoritative, everything else is generated
 - After editing `.cursor/rules/*.mdc` or other generated rule exports in this repo, run `scripts/sync-commands.sh` so Claude Code, Codex, Gemini CLI, Gemini Code Assist, and Antigravity copies stay aligned
-- Fanfic commands should be written in Chinese and support both web-fiction and serious-literary modes; metanarrative/fourth-wall/philosophical voice is intentional
 
 ## Learned Workspace Facts
 
@@ -415,7 +421,7 @@ main (protected)
 - .cursor/rules/*.mdc files are the authoritative rule source; .cursorrules, .geminirules, GEMINI.md, and AGENTS.md are generated exports
 - sync-commands.sh targets: Claude Code (~/.claude), OpenAI Codex (~/.codex/AGENTS.md + ~/.agents/skills/*/SKILL.md), Gemini CLI (~/.gemini/GEMINI.md + ~/.gemini/commands/**/*.toml), Gemini Code Assist (repo GEMINI.md + repo .gemini/commands/**/*.toml), Antigravity (~/.gemini/antigravity/global_workflows/ for syncable command files only)
 - ops-server.md, .cursor/hooks/, and repo .gemini/commands/ are local-only/private or generated workspace artifacts; do not commit them
-- 80 commands across 12 categories: boot, arch, dev, verify, qa, ship, ops, workflow, lint, stellaris, ai, fanfic
+- 65 source command files across 10 categories: boot, arch, dev, verify, qa, ship, ops, workflow, lint, stellaris; sync also emits the `dev-component` compatibility alias from `dev-feature`
 - Language policy lives in glob-scoped .cursor/rules/1[0-4]-lang-*.mdc — commands are thin wrappers
 - .cursor/mission.md, .cursor/review-log.md, .cursor/nuke-state.md are optional legacy state files, not required by commands
 - Gemini CLI custom commands use TOML format, not markdown

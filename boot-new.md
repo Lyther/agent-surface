@@ -104,6 +104,13 @@ This command creates the **context infrastructure** that enables smooth vibe cod
   - **MANDATORY**: Use `uv` (Astral).
   - Run `uv init`.
   - Reject `requirements.txt` unless legacy constraints exist.
+- **IF Go**:
+  - Ensure `go.mod` exists; run `go mod init <module-path>` if missing.
+  - **MANDATORY formatters**: `gofumpt` (stricter superset of gofmt) + `goimports` (import hygiene). Plain `gofmt` alone is insufficient.
+  - **MANDATORY linter**: `golangci-lint` configured from the full §5.3 recipe in `.cursor/rules/12-lang-go.mdc` — not the 6-linter minimum. The recipe enables `gosec`, `exhaustive`, `errorlint`, `gocritic`, `revive`, `unparam`, `bodyclose`, `contextcheck`, `nilerr`, `usestdlibvars`, `prealloc`, `dupl`, `goconst`, `unused`, plus complexity/cyclop/funlen/gocognit gates. Copy the config verbatim into the project's `.golangci.yml`.
+  - **MANDATORY security scanner**: `govulncheck` in CI, blocking on known-vuln dependencies.
+  - **Pin**: record `go` toolchain line in `go.mod`; pin `golangci-lint` version in CI (`golangci/golangci-lint-action@v6` with explicit `version:` field — never latest).
+  - **Excludes**: add `issues.exclude-dirs` for vendored fixtures (`tests/fixtures/`) so linter doesn't run on non-code YAML.
 - **IF Web/Node**:
   - Require `package.json` with `"type": "module"`.
   - Scripts must include: `lint`, `format`, `test`.
@@ -121,6 +128,7 @@ This command creates the **context infrastructure** that enables smooth vibe cod
     - Generate `.pre-commit-config.yaml`.
     - **Mandatory Hooks**: `trailing-whitespace`, `end-of-file-fixer`, `check-yaml`.
     - **Language Hooks**: `ruff` (Python), `fmt` (Rust), `prettier` (Web).
+    - **Go hooks**: `gofumpt`, `goimports`, `go-mod-tidy`, `go-vet`, `golangci-lint`. Use the **active fork** `TekWizely/pre-commit-golang` — the older `dnephin/pre-commit-golang` is archived (upstream abandoned ~2023) and MUST NOT be used for new projects. If the active fork's hook set is insufficient, prefer a `local` hook that calls `make lint` directly rather than pulling in an archived dep.
 3. **Scaffold Project Rules**:
     - Copy `.cursor/rules/*.mdc` templates into the project's `.cursor/rules/`.
     - Generate `AGENTS.md` at project root for local cross-tool compatibility.

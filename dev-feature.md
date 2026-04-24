@@ -43,11 +43,14 @@ Keep changes **atomic** (< 50 lines). Test **immediately**. Course-correct **fas
     - If `reviewer.json`, `judger.json`, or `rescue.json` exists and `workflow.next_command = 'dev-feature'`, treat it as the latest rework handoff layered on top of `boss.json`.
     - If more than one of those files points back to `dev-feature`, prefer the newest one by mtime and treat the others as stale.
     - Use the stored FILESCOPE, AC, and verify gates instead of asking the human to paste them again.
+    - If role files disagree on `workflow.run_id`, stop and route to `workflow-boss` instead of guessing.
 3. **Write Worker Artifact**:
     - Persist a normalized worker artifact to `.cursor/.workflow/worker.json` with summary, touched paths, proof, and diff/log refs.
     - Fold self-audit into the same `worker.json` payload. Do not create a separate self-critique handoff file.
     - Set `workflow.next_command = 'workflow-reviewer'`.
     - `worker.json` is the machine-readable handoff. Do not repeat its JSON body in chat.
+    - Include `schema_version`, `run_id`, attempt number, touched paths, validation commands, evidence refs, and self-audit findings.
+    - Role-file ownership is strict: the worker role may only create or replace `.cursor/.workflow/worker.json` inside the workflow folder. It may read other role files, but must not edit, repair, delete, or rewrite them.
 4. **No Forced Commit in Workflow Mode**:
     - In workflow mode, hand off via `worker.json` + runner evidence first.
     - Do not auto-commit unless the user explicitly asks.
@@ -147,6 +150,7 @@ Before outputting, verify:
   - Record the implementation artifact in `.cursor/.workflow/worker.json`
   - Include the self-audit in that same file
   - Set the next recommended command to `workflow-reviewer`
+  - Preserve `boss.workflow.run_id` in `worker.json.workflow.run_id`
   - Do not force a commit before reviewer handoff unless the user explicitly requests it
   - Do not dump the `worker.json` contents in chat; summarize only
 - **Workflow mode OFF**:
@@ -198,7 +202,7 @@ export class LoginService {
 | Guessing API signatures | Verifying in docs/manifest |
 | Implementing all at once | Atomic increments |
 | **"Fixing" test by deleting it** | **Fixing code logic** |
-| Hiding reasoning | **Explicit Chain of Thought** |
+| Unverifiable claims | Evidence trail with commands, logs, and touched paths |
 
 ## EXECUTION RULES
 
@@ -210,3 +214,4 @@ export class LoginService {
 6. **INTEGRITY**: If you cannot solve it, Admit it. Do not fake a solution.
 7. **WORKFLOW MODE ONLY**: In workflow mode, merge self-audit into `worker.json` instead of creating a separate self-critique stage.
 8. **LOCAL HANDOFF FIRST**: In workflow mode, write the worker artifact to `.cursor/.workflow/worker.json` before asking reviewer-style commands to act.
+9. **ROLE FILE OWNERSHIP**: In workflow mode, write only `.cursor/.workflow/worker.json`; never modify another role file.

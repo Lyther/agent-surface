@@ -10,14 +10,17 @@ Go's simplicity is NOT an excuse for sloppy code. The language makes correctness
 
 1. **Identify scope**: Determine which `.go` files were touched or are under review.
 2. **Apply language rules**: The full Go policy is in `.cursor/rules/12-lang-go.mdc`. It loads automatically for `.go` files. Audit against every section.
-3. **Run toolchain gates**:
+3. **Run toolchain gates** (in order — each must be green before the next):
 
 ```bash
-gofmt -s -w .
+gofumpt -w . && goimports -w .      # formatters — gofumpt supersedes gofmt
 go vet ./...
-golangci-lint run ./...
+golangci-lint run ./...             # §5.3 recipe from 12-lang-go.mdc — gosec, exhaustive, errorlint, etc.
+govulncheck ./...                   # known-vuln deps — blocking
 go test -race -count=1 ./...
 ```
+
+**Do not** use plain `gofmt -s` in new projects. `gofumpt` is a strict superset — install: `go install mvdan.cc/gofumpt@latest`.
 
 4. **Report findings** using the output format below.
 
@@ -55,8 +58,10 @@ DEPENDENCIES:
 
 ```text
 Toolchain commands: [list]
-gofmt: [PASS/FAIL]
-golangci-lint: [PASS or specific issues]
+gofumpt + goimports: [PASS/FAIL — zero diffs]
+go vet: [PASS/FAIL]
+golangci-lint: [PASS or specific issues; note which linters from §5.3 recipe ran]
+govulncheck: [PASS or CVE IDs]
 go test -race: [PASS with count]
 ```
 

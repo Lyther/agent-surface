@@ -25,10 +25,13 @@ issue/debug → RCA → FIX → verify → commit
     - If `reviewer.json`, `judger.json`, or `rescue.json` exists and `workflow.next_command = 'dev-fix'`, treat it as the latest rework handoff layered on top of `boss.json`.
     - If more than one of those files points back to `dev-fix`, prefer the newest one by mtime and treat the others as stale.
     - Reuse the stored FILESCOPE, AC, and runner context instead of asking the human to paste them again.
+    - If role files disagree on `workflow.run_id`, stop and route to `workflow-boss` instead of guessing.
 3. **Write Worker Artifact**:
     - Persist a normalized worker artifact to `.cursor/.workflow/worker.json` with regression proof, touched paths, and diff/log refs.
     - Set `workflow.next_command = 'workflow-reviewer'`.
     - `worker.json` is the shared machine-readable handoff for both feature and fix routes. Do not repeat its JSON body in chat.
+    - Include `schema_version`, `run_id`, attempt number, touched paths, validation commands, evidence refs, and regression proof.
+    - Role-file ownership is strict: the worker role may only create or replace `.cursor/.workflow/worker.json` inside the workflow folder. It may read other role files, but must not edit, repair, delete, or rewrite them.
 4. **No Forced Commit in Workflow Mode**:
     - In workflow mode, hand off via `worker.json` + runner evidence first.
     - Do not auto-commit unless the user explicitly asks.
@@ -71,6 +74,7 @@ issue/debug → RCA → FIX → verify → commit
 - **Workflow mode ON**:
   - Record the implementation artifact in `.cursor/.workflow/worker.json`
   - Set the next recommended command to `workflow-reviewer`
+  - Preserve `boss.workflow.run_id` in `worker.json.workflow.run_id`
   - Do not force a commit before reviewer handoff unless the user explicitly requests it
   - Do not dump the `worker.json` contents in chat; summarize only
 - **Workflow mode OFF**:
@@ -119,3 +123,4 @@ if (!user.hasCard) {
 1. Regression test first.
 2. Minimal patch only.
 3. In workflow mode, write the worker artifact to `.cursor/.workflow/worker.json` before handing off to `workflow-reviewer`.
+4. In workflow mode, write only `.cursor/.workflow/worker.json`; never modify another role file.
