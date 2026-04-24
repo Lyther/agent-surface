@@ -244,12 +244,18 @@ func DoWork(ctx context.Context) error {
 ### §5.1 Format
 
 ```bash
-gofmt -s -w .
-# OR
-goimports -w .
+gofumpt -w .       # stricter superset of gofmt -s; use this by default
+goimports -w .     # import grouping + unused-import removal; complementary to gofumpt
 ```
 
-Must produce zero changes.
+Both must produce zero changes. Plain `gofmt -s` is NO LONGER sufficient — it is a strict subset of `gofumpt`'s rules. Projects created before gofumpt adoption may keep `gofmt` for legacy reasons, but new projects MUST use `gofumpt`.
+
+Install:
+
+```bash
+go install mvdan.cc/gofumpt@latest
+go install golang.org/x/tools/cmd/goimports@latest
+```
 
 ### §5.2 Vet
 
@@ -285,7 +291,7 @@ linters:
     - typecheck
 
     # Style & Simplification
-    - gofmt
+    - gofumpt          # supersedes gofmt — stricter
     - goimports
     - gocritic
     - gosimple
@@ -352,10 +358,48 @@ issues:
   exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
+  exclude-dirs:
+    - tests/fixtures           # vendored YAML/JSON test data — not code
+    - vendor
+    - .cursor
 ```
 
 ```bash
 golangci-lint run ./...
+```
+
+**Version pinning**: in CI, use `golangci/golangci-lint-action@v6` with explicit `version:` field (e.g. `v1.63.4`). Never `latest`. Config file format differs between v1 and v2.
+
+### §5.3a Pre-commit (Go)
+
+```yaml
+# .pre-commit-config.yaml — Go project
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+
+  # ACTIVE fork. Do NOT use dnephin/pre-commit-golang — archived since ~2023.
+  - repo: https://github.com/TekWizely/pre-commit-golang
+    rev: v1.0.0-rc.1
+    hooks:
+      - id: go-fumpt         # use gofumpt, not bare gofmt
+      - id: go-imports
+      - id: go-mod-tidy
+      - id: go-vet-pkg
+      - id: golangci-lint-pkg
+
+  # OR a local hook that just invokes `make lint` (simpler, no external dep):
+  # - repo: local
+  #   hooks:
+  #     - id: make-lint
+  #       name: make lint
+  #       language: system
+  #       entry: make lint
+  #       pass_filenames: false
 ```
 
 ### §5.4 Tests
@@ -458,9 +502,10 @@ Before submitting ANY code, verify:
 - [ ] All public functions have doc comments
 - [ ] All interfaces are minimal and consumer-defined
 - [ ] Context passed as first parameter where applicable
-- [ ] Code passes `gofmt`
-- [ ] Code passes `go vet`
-- [ ] Code passes `golangci-lint`
-- [ ] Code passes `go test -race`
+- [ ] Code passes `gofumpt -l .` (zero output) AND `goimports -l .` (zero output)
+- [ ] Code passes `go vet ./...`
+- [ ] Code passes `golangci-lint run ./...` (§5.3 recipe — NOT the 6-linter minimum)
+- [ ] Code passes `govulncheck ./...` (known-vuln deps blocking)
+- [ ] Code passes `go test -race -count=1 ./...`
 
 **If ANY checkbox is unchecked, DO NOT SUBMIT. Fix it or explain why it cannot be fixed.**

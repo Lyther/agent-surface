@@ -352,9 +352,17 @@ cargo fmt --check
 
 ```bash
 go mod init / go mod tidy
-golangci-lint run
-gofmt -s -w .
+gofumpt -w .                    # stricter superset of gofmt — USE THIS, not plain gofmt
+goimports -w .                  # import grouping + unused-import removal
+go vet ./...
+golangci-lint run ./...         # config: full §5.3 recipe from 12-lang-go.mdc, not 6-linter minimum
+govulncheck ./...               # blocking on known-vuln deps; required in CI
+go test -race -count=1 ./...    # -race is mandatory for any concurrent code
 ```
+
+Formatters: `gofumpt` supersedes `gofmt -s`. Install: `go install mvdan.cc/gofumpt@latest`. `goimports` via `go install golang.org/x/tools/cmd/goimports@latest`. `govulncheck` via `go install golang.org/x/vuln/cmd/govulncheck@latest`.
+
+Pre-commit: use `TekWizely/pre-commit-golang` (active fork). Do NOT use `dnephin/pre-commit-golang` — archived since ~2023.
 
 ### Git
 
