@@ -62,25 +62,34 @@ for root, _, files in os.walk('{{target}}'):
 # 1d. Mock poisoning in tests
 grep -rnE 'Mock|MagicMock|AsyncMock|@patch|@mock' tests/ 2>/dev/null
 
-# 1e. Phantom imports (Python)
-python3 -c "
-import ast, sys, os
-for root, _, files in os.walk('{{target}}'):
+# 1e. Phantom imports (Python) — top-level module only; submodule imports may not resolve
+#     out-of-context, so treat results as a hint, not a verdict.
+python3 - <<'PY' "{{target}}"
+import ast, importlib.util, os, sys
+target = sys.argv[1]
+for root, _, files in os.walk(target):
     for f in files:
-        if not f.endswith('.py'): continue
+        if not f.endswith('.py'):
+            continue
         path = os.path.join(root, f)
         try:
-            tree = ast.parse(open(path).read())
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.Import, ast.ImportFrom)):
-                    module = node.module if isinstance(node, ast.ImportFrom) else node.names[0].name
-                    if module:
-                        print(f'{path}:{node.lineno}: import {module}')
-        except: pass
-" | while read line; do
-    mod=\$(echo "\$line" | sed -E 's/^.*import //')
-    python3 -c "import \$mod" 2>/dev/null || echo "PHANTOM: \$line"
-done
+            tree = ast.parse(open(path, encoding='utf-8').read())
+        except Exception:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = [a.name for a in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                names = [node.module] if node.module else []
+            else:
+                continue
+            for mod in names:
+                if not mod:
+                    continue
+                top = mod.split('.', 1)[0]
+                if importlib.util.find_spec(top) is None:
+                    print(f'PHANTOM: {path}:{node.lineno}: {mod}')
+PY
 
 # 1f. Secrets scan
 grep -rnEi 'password\s*=|api_key\s*=|secret\s*=|token\s*=.*['\''\"]\w{8,}' {{target}}

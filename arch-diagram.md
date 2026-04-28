@@ -138,7 +138,7 @@ erDiagram
 
 **The Diagram File**
 
-```markdown
+````markdown
 # [Feature] Architecture
 
 ## Overview
@@ -158,6 +158,7 @@ erDiagram
 ## Notes
 
 - [Any important context]
+````
 
 ## EXECUTION RULES
 
