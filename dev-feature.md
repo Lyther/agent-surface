@@ -33,27 +33,84 @@ Keep changes **atomic** (< 50 lines). Test **immediately**. Course-correct **fas
 
 ## PROTOCOL
 
-### Phase 0: Workflow mode (role-file handoff)
+### Phase 0: Workflow mode (role-file handoff, v2 batched)
 
 1. **Workflow Detection**:
     - If `.cursor/.workflow/boss.json` exists and the route is `feature`, workflow mode is ON.
     - If no workflow folder exists, behave exactly like normal `dev-feature`.
 2. **Load Active Handoff**:
-    - In workflow mode, load `.cursor/.workflow/boss.json`.
-    - If `reviewer.json`, `judger.json`, or `rescue.json` exists and `workflow.next_command = 'dev-feature'`, treat it as the latest rework handoff layered on top of `boss.json`.
-    - If more than one of those files points back to `dev-feature`, prefer the newest one by mtime and treat the others as stale.
+    - Load `.cursor/.workflow/boss.json`. The new shape (`schema_version: workflow.v2`) carries a `tasks` array — a queue of 1 to N atomic tasks plus a `batch_policy` block.
+    - If `reviewer.json`, `judger.json`, or `rescue.json` exists and `workflow.next_command = 'dev-feature'`, treat it as the latest rework handoff layered on top of `boss.json`. The rework handoff names *which task IDs* to redo, not the whole batch.
+    - If more than one rework file points back to `dev-feature`, prefer the newest by mtime; treat older ones as stale.
     - Use the stored FILESCOPE, AC, and verify gates instead of asking the human to paste them again.
     - If role files disagree on `workflow.run_id`, stop and route to `workflow-boss` instead of guessing.
-3. **Write Worker Artifact**:
-    - Persist a normalized worker artifact to `.cursor/.workflow/worker.json` with summary, touched paths, proof, and diff/log refs.
-    - Fold self-audit into the same `worker.json` payload. Do not create a separate self-critique handoff file.
+3. **Iterate the Task Queue (Burn As Many As Possible)**:
+    - Process tasks in array order. Respect `depends_on`: skip a task whose dependencies have not all completed in the current round.
+    - For each task:
+      a. Implement against the task's narrowed FILESCOPE.
+      b. Run the task's `verify` commands. Capture evidence under `.cursor/.workflow/evidence/<task_id>.log` (or equivalent).
+      c. Run the worker self-audit (Phase 5) against just that task.
+      d. If green → mark the task **completed**, append to `tasks_processed`, continue to the next task.
+      e. If red → DO NOT skip ahead. Mark the task **blocked** with a structured blocker (type, detail, what would unblock it), and stop the round.
+    - **Stop conditions** (in priority order):
+      i. **blocker**: current task's verify fails or has unresolvable ambiguity. Hand off immediately.
+      ii. **context_pressure**: self-assessed budget at or above `batch_policy.context_pressure_threshold_pct` (default 70). Heuristics: long conversation, many file reads, repeated context refreshes, ≥30 distinct files opened in this round. When in doubt, stop sooner — the reviewer can pick up the slack.
+      iii. **queue_empty**: every task in the queue has either completed or been skipped due to upstream blocker.
+      iv. **drift_check**: every `batch_policy.drift_check_every` completed tasks (default 5), re-read `boss.json` and confirm none of the remaining tasks were obsoleted by completed work. If drift detected, stop and report.
+    - **Do not exceed** `batch_policy.max_tasks_per_round` if it is set (default null = no cap).
+4. **Write Worker Artifact (v2 batched)**:
+    - Persist `.cursor/.workflow/worker.json` with the per-task results and stop reason. Schema below.
+    - Fold each task's self-audit into its own entry in `tasks_processed`. Do not create a separate self-critique handoff file.
     - Set `workflow.next_command = 'workflow-reviewer'`.
-    - `worker.json` is the machine-readable handoff. Do not repeat its JSON body in chat.
-    - Include `schema_version`, `run_id`, attempt number, touched paths, validation commands, evidence refs, and self-audit findings.
-    - Role-file ownership is strict: the worker role may only create or replace `.cursor/.workflow/worker.json` inside the workflow folder. It may read other role files, but must not edit, repair, delete, or rewrite them.
-4. **No Forced Commit in Workflow Mode**:
+    - Do not repeat the JSON body in chat — summarize: `Round done: M/N tasks completed; stop_reason=<reason>`.
+    - Role-file ownership is strict: the worker role may only create or replace `.cursor/.workflow/worker.json`. It may read other role files, but must not edit, repair, delete, or rewrite them.
+5. **No Forced Commit in Workflow Mode**:
     - In workflow mode, hand off via `worker.json` + runner evidence first.
     - Do not auto-commit unless the user explicitly asks.
+
+#### Worker Artifact Shape (v2)
+
+{
+  "schema_version": "workflow.v2",
+  "run_id": "same value as boss.run_id",
+  "attempt": 1,
+  "tasks_processed": [
+    {
+      "task_id": "T1",
+      "status": "completed | blocked",
+      "summary": "what was done",
+      "touched": ["src/foo.ts"],
+      "evidence_refs": [".cursor/.workflow/evidence/T1.log"],
+      "verify_results": [
+        {"cmd": "npm test src/foo", "exit_code": 0, "evidence_ref": "..."}
+      ],
+      "self_audit": [
+        {"check": "no test sabotage", "result": "pass"}
+      ],
+      "blocker": null
+    },
+    {
+      "task_id": "T2",
+      "status": "blocked",
+      "summary": "partial implementation",
+      "blocker": {
+        "type": "missing_context | ambiguous_spec | failing_verify | dependency_unmet | external_blocker",
+        "detail": "what is wrong",
+        "needs": "what would unblock"
+      }
+    }
+  ],
+  "remaining": ["T3", "T4"],
+  "stop_reason": "blocker | context_pressure | queue_empty | drift_check | max_tasks_cap",
+  "stop_detail": "free-text — e.g., 'blocker on T2: missing fixture'",
+  "workflow": {
+    "dir": ".cursor/.workflow",
+    "file": "worker.json",
+    "owner": "dev-feature",
+    "run_id": "same value as top-level run_id",
+    "next_command": "workflow-reviewer"
+  }
+}
 
 ### Phase 1: Guardrails
 
@@ -147,15 +204,16 @@ Before outputting, verify:
 ### Phase 7: Handoff / Commit
 
 - **Workflow mode ON**:
-  - Record the implementation artifact in `.cursor/.workflow/worker.json`
-  - Include the self-audit in that same file
-  - Set the next recommended command to `workflow-reviewer`
-  - Preserve `boss.workflow.run_id` in `worker.json.workflow.run_id`
-  - Do not force a commit before reviewer handoff unless the user explicitly requests it
-  - Do not dump the `worker.json` contents in chat; summarize only
+  - Record the per-task results in `.cursor/.workflow/worker.json` (v2 shape — see Phase 0).
+  - Include each task's self-audit in its own `tasks_processed` entry.
+  - Set the next recommended command to `workflow-reviewer`.
+  - Preserve `boss.workflow.run_id` in `worker.json.workflow.run_id`.
+  - Do not force a commit before reviewer handoff unless the user explicitly requests it.
+  - Do not dump the `worker.json` contents in chat; summarize: `Round done: M/N tasks completed; stop_reason=<reason>; next: workflow-reviewer`.
 - **Workflow mode OFF**:
-  - Conventional Commit: `feat(scope): concise summary`
-  - Include links to mission/spec and any contracts touched
+  - Hand off to `ship-commit` for the actual commit. It detects repo mode (kernel vs Conventional Commits vs internal-trunk) and chooses the right subject form, sign-off style (`-s` DCO vs `-S` GPG), and review/trace gates.
+  - Do not auto-commit here. Stage changes by file or hunk, then invoke `ship-commit`.
+  - Include links to mission/spec and any contracts touched in the eventual commit body.
 
 ## OUTPUT FORMAT
 
@@ -212,6 +270,9 @@ export class LoginService {
 4. **ATOMIC ITERATION**: Small changes, frequent tests
 5. **CONTEXT REFRESH**: Re-read relevant files if stuck
 6. **INTEGRITY**: If you cannot solve it, Admit it. Do not fake a solution.
-7. **WORKFLOW MODE ONLY**: In workflow mode, merge self-audit into `worker.json` instead of creating a separate self-critique stage.
+7. **WORKFLOW MODE ONLY**: In workflow mode, merge self-audit into the per-task entry in `worker.json` instead of creating a separate self-critique stage.
 8. **LOCAL HANDOFF FIRST**: In workflow mode, write the worker artifact to `.cursor/.workflow/worker.json` before asking reviewer-style commands to act.
 9. **ROLE FILE OWNERSHIP**: In workflow mode, write only `.cursor/.workflow/worker.json`; never modify another role file.
+10. **BURN THE QUEUE**: Process tasks in `boss.tasks` order. Stop on the first hard blocker (don't skip ahead — that creates partial-merge ambiguity for the reviewer). When unblocked, the reviewer or judger will requeue; don't second-guess that loop.
+11. **STOP SOONER UNDER PRESSURE**: If you've opened ≥30 distinct files, run ≥5 verify cycles, or feel context degrading, stop with `stop_reason=context_pressure` even if no blocker. The reviewer will pick up the rest.
+12. **NEVER WIDEN FILESCOPE**: A task may only narrow `boss.filescope`. If a task needs files outside the batch FILESCOPE, mark it blocked with `type: ambiguous_spec` and let `workflow-judger` decide whether to RESPEC.

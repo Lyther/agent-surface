@@ -44,28 +44,37 @@ User invokes command (e.g., "dev-refactor", "arch-roadmap")
        [qa-pentest]
 ```
 
-### Structured workflow
+### Structured workflow (v2 — batched rounds)
 
-For medium/high-risk tasks requiring formal spec → implement → verify → review cycles.
+For medium/high-risk tasks requiring formal spec → implement → verify → review cycles. **A round processes a batch of tasks**, not a single task.
 
 ```text
-[workflow-boss] [spec: filescope + AC + verify gates]
+[workflow-boss] [spec: filescope + tasks[] (1..N) + per-task AC/verify + batch_policy]
     |
     v
-feature path: [dev-feature] -> VERIFY [run gates → write evidence]
+feature path: [dev-feature] burns the queue
+              for each task in tasks[]:
+                implement → run task.verify → record result
+                stop on: blocker | context_pressure | queue_empty | max_tasks_cap
     |
     v
-fix path: [dev-fix] -> VERIFY [run gates → write evidence]
+fix path: [dev-fix] burns the queue (same loop, regression-test-first)
     |
     v
-[workflow-reviewer] [evidence-only → PASS / PARTIAL / REJECT]
-    |                      |               |
-    | PASS                 | PARTIAL       | REJECT
-    v                      v               v
-MERGE/SHIP           apply subset         FIX → VERIFY → REVIEWER (loop)
-                                                            |
-                                                            v
-                                    after 2 rejected rounds → [workflow-judger] → [workflow-rescue] if needed
+[workflow-reviewer] [per-task verdict + aggregate PASS / PARTIAL / REJECT]
+    |                      |                   |
+    | PASS (all tasks)     | PARTIAL           | REJECT
+    v                      v                   v
+MERGE/SHIP           rework only failing   FIX → VERIFY → REVIEWER (loop)
+                     task IDs                       |
+                                                    v
+                            any task hits consecutive_rejections>=2:
+                              → [workflow-judger]
+                                  ├── MERGE          (all PASS)
+                                  ├── MERGE_PARTIAL  (cherry-pick passing task IDs, rework the rest)
+                                  ├── REWORK         (task-scoped re-implementation)
+                                  ├── RESPEC         (back to workflow-boss)
+                                  └── RESCUE         → [workflow-rescue] for takeover / human escalation
 ```
 
 ### File workflow mode
@@ -73,18 +82,23 @@ MERGE/SHIP           apply subset         FIX → VERIFY → REVIEWER (loop)
 Use this only for the **manual stage workflow**. There is no background daemon, no database, and no shared state file.
 
 ```text
-[workflow-boss] -> writes spec + handoff into `.cursor/.workflow/boss.json`
+[workflow-boss] -> writes spec + task queue into `.cursor/.workflow/boss.json`
+                   (schema_version: workflow.v2; tasks: [T1..TN])
 
 feature route:
-  [dev-feature] -> writes `.cursor/.workflow/worker.json` (includes self-audit) -> [workflow-reviewer]
+  [dev-feature] -> burns the queue, writes per-task results into `.cursor/.workflow/worker.json`
+                   (includes self-audit per task; stop_reason recorded) -> [workflow-reviewer]
 
 fix route:
-  [dev-fix] -> writes `.cursor/.workflow/worker.json` -> [workflow-reviewer]
+  [dev-fix] -> same shape, with per-task regression proofs -> [workflow-reviewer]
 
 review outcomes:
-  PASS    -> [workflow-boss] decides next task or closes run
-  REJECT  -> first rejection goes back to implementation; second consecutive rejection goes to [workflow-judger]
-  ESCALATE -> [workflow-judger] -> [workflow-rescue] when takeover is needed
+  PASS              -> [workflow-boss] decides next batch or closes run
+  PARTIAL/REJECT    -> first time, route back to dev-feature/dev-fix scoped to failing task IDs
+                       (workers carry forward the same run_id and re-attempt only those tasks)
+  any task at       -> [workflow-judger] (may MERGE_PARTIAL the passing tasks while
+  consecutive >= 2     escalating the stuck ones)
+  ESCALATE          -> [workflow-judger] -> [workflow-rescue] when takeover is needed
 ```
 
 ## ROLE FILE CONTRACT
@@ -100,7 +114,9 @@ review outcomes:
 - No `state.json`. No `next-command.txt`. The role files themselves are the handoff surface.
 - At most one downstream handoff file should point back to `dev-feature` or `dev-fix`. If multiple do, prefer the newest file by mtime and treat older ones as stale.
 - Every role file should carry `schema_version`, `workflow.owner`, `workflow.run_id`, and `workflow.next_command`.
+- Current schema is `workflow.v2` (batched rounds). v1 (single-task per run) is no longer produced; if a v1 file is encountered, fail closed and rerun `workflow-boss` to regenerate the spec.
 - `workflow.run_id` must match across active role files. A mismatch means the handoff is stale and the command must fail closed or route to `workflow-boss`.
+- The BOSS spec carries a `tasks[]` array. Workers iterate tasks in order; reviewers/judgers/rescuers operate at task granularity. Per-task `consecutive_rejections` is tracked separately for each `task_id` — one stuck task does not pollute the others' counters.
 
 ### Ownership
 
@@ -137,12 +153,13 @@ review outcomes:
 Every workflow-aware command should write a normalized JSON payload into its own role file.
 Every role file should carry a `workflow.next_command` field so the next handoff is machine-readable without a separate state file.
 
-Minimum expectations:
+Minimum expectations (v2):
 
-- boss: full BOSS JSON plus route and next handoff
-- worker: summary, touched paths, proof, diff/log refs, attempt number. Feature route must include merged self-audit; fix route may include one, but it is optional.
-- reviewer: AC verdicts, issues, escalation recommendation, review round, consecutive rejection count, and next recommended command
-- judger/rescue: full JSON output plus next recommended command
+- **boss**: full BOSS JSON v2 — goal, batch-level FILESCOPE, `tasks[]` (each with narrowed FILESCOPE, plan, AC, verify, depends_on, risk_notes), `batch_policy` (`stop_on`, `context_pressure_threshold_pct`, `max_tasks_per_round`, `drift_check_every`), route, and next handoff.
+- **worker**: per-task processing log — `tasks_processed[]` (each with task_id, status, summary, touched, evidence_refs, verify_results, self_audit, blocker), `remaining[]`, `stop_reason`, `stop_detail`. Feature route includes merged self-audit per task; fix route includes regression proof per task.
+- **reviewer**: per-task verdicts in `tasks_reviewed[]` (each with task_id, status, AC results, issues, consecutive_rejections), aggregate `aggregate_status`, `partial.accept/reject/deferred`, `batch_invariants`, escalation recommendation with `escalated_task_ids`, and next recommended command.
+- **judger**: `final_verdict` (MERGE / MERGE_PARTIAL / REWORK / RESPEC / RESCUE), `per_task_findings[]`, `merge_partial.accept_task_ids` / `rework_task_ids` / `prune_task_ids` / `respec_task_ids`, `action_plan[]`, and next recommended command.
+- **rescue**: decision (RESPEC / CONTEXT / PATCH / HUMAN), `scope` (task | batch), `target_task_ids`, diagnosis, payload appropriate to the decision, and next recommended command.
 
 ### Visibility rule
 

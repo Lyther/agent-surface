@@ -15,24 +15,32 @@ issue/debug → RCA → FIX → verify → commit
 
 ## PROTOCOL
 
-### Phase 0: Workflow mode (role-file handoff)
+### Phase 0: Workflow mode (role-file handoff, v2 batched)
 
 1. **Workflow Detection**:
     - If `.cursor/.workflow/boss.json` exists and the route is `fix`, workflow mode is ON.
     - If no workflow folder exists, behave exactly like normal `dev-fix`.
 2. **Load Active Handoff**:
-    - In workflow mode, load `.cursor/.workflow/boss.json`.
-    - If `reviewer.json`, `judger.json`, or `rescue.json` exists and `workflow.next_command = 'dev-fix'`, treat it as the latest rework handoff layered on top of `boss.json`.
-    - If more than one of those files points back to `dev-fix`, prefer the newest one by mtime and treat the others as stale.
+    - Load `.cursor/.workflow/boss.json`. The new shape (`schema_version: workflow.v2`) carries a `tasks` array — a queue of 1 to N atomic fixes plus a `batch_policy` block.
+    - If `reviewer.json`, `judger.json`, or `rescue.json` exists and `workflow.next_command = 'dev-fix'`, treat it as the latest rework handoff layered on top of `boss.json`. Rework names *which task IDs* to redo, not the whole batch.
+    - If more than one rework file points back to `dev-fix`, prefer the newest by mtime; treat older ones as stale.
     - Reuse the stored FILESCOPE, AC, and runner context instead of asking the human to paste them again.
     - If role files disagree on `workflow.run_id`, stop and route to `workflow-boss` instead of guessing.
-3. **Write Worker Artifact**:
-    - Persist a normalized worker artifact to `.cursor/.workflow/worker.json` with regression proof, touched paths, and diff/log refs.
+3. **Iterate the Task Queue (Burn As Many As Possible)**:
+    - Process tasks in array order, respecting `depends_on`.
+    - For each task:
+      a. Write the regression test (Phase 1) — must FAIL first.
+      b. Apply the patch (Phase 2).
+      c. Run the task's `verify` commands; capture evidence under `.cursor/.workflow/evidence/<task_id>.log`.
+      d. If green → mark **completed**, append to `tasks_processed`, continue.
+      e. If red → mark **blocked** with a structured blocker, stop the round.
+    - **Stop conditions** (priority order): blocker → context_pressure (`batch_policy.context_pressure_threshold_pct`, default 70) → queue_empty → drift_check (every `batch_policy.drift_check_every` completed tasks). Respect `batch_policy.max_tasks_per_round` if set.
+4. **Write Worker Artifact (v2 batched)**:
+    - Persist `.cursor/.workflow/worker.json` using the same shape as `dev-feature` (see that file's Phase 0 for the full schema). Each task entry must include the regression proof (test that was failing → now passing).
     - Set `workflow.next_command = 'workflow-reviewer'`.
-    - `worker.json` is the shared machine-readable handoff for both feature and fix routes. Do not repeat its JSON body in chat.
-    - Include `schema_version`, `run_id`, attempt number, touched paths, validation commands, evidence refs, and regression proof.
-    - Role-file ownership is strict: the worker role may only create or replace `.cursor/.workflow/worker.json` inside the workflow folder. It may read other role files, but must not edit, repair, delete, or rewrite them.
-4. **No Forced Commit in Workflow Mode**:
+    - Do not repeat the JSON body in chat — summarize: `Round done: M/N fixes shipped; stop_reason=<reason>`.
+    - Role-file ownership is strict: the worker role may only create or replace `.cursor/.workflow/worker.json`.
+5. **No Forced Commit in Workflow Mode**:
     - In workflow mode, hand off via `worker.json` + runner evidence first.
     - Do not auto-commit unless the user explicitly asks.
 
@@ -72,13 +80,14 @@ issue/debug → RCA → FIX → verify → commit
 ### Phase 5: Handoff / Commit
 
 - **Workflow mode ON**:
-  - Record the implementation artifact in `.cursor/.workflow/worker.json`
-  - Set the next recommended command to `workflow-reviewer`
-  - Preserve `boss.workflow.run_id` in `worker.json.workflow.run_id`
-  - Do not force a commit before reviewer handoff unless the user explicitly requests it
-  - Do not dump the `worker.json` contents in chat; summarize only
+  - Record the per-task fix results in `.cursor/.workflow/worker.json` (v2 shape — see `dev-feature` Phase 0).
+  - Each task entry must carry its regression proof (failing → passing test) under `evidence_refs`.
+  - Set the next recommended command to `workflow-reviewer`.
+  - Preserve `boss.workflow.run_id` in `worker.json.workflow.run_id`.
+  - Do not force a commit before reviewer handoff unless the user explicitly requests it.
+  - Do not dump the `worker.json` contents in chat; summarize: `Round done: M/N fixes shipped; stop_reason=<reason>; next: workflow-reviewer`.
 - **Workflow mode OFF**:
-  - Proceed with the normal fix proof flow and commit only when appropriate for the task
+  - Proceed with the normal fix proof flow and hand off to `ship-commit` when ready. Do not auto-commit here.
 
 ## OUTPUT FORMAT
 
@@ -120,7 +129,9 @@ if (!user.hasCard) {
 
 ## EXECUTION RULES
 
-1. Regression test first.
-2. Minimal patch only.
+1. Regression test first — for every task in the batch, not just the first.
+2. Minimal patch only. Don't refactor neighboring code while you're in there.
 3. In workflow mode, write the worker artifact to `.cursor/.workflow/worker.json` before handing off to `workflow-reviewer`.
 4. In workflow mode, write only `.cursor/.workflow/worker.json`; never modify another role file.
+5. **BURN THE QUEUE** but stop on the first hard blocker. Don't skip a failing fix to do the next one — that creates partial-merge ambiguity.
+6. **STOP SOONER UNDER PRESSURE**: ≥30 distinct files, ≥5 verify cycles, or context degradation → stop with `stop_reason=context_pressure` even if no blocker.
