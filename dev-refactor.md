@@ -138,9 +138,9 @@ function createUser(address: Address) { ... }
 
 ### Phase 5: Commit & Traceability
 
-1. Commit atomically with Conventional Commit: `refactor(scope): concise summary`
-2. Include "before → after" metrics in the body
-3. Push branch; open PR with rationale and risks
+1. Hand off to `ship-commit` for the commit. It picks the right subject form per repo mode (Conventional Commits → `refactor(scope): …`; kernel → `subsystem: cleanup …`) and runs the mandatory `/qa:review` gate.
+2. Include "before → after" metrics in the body (complexity, file size, duplication).
+3. Push and PR are NOT automatic. `ship-commit` Phase 4 gates push behind explicit user approval, especially for `main`/`master`/`trunk`/`release/*`.
 
 ## TOOLING HINTS (by stack)
 

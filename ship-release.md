@@ -62,7 +62,7 @@ You do not decide what goes into a release. The Git history and the verified art
     - Changelog entry
 4. **Create a Signed Annotated Tag**:
     - `v1.2.3`
-5. **Push the Version Commit and Tag Together**.
+5. **Push the Version Commit and Tag Together** — *only after explicit user authorization*. Print the exact `git push` and `git push --tags` (or combined) commands and the target remote/branch; wait for the user to approve before sending. Never push to `main`/`master`/`trunk`/`release/*` without that approval. Heuristic: if the user has not said "push" or "release" *in this turn or in durable instructions*, assume push is not yet authorized.
 
 ### Phase 4: Publish the Release
 
@@ -114,3 +114,5 @@ You do not decide what goes into a release. The Git history and the verified art
 3. **SIGNED TAGS**: Release tags must be annotated and signed.
 4. **NO RELEASE WITHOUT ARTIFACT IDENTITY**: Version numbers alone are not enough.
 5. **NO DOC / BUNDLE DRIFT**: If release notes, bundle names, or published assets do not match reality, stop and fix them before release.
+6. **EXPLICIT PUSH CONSENT**: Tagging is local; pushing tags and version commits is irreversible distribution. Require explicit user approval per Phase 3 step 5, especially for `main`/`master`/`trunk`/`release/*`.
+7. **NO AUTO-EMAIL / NO AUTO-ANNOUNCE**: Never invoke `git send-email`, mailing lists, Slack/Discord webhooks, or release-announcement automation as a side effect of cutting the release. Prepare the artifacts, present the announcement plan, and wait for the user to authorize each broadcast channel.

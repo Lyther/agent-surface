@@ -65,11 +65,11 @@ When AI tries multiple approaches in parallel:
 
 ### Phase 4: The Final Polish
 
-1. **Unified Diff**: Compare against `main`
-2. **Security/Quality**: Lint, type-check, SAST pass
-3. **Commit**: `git commit -m "feat: synthesized from agents A, B, C"`
-4. **Tag**: Create a checkpoint tag
-5. **Nuke**: Delete all `cursor-*` worktrees
+1. **Unified Diff**: Compare against the base branch (usually `main`/`master`, but trust `git symbolic-ref refs/remotes/origin/HEAD`, not assumption).
+2. **Security/Quality**: Lint, type-check, SAST pass. Run `/qa:review` against the consolidated diff before any commit.
+3. **Commit**: Hand off to `ship-commit` rather than running `git commit` inline — it detects repo mode and applies the right subject form (`feat: synthesized from agents A, B, C` for Conventional Commits, `subsystem: …` for kernel).
+4. **Tag**: Create a local checkpoint tag (e.g., `checkpoint-converge-<date>`). Do NOT push tags as a side effect — that requires explicit consent per `ship-release`.
+5. **Nuke**: Delete the spent worktrees (`git worktree remove ../wt-*`) and prune (`git worktree prune`).
 
 ## OUTPUT FORMAT
 
