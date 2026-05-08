@@ -73,7 +73,13 @@ If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surf
 
    Heuristic: if you have not been told to send, you are not sending. Print the plan, stop.
 
-5. **Report findings** using the output format below.
+5. **Pre-public review (if patch will hit a public ML).** Before `git format-patch` for upstream submission:
+   - Run `/qa:trace` again with the **error path** — not the happy path — as the entry point.
+   - Hand the patch to a fresh agent / reviewer **without** the v1 context. If the design only survives review when you explain the journey, the patch is not ready.
+   - For any `(input × concurrent-op)` quadrant you cannot empirically reach in a test, document why and how you verified by inspection. The race quadrant of RSV-2 was *only* covered by code review; that is acceptable when stated, not acceptable when hidden.
+   - If a previous version was already sent publicly, write the v1→v2 changelog **as a real diff of the design**, not a politeness sentence. Reviewers should not have to re-derive what changed.
+
+6. **Report findings** using the output format below.
 
 ## DOMAIN CHECKLIST
 
@@ -115,6 +121,65 @@ If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surf
 - [ ] If the patch touches locking, IRQ context, RCU, atomics, or scheduler hooks — `/qa:trace` is **mandatory** before commit (see `ship-commit` Phase 1.5).
 - [ ] `READ_ONCE`/`WRITE_ONCE` used on shared variables read/written outside locks.
 - [ ] No `volatile` as a substitute for proper ordering — use `smp_*` barriers.
+
+### Error-path & cleanup audit
+
+When a patch adds/changes anything under `out_*:` labels, `goto err_*`, or `if (failed) cleanup(...)`, the helper you call to "undo" the prior step is **not** automatically the inverse of that step. Run all checks below before the patch leaves your machine.
+
+- [ ] **Helper introspection.** Open the cleanup helper end-to-end. Enumerate every side effect: lock taken, lock released, counter touched, list mutated, conditional state changes, return value's meaning. A helper named `*_put_pages` may also restore reservations, release a refcount, free the object — read it; do not infer from the name.
+- [ ] **Grep-existing-cleanups.** In the same file, search for `out_`, `goto err_`, `unwind`, the struct's other failure paths. The pattern you need probably already exists. Mirror it instead of inventing one. (Concrete: `hugetlb_reserve_pages` already had the direct-decrement pattern at the time of RSV-2; reaching for the helper was the mistake.)
+- [ ] **State-space quadrant table.** For every input that selects a code path (e.g., `gbl_chg ∈ {0, >0}`, `map_chg ∈ {0, 1}`, `max_hpages ∈ {-1, finite}`), enumerate the cross-product. Each cell must have a documented cleanup. A cell with "shouldn't happen" or "covered by the other branch" is a bug.
+- [ ] **Concurrent-op interleaving.** For each cell, list which concurrent operations on the same struct can race with the failure (`*_put_pages`, `*_unreserve_pages`, free returning to buddy, cgroup migration, ...). Walk the cleanup as if each one fires between the failed step and the unwind. The cleanup must remain correct — including not creating phantom state (e.g., raw `h->resv_huge_pages++` after concurrent free dropped `free_huge_pages` to 0).
+- [ ] **Pointer aliasing across charge/uncharge windows.** If the same local pointer is reused for two charges (regular vs reserved, vmalloc vs kmalloc, dma vs cpu), task migration / preemption / interrupt between the two charges can rebind ownership. Use **separate locals** for separate ownership domains, not "save into one and uncharge it later".
+- [ ] **Severity stays attached to the bug, not the patch.** If v1 was wrong, v2 is the same severity until proven otherwise. Do not let "we tried twice" lower the CVSS.
+- [ ] **Do not bundle unrelated fixes** — but **do** bundle fixes that share the same charge/failure/commit window with the change you're sending. The cgroup-pointer split lived in the same `out_uncharge_*` ladder as the subpool fix, so it shipped together. A migration-state-machine fix in another function does not.
+
+### Commit message & email discipline
+
+Anchored to `Documentation/process/submitting-patches.rst` and `5.Posting.rst`. Reviewers' time is more valuable than your prose: minimum surface area, maximum signal.
+
+**Body**
+
+- [ ] **Imperative mood.** "Decrement used_hpages …", not "This patch decrements …" or "I changed …". Banned phrases: `this patch`, `I/we`, past tense verbs describing the change.
+- [ ] **Frame the actual bug, not one symptom.** If the unwind needs to fire on cgroup-charge fail AND dequeue fail AND buddy alloc fail, name the underlying invariant (e.g. "subpool used_hpages accounting"), not just one trigger. Pinning the bug to a specific failure mode is misleading.
+- [ ] **Wrap body at 75 columns.** Tags (`Fixes:`, `Closes:`, `Link:`) are exempt — never split a tag across lines.
+- [ ] **Self-contained.** A reviewer who never saw v(N-1) must understand the patch from this message alone. Don't make them dig out the previous thread.
+- [ ] **One problem per patch.** If the description grows past ~3 short paragraphs, that's a sign to split. Bundling is the exception, not the default.
+- [ ] **Cite commits as `12-hex ("oneline summary")`.** Never bare SHA. The summary survives even if the SHA gets reorged.
+- [ ] **Don't reference future RFCs from the commit body.** Stable backports don't advertise out-of-scope work. RFC pointers belong in cover letters or follow-up threads.
+
+**Subject**
+
+- [ ] **70-75 chars max.** Describe both *what* changes and *why* it might be necessary, in that one line.
+- [ ] **Form: `subsystem: imperative summary`.** No period, no Conventional Commits prefix (`feat:`, `fix:`), no filename.
+- [ ] **Don't reuse the same summary across patches in a series.** Each `summary phrase` becomes a globally-unique identifier — search engines, git log, follow-up review threads all key off it.
+- [ ] **Version tag reflects what was sent publicly.** If v1 + v2 went to a public list, the next public revision is v3 — don't reset to v2 just because the v2-internal you wrote was never sent.
+
+**Trailers (order, no blank lines between)**
+
+- [ ] `Fixes: <12-hex> ("oneline")` — required for bug fixes. Tag exempt from 75-col wrap.
+- [ ] `Reported-by:` / `Closes:` / `Link:` — only with real attribution; lore.kernel.org URLs preferred for `Link:`.
+- [ ] `Cc: stable@vger.kernel.org # vX.Y+` — only if backport intended; verify the version range against the `Fixes:` commit's containment.
+- [ ] `Reviewed-by:` / `Tested-by:` / `Acked-by:` — **never invent**. Each fake trailer is a career-shortening event.
+- [ ] `Signed-off-by:` — mandatory (DCO 1.1). Use `git commit -s`.
+
+**`Changes in vN:` placement**
+
+- [ ] **Below the `---` separator**, between Signed-off-by and the diffstat. Never inside the commit body itself — it doesn't belong in `git log`.
+- [ ] **Brief bullet list of the v(N-1) → vN delta.** Drop history of designs that never went public. Reviewers don't need to retrace your private exploration.
+
+**Comments inside the patch (Oscar)**
+
+- [ ] **Split long composed comments into the relevant code blocks.** A multi-paragraph comment ahead of a multi-branch `if/else if/else` is harder to map back to code than one short comment per branch placed where it explains the local action.
+- [ ] **Don't compose head-spinning prose for tricky subsystems.** If the comment requires the reader to hold three counters and two locks in their head, the comment is too dense — split, or let the structure carry the explanation.
+
+**Email plumbing**
+
+- [ ] **Plain text only.** No HTML, no rich formatting, no auto-quoted reply prefixes that mangle diffs.
+- [ ] **Use `git send-email`.** Webmail and most desktop clients reflow whitespace and break patches.
+- [ ] **For replies (`[PATCH vN]`):** set `In-Reply-To:` to the v(N-1) Message-ID and `References:` to the full chain (v1, v2, …). `format-patch -v N --in-reply-to=<msgid>` handles this.
+- [ ] **Trim quoted text in review replies.** Don't top-post; place your response under the specific quoted line you're addressing.
+- [ ] **One Message-ID per patch.** Cover letter is patch 0; subsequent patches link via `In-Reply-To:` to the cover letter, not to each other.
 
 ## OUTPUT FORMAT
 

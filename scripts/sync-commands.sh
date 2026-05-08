@@ -158,6 +158,7 @@ CLAUDE_COMMANDS="$CLAUDE_DIR/commands"
 CODEX_DIR="$HOME/.codex"
 CODEX_SKILLS_DIR="$HOME/.agents/skills"
 CODEX_SYNC_MARKER=".sync-origin"
+CODEX_LEGACY_SYNC_MARKER=".cursor-sync-origin"
 GEMINI_DIR="$HOME/.gemini"
 GEMINI_COMMANDS="$GEMINI_DIR/commands"
 ANTIGRAVITY_WORKFLOWS="$GEMINI_DIR/antigravity/global_workflows"
@@ -356,10 +357,6 @@ list_sync_command_sources() {
         is_syncable_command_filename "$fname" || continue
         printf '%s\t%s\n' "$md_file" "$fname"
     done
-
-    if [ -f "$COMMANDS_SRC/dev-feature.md" ] && [ ! -f "$COMMANDS_SRC/dev-component.md" ]; then
-        printf '%s\t%s\n' "$COMMANDS_SRC/dev-feature.md" "dev-component.md"
-    fi
 }
 
 emit_codex_skill_body() {
@@ -680,10 +677,8 @@ sync_codex() {
         fi
     done < <(list_sync_command_sources)
 
-    while read -r marker; do
-        [ -z "$marker" ] && continue
-        local skill_dir
-        skill_dir=$(dirname "$marker")
+    while read -r skill_dir; do
+        [ -z "$skill_dir" ] && continue
         local skill_name
         skill_name=$(basename "$skill_dir")
 
@@ -692,14 +687,15 @@ sync_codex() {
                 rm -f \
                     "$skill_dir/SKILL.md" \
                     "$skill_dir/agents/openai.yaml" \
-                    "$skill_dir/$CODEX_SYNC_MARKER"
+                    "$skill_dir/$CODEX_SYNC_MARKER" \
+                    "$skill_dir/$CODEX_LEGACY_SYNC_MARKER"
                 rmdir "$skill_dir/agents" 2>/dev/null || true
                 rmdir "$skill_dir" 2>/dev/null || true
             }
             c_removed=$((c_removed + 1))
             echo "  removed stale codex skill: $skill_name"
         fi
-    done < <(find "$CODEX_SKILLS_DIR" -name "$CODEX_SYNC_MARKER" -type f 2>/dev/null)
+    done < <(find "$CODEX_SKILLS_DIR" \( -name "$CODEX_SYNC_MARKER" -o -name "$CODEX_LEGACY_SYNC_MARKER" \) -type f -exec dirname {} \; 2>/dev/null | sort -u)
 
     rm -f "$tracked_file"
     echo "  codex skills: $c_added added, $c_updated updated, $c_unchanged unchanged, $c_removed removed"

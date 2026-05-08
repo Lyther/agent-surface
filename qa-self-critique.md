@@ -138,7 +138,18 @@ Process each domain sequentially against the files in scope. Do not attempt all 
   → Extract
 - **Action if found:** Fix immediately.
 
-#### 2e. Test Quality
+#### 2e. Kernel error-path quadrant (when `lint:kernel` mode applies)
+
+Skip this domain when the target is not C kernel code. When it is:
+
+- For each cleanup helper called under `out_*:` / `goto err_*`, did you read it end-to-end? List every state mutation it performs. If the helper has more side effects than "undo the previous step", you are likely calling the wrong helper.
+- Enumerate `(input × concurrent-op)` quadrants for every selector in the failing function (`gbl_chg`, `map_chg`, `max_hpages`, ...). A quadrant with no documented cleanup is a bug.
+- Grep the same file for existing `out_*` ladders on the same struct. The pattern you need is probably already there — mirror it instead of inventing.
+- For paired charge / uncharge of two ownership domains (e.g., `h_cg` vs `h_cg_rsvd`), are they stored in **separate** locals? If a single local is reused, task migration / preemption can break ownership.
+- Reservation / accounting deltas: does any cleanup unconditionally `++` a counter that has a global invariant (`resv_huge_pages <= free_huge_pages`)? A concurrent free can drop `free_huge_pages` between the failed step and the cleanup. Decrement under the owning lock; do not raw-bump shared counters.
+- **Action if found:** Fix immediately by mirroring an existing `out_*` ladder in the same file. Do not invent new cleanup logic when precedent exists.
+
+#### 2f. Test Quality
 
 - `Mock`/`MagicMock`/`AsyncMock` used where a hand-written Fake would be clearer?
   → Replace with `Fake<Class>` implementation
