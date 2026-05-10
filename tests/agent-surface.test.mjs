@@ -2,7 +2,8 @@
 
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,6 +33,10 @@ function files(dir) {
     if (name.isFile()) out.push(full);
   }
   return out;
+}
+
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 rmSync(path.join(root, "dist"), { recursive: true, force: true });
@@ -94,12 +99,56 @@ writeFileSync(
   }),
 );
 const stalePlan = run(["install", "--target", "cline", "--dest", staleDest, "--dry-run"]);
-assert.match(stalePlan, /would remove stale managed files:\n  \.clinerules\/workflows\/removed\.md/);
+assert.match(stalePlan, /planned stale managed removals:\n  \.clinerules\/workflows\/removed\.md/);
 rmSync(staleDest, { recursive: true, force: true });
+
+const liveDest = "/tmp/agent-surface-live";
+rmSync(liveDest, { recursive: true, force: true });
+const liveInstall = run(["install", "--target", "cline", "--dest", liveDest]);
+assert.match(liveInstall, /^installed:$/m);
+assert.match(liveInstall, /wrote: 58/);
+assert.match(readFileSync(path.join(liveDest, ".clinerules", "workflows", "workflow-boss.md"), "utf8"), /^## OBJECTIVE/);
+const liveManifest = JSON.parse(readFileSync(path.join(liveDest, ".agent-surface", "cline-manifest.json"), "utf8"));
+assert.equal(liveManifest.managed.length, 58);
+assert.equal(liveManifest.managed[0].managed_by, "agent-surface");
+rmSync(liveDest, { recursive: true, force: true });
+
+const unmanagedDest = "/tmp/agent-surface-unmanaged";
+rmSync(unmanagedDest, { recursive: true, force: true });
+mkdirSync(path.join(unmanagedDest, ".clinerules", "workflows"), { recursive: true });
+writeFileSync(path.join(unmanagedDest, ".clinerules", "workflows", "workflow-boss.md"), "local workflow\n");
+const unmanagedInstall = status(["install", "--target", "cline", "--dest", unmanagedDest]);
+assert.notEqual(unmanagedInstall.status, 0);
+assert.match(`${unmanagedInstall.stdout}${unmanagedInstall.stderr}`, /unmanaged existing file: \.clinerules\/workflows\/workflow-boss\.md/);
+rmSync(unmanagedDest, { recursive: true, force: true });
+
+const liveStaleDest = "/tmp/agent-surface-live-stale";
+rmSync(liveStaleDest, { recursive: true, force: true });
+run(["install", "--target", "cline", "--dest", liveStaleDest]);
+const liveStaleFile = path.join(liveStaleDest, ".clinerules", "workflows", "removed.md");
+const liveStaleContent = "old managed workflow\n";
+writeFileSync(liveStaleFile, liveStaleContent);
+const liveStaleManifestPath = path.join(liveStaleDest, ".agent-surface", "cline-manifest.json");
+const liveStaleManifest = JSON.parse(readFileSync(liveStaleManifestPath, "utf8"));
+liveStaleManifest.managed.push({
+  target: "cline",
+  scope: "project",
+  source: "commands/removed.md",
+  output: ".clinerules/workflows/removed.md",
+  sha256: sha256(liveStaleContent),
+  managed_by: "agent-surface",
+  version: "0.1.0",
+});
+writeFileSync(liveStaleManifestPath, `${JSON.stringify(liveStaleManifest, null, 2)}\n`);
+const liveStaleInstall = run(["install", "--target", "cline", "--dest", liveStaleDest]);
+assert.match(liveStaleInstall, /removed stale: 1/);
+assert.equal(existsSync(liveStaleFile), false);
+assert.equal(files(path.join(liveStaleDest, ".agent-surface", "backups")).some((file) => file.endsWith("removed.md")), true);
+rmSync(liveStaleDest, { recursive: true, force: true });
 
 const unsafeInstall = status(["install", "--target", "cline"]);
 assert.notEqual(unsafeInstall.status, 0);
-assert.match(unsafeInstall.stderr, /requires --dry-run/);
+assert.match(unsafeInstall.stderr, /live install requires explicit --dest/);
 
 const invalidScope = status(["install", "--target", "cline", "--scope", "workspace", "--dry-run"]);
 assert.notEqual(invalidScope.status, 0);

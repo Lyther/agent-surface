@@ -2,7 +2,7 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -121,7 +121,7 @@ Usage:
   agent-surface check
   agent-surface check rules [--scenario <name>]
   agent-surface build --target <cline|antigravity|gemini-cli|all> [--dry-run]
-  agent-surface install --target <cline|antigravity|gemini-cli> [--scope project|user] [--dest <path>] --dry-run
+  agent-surface install --target <cline|antigravity|gemini-cli> [--scope project|user] [--dest <path>] [--dry-run]
   agent-surface doctor
 `);
 }
@@ -310,53 +310,134 @@ async function install(args) {
 
   if (!adapter) fail(`unsupported install target: ${target}`);
   if (!["project", "user"].includes(scope)) fail(`unsupported install scope: ${scope}`);
-  if (!dryRun) fail("install currently requires --dry-run; live writes are intentionally blocked");
+  if (!dryRun && !dest) fail("live install requires explicit --dest; run the same command with --dry-run first");
 
   const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
+  if (installRoot === path.parse(installRoot).root) fail("install root cannot be filesystem root");
   const plan = await installPlan(target, adapter, installRoot, scope);
 
   printInstallPlan(plan);
+  if (plan.blocked.length > 0) {
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!dryRun) {
+    await applyInstallPlan(plan);
+  }
 }
 
 async function installPlan(target, adapter, installRoot, scope) {
   const commandFiles = await files("commands", [".md"]);
   const version = await packageVersion();
+  const generatedAt = new Date().toISOString();
   const manifestPath = path.join(installRoot, ".agent-surface", `${target}-manifest.json`);
   const previousManifest = await readJsonIfExists(manifestPath);
   const writes = [];
   const managed = [];
+  const blocked = [];
 
   for (const source of commandFiles) {
     const rendered = await adapter.render(source);
     const outputName = adapter.outputName ? adapter.outputName(source) : path.basename(source);
     const output = path.join(installRoot, adapter.installOutputRoot, outputName);
+    const relativeOutput = path.relative(installRoot, output);
     const hash = sha256(rendered);
-    writes.push({ source: relative(source), output, sha256: hash });
+    if (!isSafeRelativePath(relativeOutput)) {
+      blocked.push(`unsafe output path: ${relativeOutput}`);
+      continue;
+    }
+
+    writes.push({ source: relative(source), output, relativeOutput, content: rendered, sha256: hash });
     managed.push({
       target,
       scope,
       source: relative(source),
-      output: path.relative(installRoot, output),
+      output: relativeOutput,
       sha256: hash,
       managed_by: "agent-surface",
       version,
     });
   }
 
+  const previousManaged = new Map(
+    Array.isArray(previousManifest?.managed)
+      ? previousManifest.managed
+        .filter((item) => item?.managed_by === "agent-surface")
+        .filter((item) => item?.target === target)
+        .filter((item) => typeof item.output === "string")
+        .map((item) => [item.output, item])
+      : [],
+  );
+
+  for (const item of writes) {
+    const current = await readFileIfExists(item.output);
+    if (current === null) {
+      item.action = "write";
+      continue;
+    }
+
+    const currentHash = sha256(current);
+    if (currentHash === item.sha256) {
+      item.action = "skip";
+      continue;
+    }
+
+    const previous = previousManaged.get(item.relativeOutput);
+    if (!previous) {
+      blocked.push(`unmanaged existing file: ${item.relativeOutput}`);
+      item.action = "blocked";
+      continue;
+    }
+
+    if (!previous.sha256 || previous.sha256 !== currentHash) {
+      blocked.push(`managed file changed since manifest: ${item.relativeOutput}`);
+      item.action = "blocked";
+      continue;
+    }
+
+    item.action = "overwrite";
+  }
+
   const liveOutputs = new Set(managed.map((item) => item.output));
-  const staleRemovals = Array.isArray(previousManifest?.managed)
+  const staleManaged = Array.isArray(previousManifest?.managed)
     ? previousManifest.managed
       .filter((item) => item?.managed_by === "agent-surface")
       .filter((item) => item?.target === target)
       .filter((item) => typeof item.output === "string")
       .filter((item) => !liveOutputs.has(item.output))
-      .map((item) => item.output)
-      .sort()
+      .sort((left, right) => left.output.localeCompare(right.output))
     : [];
+  const staleRemovals = staleManaged.map((item) => item.output);
+  const staleRemovalActions = [];
+
+  for (const item of staleManaged) {
+    if (!isSafeRelativePath(item.output)) {
+      blocked.push(`unsafe stale managed path: ${item.output}`);
+      continue;
+    }
+
+    const output = path.join(installRoot, item.output);
+    const current = await readFileIfExists(output);
+    if (current === null) {
+      staleRemovalActions.push({ output, relativeOutput: item.output, action: "missing" });
+      continue;
+    }
+
+    const currentHash = sha256(current);
+    if (!item.sha256 || item.sha256 !== currentHash) {
+      blocked.push(`stale managed file changed since manifest: ${item.output}`);
+      staleRemovalActions.push({ output, relativeOutput: item.output, action: "blocked" });
+      continue;
+    }
+
+    staleRemovalActions.push({ output, relativeOutput: item.output, action: "remove" });
+  }
+
   const manifest = {
     target,
     scope,
-    generated_at: new Date().toISOString(),
+    generated_at: generatedAt,
     managed,
   };
 
@@ -365,9 +446,11 @@ async function installPlan(target, adapter, installRoot, scope) {
     scope,
     installRoot,
     manifestPath,
+    generatedAt,
     writes,
     staleRemovals,
-    blocked: [],
+    staleRemovalActions,
+    blocked,
     manifest,
   };
 }
@@ -376,17 +459,17 @@ function printInstallPlan(plan) {
   console.log(`target: ${plan.target}`);
   console.log(`scope: ${plan.scope}`);
   console.log(`root: ${plan.installRoot}`);
-  console.log("would write:");
+  console.log("planned writes:");
   for (const item of plan.writes) {
     console.log(`  ${path.relative(plan.installRoot, item.output)} <- ${item.source}`);
   }
-  console.log("would remove stale managed files:");
+  console.log("planned stale managed removals:");
   if (plan.staleRemovals.length === 0) {
     console.log("  none");
   } else {
     for (const item of plan.staleRemovals) console.log(`  ${item}`);
   }
-  console.log("would write manifest:");
+  console.log("planned manifest:");
   console.log(`  ${path.relative(plan.installRoot, plan.manifestPath)}`);
   console.log("blocked:");
   if (plan.blocked.length === 0) {
@@ -394,6 +477,62 @@ function printInstallPlan(plan) {
   } else {
     for (const item of plan.blocked) console.log(`  ${item}`);
   }
+}
+
+async function applyInstallPlan(plan) {
+  const backupRoot = path.join(plan.installRoot, ".agent-surface", "backups", safeTimestamp(plan.generatedAt));
+  let written = 0;
+  let skipped = 0;
+  let removed = 0;
+  let backups = 0;
+
+  await mkdir(plan.installRoot, { recursive: true });
+
+  for (const item of plan.writes) {
+    if (item.action === "skip") {
+      skipped += 1;
+      continue;
+    }
+
+    if (item.action === "overwrite") {
+      await backupExisting(plan.installRoot, backupRoot, item.output);
+      backups += 1;
+    }
+
+    await mkdir(path.dirname(item.output), { recursive: true });
+    await writeFile(item.output, item.content);
+    written += 1;
+  }
+
+  for (const item of plan.staleRemovalActions) {
+    if (item.action !== "remove") continue;
+    await backupExisting(plan.installRoot, backupRoot, item.output);
+    backups += 1;
+    await rm(item.output, { force: true });
+    removed += 1;
+  }
+
+  if (await exists(plan.manifestPath)) {
+    await backupExisting(plan.installRoot, backupRoot, plan.manifestPath);
+    backups += 1;
+  }
+
+  await mkdir(path.dirname(plan.manifestPath), { recursive: true });
+  await writeFile(plan.manifestPath, `${JSON.stringify(plan.manifest, null, 2)}\n`);
+
+  console.log("installed:");
+  console.log(`  wrote: ${written}`);
+  console.log(`  skipped unchanged: ${skipped}`);
+  console.log(`  removed stale: ${removed}`);
+  console.log(`  backups: ${backups === 0 ? "none" : path.relative(plan.installRoot, backupRoot)}`);
+}
+
+async function backupExisting(installRoot, backupRoot, file) {
+  const relativeOutput = path.relative(installRoot, file);
+  if (!isSafeRelativePath(relativeOutput)) fail(`refusing to back up unsafe path: ${relativeOutput}`);
+  const backupPath = path.join(backupRoot, relativeOutput);
+  await mkdir(path.dirname(backupPath), { recursive: true });
+  await copyFile(file, backupPath);
 }
 
 async function doctor() {
@@ -501,6 +640,15 @@ async function exists(file) {
 async function readJsonIfExists(file) {
   if (!(await exists(file))) return null;
   return JSON.parse(await readFile(file, "utf8"));
+}
+
+async function readFileIfExists(file) {
+  try {
+    return await readFile(file);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
 }
 
 async function readRules() {
@@ -646,6 +794,14 @@ function tomlMultilineString(value) {
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function isSafeRelativePath(file) {
+  return file !== "" && !path.isAbsolute(file) && !file.split(path.sep).includes("..");
+}
+
+function safeTimestamp(value) {
+  return value.replace(/[:.]/g, "-");
 }
 
 async function packageVersion() {
