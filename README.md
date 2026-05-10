@@ -50,3 +50,13 @@ npm run inventory
 npm run build -- --target cline --dry-run
 npm run build -- --target antigravity --dry-run
 ```
+
+## Next Milestone
+
+Focus adapters in this order:
+
+1. `cline`
+2. `antigravity`
+3. `gemini-cli`
+
+These targets have the clearest command/workflow primitives right now. Add `agent-surface install --target <target> --dry-run` before writing to live dotfolders.

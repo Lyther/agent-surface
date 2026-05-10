@@ -13,6 +13,9 @@ Did I check API exists in installed version?
 Did I actually read the file before editing?
 Am I copying patterns from THIS codebase, not random memory?
 Does my code handle all error cases, not just happy path?
+Can every changed line be justified by the request or a verified check?
+Am I adding abstraction/configuration only because it is needed now?
+Did I define the success check before changing behavior?
 ```
 
 ### B. Common AI Failure Modes
@@ -26,6 +29,9 @@ Does my code handle all error cases, not just happy path?
 | **Test Theater** | `expect(x).toBe(x)` | Assert actual behavior |
 | **Error Optimism** | No error handling | Handle every failure path |
 | **Copy-Paste Drift** | Duplicated code diverging | Extract shared function |
+| **Silent Assumption** | Picking one interpretation without evidence | State assumption or ask |
+| **Drive-By Refactor** | Unrelated diff churn | Revert unrelated edits |
+| **Speculative Flexibility** | Options/hooks/abstractions nobody requested | Delete until required |
 
 ### C. Context Management
 
