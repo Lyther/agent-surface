@@ -13,6 +13,6 @@
     "check": "node scripts/agent-surface.mjs check"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=18"
   }
 }

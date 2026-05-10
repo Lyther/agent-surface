@@ -140,16 +140,16 @@ async function build(args) {
   const selected = target === "all" ? Object.keys(targets) : [target];
   const commandFiles = await files("commands", [".md"]);
 
+  if (!dryRun) {
+    await rm(path.join(root, "dist", target === "all" ? "" : target), { recursive: true, force: true });
+  }
+
   for (const item of selected) {
     const adapter = targets[item];
     if (!adapter) fail(`unsupported build target: ${item}`);
 
     const outputDir = path.join(root, "dist", item, adapter.outputRoot);
     let count = 0;
-
-    if (!dryRun) {
-      await rm(outputDir, { recursive: true, force: true });
-    }
 
     for (const source of commandFiles) {
       const rendered = await adapter.render(source);
