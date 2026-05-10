@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import os from "node:os";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -12,11 +15,23 @@ const targets = {
     label: "Cline workflows",
     outputRoot: ".clinerules/workflows",
     render: renderClineWorkflow,
+    installRoot: installRootProjectOnly,
+    installOutputRoot: ".clinerules/workflows",
   },
   antigravity: {
     label: "Antigravity workflows",
     outputRoot: "global_workflows",
     render: renderAntigravityWorkflow,
+    installRoot: installRootAntigravity,
+    installOutputRoot: "global_workflows",
+  },
+  "gemini-cli": {
+    label: "Gemini CLI commands",
+    outputRoot: ".gemini/commands",
+    render: renderGeminiCommand,
+    installRoot: installRootGemini,
+    installOutputRoot: ".gemini/commands",
+    outputName: geminiCommandOutputName,
   },
 };
 
@@ -43,6 +58,16 @@ async function main() {
     return;
   }
 
+  if (command === "install") {
+    await install(args);
+    return;
+  }
+
+  if (command === "doctor") {
+    await doctor();
+    return;
+  }
+
   fail(`unknown command: ${command}`);
 }
 
@@ -52,7 +77,9 @@ function printHelp() {
 Usage:
   agent-surface inventory
   agent-surface check
-  agent-surface build --target <cline|antigravity|all> [--dry-run]
+  agent-surface build --target <cline|antigravity|gemini-cli|all> [--dry-run]
+  agent-surface install --target <cline|antigravity|gemini-cli> [--scope project|user] [--dest <path>] --dry-run
+  agent-surface doctor
 `);
 }
 
@@ -153,7 +180,8 @@ async function build(args) {
 
     for (const source of commandFiles) {
       const rendered = await adapter.render(source);
-      const targetPath = path.join(outputDir, path.basename(source));
+      const outputName = adapter.outputName ? adapter.outputName(source) : path.basename(source);
+      const targetPath = path.join(outputDir, outputName);
       count += 1;
 
       if (dryRun) {
@@ -166,6 +194,125 @@ async function build(args) {
     }
 
     console.log(`${item}: ${count} command sources rendered${dryRun ? " (dry-run)" : ""}`);
+  }
+}
+
+async function install(args) {
+  const target = requiredArgValue(args, "--target");
+  const scope = argValue(args, "--scope") ?? "project";
+  const dryRun = args.includes("--dry-run");
+  const dest = argValue(args, "--dest");
+  const adapter = targets[target];
+
+  if (!adapter) fail(`unsupported install target: ${target}`);
+  if (!["project", "user"].includes(scope)) fail(`unsupported install scope: ${scope}`);
+  if (!dryRun) fail("install currently requires --dry-run; live writes are intentionally blocked");
+
+  const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
+  const plan = await installPlan(target, adapter, installRoot, scope);
+
+  printInstallPlan(plan);
+}
+
+async function installPlan(target, adapter, installRoot, scope) {
+  const commandFiles = await files("commands", [".md"]);
+  const version = await packageVersion();
+  const manifestPath = path.join(installRoot, ".agent-surface", `${target}-manifest.json`);
+  const previousManifest = await readJsonIfExists(manifestPath);
+  const writes = [];
+  const managed = [];
+
+  for (const source of commandFiles) {
+    const rendered = await adapter.render(source);
+    const outputName = adapter.outputName ? adapter.outputName(source) : path.basename(source);
+    const output = path.join(installRoot, adapter.installOutputRoot, outputName);
+    const hash = sha256(rendered);
+    writes.push({ source: relative(source), output, sha256: hash });
+    managed.push({
+      target,
+      scope,
+      source: relative(source),
+      output: path.relative(installRoot, output),
+      sha256: hash,
+      managed_by: "agent-surface",
+      version,
+    });
+  }
+
+  const liveOutputs = new Set(managed.map((item) => item.output));
+  const staleRemovals = Array.isArray(previousManifest?.managed)
+    ? previousManifest.managed
+        .filter((item) => item?.managed_by === "agent-surface")
+        .filter((item) => item?.target === target)
+        .filter((item) => typeof item.output === "string")
+        .filter((item) => !liveOutputs.has(item.output))
+        .map((item) => item.output)
+        .sort()
+    : [];
+  const manifest = {
+    target,
+    scope,
+    generated_at: new Date().toISOString(),
+    managed,
+  };
+
+  return {
+    target,
+    scope,
+    installRoot,
+    manifestPath,
+    writes,
+    staleRemovals,
+    blocked: [],
+    manifest,
+  };
+}
+
+function printInstallPlan(plan) {
+  console.log(`target: ${plan.target}`);
+  console.log(`scope: ${plan.scope}`);
+  console.log(`root: ${plan.installRoot}`);
+  console.log("would write:");
+  for (const item of plan.writes) {
+    console.log(`  ${path.relative(plan.installRoot, item.output)} <- ${item.source}`);
+  }
+  console.log("would remove stale managed files:");
+  if (plan.staleRemovals.length === 0) {
+    console.log("  none");
+  } else {
+    for (const item of plan.staleRemovals) console.log(`  ${item}`);
+  }
+  console.log("would write manifest:");
+  console.log(`  ${path.relative(plan.installRoot, plan.manifestPath)}`);
+  console.log("blocked:");
+  if (plan.blocked.length === 0) {
+    console.log("  none");
+  } else {
+    for (const item of plan.blocked) console.log(`  ${item}`);
+  }
+}
+
+async function doctor() {
+  const checks = [];
+  checks.push(["node", process.version]);
+  checks.push(["source", root]);
+  checks.push(["cwd", process.cwd()]);
+  checks.push(["commands", String((await files("commands", [".md"])).length)]);
+  checks.push(["rules", String((await files("rules", [".md", ".mdc"])).length)]);
+  checks.push(["git", commandVersion("git", ["--version"])]);
+  checks.push(["cline-dir", (await exists(path.join(os.homedir(), ".cline"))) ? "present" : "missing"]);
+  checks.push([
+    "antigravity-workflows",
+    (await exists(path.join(os.homedir(), ".gemini", "antigravity", "global_workflows"))) ? "present" : "missing",
+  ]);
+  checks.push(["gemini", commandVersion("gemini", ["--version"])]);
+  checks.push(["claude", commandVersion("claude", ["--version"])]);
+  checks.push(["codex", commandVersion("codex", ["--version"])]);
+  checks.push(["opencode", commandVersion("opencode", ["--version"])]);
+  checks.push(["gh", commandVersion("gh", ["--version"])]);
+
+  for (const [name, result] of checks) {
+    console.log(`${name}: ${result}`);
   }
 }
 
@@ -187,6 +334,19 @@ async function renderAntigravityWorkflow(source) {
   }
 
   return `---\ndescription: "${description}"\n---\n\n${body}`;
+}
+
+async function renderGeminiCommand(source) {
+  const body = await readFile(source, "utf8");
+  const description = tomlString(firstHeading(body) ?? `Run ${path.basename(source, ".md").replaceAll("-", " ")}.`);
+  const prompt = tomlMultilineString(body);
+  return `description = "${description}"\n\nprompt = ${prompt}\n`;
+}
+
+function geminiCommandOutputName(source) {
+  const basename = path.basename(source, ".md");
+  const [category, ...rest] = basename.split("-");
+  return path.join(category, `${rest.join("-") || category}.toml`);
 }
 
 async function files(dir, extensions) {
@@ -234,6 +394,11 @@ async function exists(file) {
   }
 }
 
+async function readJsonIfExists(file) {
+  if (!(await exists(file))) return null;
+  return JSON.parse(await readFile(file, "utf8"));
+}
+
 function firstHeading(text) {
   for (const line of text.split(/\r?\n/)) {
     const match = line.match(/^#\s+(.+?)\s*$/);
@@ -246,10 +411,52 @@ function yamlString(value) {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replace(/\s+/g, " ").trim();
 }
 
+function tomlString(value) {
+  return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replace(/\s+/g, " ").trim();
+}
+
+function tomlMultilineString(value) {
+  return `"""${value.replaceAll('"""', '\\"\\"\\"')}"""`;
+}
+
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function packageVersion() {
+  const metadata = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+  return metadata.version;
+}
+
+function installRootProjectOnly(scope) {
+  if (scope !== "project") fail("this target supports --scope project only unless --dest is supplied");
+  return process.cwd();
+}
+
+function installRootGemini(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
+function installRootAntigravity(scope) {
+  if (scope !== "user") fail("antigravity install supports --scope user only unless --dest is supplied");
+  return path.join(os.homedir(), ".gemini", "antigravity");
+}
+
+function commandVersion(command, args) {
+  const result = spawnSync(command, args, { encoding: "utf8" });
+  if (result.error) return "missing";
+  const output = `${result.stdout}${result.stderr}`.trim().split(/\r?\n/)[0];
+  return output || `exit ${result.status}`;
+}
+
 function argValue(args, name) {
   const index = args.indexOf(name);
   if (index === -1) return null;
   return args[index + 1] ?? fail(`missing value for ${name}`);
+}
+
+function requiredArgValue(args, name) {
+  return argValue(args, name) ?? fail(`missing required ${name}`);
 }
 
 function relative(file) {
