@@ -1,75 +1,32 @@
 ---
-description: "Language tooling conventions: Python, Node, Rust, Go, Git, and databases"
+description: "Tooling defaults that defer to existing project manifests and CI"
 alwaysApply: true
 ---
 
-## Tooling
+# Tooling
 
-### Python (uv required)
+These are [P2] defaults. Existing manifests, lockfiles, tool configs, and CI scripts win.
 
-```bash
-uv init                    # New project
-uv add <pkg> [--dev]       # Add dependency
-uv sync                    # Lock & sync
-uv run <cmd>               # Execute in venv
-```
+## Package Managers
 
-Banned: `pip install`, `pipenv`, global installs.
+- Use the package manager already present in the repo.
+- For new Python projects in this project family, prefer `uv`.
+- For new Node tooling, prefer local package scripts and locked dependencies over global installs or unpinned `npx`.
+- Before adding dependencies, inspect manifest and lockfile; justify why existing dependencies are insufficient.
 
-### Node (restricted)
+## Checks
 
-- For tooling/CI only (bundlers, linters). Not for shipping UI.
-- ESM only (`import`, not `require`).
-- Structured logging (pino/winston).
-- No global installs.
+- Prefer repo-defined scripts such as `make check`, `npm test`, `cargo test`, `go test`, `uv run`, or CI-equivalent commands.
+- Run narrow checks first; run broad checks before final when the change touches shared behavior, public APIs, security, data, or build tooling.
+- If a tool is missing, report `not available`; do not pretend it passed.
 
-### Rust
+## Git
 
-```bash
-cargo new / cargo init
-cargo add <crate>
-cargo clippy -- -D warnings
-cargo fmt --check
-```
+- Use atomic commits with imperative messages when committing.
+- Do not push, create PRs, delete branches, reset hard, or rewrite history without explicit user approval.
+- Do not commit to a protected/default branch unless explicitly requested or that is the repo's established workflow.
 
-### Go
+## Databases and Environments
 
-```bash
-go mod init / go mod tidy
-gofumpt -w .                    # stricter superset of gofmt — USE THIS, not plain gofmt
-goimports -w .                  # import grouping + unused-import removal
-go vet ./...
-golangci-lint run ./...         # config: full §5.3 recipe from 12-lang-go.mdc, not 6-linter minimum
-govulncheck ./...               # blocking on known-vuln deps; required in CI
-go test -race -count=1 ./...    # -race is mandatory for any concurrent code
-```
-
-Formatters: `gofumpt` supersedes `gofmt -s`. Install: `go install mvdan.cc/gofumpt@latest`. `goimports` via `go install golang.org/x/tools/cmd/goimports@latest`. `govulncheck` via `go install golang.org/x/vuln/cmd/govulncheck@latest`.
-
-Pre-commit: use `TekWizely/pre-commit-golang` (active fork). Do NOT use `dnephin/pre-commit-golang` — archived since ~2023.
-
-### Git
-
-- Atomic commits, imperative voice: `Add X`, `Fix Y`, `Remove Z`
-- Feature branches for AI-generated code
-- CI green before merge
-- No `--no-verify`
-- **Never `git push` or create a PR without explicit user permission.** Ask first, even if the task implies shipping. The user controls when code leaves the local machine.
-
-**Branch Strategy for AI Coding**:
-
-```text
-main (protected)
-  +-- feat/[feature-name]     <- AI works here
-        +-- checkpoint tags   <- Before risky changes
-```
-
-- Never commit AI code directly to `main`
-- Create checkpoint tags before experiments
-- Squash merge after review
-
-### Databases
-
-- Default: PostgreSQL only.
-- Use migration tools; no manual schema drifts.
-- Use connection pooling and statement timeouts.
+- Never run destructive migrations or mutate production data without explicit approval.
+- Prefer local, disposable, or staging environments for proof.

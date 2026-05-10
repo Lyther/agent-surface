@@ -2,10 +2,17 @@
 description: "Go code quality: error handling, concurrency, toolchain config, anti-patterns"
 globs:
   - "**/*.go"
+  - "go.mod"
+  - "go.sum"
+  - ".golangci.yml"
+  - ".golangci.yaml"
+  - ".golangci.toml"
 alwaysApply: false
 ---
 
-## §1 ABSOLUTE PROHIBITIONS (ZERO TOLERANCE)
+## §1 High-Signal Forbidden and Default-Deny Patterns
+
+These are [P1] defaults. They are forbidden unless a listed exception, explicit repo precedent, or user-requested migration applies. If used, name the exception when it affects behavior, safety, performance, or verification.
 
 ### §1.1 MINIMIZE `//nolint` DIRECTIVES
 
@@ -33,7 +40,7 @@ defer resp.Body.Close()
 
 ### §1.2 NO Silent Failures
 
-| Banned | Why |
+| Default-Deny Pattern | Why |
 |--------|-----|
 | `_ = fallibleFunc()` | Discarding errors silently |
 | Unchecked error returns | Silent corruption |
@@ -48,18 +55,18 @@ defer resp.Body.Close()
 
 ### §1.3 NO Garbage Code
 
-| Banned | Replacement |
+| Default-Deny Pattern | Replacement |
 |--------|-------------|
 | `fmt.Println()` for debugging | Use `log/slog` or remove |
 | `panic()` for error handling | Return error |
-| `// TODO`, `// FIXME` | Do it now or don't mention it |
+| `// TODO`, `// FIXME` | Use only with an issue/reference or explicit debt marker |
 | `// ... rest of implementation` | Write the rest |
 | Unused imports/variables | Remove them (go compiler enforces this) |
 | `interface{}` / `any` without constraint | Use generics or specific types |
 
 ### §1.4 NO Go Foot-Guns
 
-| Banned | Why | Fix |
+| Default-Deny Pattern | Why | Fix |
 |--------|-----|-----|
 | Goroutine without sync | Race conditions | `sync.WaitGroup`, channels, or `errgroup` |
 | Shared mutable state | Data races | Channels or `sync.Mutex` with clear ownership |
@@ -244,18 +251,13 @@ func DoWork(ctx context.Context) error {
 ### §5.1 Format
 
 ```bash
-gofumpt -w .       # stricter superset of gofmt -s; use this by default
-goimports -w .     # import grouping + unused-import removal; complementary to gofumpt
+gofumpt -l .       # stricter superset of gofmt -s; zero output means clean
+goimports -l .     # import grouping + unused-import removal; zero output means clean
 ```
 
-Both must produce zero changes. Plain `gofmt -s` is NO LONGER sufficient — it is a strict subset of `gofumpt`'s rules. Projects created before gofumpt adoption may keep `gofmt` for legacy reasons, but new projects MUST use `gofumpt`.
+Both must produce zero output. Use `gofumpt -w .` and `goimports -w .` only when intentionally formatting. Plain `gofmt -s` is a strict subset of `gofumpt`'s rules. Projects created before gofumpt adoption may keep `gofmt` for legacy reasons; new projects in this family should use `gofumpt`.
 
-Install:
-
-```bash
-go install mvdan.cc/gofumpt@latest
-go install golang.org/x/tools/cmd/goimports@latest
-```
+Install tools through repo-pinned tooling when available (`tools.go`, `mise`, `asdf`, `aqua`, CI image, or documented scripts). Avoid unpinned `go install ...@latest`.
 
 ### §5.2 Vet
 
@@ -270,6 +272,8 @@ Zero issues.
 Create `.golangci.yml`:
 
 ```yaml
+version: "2"
+
 run:
   timeout: 5m
   modules-download-mode: readonly
@@ -288,11 +292,7 @@ linters:
     - rowserrcheck
     - sqlclosecheck
     - staticcheck
-    - typecheck
-
     # Style & Simplification
-    - gofumpt          # supersedes gofmt — stricter
-    - goimports
     - gocritic
     - gosimple
     - ineffassign
@@ -301,7 +301,6 @@ linters:
     - unparam
     - unused
     - usestdlibvars
-    - whitespace
 
     # Complexity
     - cyclop
@@ -320,55 +319,55 @@ linters:
     - goconst
     - revive
 
-linters-settings:
-  cyclop:
-    max-complexity: 15
-  funlen:
-    lines: 80
-    statements: 50
-  gocognit:
-    min-complexity: 20
-  nestif:
-    min-complexity: 5
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - performance
-      - style
-  revive:
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: increment-decrement
-      - name: var-naming
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
+  settings:
+    cyclop:
+      max-complexity: 15
+    funlen:
+      lines: 80
+      statements: 50
+    gocognit:
+      min-complexity: 20
+    nestif:
+      min-complexity: 5
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: increment-decrement
+        - name: var-naming
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
 
 issues:
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-dirs:
-    - tests/fixtures           # vendored YAML/JSON test data — not code
-    - vendor
-    - .cursor
 ```
 
 ```bash
 golangci-lint run ./...
 ```
 
-**Version pinning**: in CI, use `golangci/golangci-lint-action@v6` with explicit `version:` field (e.g. `v1.63.4`). Never `latest`. Config file format differs between v1 and v2.
+**Version pinning**: use golangci-lint v2 config schema when creating or updating config. Pin the CI action and golangci-lint version explicitly; prefer the repo-pinned version. For new GitHub Actions, use the current official v2-compatible `golangci/golangci-lint-action` version after checking its runtime requirements.
 
 ### §5.3a Pre-commit (Go)
 
@@ -416,23 +415,21 @@ All tests pass. `-race` is mandatory for concurrent code.
 go build -v ./...
 ```
 
-Zero errors, zero warnings.
+Must pass. Go build generally reports errors; warnings are tool-specific.
 
 ## §6 CONCURRENCY PATTERNS
 
-### §6.1 Always Use errgroup for Multiple Goroutines
+### §6.1 Prefer errgroup When Errors or Cancellation Propagate
 
 ```go
-// ❌ BAD: Manual goroutine management
+// ✅ OK: WaitGroup when no error propagation is needed
 var wg sync.WaitGroup
-errs := make(chan error, 2)
 wg.Add(2)
-go func() { defer wg.Done(); errs <- task1() }()
-go func() { defer wg.Done(); errs <- task2() }()
+go func() { defer wg.Done(); task1() }()
+go func() { defer wg.Done(); task2() }()
 wg.Wait()
-// Now what? Check errs somehow?
 
-// ✅ GOOD: errgroup handles everything
+// ✅ GOOD: errgroup when cancellation/errors must propagate
 g, ctx := errgroup.WithContext(ctx)
 g.Go(func() error { return task1(ctx) })
 g.Go(func() error { return task2(ctx) })
@@ -452,7 +449,10 @@ func Run(ctx context.Context) error {
 
     // Start server
     g.Go(func() error {
-        return server.ListenAndServe()
+        if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+            return err
+        }
+        return nil
     })
 
     // Wait for shutdown signal
@@ -508,4 +508,4 @@ Before submitting ANY code, verify:
 - [ ] Code passes `govulncheck ./...` (known-vuln deps blocking)
 - [ ] Code passes `go test -race -count=1 ./...`
 
-**If ANY checkbox is unchecked, DO NOT SUBMIT. Fix it or explain why it cannot be fixed.**
+If a checklist item is not satisfied, fix it or report the exception and verification status.

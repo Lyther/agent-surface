@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import os from "node:os";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -35,6 +35,44 @@ const targets = {
   },
 };
 
+const ruleScenarios = {
+  "generic-chat": {
+    paths: [],
+    targetTokens: 3000,
+    hardTokens: 3500,
+  },
+  "python-source": {
+    paths: ["src/example.py"],
+    targetTokens: 6000,
+    hardTokens: 7000,
+  },
+  "python-tooling": {
+    paths: ["pyproject.toml"],
+    targetTokens: 6000,
+    hardTokens: 7000,
+  },
+  "rust-source": {
+    paths: ["src/lib.rs"],
+    targetTokens: 6000,
+    hardTokens: 7000,
+  },
+  "go-ci": {
+    paths: [".golangci.yml"],
+    targetTokens: 6000,
+    hardTokens: 7000,
+  },
+  "typescript-eslint": {
+    paths: ["eslint.config.mjs"],
+    targetTokens: 6000,
+    hardTokens: 7000,
+  },
+  "shell-script": {
+    paths: ["scripts/deploy.sh"],
+    targetTokens: 6000,
+    hardTokens: 7000,
+  },
+};
+
 async function main() {
   const [command, ...args] = process.argv.slice(2);
 
@@ -49,7 +87,11 @@ async function main() {
   }
 
   if (command === "check") {
-    await check();
+    if (args[0] === "rules") {
+      await checkRules(args.slice(1));
+    } else {
+      await check();
+    }
     return;
   }
 
@@ -77,6 +119,7 @@ function printHelp() {
 Usage:
   agent-surface inventory
   agent-surface check
+  agent-surface check rules [--scenario <name>]
   agent-surface build --target <cline|antigravity|gemini-cli|all> [--dry-run]
   agent-surface install --target <cline|antigravity|gemini-cli> [--scope project|user] [--dest <path>] --dry-run
   agent-surface doctor
@@ -161,6 +204,67 @@ async function check() {
   console.log("check: ok");
 }
 
+async function checkRules(args) {
+  const scenario = argValue(args, "--scenario");
+  const selectedScenarios = scenario ? [scenario] : Object.keys(ruleScenarios);
+  const rules = await readRules();
+  const commandNames = new Set((await files("commands", [".md"])).map((file) => path.basename(file, ".md")));
+  const errors = [];
+  const warnings = [];
+
+  for (const name of selectedScenarios) {
+    if (!Object.hasOwn(ruleScenarios, name)) {
+      fail(`unknown rules scenario: ${name}`);
+    }
+  }
+
+  for (const rule of rules) {
+    for (const error of rule.frontmatterErrors) errors.push(`${rule.file}: ${error}`);
+    if (rule.alwaysApply === false && rule.globs.length === 0) {
+      errors.push(`${rule.file}: non-always rule must declare globs`);
+    }
+    collectRuleReferenceFindings(rule, commandNames, errors, warnings);
+  }
+
+  console.log("rules:");
+  console.log(`  files: ${rules.length}`);
+  console.log(`  frontmatter: ${errors.some((error) => error.includes("frontmatter")) ? "failed" : "ok"}`);
+
+  for (const name of selectedScenarios) {
+    const config = ruleScenarios[name];
+    const attached = rules.filter((rule) => rule.alwaysApply || config.paths.some((item) => rule.globs.some((glob) => globMatches(glob, item))));
+    const tokens = attached.reduce((sum, rule) => sum + approximateTokens(rule.text), 0);
+    const status = tokens > config.hardTokens ? "fail" : tokens > config.targetTokens ? "warn" : "ok";
+
+    if (tokens > config.hardTokens) {
+      errors.push(`${name}: attached rule budget ${tokens} exceeds hard cap ${config.hardTokens}`);
+    } else if (tokens > config.targetTokens) {
+      warnings.push(`${name}: attached rule budget ${tokens} exceeds target ${config.targetTokens}`);
+    }
+
+    console.log(`${name}:`);
+    console.log(`  attached: ${attached.map((rule) => rule.file).join(", ")}`);
+    console.log(`  approx_tokens: ${tokens}`);
+    console.log(`  target_tokens: ${config.targetTokens}`);
+    console.log(`  hard_tokens: ${config.hardTokens}`);
+    console.log(`  status: ${status}`);
+  }
+
+  if (warnings.length > 0) {
+    console.log("warnings:");
+    for (const warning of warnings) console.log(`  ${warning}`);
+  }
+
+  if (errors.length > 0) {
+    console.log("errors:");
+    for (const error of errors) console.log(`  ${error}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log("rules check: ok");
+}
+
 async function build(args) {
   const target = argValue(args, "--target") ?? "all";
   const dryRun = args.includes("--dry-run");
@@ -242,12 +346,12 @@ async function installPlan(target, adapter, installRoot, scope) {
   const liveOutputs = new Set(managed.map((item) => item.output));
   const staleRemovals = Array.isArray(previousManifest?.managed)
     ? previousManifest.managed
-        .filter((item) => item?.managed_by === "agent-surface")
-        .filter((item) => item?.target === target)
-        .filter((item) => typeof item.output === "string")
-        .filter((item) => !liveOutputs.has(item.output))
-        .map((item) => item.output)
-        .sort()
+      .filter((item) => item?.managed_by === "agent-surface")
+      .filter((item) => item?.target === target)
+      .filter((item) => typeof item.output === "string")
+      .filter((item) => !liveOutputs.has(item.output))
+      .map((item) => item.output)
+      .sort()
     : [];
   const manifest = {
     target,
@@ -397,6 +501,127 @@ async function exists(file) {
 async function readJsonIfExists(file) {
   if (!(await exists(file))) return null;
   return JSON.parse(await readFile(file, "utf8"));
+}
+
+async function readRules() {
+  const ruleFiles = await files("rules", [".mdc"]);
+  const rules = [];
+
+  for (const file of ruleFiles) {
+    const text = await readFile(file, "utf8");
+    rules.push(parseRule(file, text));
+  }
+
+  return rules;
+}
+
+function parseRule(file, text) {
+  const out = {
+    file: relative(file),
+    text,
+    description: null,
+    alwaysApply: null,
+    globs: [],
+    frontmatterErrors: [],
+  };
+
+  if (!text.startsWith("---\n")) {
+    out.frontmatterErrors.push("frontmatter missing");
+    return out;
+  }
+
+  const end = text.indexOf("\n---\n", 4);
+  if (end === -1) {
+    out.frontmatterErrors.push("frontmatter not closed");
+    return out;
+  }
+
+  const lines = text.slice(4, end).split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const description = line.match(/^description:\s*"?(.*?)"?\s*$/);
+    if (description) {
+      out.description = description[1];
+      continue;
+    }
+
+    const alwaysApply = line.match(/^alwaysApply:\s*(true|false)\s*$/);
+    if (alwaysApply) {
+      out.alwaysApply = alwaysApply[1] === "true";
+      continue;
+    }
+
+    if (line.match(/^globs:\s*$/)) {
+      for (let globIndex = index + 1; globIndex < lines.length; globIndex += 1) {
+        const glob = lines[globIndex].match(/^\s+-\s*"?(.*?)"?\s*$/);
+        if (!glob) break;
+        out.globs.push(glob[1]);
+        index = globIndex;
+      }
+    }
+  }
+
+  if (!out.description) out.frontmatterErrors.push("frontmatter description missing");
+  if (out.alwaysApply === null) out.frontmatterErrors.push("frontmatter alwaysApply missing");
+  return out;
+}
+
+function collectRuleReferenceFindings(rule, commandNames, errors, warnings) {
+  const fatalPatterns = [
+    ["mentally verified", /mentally verified/i],
+    ["stale golangci action", /golangci-lint-action@v6/],
+    ["stale golangci version", /v1\.63\.4/],
+    ["stale typescript-eslint project true", /parserOptions:\s*\{[\s\S]{0,160}project:\s*true/],
+    ["typed-dict laundering example", /return\s+json\.loads\(path\.read_text\(\)\)/],
+    ["npm install zod dependency mutation", /npm install zod/],
+    ["unscoped go install latest", /^go install\s+\S+@latest/m],
+  ];
+  const warningPatterns = [
+    ["absolute wording", /ZERO TOLERANCE/],
+    ["absolute prohibition wording", /ABSOLUTE PROHIBITIONS/],
+    ["law wording", /These are laws/],
+    ["do-not-submit wording", /DO NOT SUBMIT/],
+    ["code-only dominance", /ONLY code blocks/],
+    ["mock ban", /Mocks\/spies\/stubs\s*\|\s*Banned/],
+    ["env-only secret rule", /Secrets:\s*`?\.env\b/],
+    ["no-exceptions wording", /No exceptions\./],
+    ["module exception hierarchy", /Every module should define its own exception hierarchy/],
+    ["public function test absolutism", /Every public function must have at least one test/],
+    ["doc example absolutism", /All doc comments must have examples/],
+    ["duplicate crate absolutism", /No duplicate crate versions/],
+    ["errgroup absolutism", /Always Use errgroup/],
+  ];
+  const commandRefPattern = /`((?:arch|boot|dev|lint|ops|qa|ship|stellaris|verify|workflow)-[a-z0-9-]+)`/g;
+
+  for (const [label, pattern] of fatalPatterns) {
+    if (pattern.test(rule.text)) errors.push(`${rule.file}: ${label}`);
+  }
+
+  for (const [label, pattern] of warningPatterns) {
+    if (pattern.test(rule.text)) warnings.push(`${rule.file}: ${label}`);
+  }
+
+  for (const match of rule.text.matchAll(commandRefPattern)) {
+    if (!commandNames.has(match[1])) {
+      warnings.push(`${rule.file}: command reference not present in commands/: ${match[1]}`);
+    }
+  }
+}
+
+function globMatches(glob, file) {
+  if (glob === file) return true;
+  const escaped = glob
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replaceAll("**/", "\0DOUBLE_STAR_SLASH\0")
+    .replaceAll("**", "\0DOUBLE_STAR\0")
+    .replaceAll("*", "[^/]*")
+    .replaceAll("\0DOUBLE_STAR_SLASH\0", "(?:.*/)?")
+    .replaceAll("\0DOUBLE_STAR\0", ".*");
+  return new RegExp(`^${escaped}$`).test(file);
+}
+
+function approximateTokens(text) {
+  return Math.ceil(text.length / 4);
 }
 
 function firstHeading(text) {

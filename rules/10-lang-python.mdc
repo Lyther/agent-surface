@@ -2,12 +2,18 @@
 description: "Python code quality: type safety, error handling, toolchain config, anti-patterns"
 globs:
   - "**/*.py"
+  - "pyproject.toml"
+  - "uv.lock"
+  - "ruff.toml"
+  - ".ruff.toml"
+  - "pyrightconfig.json"
+  - ".python-version"
 alwaysApply: false
 ---
 
-## §1 ABSOLUTE PROHIBITIONS (ZERO TOLERANCE)
+## §1 High-Signal Forbidden and Default-Deny Patterns
 
-These are not guidelines. These are laws. Violation of ANY of these results in immediate rejection.
+These are [P1] defaults. They are forbidden unless a listed exception, explicit repo precedent, or user-requested migration applies. If used, name the exception when it affects behavior, safety, performance, or verification.
 
 ### §1.1 MINIMIZE `# noqa` AND `# type: ignore`
 
@@ -39,7 +45,7 @@ x = some_valid_pattern  # noqa: EXXX  # reason here
 
 ### §1.2 NO Runtime Type Surprises
 
-| Banned Pattern | Why It's Banned |
+| Default-Deny Pattern | Why |
 |----------------|-----------------|
 | Untyped function parameters | `TypeError` waiting to happen |
 | Untyped return values | Caller has no contract |
@@ -50,7 +56,7 @@ x = some_valid_pattern  # noqa: EXXX  # reason here
 
 ### §1.3 NO Silent Failures
 
-| Banned | Why |
+| Default-Deny Pattern | Why |
 |--------|-----|
 | Bare `except:` | Catches `SystemExit`, `KeyboardInterrupt` |
 | `except Exception:` without re-raise | Swallows all errors |
@@ -68,19 +74,19 @@ x = some_valid_pattern  # noqa: EXXX  # reason here
 
 ### §1.4 NO Garbage Code
 
-| Banned | Replacement |
+| Default-Deny Pattern | Replacement |
 |--------|-------------|
 | `print()` for debugging/logging | Use `logging` or `structlog` |
 | `pdb.set_trace()` / `breakpoint()` | Remove before commit |
-| `# TODO`, `# FIXME`, `# XXX` | Do it now or don't mention it |
+| `# TODO`, `# FIXME`, `# XXX` | Use only with an issue/reference or explicit debt marker |
 | `# ... rest of implementation` | Write the rest |
 | `pass` as implementation | Implement it |
-| `NotImplementedError` in production code | Implement it |
+| `NotImplementedError` in runtime paths | Implement it; abstract methods/protocol scaffolding are allowed |
 | Unused imports/variables | Remove them |
 
 ### §1.5 NO Python Foot-Guns
 
-| Banned | Why | Fix |
+| Default-Deny Pattern | Why | Fix |
 |--------|-----|-----|
 | Mutable default arguments | Shared state across calls | `def f(x: list[int] \| None = None):` |
 | `import *` | Pollutes namespace, hides dependencies | Explicit imports |
@@ -165,7 +171,7 @@ def process_request(request: UserRequest) -> UserResponse:
     # request is guaranteed valid here
     # ...
 
-# ✅ ALSO GOOD: TypedDict for simple cases (scripts, internal tools)
+# ✅ ALSO GOOD: TypedDict after explicit validation
 from typing import TypedDict
 
 class Config(TypedDict):
@@ -173,18 +179,21 @@ class Config(TypedDict):
     port: int
 
 def load_config(path: Path) -> Config:
-    return json.loads(path.read_text())
+    raw = json.loads(path.read_text())
+    if not isinstance(raw, dict) or not isinstance(raw.get("host"), str) or not isinstance(raw.get("port"), int):
+        raise ValueError("invalid config")
+    return {"host": raw["host"], "port": raw["port"]}
 ```
 
 **Use Pydantic when:** validation rules, nested structures, serialization, API boundaries.
-**Use TypedDict when:** simple shape checking, internal tools, performance-critical paths.
+**Use TypedDict when:** data is already validated or produced by trusted internal code. It does not validate runtime JSON/YAML/TOML by itself.
 
 **Boundaries include:**
 
 - HTTP request/response bodies → Pydantic
 - CLI arguments → Pydantic or typer
 - Environment variables → pydantic-settings
-- File contents (JSON, YAML, TOML) → Pydantic or TypedDict
+- File contents (JSON, YAML, TOML) → Pydantic, attrs/cattrs, msgspec, or manual runtime validation before TypedDict
 - Database query results → ORM models or TypedDict
 - External API responses → Pydantic
 
@@ -245,7 +254,7 @@ def get_user(id: UserId) -> User:
 
 ### §4.1 Exception Hierarchy
 
-Every module should define its own exception hierarchy:
+Every package or domain boundary should define meaningful exception types:
 
 ```python
 class ServiceError(Exception):
@@ -298,116 +307,11 @@ except SpecificError:
     raise
 ```
 
-## §5 TOOLCHAIN GATE (MUST PASS — NO EXCEPTIONS)
+## §5 TOOLCHAIN GATE
 
 ### §5.1 Required Configuration
 
-If `pyproject.toml` is missing or incomplete, **you must generate it** with this configuration:
-
-```toml
-[project]
-requires-python = ">=3.13"
-
-[tool.ruff]
-line-length = 100
-target-version = "py313"
-
-[tool.ruff.lint]
-select = [
-    # Core Python errors
-    "E",      # pycodestyle errors
-    "W",      # pycodestyle warnings
-    "F",      # Pyflakes
-
-    # Code quality
-    "B",      # flake8-bugbear (likely bugs)
-    "C4",     # flake8-comprehensions
-    "SIM",    # flake8-simplify
-    "UP",     # pyupgrade (modernize syntax)
-    "PIE",    # flake8-pie (misc lints)
-    "RUF",    # Ruff-specific rules
-
-    # Import organization
-    "I",      # isort
-
-    # Naming
-    "N",      # pep8-naming
-
-    # Complexity
-    "C90",    # mccabe complexity
-    "PL",     # pylint
-
-    # Type checking support
-    "TCH",    # flake8-type-checking
-
-    # Security
-    "S",      # flake8-bandit (security)
-
-    # Error handling
-    "TRY",    # tryceratops (exception handling)
-    "EM",     # flake8-errmsg
-
-    # Best practices
-    "PTH",    # flake8-use-pathlib
-    "DTZ",    # flake8-datetimez (timezone safety)
-    "T20",    # flake8-print (no print statements)
-    "ERA",    # eradicate (commented-out code)
-    "ICN",    # flake8-import-conventions
-    "G",      # flake8-logging-format
-    "INP",    # flake8-no-pep420
-    "RSE",    # flake8-raise
-    "RET",    # flake8-return
-    "SLF",    # flake8-self
-    "SLOT",   # flake8-slots
-    "ARG",    # flake8-unused-arguments
-    "PGH",    # pygrep-hooks
-    "PERF",   # perflint
-    "FURB",   # refurb
-]
-
-ignore = [
-    # Docstrings — require on public API, not everything
-    "D100",   # Missing docstring in public module
-    "D104",   # Missing docstring in public package
-    "D105",   # Missing docstring in magic method
-    "D107",   # Missing docstring in __init__
-    # Annotations — covered by pyright
-    "ANN",    # flake8-annotations (pyright handles this better)
-    # Boolean trap — sometimes bool params are the right API
-    "FBT",    # flake8-boolean-trap
-]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = [
-    "S101",   # Allow assert in tests
-    "ARG",    # Allow unused arguments (fixtures)
-    "PLR2004", # Allow magic values in tests
-]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
-
-[tool.ruff.lint.mccabe]
-max-complexity = 10
-
-[tool.ruff.lint.pylint]
-max-args = 5
-max-branches = 12
-max-returns = 6
-max-statements = 50
-
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-docstring-code-format = true
-
-[tool.pyright]
-typeCheckingMode = "strict"
-pythonVersion = "3.13"
-reportMissingTypeStubs = false
-reportUnknownMemberType = false
-reportUnknownArgumentType = false
-```
+Use existing `pyproject.toml`, `ruff.toml`, `.ruff.toml`, and Pyright config first. When creating new Python tooling in this project family, prefer Ruff plus Pyright strict mode, preserve the repo's supported Python version, and keep generated config in actual config files rather than prompt prose.
 
 ### §5.2 Quality Gate Commands
 
@@ -511,14 +415,14 @@ Before submitting ANY code, verify:
 
 - [ ] No unjustified `# noqa` (must have specific code + inline reason)
 - [ ] No unjustified `# type: ignore` (must have specific code + inline reason)
-- [ ] Zero `print()` statements (use logging)
+- [ ] No debug/logging `print()` statements; user-facing CLI stdout is allowed
 - [ ] Zero bare `except:` blocks
 - [ ] Zero `except Exception: pass` patterns
 - [ ] Zero mutable default arguments
 - [ ] Zero `Any` types (except at I/O boundaries with justification)
 - [ ] All functions have complete type annotations
 - [ ] All public functions have docstrings
-- [ ] All external data parsed through Pydantic or TypedDict
+- [ ] All external data parsed through Pydantic or explicit runtime validation; TypedDict only after validation
 - [ ] All exceptions are specific and meaningful
 - [ ] Data model analysis provided
 - [ ] Error strategy documented
@@ -528,4 +432,4 @@ Before submitting ANY code, verify:
 - [ ] Code passes `pyright`
 - [ ] Code passes `pytest`
 
-**If ANY checkbox is unchecked, DO NOT SUBMIT. Fix it or explain why it cannot be fixed.**
+If a checklist item is not satisfied, fix it or report the exception and verification status.

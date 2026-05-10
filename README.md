@@ -48,6 +48,7 @@ Out of scope:
 ```bash
 npm run inventory
 npm run check
+npm run check:rules
 npm run test
 npm run doctor
 npm run build -- --target cline --dry-run
@@ -56,6 +57,17 @@ npm run build -- --target gemini-cli --dry-run
 node scripts/agent-surface.mjs install --target cline --scope project --dry-run
 node scripts/agent-surface.mjs install --target antigravity --scope user --dry-run
 node scripts/agent-surface.mjs install --target gemini-cli --scope project --dry-run
+```
+
+Rule scenario checks:
+
+```bash
+node scripts/agent-surface.mjs check rules --scenario python-source
+node scripts/agent-surface.mjs check rules --scenario python-tooling
+node scripts/agent-surface.mjs check rules --scenario rust-source
+node scripts/agent-surface.mjs check rules --scenario go-ci
+node scripts/agent-surface.mjs check rules --scenario typescript-eslint
+node scripts/agent-surface.mjs check rules --scenario shell-script
 ```
 
 `install` is dry-run-only for now. It prints the files that would be written, stale managed files that would be removed, and the manifest path that would track generated files. Live writes stay blocked until the dry-run plans and manifest cleanup are reviewed.

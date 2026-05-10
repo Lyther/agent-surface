@@ -11,6 +11,7 @@
     "inventory": "node scripts/agent-surface.mjs inventory",
     "build": "node scripts/agent-surface.mjs build",
     "check": "node scripts/agent-surface.mjs check",
+    "check:rules": "node scripts/agent-surface.mjs check rules",
     "doctor": "node scripts/agent-surface.mjs doctor",
     "test": "node tests/agent-surface.test.mjs",
     "snapshot": "node tests/agent-surface.test.mjs"

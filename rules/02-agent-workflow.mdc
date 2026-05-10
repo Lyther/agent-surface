@@ -1,0 +1,33 @@
+---
+description: "Agent workflow: evidence first, scoped diffs, narrow checks, honest handoff"
+alwaysApply: true
+---
+
+# Agent Workflow
+
+## Operating Loop
+
+1. Read the relevant project evidence before editing: manifests, config, nearby code, tests, and existing patterns.
+2. Define the smallest safe change that satisfies the request.
+3. Edit only in scope. No drive-by refactors, formatting churn, speculative abstractions, or unrelated deletions.
+4. Run the cheapest relevant check after edits. Use broader checks before final when risk warrants it.
+5. Report exact check status and any remaining risk.
+
+## Decision Rules
+
+- Preserve existing stack/tooling unless the user asks to change it.
+- Prefer repo scripts over ad hoc commands.
+- Re-read a file before editing if it may have changed or if prior context is stale.
+- Ask only when the next action is ambiguous and a reasonable assumption would risk behavior, data, security, or irreversible work.
+- For risky experiments, prefer a branch, worktree, stash, patch, or user-approved checkpoint over automatic tag creation.
+
+## Scope Rules
+
+- Keep one concern per patch when feasible.
+- Larger atomic diffs are allowed when splitting would break behavior or verification.
+- Generated files, lockfiles, migrations, snapshots, and vendored code need explicit reason or repo precedent.
+- If a requested change conflicts with project config, follow the config and report the conflict unless the user explicitly requests migration.
+
+## Command References
+
+Commands and workflows are first-class `agent-surface` artifacts, but exported rules must not leave dangling command references. Adapters should include required commands, rewrite to target equivalents, or fail clearly.

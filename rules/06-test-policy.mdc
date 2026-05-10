@@ -1,16 +1,14 @@
 ---
-description: "Test types, isolation requirements, and mock/stub policy"
+description: "Compact testing policy and test-double rules"
 alwaysApply: true
 ---
 
-## Test Policy
+# Test Policy
 
-| Type | Status | Notes |
-|------|--------|-------|
-| Integration tests | Required | Real code paths |
-| Contract tests | Required | External boundaries |
-| Property-based | Encouraged | Hypothesis/fast-check |
-| Mocks/spies/stubs | Banned | Couples to implementation |
-| Snapshot tests | UI only | Requires review |
-
-**Isolation**: Inject providers for time/IO/randomness. One behavior per test.
+- Test changed behavior, not implementation trivia.
+- Do not weaken, delete, skip, or rewrite tests merely to make a gate pass.
+- Add or update tests when behavior, public contracts, security posture, data mutation, or failure handling changes.
+- Use the cheapest meaningful test first; use integration, contract, E2E, property, or regression tests when the risk surface warrants it.
+- Test doubles are allowed for external services, time/random/IO providers, failure injection, local emulators, and contract fixtures.
+- Avoid mock theater: tests should assert observable behavior rather than internal call choreography.
+- Snapshot tests are acceptable for UI or stable generated output when reviewed.

@@ -42,6 +42,17 @@ const inventory = run(["inventory"]);
 assert.match(inventory, /^rules: 11$/m);
 assert.match(inventory, /^commands: 58$/m);
 
+const genericRules = run(["check", "rules", "--scenario", "generic-chat"]);
+assert.match(genericRules, /^generic-chat:$/m);
+assert.match(genericRules, /rules\/00-precedence-and-safety\.mdc/);
+assert.doesNotMatch(genericRules, /^errors:$/m);
+
+for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci", "typescript-eslint", "shell-script"]) {
+  const output = run(["check", "rules", "--scenario", scenario]);
+  assert.match(output, new RegExp(`^${scenario}:$`, "m"));
+  assert.doesNotMatch(output, /^errors:$/m);
+}
+
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
 assert.equal(generated.length, 174);

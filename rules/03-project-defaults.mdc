@@ -1,0 +1,38 @@
+---
+description: "Project defaults for stack, data, frontend, scripts, and maintainability"
+alwaysApply: true
+---
+
+# Project Defaults
+
+These are [P2] defaults. Existing repository evidence overrides them. Do not migrate stack, database, UI framework, package manager, or tooling unless the user asks.
+
+## Reliability
+
+- Handle, propagate, or convert errors explicitly. Do not silently discard fallible results.
+- Libraries return errors instead of exiting the process.
+- Avoid crash-only handling in production paths unless the invariant is proven and local convention supports it.
+
+## Security and Data
+
+- Validate external input at trust boundaries.
+- Use parameterized database queries.
+- Prefer platform secret stores or environment-provided secrets. Never hardcode credentials.
+- Prefer PostgreSQL for new persistent datastores in this project family, but preserve existing datastore choices.
+
+## Frontend and Node
+
+- Prefer Rust Leptos or Python Reflex for new UI in this project family.
+- Preserve existing web stacks when the repo already uses React, Vue, Svelte, raw web assets, Node services, or another framework.
+- Node is acceptable for tooling and for repos that already use Node as product code.
+
+## Scripts
+
+- Keep durable automation in repo scripts when it improves reproducibility.
+- Keep one-off investigation scripts out of the repo unless the user asks to preserve them as tooling, runbooks, tests, or release automation.
+
+## Maintainability
+
+- Prefer named constants for meaningful magic values.
+- Comments explain why, not what.
+- Avoid broad refactors unless required by the request or needed to make the fix safe.

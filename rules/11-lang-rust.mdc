@@ -2,12 +2,17 @@
 description: "Rust code quality: safety, error handling, clippy config, unsafe isolation"
 globs:
   - "**/*.rs"
+  - "Cargo.toml"
+  - "Cargo.lock"
+  - "rust-toolchain.toml"
+  - "rustfmt.toml"
+  - "clippy.toml"
 alwaysApply: false
 ---
 
-## §1 ABSOLUTE PROHIBITIONS (ZERO TOLERANCE)
+## §1 High-Signal Forbidden and Default-Deny Patterns
 
-These are not guidelines. These are laws. Violation of ANY of these results in immediate rejection.
+These are [P1] defaults. They are forbidden unless a listed exception, explicit repo precedent, or user-requested migration applies. If used, name the exception when it affects behavior, safety, performance, or verification.
 
 ### §1.1 MINIMIZE `#[allow(...)]` IN HAND-WRITTEN CODE
 
@@ -51,9 +56,9 @@ If you use protobuf generators, these APIs exist for attribute injection into ge
 
 ### §1.2 NO Borrow-Checker Appeasement
 
-These patterns indicate you don't understand ownership. They are banned:
+These patterns often indicate weak ownership design:
 
-| Banned Pattern | Why It's Banned |
+| Default-Deny Pattern | Why |
 |----------------|-----------------|
 | `.clone()` to satisfy borrow checker | You're hiding a design flaw |
 | `Rc<RefCell<T>>` across module boundaries | Runtime panics, spaghetti ownership |
@@ -66,7 +71,7 @@ These patterns indicate you don't understand ownership. They are banned:
 
 ### §1.3 NO Silent Failures
 
-| Banned | Why |
+| Default-Deny Pattern | Why |
 |--------|-----|
 | `.unwrap()` (non-test code) | Crashes caller's program on None/Err |
 | `.expect("msg")` (non-test code) | Same, with slightly better panic message |
@@ -94,13 +99,13 @@ Source: Clippy lint configuration (`https://doc.rust-lang.org/clippy/lint_config
 
 ### §1.4 NO Garbage Code
 
-| Banned | Replacement |
+| Default-Deny Pattern | Replacement |
 |--------|-------------|
 | `todo!()` | Implement it or don't write the function |
 | `unimplemented!()` | Same |
 | `println!()` for debugging | Use `tracing` or remove entirely |
 | `dbg!()` | Remove |
-| `// TODO`, `// FIXME` | Do it now or don't mention it |
+| `// TODO`, `// FIXME` | Use only with an issue/reference or explicit debt marker |
 | `// ... rest of implementation` | Write the rest |
 | Unused imports/variables | Remove them |
 
@@ -165,7 +170,7 @@ DEPENDENCY: [crate name]
 
 ### §3.1 Parse, Don't Validate
 
-Raw primitives (`String`, `i32`, `bool`, `Vec<u8>`) are for I/O boundaries ONLY.
+Use newtypes for security-critical, domain-distinct, or invariant-bearing values. Ordinary local primitives are fine when they do not carry domain invariants.
 
 ```rust
 // ❌ BAD: Primitives flowing through the system
@@ -181,11 +186,11 @@ struct ValidatedUser {
 }
 ```
 
-**Every newtype must have:**
+**Invariant-bearing newtypes should have:**
 
 - A fallible constructor (`new`, `try_from`, `parse`) that validates
 - No way to construct an invalid instance
-- `#[derive(Debug, Clone, PartialEq, Eq)]` at minimum
+- Appropriate derives such as `Debug`, `PartialEq`, and `Eq`; derive `Clone` only when duplication is safe and meaningful
 
 ### §3.2 Make Invalid States Unrepresentable
 
@@ -318,9 +323,9 @@ pub fn safe_operation(data: &mut [u8]) -> Result<(), Error> {
 }
 ```
 
-## §6 TOOLCHAIN GATE (MUST PASS — NO EXCEPTIONS)
+## §6 TOOLCHAIN GATE
 
-You must verify your code passes these checks. Show the output or confirm you have mentally verified compliance.
+Report each relevant check as passed, failed, not run, or not available. Do not claim mental verification as a substitute for tool output.
 
 ### §6.1 Format
 
@@ -341,79 +346,10 @@ Zero warnings. Zero errors.
 ### §6.3 Clippy (High-Signal Strictness)
 
 ```bash
-cargo clippy --workspace --all-targets --all-features -- \
-    -D clippy::all \
-    -W clippy::pedantic \
-    -W clippy::nursery \
-    -W clippy::cargo \
-    -D clippy::unwrap_used \
-    -D clippy::expect_used \
-    -D clippy::panic \
-    -D clippy::todo \
-    -D clippy::unimplemented \
-    -D clippy::dbg_macro \
-    -D clippy::print_stdout \
-    -D clippy::print_stderr \
-    -D clippy::unwrap_in_result \
-    -W clippy::indexing_slicing \
-    -W clippy::arithmetic_side_effects \
-    -W clippy::float_arithmetic \
-    -W clippy::integer_division \
-    -W clippy::modulo_arithmetic \
-    -D clippy::cast_sign_loss \
-    -D clippy::cast_possible_truncation \
-    -D clippy::cast_possible_wrap \
-    -W clippy::cast_precision_loss \
-    -W clippy::cast_lossless \
-    -W clippy::default_numeric_fallback \
-    -D clippy::clone_on_ref_ptr \
-    -D clippy::create_dir \
-    -D clippy::deref_by_slicing \
-    -D clippy::empty_structs_with_brackets \
-    -D clippy::exit \
-    -D clippy::filetype_is_file \
-    -D clippy::float_cmp_const \
-    -D clippy::fn_to_numeric_cast_any \
-    -D clippy::format_push_string \
-    -W clippy::if_then_some_else_none \
-    -W clippy::impl_trait_in_params \
-    -D clippy::infinite_loop \
-    -D clippy::large_include_file \
-    -D clippy::let_underscore_must_use \
-    -W clippy::let_underscore_untyped \
-    -D clippy::lossy_float_literal \
-    -D clippy::mem_forget \
-    -D clippy::missing_assert_message \
-    -W clippy::missing_docs_in_private_items \
-    -D clippy::mixed_read_write_in_expression \
-    -D clippy::multiple_inherent_impl \
-    -D clippy::mutex_atomic \
-    -D clippy::rc_buffer \
-    -D clippy::rc_mutex \
-    -D clippy::rest_pat_in_fully_bound_structs \
-    -D clippy::same_name_method \
-    -D clippy::self_named_module_files \
-    -W clippy::semicolon_inside_block \
-    -D clippy::str_to_string \
-    -D clippy::string_add \
-    -W clippy::string_slice \
-    -D clippy::string_to_string \
-    -D clippy::suspicious_xor_used_as_pow \
-    -D clippy::tests_outside_test_module \
-    -D clippy::try_err \
-    -D clippy::undocumented_unsafe_blocks \
-    -D clippy::unneeded_field_pattern \
-    -D clippy::unseparated_literal_suffix \
-    -D clippy::verbose_file_reads
+cargo clippy --workspace --all-targets --all-features -- -D clippy::all
 ```
 
-**Minimize `#[allow]` in hand-written code.** Allowed only with inline justification for genuine false positives (see §1.1). Generated-code boundary modules are always exempt.
-
-Reference: rust-clippy README notes `clippy::pedantic` contains lints "rather strict or have occasional false positives" (`https://raw.githubusercontent.com/rust-lang/rust-clippy/master/README.md`).
-
-Do not deny `clippy::as_conversions` in general codebases. Clippy documents it as a `restriction` lint that "lints every single use of `as` regardless of whether good alternatives exist or not" and recommends using targeted cast lints instead (`https://rust-lang.github.io/rust-clippy/master/index.html#as_conversions`).
-
-Do not use `-D warnings` in the clippy invocation if you also want pedantic/nursery to be real warnings. The `warnings` lint group applies to all lints that would otherwise warn, ignoring attribute/CLI order (`https://doc.rust-lang.org/rustc/lints/levels.html`).
+Use the repo's clippy config first. For new strict configs, deny `clippy::all`, explicitly add high-signal denies such as `unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented`, `dbg_macro`, `print_stdout`, `print_stderr`, and `undocumented_unsafe_blocks`, and keep pedantic/nursery/cargo as warnings unless the repo already denies them. Avoid broad restriction lints such as `as_conversions` unless the repo intentionally chose them.
 
 ### §6.4 Tests
 
@@ -423,7 +359,7 @@ RUSTFLAGS="-Dwarnings" cargo test --workspace --all-features
 RUSTFLAGS="-Dwarnings" cargo nextest run --workspace --all-features
 ```
 
-Every public function must have at least one test. Every error path must be tested.
+Test public behavior, risk surfaces, and meaningful error paths. Do not require one test per exported symbol when behavior is already covered.
 
 ### §6.5 Documentation
 
@@ -431,7 +367,7 @@ Every public function must have at least one test. Every error path must be test
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace
 ```
 
-All public items must have doc comments. All doc comments must have examples that compile.
+Public APIs should have doc comments. Prefer compiling examples for non-obvious public library APIs; applications and simple internal APIs may use concise docs without examples.
 
 ### §6.6 Security
 
@@ -440,13 +376,15 @@ cargo audit
 cargo deny check
 ```
 
-No known vulnerabilities. No banned licenses. No duplicate crate versions.
+No known vulnerabilities or banned licenses. Use `cargo deny` to flag risky duplicate crate versions, but do not require zero transitive duplicates globally.
 
 ### §6.7 Unsafe Verification (if any unsafe exists)
 
 ```bash
 cargo +nightly miri test
 ```
+
+Run Miri only when nightly, target support, and the code shape make it meaningful; otherwise report it as not available.
 
 ## §7 DOMAIN-SPECIFIC ADDENDA
 
@@ -487,12 +425,12 @@ Before submitting ANY code, verify:
 - [ ] No unjustified `#[allow(...)]` (false positives require inline comment)
 - [ ] Zero `.unwrap()` or `.expect()` in library code
 - [ ] Zero `.clone()` used to satisfy borrow checker
-- [ ] Zero `todo!()`, `unimplemented!()`, `println!()`, `dbg!()`
-- [ ] Zero `// TODO`, `// FIXME`, `// ...` placeholders
+- [ ] Zero `todo!()`, `unimplemented!()`, debug `println!()`, `dbg!()`
+- [ ] No `// TODO`, `// FIXME`, `// ...` placeholders without issue/reference or explicit debt marker
 - [ ] All `Result` values handled or propagated with context
-- [ ] All public items have doc comments with examples
+- [ ] Public APIs have appropriate doc comments; non-obvious public library APIs include examples
 - [ ] All newtypes have fallible constructors
-- [ ] All error types have meaningful, user-facing messages
+- [ ] Error messages help the caller, operator, or user appropriate to the boundary
 - [ ] All unsafe blocks have SAFETY comments with invariants
 - [ ] Ownership analysis provided for significant types
 - [ ] Design decisions documented with rejected alternatives
@@ -502,4 +440,4 @@ Before submitting ANY code, verify:
 - [ ] Code passes `cargo test`
 - [ ] Code passes `cargo doc` with warnings as errors
 
-**If ANY checkbox is unchecked, DO NOT SUBMIT. Fix it or explain why it cannot be fixed.**
+If a checklist item is not satisfied, fix it or report the exception and verification status.
