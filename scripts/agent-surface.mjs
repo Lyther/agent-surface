@@ -121,7 +121,7 @@ Usage:
   agent-surface check
   agent-surface check rules [--scenario <name>]
   agent-surface build --target <cline|antigravity|gemini-cli|all> [--dry-run]
-  agent-surface install --target <cline|antigravity|gemini-cli> [--scope project|user] [--dest <path>] [--dry-run]
+  agent-surface install --target <cline|antigravity|gemini-cli> [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface doctor
 `);
 }
@@ -305,16 +305,19 @@ async function install(args) {
   const target = requiredArgValue(args, "--target");
   const scope = argValue(args, "--scope") ?? "project";
   const dryRun = args.includes("--dry-run");
+  const allowScopeRoot = args.includes("--allow-scope-root");
   const dest = argValue(args, "--dest");
   const adapter = targets[target];
 
   if (!adapter) fail(`unsupported install target: ${target}`);
   if (!["project", "user"].includes(scope)) fail(`unsupported install scope: ${scope}`);
-  if (!dryRun && !dest) fail("live install requires explicit --dest; run the same command with --dry-run first");
+  if (!dryRun && !dest && !allowScopeRoot) {
+    fail("live install requires explicit --dest or --allow-scope-root after reviewing --dry-run");
+  }
 
   const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
   if (installRoot === path.parse(installRoot).root) fail("install root cannot be filesystem root");
-  const plan = await installPlan(target, adapter, installRoot, scope);
+  const plan = await installPlan(target, adapter, installRoot, scope, dest ? "explicit --dest" : "scope-derived root");
 
   printInstallPlan(plan);
   if (plan.blocked.length > 0) {
@@ -327,7 +330,7 @@ async function install(args) {
   }
 }
 
-async function installPlan(target, adapter, installRoot, scope) {
+async function installPlan(target, adapter, installRoot, scope, rootSource) {
   const commandFiles = await files("commands", [".md"]);
   const version = await packageVersion();
   const generatedAt = new Date().toISOString();
@@ -444,6 +447,7 @@ async function installPlan(target, adapter, installRoot, scope) {
   return {
     target,
     scope,
+    rootSource,
     installRoot,
     manifestPath,
     generatedAt,
@@ -458,6 +462,7 @@ async function installPlan(target, adapter, installRoot, scope) {
 function printInstallPlan(plan) {
   console.log(`target: ${plan.target}`);
   console.log(`scope: ${plan.scope}`);
+  console.log(`root source: ${plan.rootSource}`);
   console.log(`root: ${plan.installRoot}`);
   console.log("planned writes:");
   for (const item of plan.writes) {

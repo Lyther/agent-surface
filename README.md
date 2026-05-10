@@ -58,6 +58,7 @@ node scripts/agent-surface.mjs install --target cline --scope project --dry-run
 node scripts/agent-surface.mjs install --target antigravity --scope user --dry-run
 node scripts/agent-surface.mjs install --target gemini-cli --scope project --dry-run
 node scripts/agent-surface.mjs install --target cline --dest /tmp/agent-surface-cline
+node scripts/agent-surface.mjs install --target cline --scope project --allow-scope-root
 ```
 
 Rule scenario checks:
@@ -71,7 +72,7 @@ node scripts/agent-surface.mjs check rules --scenario typescript-eslint
 node scripts/agent-surface.mjs check rules --scenario shell-script
 ```
 
-`install` prints the files it will write, stale managed files it will remove, blocked paths, and the manifest path that tracks generated files. Live writes require explicit `--dest`; scope-derived live dotfolder writes are blocked. Existing unmanaged files block the install. Managed files changed since the last manifest block the install. Overwrites and stale managed removals are backed up under `.agent-surface/backups/`.
+`install` prints the files it will write, stale managed files it will remove, blocked paths, and the manifest path that tracks generated files. Live writes require explicit `--dest` or `--allow-scope-root` after reviewing the dry run. Existing unmanaged files block the install. Managed files changed since the last manifest block the install. Overwrites and stale managed removals are backed up under `.agent-surface/backups/`.
 
 GitHub install smoke path:
 
@@ -88,4 +89,4 @@ Focus adapters in this order:
 2. `antigravity`
 3. `gemini-cli`
 
-These targets have the clearest command/workflow primitives right now. Next, promote live install from explicit temp/project destinations to reviewed target-specific dotfolder paths.
+These targets have the clearest command/workflow primitives right now. Next, test one real target path at a time before installing into daily-use dotfolders.

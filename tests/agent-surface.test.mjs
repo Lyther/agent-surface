@@ -74,6 +74,7 @@ assert.equal(generated.some((file) => file.endsWith("dist/gemini-cli/.gemini/com
 
 const clinePlan = run(["install", "--target", "cline", "--dest", "/tmp/agent-surface-cline", "--dry-run"]);
 assert.match(clinePlan, /^target: cline$/m);
+assert.match(clinePlan, /^root source: explicit --dest$/m);
 assert.match(clinePlan, /\.clinerules\/workflows\/workflow-boss\.md <- commands\/workflow-boss\.md/);
 assert.match(clinePlan, /\.agent-surface\/cline-manifest\.json/);
 
@@ -146,9 +147,18 @@ assert.equal(existsSync(liveStaleFile), false);
 assert.equal(files(path.join(liveStaleDest, ".agent-surface", "backups")).some((file) => file.endsWith("removed.md")), true);
 rmSync(liveStaleDest, { recursive: true, force: true });
 
+const scopeRootDest = "/tmp/agent-surface-scope-root";
+rmSync(scopeRootDest, { recursive: true, force: true });
+mkdirSync(scopeRootDest, { recursive: true });
+const scopeRootInstall = run(["install", "--target", "cline", "--scope", "project", "--allow-scope-root"], { cwd: scopeRootDest });
+assert.match(scopeRootInstall, /^root source: scope-derived root$/m);
+assert.match(scopeRootInstall, /^installed:$/m);
+assert.equal(existsSync(path.join(scopeRootDest, ".clinerules", "workflows", "workflow-boss.md")), true);
+rmSync(scopeRootDest, { recursive: true, force: true });
+
 const unsafeInstall = status(["install", "--target", "cline"]);
 assert.notEqual(unsafeInstall.status, 0);
-assert.match(unsafeInstall.stderr, /live install requires explicit --dest/);
+assert.match(unsafeInstall.stderr, /live install requires explicit --dest or --allow-scope-root/);
 
 const invalidScope = status(["install", "--target", "cline", "--scope", "workspace", "--dry-run"]);
 assert.notEqual(invalidScope.status, 0);
