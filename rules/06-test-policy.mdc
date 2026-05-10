@@ -1,0 +1,16 @@
+---
+description: "Test types, isolation requirements, and mock/stub policy"
+alwaysApply: true
+---
+
+## Test Policy
+
+| Type | Status | Notes |
+|------|--------|-------|
+| Integration tests | Required | Real code paths |
+| Contract tests | Required | External boundaries |
+| Property-based | Encouraged | Hypothesis/fast-check |
+| Mocks/spies/stubs | Banned | Couples to implementation |
+| Snapshot tests | UI only | Requires review |
+
+**Isolation**: Inject providers for time/IO/randomness. One behavior per test.

@@ -1,0 +1,14 @@
+{
+  "source_types": [
+    "rules",
+    "commands",
+    "skills",
+    "subagents",
+    "hooks",
+    "mcps",
+    "settings",
+    "ignores",
+    "plugins"
+  ],
+  "canonical_command_rule": "A command is any user-invoked reusable procedure, regardless of whether a target calls it a command, workflow, prompt, or skill wrapper."
+}

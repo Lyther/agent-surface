@@ -1,0 +1,97 @@
+{
+  "in_scope": {
+    "claude-code": {
+      "status": "native",
+      "renders": [
+        "rules",
+        "commands",
+        "skills",
+        "subagents",
+        "hooks",
+        "mcps",
+        "plugins"
+      ]
+    },
+    "codex": {
+      "status": "native-partial",
+      "renders": [
+        "rules",
+        "skills",
+        "mcps",
+        "plugins"
+      ]
+    },
+    "gemini-cli": {
+      "status": "native",
+      "renders": [
+        "rules",
+        "commands",
+        "subagents",
+        "hooks",
+        "mcps",
+        "plugins"
+      ]
+    },
+    "cline": {
+      "status": "native",
+      "renders": [
+        "rules",
+        "commands-as-workflows",
+        "skills",
+        "hooks",
+        "mcps",
+        "ignores"
+      ]
+    },
+    "antigravity": {
+      "status": "verified-local",
+      "renders": [
+        "commands-as-workflows"
+      ]
+    },
+    "opencode": {
+      "status": "verify-before-write",
+      "renders": [
+        "rules",
+        "commands",
+        "subagents",
+        "mcps",
+        "plugins"
+      ]
+    },
+    "vscode": {
+      "status": "settings-target",
+      "renders": [
+        "settings"
+      ]
+    },
+    "cursor": {
+      "status": "native",
+      "renders": [
+        "rules",
+        "commands",
+        "mcps"
+      ]
+    },
+    "copilot": {
+      "status": "native",
+      "renders": [
+        "rules"
+      ]
+    },
+    "trae": {
+      "status": "verify-before-write",
+      "renders": [
+        "rules",
+        "mcps"
+      ]
+    }
+  },
+  "out_of_scope": [
+    "roo-code",
+    "windsurf",
+    "vscodium",
+    "positron",
+    "void"
+  ]
+}

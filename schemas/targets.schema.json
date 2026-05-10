@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "agent-surface targets",
+  "type": "object",
+  "required": [
+    "in_scope",
+    "out_of_scope"
+  ],
+  "properties": {
+    "in_scope": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "status",
+          "renders"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "renders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "out_of_scope": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

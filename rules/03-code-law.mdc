@@ -1,0 +1,61 @@
+---
+description: "Code reliability, integrity, maintenance, security, data, and frontend constraints"
+alwaysApply: true
+---
+
+## Code of Law
+
+### A. Reliability (No Suicide)
+
+| BANNED | REQUIRED |
+|--------|----------|
+| `unwrap()`, `expect()`, `panic!()` | `Result<T,E>`, `Option<T>` |
+| `throw` without catch | `try/catch` with recovery |
+| `any`, unnarrowed `unknown` | Explicit types |
+| `// @ts-ignore`, `#[allow(...)]` | Fix root cause |
+| `sys.exit()`, `os.Exit()` in libs | Return error to caller |
+
+### B. Integrity (No Hallucination)
+
+| Check | Before | Action |
+|-------|--------|--------|
+| **Imports** | Using a library | Verify in manifest file |
+| **APIs** | Calling a method | Check it exists in current version |
+| **Types** | Using a type | Ensure it's defined or imported |
+| **Tests** | Asserting behavior | Test real logic, not `expect(true).toBe(true)` |
+
+### C. Maintenance (No Rot)
+
+| BANNED | REQUIRED |
+|--------|----------|
+| `var`, `require` (in ESM) | `const`/`let`, `import` |
+| `console.log` in production | Structured logger or delete |
+| Functions > 50 lines | Extract helper functions |
+| Nesting > 3 levels | Flatten with early returns |
+| Magic numbers/strings | Named constants |
+
+### D. Security (Zero Trust)
+
+- **Secrets**: `.env` only. No hardcoded keys. No "test" keys in code.
+- **Input**: Validate at boundary (Zod/Serde/Pydantic).
+- **Dependencies**: Pin versions. Audit before adding.
+- **Web**: CSP, HTTPS, cookie flags, CSRF, SSRF protections (OWASP Top 10).
+
+### E. Data (Datastores & Queries)
+
+- **Database**: Use PostgreSQL. No MySQL, no SQL Server.
+- **Queries**: Parameterized only. No string-concatenated SQL.
+- **Migrations**: Required for schema changes; reversible; reviewed.
+- **Backups**: Automate and test restores.
+
+### F. Frontend (Languages & Frameworks)
+
+- **No raw web assets**: No raw JS/TS/CSS/HTML in source.
+- **Approved stacks**: Rust (Leptos) or Python (Reflex) for UI.
+- **Exceptions**: Only for FFI bindings, vendored third-party, or minimal interop shims.
+- **Build artifacts**: Never committed.
+
+### G. Scripts
+
+- **One-off**: If it runs once, it does not live in the repo.
+- **Retention**: Use tickets/runbooks or ephemeral gists; link in PR if needed.
