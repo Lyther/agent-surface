@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-surface.local/schemas/workflow.rescue.schema.json",
+  "title": "agent-surface workflow rescue artifact",
+  "type": "object",
+  "$defs": {
+    "safeId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$"
+    },
+    "safePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "round_id",
+    "decision",
+    "workflow"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "workflow.v3"
+    },
+    "run_id": {
+      "$ref": "#/$defs/safeId"
+    },
+    "round_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "decision": {
+      "enum": [
+        "RESPEC",
+        "CONTEXT",
+        "PATCH",
+        "HUMAN"
+      ]
+    },
+    "workflow": {
+      "type": "object",
+      "required": [
+        "dir",
+        "file",
+        "owner",
+        "run_id",
+        "round_id",
+        "next_command"
+      ],
+      "properties": {
+        "dir": {
+          "$ref": "#/$defs/safePath"
+        },
+        "file": {
+          "const": "rescue.json"
+        },
+        "owner": {
+          "const": "workflow-rescue"
+        },
+        "next_command": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "run_id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "round_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent_artifact_hashes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hash"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

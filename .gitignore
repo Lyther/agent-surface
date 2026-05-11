@@ -3,3 +3,5 @@ dist/
 .DS_Store
 *.log
 commands/ops-server.md
+.agent-surface/workflows/
+.agent-surface/backups/

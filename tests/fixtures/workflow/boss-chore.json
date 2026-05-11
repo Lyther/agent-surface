@@ -1,0 +1,37 @@
+{
+  "schema_version": "workflow.v3",
+  "run_id": "run-fixture-001",
+  "round_id": 0,
+  "goal": "Refresh generated workflow metadata.",
+  "tasks": [
+    {
+      "task_id": "T1",
+      "title": "Refresh generated metadata",
+      "filescope": [
+        "registry/artifacts.json"
+      ],
+      "depends_on": [],
+      "ac": [
+        "Registry metadata remains valid and checkable."
+      ],
+      "verify": [
+        {
+          "cmd": "npm run check",
+          "class": "build_test",
+          "timeout_ms": 120000
+        }
+      ],
+      "patch_required": true
+    }
+  ],
+  "workflow": {
+    "dir": ".agent-surface/workflows/run-fixture-001",
+    "file": "boss.json",
+    "owner": "workflow-boss",
+    "run_id": "run-fixture-001",
+    "round_id": 0,
+    "route": "chore",
+    "next_command": "dev-chore",
+    "parent_artifact_hashes": []
+  }
+}

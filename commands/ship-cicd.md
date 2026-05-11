@@ -126,14 +126,14 @@ on: [push, pull_request]
 
 jobs:
   source:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - run: make verify-source
 
   artifact:
     needs: source
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - run: ./scripts/build_artifact.sh
@@ -141,7 +141,7 @@ jobs:
 
   bundle:
     needs: artifact
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - run: make verify-bundle

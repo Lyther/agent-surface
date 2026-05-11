@@ -1,22 +1,16 @@
 ## OBJECTIVE
 
-**THE PERSISTENT PURGE.**
-You are an idiot savant. You are brilliant at deleting things, but you have the memory of a goldfish.
-**The Problem**: If I tell you to "clean the repo," you will clean 3 files and quit.
-**The Solution**: You will optionally maintain a persistent **Death Row Log (`.cursor/nuke-state.md`)** for resumability. You do not make a move without planning first. You process the filesystem **Folder by Folder**, depth-first.
-**The Goal**: Minimalist perfection. If a file does not Spark Joy (read: is not essential for the build/run cycle), it dies.
+**SAFE REPOSITORY CLEANUP.**
+Produce a resumable cleanup plan for dead files, duplicates, generated artifacts, and stale dependencies. Default mode is dry-run only; deletion requires an explicit user-approved deletion manifest.
 
 ## CONTEXT STRATEGY (TOKEN ECONOMICS)
 
-*Mass extinction requires careful planning.*
-
-1. **Iterative Destruction**:
+1. **Iterative Review**:
     - **Do not** list 1000 files in one prompt.
     - Process one directory depth at a time.
     - **Prompt**: "Listing contents of `src/components`. What looks dead?"
 2. **State Persistence**:
-    - The LLM forgets. The filesystem remembers.
-    - Write the **Plan** to disk (`.cursor/nuke-state.md` if project uses it, otherwise present inline) *before* executing deletions.
+    - Write the plan to `.agent-surface/nuke/<run_id>.json` if workflow state is available, otherwise present it inline.
 3. **Low-Resolution Scanning**:
     - Use `ls -R` or tree summaries initially.
     - Only read file *content* if the filename is ambiguous (e.g., `utils.ts` vs `old_utils.ts`).
@@ -39,13 +33,13 @@ AI generates cruft over time:
 3. **Branch Guard**: Refuse on `main`/`master` unless `--confirm`; recommend feature branch.
 4. **Checkpoint**: Run `checkpoint` (tests green) before first destructive step.
 5. **Symlink Safety**: Do not follow symlinks outside repo root.
+6. **Approval Gate**: Do not delete, move, or uninstall anything until the user approves the deletion manifest after reviewing the dry-run.
+7. **Dependency Gate**: Never uninstall dependencies automatically; propose manifest and lockfile changes with evidence.
 
 ### Phase 1: The Census (Initialize State)
 
-*Before we kill, we must list the population.*
-
-1. **Check State**: Read `.cursor/nuke-state.md` if it exists.
-      - *If Missing*: Generate a plan (write to `.cursor/nuke-state.md` or present inline).
+1. **Check State**: Read `.agent-surface/nuke/<run_id>.json` if it exists.
+      - *If Missing*: Generate a plan and present it before writing.
       - **Action**: Scan the entire repo (ignoring `node_modules`, `.git`, `dist`, `target`).
       - **Format**: Create a hierarchical checklist of EVERY folder.
       - **Mark**: All folders as `[PENDING]`.
@@ -60,15 +54,14 @@ AI generates cruft over time:
 1. **The Content Hash Check (Low Hanging Fruit)**:
     - **Action**: Calculate MD5/SHA checksums for all files in the current folder + children.
     - **Verdict**: If `Hash(A) == Hash(B)`:
-        - **DELETE** the one with the longer filename (e.g., `login_final.ts` dies, `login.ts` lives).
-        - **DELETE** the one in the generic folder (e.g., `src/utils/auth.ts` dies, `src/auth/service.ts` lives).
+        - **PROPOSE** one deletion with a per-file reason. Filename length or generic folder names are hints, not sufficient evidence.
 2. **The Logic Clone Check (Semantic Redundancy)**:
     - **Scan**: Identify files with overlapping purposes (e.g., `dateUtils.ts` vs `timeHelper.ts`).
     - **Analyze**: Do they both export a function `formatDate`?
     - **Action**:
         - **MERGE**: Move unique functions from the "Helper" to the "Utils".
         - **REFACTOR**: Update all imports to point to the survivor.
-        - **DELETE**: The empty shell of the loser.
+        - **PROPOSE DELETE**: The empty shell of the loser, with import/use evidence.
 
 **2.2 The Naming Hall of Shame (Heuristic Purge)**
 *If the filename sounds like an apology, delete it.*
@@ -76,7 +69,7 @@ AI generates cruft over time:
 1. **Regex Execution**:
     - Target filenames matching: `/(copy|backup|old|new|temp|tmp|draft|v\d+|_v\d+)/i`.
     - **Example**: `userController_new.ts`, `api_v2_backup.js`.
-    - **Action**: **IMMEDIATE TERMINATION**.
+    - **Action**: Mark as suspect in the manifest; never delete by filename heuristic alone.
     - **Exception**: Unless strictly required by routing (e.g., `/api/v1/user`).
 
 ### Phase 3: The Code Hygiene (Interior Decorating)
@@ -87,7 +80,7 @@ AI generates cruft over time:
 1. **Scan**: Look for blocks of commented-out code > 3 lines.
 2. **Verdict**:
     - Is it documentation? **KEEP**.
-    - Is it dead logic? **DELETE**.
+    - Is it dead logic? Propose deletion with proof that no live path imports or executes it.
 
 **3.2 The "Barrel File" Trap**
 *Stop creating mazes.*
@@ -97,7 +90,7 @@ AI generates cruft over time:
     - Does it contain *logic*? Or just `export * from './xyz'`?
     - If it just exports **ONE** file (e.g., `export * from './Button'`), it is a useless wrapper.
 3. **Action**:
-    - **DELETE** the `index.ts`.
+    - Propose deleting the `index.ts` only after imports and package exports are updated and verified.
     - **RENAME** `Button/Button.tsx` to `Button.tsx` (Flatten).
     - **UPDATE IMPORTS** accordingly.
 
@@ -125,7 +118,7 @@ AI generates cruft over time:
 
 ## OUTPUT FORMAT (The State File)
 
-**File: `.cursor/nuke-state.md`**
+**File: `.agent-surface/nuke/<run_id>.json` or inline dry-run manifest**
 
 ```markdown
 # ☢️ NUKE STATE LOG

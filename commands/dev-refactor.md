@@ -1,157 +1,102 @@
 ## OBJECTIVE
 
-**THE TWO HATS PROTOCOL: HAT #2 (REFACTORING).**
-You are FORBIDDEN from adding features or fixing logic bugs.
-**Your Goal**: Reduce entropy. Lower cognitive load. Keep behavior EXACTLY the same.
-**Primary Metrics**: Cyclomatic complexity ↓ or equal; function length ↓; duplication ↓; lints 0.
+Reduce complexity while preserving behavior exactly.
 
-## CONTEXT STRATEGY (TOKEN ECONOMICS)
+Refactor only after the current behavior is pinned by existing tests, explicit pinning tests, or a reviewer-approved proof. If behavior must change, route to `dev-feature` or `dev-fix`.
 
-*Eating an elephant requires small bites.*
+## WHEN TO USE
 
-1. **Chunking**:
-    - Do NOT ask to "Refactor `utils.ts`" (3000 lines).
-    - Ask: "Refactor the `formatDate` function in `utils.ts`."
-2. **Focus**:
-    - Hide the rest of the file. Read only the target function + imports.
+- BOSS route is `refactor`.
+- The target surface is narrow and FILESCOPE is explicit.
+- Tests are already green or the task includes pinning-test acceptance criteria.
+- The intended change is structure-only: extraction, renaming, deduplication, moving code, dependency inversion, or local simplification.
 
-## VIBE CODING INTEGRATION
+## WHEN NOT TO USE
 
-This is the **CLEAN** step in the iteration loop:
+- New feature behavior.
+- Bug fixes or semantic changes.
+- Public API changes without explicit acceptance criteria.
+- Large module rewrites without a staged plan.
+
+## WORKFLOW MODE
+
+Workflow mode is ON when `.agent-surface/workflows/<run_id>/run.json` is active, lock is valid, `.agent-surface/workflows/<run_id>/boss.json` uses `schema_version: workflow.v3`, and `boss.workflow.route = "refactor"`.
+
+Protocol:
+
+1. Load `run.json`, `boss.json`, and latest reviewer/judger/rescue handoff when `workflow.next_command = "dev-refactor"`.
+2. Process only active task IDs, respecting dependencies and FILESCOPE.
+3. Capture pre-change proof: tests, lint, typecheck, behavior snapshot, or explicit reason the proof is unavailable.
+4. If coverage is weak, add pinning tests before changing structure.
+5. Apply one structural transformation at a time. Preserve public API unless BOSS AC explicitly permits a rename/move.
+6. Run task verify commands through:
 
 ```text
-spec (RED) → feature (GREEN) → refactor (CLEAN) → commit
+agent-surface run --task <task_id> --class <class> --timeout <ms> --out .agent-surface/workflows/<run_id>/rounds/round-<round_id>/evidence/<task_id> -- <command...>
 ```
 
-Refactor ONLY after tests are green. Never refactor and add features simultaneously.
+7. Create per-task patches under `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/patches/`.
+8. Write canonical worker artifact to `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and latest copy to `.agent-surface/workflows/<run_id>/worker.json`.
+9. Set `workflow.owner = "dev-refactor"` and `workflow.next_command = "workflow-reviewer"`.
 
-## PROTOCOL
+Worker artifact shape:
 
-### Phase 0: Preconditions & Safety
-
-1. Tests are GREEN; if not, STOP.
-2. Create a checkpoint/tag or branch (`feat/refactor-<area>`).
-3. Capture baselines: complexity, file size, duplication.
-4. If coverage is weak → write pinning tests (see Phase 2).
-
-### Phase 1: Diagnosis
-
-**Input**: Target file/module.
-
-| Code Smell | Detection | Refactoring |
-|------------|-----------|-------------|
-| Long Method | Function > 20–30 lines | Extract Method |
-| Duplicated Code | Same 3+ lines twice | Extract to shared function |
-| Primitive Obsession | `string` for complex state | Introduce Value Object |
-| Feature Envy | Method uses other class more than own | Move Method |
-| Arrow Code | Nesting > 3 levels | Guard Clauses |
-| God Object | File > 300 lines, > 10 imports | Split into modules |
-
-**Output Diagnosis**:
-
-```markdown
-> **Smell**: Long Method in `processOrder` (45 lines)
-> **Complexity**: Cyclomatic 12 → Target: < 5
-> **Strategy**: Extract Method → `validateOrder()`, `calculateTax()`, `applyDiscount()`
-```
-
-### Phase 2: Safety Net (Pinning Tests)
-
-**RULE**: Refactoring without tests is BANNED.
-
-1. **Run Existing Tests**: Must be GREEN before starting
-2. **Create Pinning Tests** (if coverage low):
-    - Capture CURRENT behavior (even if buggy)
-    - Goal: Lock behavior in place during refactor
-    - Example: "If `calc(null)` throws now, it must STILL throw after refactor"
-
-### Phase 3: Atomic Operation
-
-**ONE transformation at a time. Do NOT rewrite the whole file.**
-
-- Prefer IDE-safe transforms (rename symbol, extract function, move file).
-- Keep public API stable. No breaking changes.
-
-#### Strategy A: Extract Method
-
-```typescript
-// BEFORE
-function processOrder(order: Order) {
-  // 20 lines of validation
-  // 15 lines of tax calculation
-  // 10 lines of discount logic
-}
-
-// AFTER
-function processOrder(order: Order) {
-  this.validateOrder(order);
-  const tax = this.calculateTax(order);
-  const discount = this.applyDiscount(order);
-  return this.finalize(order, tax, discount);
-}
-```
-
-#### Strategy B: Replace Conditional with Guard Clauses
-
-```typescript
-// BEFORE
-function getPrice(user: User) {
-  if (user) {
-    if (user.isPremium) {
-      if (user.discount > 0) {
-        return price * (1 - user.discount);
-      }
+```json
+{
+  "schema_version": "workflow.v3",
+  "run_id": "<run_id>",
+  "round_id": 1,
+  "worker": "dev-refactor",
+  "tasks_processed": [
+    {
+      "task_id": "T1",
+      "status": "PASS|BLOCKED|DEFERRED",
+      "files_changed": [],
+      "patch_ref": ".agent-surface/workflows/<run_id>/rounds/round-001/patches/T1.patch",
+      "patch_hash": "sha256:...",
+      "evidence_refs": [],
+      "verification": [],
+      "behavior_preservation": {
+        "pre_change_evidence": [],
+        "post_change_evidence": [],
+        "api_changed": false
+      },
+      "risk_notes": []
     }
+  ],
+  "skipped": [],
+  "remaining": [],
+  "stop_reason": "queue_empty|blocker|context_pressure|drift_check|max_tasks_cap",
+  "workflow": {
+    "dir": ".agent-surface/workflows/<run_id>",
+    "file": "worker.json",
+    "owner": "dev-refactor",
+    "run_id": "<run_id>",
+    "round_id": 1,
+    "parent_artifact_hashes": ["sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+    "next_command": "workflow-reviewer"
   }
-  return price;
-}
-
-// AFTER
-function getPrice(user: User) {
-  if (!user) return price;
-  if (!user.isPremium) return price;
-  if (user.discount <= 0) return price;
-  return price * (1 - user.discount);
 }
 ```
 
-#### Strategy C: Value Object
+## DIRECT MODE
 
-```typescript
-// BEFORE
-function createUser(street: string, city: string, zip: string) { ... }
+If no active workflow exists, keep the refactor narrow and reversible. Run the cheapest behavior-preserving checks before and after. Do not auto-commit.
 
-// AFTER
-interface Address { street: string; city: string; zip: string; }
-function createUser(address: Address) { ... }
+## SAFETY RULES
+
+- No new features.
+- No bug fixes hidden inside refactors.
+- No public API changes unless BOSS AC explicitly allows them.
+- Do not weaken tests, linters, compiler settings, auth checks, or security checks to pass.
+- Do not edit workflow artifacts outside `worker.json`, per-task patches, evidence files, and this role's event.
+- If behavior changes are necessary, stop and route to `workflow-boss` for route correction.
+
+## CHAT OUTPUT
+
+```text
+Worker file: .agent-surface/workflows/<run_id>/worker.json
+Round done: M/N refactors completed; stop_reason=<reason>; next: workflow-reviewer
+Changed: <short file list>
+Checks: <command -> passed/failed/not run>
 ```
-
-### Phase 4: Verification
-
-1. **Run Tests**: Must still be GREEN
-2. **Diff Check**:
-    - No logic change (`> 0` vs `>= 0`)
-    - No public API rename
-3. **Quality Gates**:
-    - Complexity ↓; duplication ↓; lint errors = 0; format applied
-    - Performance neutral (no regressions in hot paths)
-
-### Phase 5: Commit & Traceability
-
-1. Hand off to `ship-commit` for the commit. It picks the right subject form per repo mode (Conventional Commits → `refactor(scope): …`; kernel → `subsystem: cleanup …`) and runs the mandatory `/qa:review` gate.
-2. Include "before → after" metrics in the body (complexity, file size, duplication).
-3. Push and PR are NOT automatic. `ship-commit` Phase 4 gates push behind explicit user approval, especially for `main`/`master`/`trunk`/`release/*`.
-
-## TOOLING HINTS (by stack)
-
-- TypeScript/Node: ESLint complexity, Sonar/ts-prune, Madge, `tsc --noEmit`
-- Python: ruff, pylint, radon (cyclomatic), pyright
-- Rust: clippy, cargo-udeps, cargo fmt, `cargo test`
-
-## EXECUTION RULES
-
-1. **NO NEW FEATURES**
-2. **NO BUG FIXES**: Preserve current behavior; annotate with FIXME if needed
-3. **ATOMICITY**: One logical change per turn
-4. **DRY**: Same 3 lines twice → Extract a function
-5. **TEST FIRST**: Write pinning tests if missing

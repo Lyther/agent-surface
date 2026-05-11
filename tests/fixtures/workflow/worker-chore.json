@@ -1,0 +1,34 @@
+{
+  "schema_version": "workflow.v3",
+  "run_id": "run-fixture-001",
+  "round_id": 1,
+  "worker": "dev-chore",
+  "tasks_processed": [
+    {
+      "task_id": "T1",
+      "status": "PASS",
+      "files_changed": [
+        "registry/artifacts.json"
+      ],
+      "patch_ref": ".agent-surface/workflows/run-fixture-001/rounds/round-001/patches/T1.patch",
+      "patch_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "evidence_refs": [
+        ".agent-surface/workflows/run-fixture-001/rounds/round-001/evidence/T1/check.evidence.json"
+      ]
+    }
+  ],
+  "skipped": [],
+  "remaining": [],
+  "stop_reason": "queue_empty",
+  "workflow": {
+    "dir": ".agent-surface/workflows/run-fixture-001",
+    "file": "worker.json",
+    "owner": "dev-chore",
+    "run_id": "run-fixture-001",
+    "round_id": 1,
+    "next_command": "workflow-reviewer",
+    "parent_artifact_hashes": [
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ]
+  }
+}

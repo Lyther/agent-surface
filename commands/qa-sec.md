@@ -1,9 +1,7 @@
 ## OBJECTIVE
 
-**THE NUCLEAR OPTION.**
-Cost is irrelevant. Time is irrelevant.
-Your goal is not to "find bugs". Your goal is to **mathematically prove** the existence of vulnerabilities using SOTA techniques.
-You will perform **Deep Static Analysis (SAST)**, **Software Composition Analysis (SCA)**, and **Infrastructure Hardening**, quantified by **CVSS v4.0** and **EPSS**.
+**SECURITY EVIDENCE REVIEW.**
+Your goal is to produce advisory, evidence-backed security findings and remediation guidance. Use static analysis, dependency review, configuration review, and local/staging reproduction where authorized. Treat EPSS, KEV, and CVSS as current-data inputs that must be verified before use.
 
 ## PROTOCOL
 
@@ -42,7 +40,7 @@ You will perform **Deep Static Analysis (SAST)**, **Software Composition Analysi
 3. **Secrets Detection** (multi-signal):
     - Run **gitleaks/trufflehog** across history + current tree
     - Combine entropy heuristics with provider-specific regex; verify checksum formats
-    - If secret detected → revoke keys and rotate; add pre-commit hook
+    - If a secret is detected, report the redacted evidence and recommended rotation path. Do not revoke, rotate, or alter credentials without explicit approval.
 4. **Unsafe APIs & Patterns**:
     - String-constructed SQL/command → require parameters
     - Insecure randomness in crypto contexts → require CSPRNG
@@ -80,8 +78,8 @@ For every finding, calculate the **CVSS v4.0 Vector** and capture exploitability
 
 **Action**:
 
-- **Critical (9.0 - 10.0) or KEV or EPSS ≥ 0.5**: **BLOCK RELEASE** immediately
-- **High (7.0 - 8.9) or EPSS ≥ 0.1**: Block until fixed or approved w/ expiry
+- **Critical (9.0 - 10.0) or verified KEV/high EPSS**: recommend release block and immediate owner review
+- **High (7.0 - 8.9) or verified elevated EPSS**: recommend block until fixed or approved w/ expiry
 - **Medium (4.0 - 6.9)**: 7-day SLA; tracked in backlog with owner
 - Exceptions require risk acceptance with expiry and mitigation plan
 
@@ -117,8 +115,8 @@ For every finding, calculate the **CVSS v4.0 Vector** and capture exploitability
 1. **NO ASSUMPTIONS**: Treat every variable as tainted until proven clean by a sanitizer function
 2. **FOLLOW THE DATA**: Trace source → sanitizer → sink; prove exploitability where possible
 3. **QUANTIFY EVERYTHING**: If you can't assign a CVSS vector, you don't understand it
-4. **SUPPLY CHAIN MANDATES**: SBOM + scanner + signature verify on every build; block on KEV/EPSS/CVSS thresholds
-5. **SECRETS**: If detected, revoke/rotate immediately and add pre-commit scanning
+4. **SUPPLY CHAIN MANDATES**: recommend SBOM + scanner + signature verification where appropriate; do not enforce release policy unless explicitly authorized
+5. **SECRETS**: If detected, report redacted evidence and recommend rotation plus pre-commit scanning; do not rotate without approval
 
 ## AI-SPECIFIC SECURITY CONCERNS
 

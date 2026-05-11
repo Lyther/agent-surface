@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-surface.local/schemas/workflow.judger.schema.json",
+  "title": "agent-surface workflow judger artifact",
+  "type": "object",
+  "$defs": {
+    "safeId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$"
+    },
+    "safePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "taskList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/safeId"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "round_id",
+    "final_verdict",
+    "run_state_update",
+    "workflow"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "workflow.v3"
+    },
+    "run_id": {
+      "$ref": "#/$defs/safeId"
+    },
+    "round_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "final_verdict": {
+      "enum": [
+        "MERGE",
+        "MERGE_PARTIAL",
+        "REWORK",
+        "RESPEC",
+        "RESCUE"
+      ]
+    },
+    "run_state_update": {
+      "type": "object",
+      "required": [
+        "accepted_task_ids",
+        "rework_task_ids",
+        "deferred_task_ids",
+        "closed_task_ids"
+      ],
+      "properties": {
+        "accepted_task_ids": {
+          "$ref": "#/$defs/taskList"
+        },
+        "rework_task_ids": {
+          "$ref": "#/$defs/taskList"
+        },
+        "deferred_task_ids": {
+          "$ref": "#/$defs/taskList"
+        },
+        "closed_task_ids": {
+          "$ref": "#/$defs/taskList"
+        }
+      },
+      "additionalProperties": false
+    },
+    "workflow": {
+      "type": "object",
+      "required": [
+        "dir",
+        "file",
+        "owner",
+        "run_id",
+        "round_id",
+        "next_command"
+      ],
+      "properties": {
+        "dir": {
+          "$ref": "#/$defs/safePath"
+        },
+        "file": {
+          "const": "judger.json"
+        },
+        "owner": {
+          "const": "workflow-judger"
+        },
+        "next_command": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "run_id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "round_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent_artifact_hashes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hash"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

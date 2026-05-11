@@ -34,6 +34,10 @@ User-requested output format overrides P3 style rules. Repository config overrid
 - Do not run destructive commands, push, create PRs, alter production data, rotate secrets, or perform network/dependency changes without explicit approval unless the user already requested that action.
 - Never weaken, delete, skip, or loosen tests, linters, compiler settings, auth checks, or security checks merely to make a gate pass.
 
+## Approval Classes
+
+Explicit approval is required for: dependency add/update, network or external-service calls, database mutation, migrations, deployment, secret/env-file access, destructive filesystem operations, legal/auth/crypto/payment changes, workflow artifact repair, live security testing, and git publishing.
+
 ## Default-Deny Rules
 
 Default-deny means allowed only for listed exceptions or clear repo precedent. If used, name the exception in the final report when it matters.

@@ -13,11 +13,19 @@
         "type": "object",
         "required": [
           "status",
+          "build_supported",
+          "install_supported",
           "renders"
         ],
         "properties": {
           "status": {
             "type": "string"
+          },
+          "build_supported": {
+            "type": "boolean"
+          },
+          "install_supported": {
+            "type": "boolean"
           },
           "renders": {
             "type": "array",

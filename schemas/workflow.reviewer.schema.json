@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-surface.local/schemas/workflow.reviewer.schema.json",
+  "title": "agent-surface workflow reviewer artifact",
+  "type": "object",
+  "$defs": {
+    "safeId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$"
+    },
+    "safePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "round_id",
+    "aggregate_status",
+    "tasks_reviewed",
+    "run_state_update",
+    "workflow"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "workflow.v3"
+    },
+    "run_id": {
+      "$ref": "#/$defs/safeId"
+    },
+    "round_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "aggregate_status": {
+      "enum": [
+        "PASS",
+        "REJECT",
+        "PARTIAL"
+      ]
+    },
+    "tasks_reviewed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "task_id",
+          "status",
+          "reason",
+          "evidence_refs"
+        ],
+        "properties": {
+          "task_id": {
+            "$ref": "#/$defs/safeId"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "REJECT",
+              "DEFERRED"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/safePath"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "run_state_update": {
+      "type": "object",
+      "required": [
+        "accepted_task_ids",
+        "rework_task_ids",
+        "deferred_task_ids",
+        "closed_task_ids"
+      ],
+      "properties": {
+        "accepted_task_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/safeId"
+          }
+        },
+        "rework_task_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/safeId"
+          }
+        },
+        "deferred_task_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/safeId"
+          }
+        },
+        "closed_task_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/safeId"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "severity",
+          "message",
+          "evidence_refs"
+        ],
+        "properties": {
+          "severity": {
+            "enum": [
+              "blocker",
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/safePath"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "required": [
+        "dir",
+        "file",
+        "owner",
+        "run_id",
+        "round_id",
+        "next_command"
+      ],
+      "properties": {
+        "dir": {
+          "$ref": "#/$defs/safePath"
+        },
+        "file": {
+          "const": "reviewer.json"
+        },
+        "owner": {
+          "const": "workflow-reviewer"
+        },
+        "next_command": {
+          "enum": [
+            "workflow-boss",
+            "dev-feature",
+            "dev-fix",
+            "dev-chore",
+            "dev-refactor",
+            "workflow-judger",
+            "workflow-close"
+          ]
+        },
+        "run_id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "round_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent_artifact_hashes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hash"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

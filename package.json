@@ -18,5 +18,9 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
   }
 }

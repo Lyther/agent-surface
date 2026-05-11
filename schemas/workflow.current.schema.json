@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-surface.local/schemas/workflow.current.schema.json",
+  "title": "agent-surface active workflow pointer",
+  "type": "object",
+  "$defs": {
+    "safeId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "workflow_dir"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "workflow.current.v1"
+    },
+    "run_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$"
+    },
+    "workflow_dir": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^\\.agent-surface/workflows/"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

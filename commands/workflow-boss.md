@@ -25,27 +25,33 @@ If essential repo context is missing, run `boot-context` first.
 ### Phase 0: Workflow bootstrap (role files)
 
 - `workflow-boss` is the entrypoint that starts or refreshes workflow mode.
-- Use the project-local workflow folder: `.cursor/.workflow/`
+- Use the project-local workflow folder: `.agent-surface/workflows/<run_id>/`
+- Write the active-run pointer at `.agent-surface/workflows/current.json`.
+- Treat `.cursor/.workflow/` as a Cursor compatibility surface only. It may mirror latest role files, but it is not canonical.
 - Single active run only.
 - Before starting, require `git status --porcelain` to be clean. If not clean, stop unless the user explicitly authorizes dirty-baseline mode; if authorized, record `dirty_baseline: true` plus the exact dirty file list.
-- Verify `.cursor/.workflow/` is ignored by `.gitignore` or `.git/info/exclude`; if not, stop and instruct the human to add it before creating workflow artifacts.
+- Verify `.agent-surface/workflows/<run_id>/` is ignored by `.gitignore` or `.git/info/exclude`; if not, stop and instruct the human to add it before creating workflow artifacts.
 - Record `branch`, `base_commit`, `base_tree_hash`, and `created_at` in the run. If the branch changes later, downstream roles must fail closed.
-- Create `.cursor/.workflow/lock` before writing artifacts. Use temp-file-and-rename for JSON writes.
+- Create `.agent-surface/workflows/<run_id>/lock` before writing artifacts. Use temp-file-and-rename for JSON writes.
 - Role-file ownership is strict:
   - `workflow-boss` owns BOSS artifacts, `run.json` initialization, `lock`, and its own ledger event.
-  - `dev-feature` and `dev-fix` own worker artifacts plus their own evidence/patch files and ledger event.
+  - `dev-feature`, `dev-fix`, `dev-chore`, and `dev-refactor` own worker artifacts plus their own evidence/patch files and ledger event.
   - `workflow-reviewer` owns reviewer artifacts plus its own ledger event.
   - `workflow-judger` owns judger artifacts plus its own ledger event.
   - `workflow-rescue` owns rescue artifacts plus its own ledger event.
 - A role may read other role files, but it must not edit, repair, truncate, or rewrite another role's file.
 - Exception: when starting a fresh handoff, `workflow-boss` may remove stale downstream role files (`worker.json`, `reviewer.json`, `judger.json`, `rescue.json`) before writing a new `boss.json`.
 - Generate a stable `run_id` and start `round_id` at 0. Carry both in every downstream role file.
-- Initialize `.cursor/.workflow/run.json` and append the first event to `.cursor/.workflow/events.ndjson`.
+- Initialize `.agent-surface/workflows/<run_id>/run.json`, write `.agent-surface/workflows/current.json`, and append the first event to `.agent-surface/workflows/<run_id>/events.ndjson`.
 - Choose the route once for the whole batch:
   - `feature` → next command `dev-feature`
-  - `fix` → next command `dev-fix`
+  - `fix` / `security-fix` → next command `dev-fix` when the finding is already verified
+  - `chore` → next command `dev-chore`
+  - `refactor` → next command `dev-refactor`
+  - `audit` → next command `qa-trace` or `qa-review`
+  - `docs`, `migration`, `ship`, `research` → classify the intent, then either convert to a workflow-aware worker route or stop with `workflow.next_command = null`
 - Mixed-route batches are not allowed in a single run. Split them into two runs.
-- Write the final BOSS JSON into `.cursor/.workflow/boss.json`.
+- Write the final BOSS JSON into `.agent-surface/workflows/<run_id>/boss.json` and the canonical round copy under `.agent-surface/workflows/<run_id>/rounds/round-000/boss.json`.
 
 ### Phase 1: Requirements (no guessing)
 
@@ -58,7 +64,7 @@ If essential repo context is missing, run `boot-context` first.
 - Define a **batch-level FILESCOPE** that bounds the whole run (forbidden areas apply to every task).
 - Each task may **narrow** the FILESCOPE further to its specific files. Tasks may not widen it.
 - If you cannot set FILESCOPE from evidence, run `context` first.
-- Protect workflow prompts and `.cursor/.workflow/*` by default. Workers must not edit workflow command files unless the user explicitly asked for workflow maintenance.
+- Protect workflow prompts and `.agent-surface/workflows/<run_id>/*` by default. Workers must not edit workflow command files unless the user explicitly asked for workflow maintenance.
 - Mark protected files requiring human review: auth/crypto/payment policy, migrations/data deletion, CI/deploy manifests, lockfiles, `.env*`, secrets/config, legal docs, and agent rule files.
 
 ### Phase 3: Task queue (atomic + verifiable + dependency-ordered)
@@ -111,7 +117,7 @@ Define when the worker should stop the round:
 
 ### Phase 8: Workflow handoff
 
-- In workflow mode, `boss.json` is the source handoff for downstream stages. Do not ask the human to manually paste it into `dev-feature`, `dev-fix`, or `workflow-reviewer`.
+- In workflow mode, `boss.json` is the source handoff for downstream stages. Do not ask the human to manually paste it into worker or reviewer commands.
 - Include the route and next recommended command directly in the BOSS JSON.
 - Include enough context references for downstream roles to ground their work in files already inspected, but do not paste large code bodies.
 - Include `context_capsule`: durable key facts, inspected files, commands run, decisions, assumptions, discarded options, open questions, risks, and contract changes.
@@ -120,7 +126,7 @@ Define when the worker should stop the round:
 
 ## OUTPUT FORMAT
 
-1. Write the full BOSS JSON to `.cursor/.workflow/boss.json`.
+1. Write the full BOSS JSON to `.agent-surface/workflows/<run_id>/boss.json`.
 
 Use this shape (v3):
 
@@ -195,24 +201,24 @@ Use this shape (v3):
   },
   "risk": { "level": "low|medium|high", "sandbox_required": false, "notes": [] },
   "workflow": {
-    "dir": ".cursor/.workflow",
+    "dir": ".agent-surface/workflows/<run_id>",
     "file": "boss.json",
     "owner": "workflow-boss",
     "run_id": "same value as top-level run_id",
     "round_id": 0,
     "parent_artifact_hashes": [],
-    "route": "feature|fix",
-    "next_command": "dev-feature|dev-fix"
+    "route": "feature|fix|chore|refactor|docs|audit|security-fix|migration|ship|research",
+    "next_command": "dev-feature|dev-fix|dev-chore|dev-refactor|qa-trace|qa-review|workflow-reviewer|workflow-close|null"
   }
 }
 
 2. Chat output: concise handoff only. Do not repeat the JSON body already written to `boss.json`.
 
 ```text
-BOSS file: `.cursor/.workflow/boss.json`
-Route: feature|fix
+BOSS file: `.agent-surface/workflows/<run_id>/boss.json`
+Route: feature|fix|chore|refactor|docs|audit|security-fix|migration|ship|research
 Tasks queued: N (T1..TN)
-Next: dev-feature|dev-fix
+Next: dev-feature|dev-fix|dev-chore|dev-refactor|qa-trace|qa-review|workflow-reviewer|workflow-close|null
 Goal: <1-line summary>
 ```
 
@@ -221,9 +227,9 @@ Goal: <1-line summary>
 1. No code changes. No implementation diffs. Only workflow run artifacts may be written.
 2. If ambiguous, ask EXACTLY ONE question per ambiguity, batched if multiple. Do not proceed with unresolvable ambiguity.
 3. If you proceed without an answer, list assumptions explicitly and make them testable via AC.
-4. In workflow mode, write only BOSS-owned artifacts: `.cursor/.workflow/boss.json`, the canonical BOSS round file, `run.json`, `events.ndjson`, and `lock`; never edit downstream role files except deleting stale compatibility files when starting a fresh handoff.
+4. In workflow mode, write only BOSS-owned artifacts: `.agent-surface/workflows/<run_id>/boss.json`, the canonical BOSS round file, `run.json`, `events.ndjson`, `current.json`, and `lock`; never edit downstream role files except deleting stale compatibility files when starting a fresh handoff.
 5. `boss.json` is the machine-readable artifact. Chat output should stay brief and human-readable.
 6. **Don't queue garbage.** If a task can't be specified with a clear AC and verify, leave it out. The reviewer will reject undefined tasks anyway, and the worker will waste the round trying.
 7. **Order matters.** Topologically sort `tasks` by `depends_on`. The worker iterates in array order; mis-ordering creates artificial blockers.
-8. **One route per run.** Mixed `feature` + `fix` batches must be split into separate runs.
+8. **One route per run.** Mixed-route batches must be split into separate runs.
 9. **No stale starts.** A stale `boss.json` alone must not activate workflow mode; require valid `run.json`, lock, branch, base commit, and schema.

@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-surface.local/schemas/workflow.worker.schema.json",
+  "title": "agent-surface workflow worker artifact",
+  "type": "object",
+  "$defs": {
+    "safeId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$"
+    },
+    "safePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "round_id",
+    "worker",
+    "tasks_processed",
+    "stop_reason",
+    "workflow"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "workflow.v3"
+    },
+    "run_id": {
+      "$ref": "#/$defs/safeId"
+    },
+    "round_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "worker": {
+      "enum": [
+        "dev-feature",
+        "dev-fix",
+        "dev-chore",
+        "dev-refactor"
+      ]
+    },
+    "tasks_processed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "task_id",
+          "status",
+          "files_changed",
+          "patch_ref",
+          "evidence_refs"
+        ],
+        "properties": {
+          "task_id": {
+            "$ref": "#/$defs/safeId"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "BLOCKED",
+              "DEFERRED"
+            ]
+          },
+          "files_changed": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/safePath"
+            }
+          },
+          "patch_ref": {
+            "$ref": "#/$defs/safePath"
+          },
+          "patch_hash": {
+            "$ref": "#/$defs/hash"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/safePath"
+            }
+          },
+          "behavior_preservation": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "boolean",
+                "string",
+                "number",
+                "null"
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "task_id",
+          "reason"
+        ],
+        "properties": {
+          "task_id": {
+            "$ref": "#/$defs/safeId"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "remaining": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/safeId"
+      }
+    },
+    "stop_reason": {
+      "enum": [
+        "blocker",
+        "context_pressure",
+        "queue_empty",
+        "drift_check",
+        "max_tasks_cap"
+      ]
+    },
+    "workflow": {
+      "type": "object",
+      "required": [
+        "dir",
+        "file",
+        "owner",
+        "run_id",
+        "round_id",
+        "next_command"
+      ],
+      "properties": {
+        "dir": {
+          "$ref": "#/$defs/safePath"
+        },
+        "file": {
+          "const": "worker.json"
+        },
+        "owner": {
+          "enum": [
+            "dev-feature",
+            "dev-fix",
+            "dev-chore",
+            "dev-refactor"
+          ]
+        },
+        "next_command": {
+          "const": "workflow-reviewer"
+        },
+        "run_id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "round_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent_artifact_hashes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hash"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

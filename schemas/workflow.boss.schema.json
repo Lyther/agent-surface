@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-surface.local/schemas/workflow.boss.schema.json",
+  "title": "agent-surface workflow boss artifact",
+  "type": "object",
+  "$defs": {
+    "safeId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$"
+    },
+    "safePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "verifyCommand": {
+      "type": "object",
+      "required": [
+        "cmd",
+        "class",
+        "timeout_ms"
+      ],
+      "properties": {
+        "cmd": {
+          "type": "string",
+          "minLength": 1
+        },
+        "class": {
+          "enum": [
+            "read_only",
+            "build_test",
+            "network",
+            "filesystem_destructive",
+            "deployment",
+            "database_mutation"
+          ]
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "round_id",
+    "goal",
+    "tasks",
+    "workflow"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "workflow.v3"
+    },
+    "run_id": {
+      "$ref": "#/$defs/safeId"
+    },
+    "round_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "goal": {
+      "type": "string"
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "task_id",
+          "title",
+          "filescope",
+          "depends_on",
+          "ac",
+          "verify",
+          "patch_required"
+        ],
+        "properties": {
+          "task_id": {
+            "$ref": "#/$defs/safeId"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "filescope": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/safePath"
+            }
+          },
+          "depends_on": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/safeId"
+            }
+          },
+          "ac": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "verify": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/$defs/verifyCommand"
+            }
+          },
+          "patch_required": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "required": [
+        "dir",
+        "file",
+        "owner",
+        "run_id",
+        "round_id",
+        "route",
+        "next_command"
+      ],
+      "properties": {
+        "dir": {
+          "$ref": "#/$defs/safePath"
+        },
+        "file": {
+          "const": "boss.json"
+        },
+        "owner": {
+          "const": "workflow-boss"
+        },
+        "run_id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "round_id": {
+          "type": "integer"
+        },
+        "route": {
+          "enum": [
+            "feature",
+            "fix",
+            "chore",
+            "refactor",
+            "docs",
+            "audit",
+            "security-fix",
+            "migration",
+            "ship",
+            "research"
+          ]
+        },
+        "next_command": {
+          "enum": [
+            "dev-feature",
+            "dev-fix",
+            "dev-chore",
+            "dev-refactor",
+            "qa-trace",
+            "qa-review",
+            "workflow-reviewer",
+            "workflow-close",
+            null
+          ]
+        },
+        "parent_artifact_hashes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hash"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

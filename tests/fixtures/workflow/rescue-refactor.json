@@ -1,0 +1,20 @@
+{
+  "schema_version": "workflow.v3",
+  "run_id": "run-fixture-001",
+  "round_id": 2,
+  "decision": "CONTEXT",
+  "workflow": {
+    "dir": ".agent-surface/workflows/run-fixture-001",
+    "file": "rescue.json",
+    "owner": "workflow-rescue",
+    "run_id": "run-fixture-001",
+    "round_id": 2,
+    "next_command": "dev-refactor",
+    "parent_artifact_hashes": [
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    ]
+  }
+}

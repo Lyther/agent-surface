@@ -1,7 +1,9 @@
 {
   "in_scope": {
     "claude-code": {
-      "status": "native",
+      "status": "planned",
+      "build_supported": false,
+      "install_supported": false,
       "renders": [
         "rules",
         "commands",
@@ -13,7 +15,9 @@
       ]
     },
     "codex": {
-      "status": "native-partial",
+      "status": "planned",
+      "build_supported": false,
+      "install_supported": false,
       "renders": [
         "rules",
         "skills",
@@ -22,7 +26,9 @@
       ]
     },
     "gemini-cli": {
-      "status": "native",
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
       "renders": [
         "rules",
         "commands",
@@ -33,7 +39,9 @@
       ]
     },
     "cline": {
-      "status": "native",
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
       "renders": [
         "rules",
         "commands-as-workflows",
@@ -44,13 +52,17 @@
       ]
     },
     "antigravity": {
-      "status": "verified-local",
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
       "renders": [
         "commands-as-workflows"
       ]
     },
     "opencode": {
       "status": "verify-before-write",
+      "build_supported": false,
+      "install_supported": false,
       "renders": [
         "rules",
         "commands",
@@ -60,13 +72,17 @@
       ]
     },
     "vscode": {
-      "status": "settings-target",
+      "status": "planned",
+      "build_supported": false,
+      "install_supported": false,
       "renders": [
         "settings"
       ]
     },
     "cursor": {
-      "status": "native",
+      "status": "planned",
+      "build_supported": false,
+      "install_supported": false,
       "renders": [
         "rules",
         "commands",
@@ -74,13 +90,17 @@
       ]
     },
     "copilot": {
-      "status": "native",
+      "status": "planned",
+      "build_supported": false,
+      "install_supported": false,
       "renders": [
         "rules"
       ]
     },
     "trae": {
       "status": "verify-before-write",
+      "build_supported": false,
+      "install_supported": false,
       "renders": [
         "rules",
         "mcps"

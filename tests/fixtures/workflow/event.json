@@ -1,0 +1,14 @@
+{
+  "event_id": "evt-fixture-001",
+  "run_id": "run-fixture-001",
+  "round_id": 1,
+  "role": "dev-chore",
+  "from": "WORKING",
+  "to": "REVIEWING",
+  "artifact": "worker.json",
+  "artifact_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "prev_event_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "event_hash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "timestamp": "2026-05-11T00:00:00.000Z",
+  "summary": "Worker completed chore task."
+}

@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-surface.local/schemas/workflow.run.schema.json",
+  "title": "agent-surface workflow run",
+  "type": "object",
+  "$defs": {
+    "safeId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40,64}$"
+    },
+    "taskList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/safeId"
+      }
+    },
+    "artifactHashes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "status",
+    "run_id",
+    "branch",
+    "base_commit",
+    "base_tree_hash",
+    "current_round",
+    "workflow_next_command"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "workflow.v3"
+    },
+    "status": {
+      "enum": [
+        "active",
+        "closed",
+        "quarantined",
+        "aborted"
+      ]
+    },
+    "run_id": {
+      "$ref": "#/$defs/safeId"
+    },
+    "branch": {
+      "type": "string"
+    },
+    "base_commit": {
+      "$ref": "#/$defs/hash"
+    },
+    "base_tree_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "current_round": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "workflow_next_command": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "workflow-boss",
+        "dev-feature",
+        "dev-fix",
+        "dev-chore",
+        "dev-refactor",
+        "qa-trace",
+        "qa-review",
+        "workflow-reviewer",
+        "workflow-judger",
+        "workflow-rescue",
+        "workflow-close",
+        null
+      ]
+    },
+    "active_task_ids": {
+      "$ref": "#/$defs/taskList"
+    },
+    "accepted_task_ids": {
+      "$ref": "#/$defs/taskList"
+    },
+    "rework_task_ids": {
+      "$ref": "#/$defs/taskList"
+    },
+    "deferred_task_ids": {
+      "$ref": "#/$defs/taskList"
+    },
+    "closed_task_ids": {
+      "$ref": "#/$defs/taskList"
+    },
+    "last_artifact_hashes": {
+      "$ref": "#/$defs/artifactHashes"
+    }
+  },
+  "additionalProperties": false
+}

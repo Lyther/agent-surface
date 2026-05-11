@@ -52,13 +52,10 @@ For medium/high-risk tasks requiring formal spec → implement → verify → re
 [workflow-boss] [validated run: run_id + lock + base commit/tree + filescope + tasks[] + batch_policy]
     |
     v
-feature path: [dev-feature] burns the queue
-              for each task in tasks[]:
-                implement → save per-task patch + run task.verify with hashed evidence
-                stop on: blocker | context_pressure | queue_empty | max_tasks_cap
-    |
-    v
-fix path: [dev-fix] burns the queue (same loop, regression-test-first)
+worker path: [dev-feature|dev-fix|dev-chore|dev-refactor] burns the queue
+             for each task in tasks[]:
+               implement → save per-task patch + run task.verify with hashed evidence
+               stop on: blocker | context_pressure | queue_empty | max_tasks_cap
     |
     v
 [workflow-reviewer] [validate artifacts → rerun/verify → per-task verdict + aggregate]
@@ -83,21 +80,20 @@ Use this only for the **manual stage workflow**. There is no background daemon o
 
 ```text
 [workflow-boss] -> validates clean worktree, creates lock, writes run ledger + task queue
-                   canonical: `.cursor/.workflow/runs/<run_id>/round-000/boss.json`
-                   compatibility pointer: `.cursor/.workflow/boss.json`
+                   canonical: `.agent-surface/workflows/<run_id>/rounds/round-000/boss.json`
+                   latest role copy: `.agent-surface/workflows/<run_id>/boss.json`
                    schema_version: workflow.v3; tasks: [T1..TN]
 
-feature route:
-  [dev-feature] -> burns the queue, writes per-task patches/evidence/results
-                   canonical: `runs/<run_id>/round-00N/worker.json` plus compatibility `worker.json`
-                   -> [workflow-reviewer]
-
-fix route:
-  [dev-fix] -> same shape, with per-task regression proofs -> [workflow-reviewer]
+worker route:
+  [dev-feature|dev-fix|dev-chore|dev-refactor]
+    -> burns the queue, writes per-task patches/evidence/results
+       canonical: `.agent-surface/workflows/<run_id>/rounds/round-00N/worker.json`
+       latest copy: `.agent-surface/workflows/<run_id>/worker.json`
+       -> [workflow-reviewer]
 
 review outcomes:
   PASS              -> [workflow-boss] decides next batch or closes run
-  PARTIAL/REJECT    -> first time, route back to dev-feature/dev-fix scoped to failing task IDs
+  PARTIAL/REJECT    -> first time, route back to the route-specific worker scoped to failing task IDs
                        (workers carry forward the same run_id and re-attempt only those tasks)
   any task at       -> [workflow-judger] (may MERGE_PARTIAL the passing tasks while
   consecutive >= 2     escalating the stuck ones)
@@ -108,13 +104,14 @@ review outcomes:
 
 ### Scope
 
-- Project-local only: `.cursor/.workflow/`
+- Project-local only: `.agent-surface/workflows/<run_id>/`
+- Active-run pointer: `.agent-surface/workflows/current.json`
+- Cursor compatibility path: `.cursor/.workflow/` only when a Cursor adapter/export needs it. Canonical state always wins.
 - Gitignored local state only. Never commit or push it.
 - Single active run only.
-- Workflow mode starts only when `.cursor/.workflow/run.json` has `status: "active"`, the lock is valid, the branch/base commit match, and `.cursor/.workflow/boss.json` points to the same `run_id`.
-- `dev-feature` uses workflow mode when `boss.json` says the route is `feature`.
-- `dev-fix` uses workflow mode when `boss.json` says the route is `fix`.
-- No `next-command.txt`. `run.json` is the canonical state; root role files are compatibility pointers/copies for humans and older tools.
+- Workflow mode starts only when `current.json` points to a run whose `run.json` has `status: "active"`, the lock is valid, the branch/base commit match, and `.agent-surface/workflows/<run_id>/boss.json` points to the same `run_id`.
+- Worker commands use workflow mode when `boss.json` points their route to the matching `workflow.next_command`.
+- No `next-command.txt`. `run.json` is the canonical state; root role files inside the run directory are latest-role copies for humans and older tools.
 - Never choose a handoff by mtime. Use `run.json.current_round`, `workflow.round_id`, `workflow.next_command`, and parent artifact hashes.
 - Every role artifact carries `schema_version`, `workflow.owner`, `workflow.run_id`, `workflow.round_id`, `workflow.parent_artifact_hashes`, and `workflow.next_command`.
 - Current schema is `workflow.v3` (validated run ledger). v1/v2 files are stale; fail closed and rerun `workflow-boss` to regenerate.
@@ -126,7 +123,7 @@ review outcomes:
 
 ### Locking and atomic writes
 
-- Use `.cursor/.workflow/lock` with `run_id`, branch, owner role, PID/session when available, and timestamp.
+- Use `.agent-surface/workflows/<run_id>/lock` with `run_id`, branch, owner role, PID/session when available, and timestamp.
 - If a valid lock exists for another active run/session, stop and report `HUMAN_REQUIRED`.
 - Write artifacts using temp-file-and-rename. Never leave partial JSON.
 - Before semantic use, parse JSON, validate required fields/enums, validate `run_id`, validate `round_id`, validate parent hashes, then read free-text fields.
@@ -135,16 +132,16 @@ review outcomes:
 
 ### Ownership
 
-- Inside `.cursor/.workflow/`, each role may only create or replace its own role file.
+- Inside `.agent-surface/workflows/<run_id>/`, each role may only create or replace its own role file.
 - `workflow-boss` owns `boss.json`.
-- `dev-feature` and `dev-fix` own `worker.json`.
+- `dev-feature`, `dev-fix`, `dev-chore`, and `dev-refactor` own `worker.json`.
 - `workflow-reviewer` owns `reviewer.json`.
 - `workflow-judger` owns `judger.json`.
 - `workflow-rescue` owns `rescue.json`.
 - A role may read other role files, but it must not edit, repair, delete, truncate, or rewrite them.
 - Exception: `workflow-boss` may delete stale downstream role files when starting a fresh run.
-- Worker commands may still edit source/test files within BOSS FILESCOPE; this ownership rule only governs `.cursor/.workflow/*.json`.
-- Canonical round artifacts live under `.cursor/.workflow/runs/<run_id>/round-<round_id>/`; the root role file is a compatibility copy of the latest canonical artifact.
+- Worker commands may still edit source/test files within BOSS FILESCOPE; this ownership rule only governs `.agent-surface/workflows/<run_id>/*.json`.
+- Canonical round artifacts live under `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/`; the root role file inside the run directory is a latest copy of the latest canonical artifact.
 - The active role may append its own transition event to `events.ndjson` and may write evidence/patch files for its own round.
 
 ### Required files
@@ -156,17 +153,17 @@ review outcomes:
 - `rescue.json` — takeover handoff, created only when judger or the user escalates to rescue
 - `run.json` — canonical state ledger for the active run
 - `events.ndjson` — append-only transition log
-- `runs/<run_id>/round-<round_id>/patches/<task_id>.patch` — per-task patch for partial acceptance
-- `runs/<run_id>/round-<round_id>/evidence/<task_id>/` — command transcripts and hashes
+- `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/patches/<task_id>.patch` — per-task patch for partial acceptance
+- `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/evidence/<task_id>/` — command transcripts and hashes
 
 ### Stage rules
 
 - `workflow-boss` requires a clean worktree unless the user explicitly authorizes dirty-baseline mode. It records branch, base commit, base tree hash, and initializes `run.json`.
 - `workflow-boss` writes the BOSS spec into `boss.json` and clears stale downstream compatibility files: `worker.json`, `reviewer.json`, `judger.json`, and `rescue.json`.
-- `dev-feature` reads `boss.json` plus the latest reviewer/judger/rescue rework notes when `workflow.next_command = 'dev-feature'`, then writes `worker.json`.
-- `dev-feature` folds self-audit into `worker.json`. There is no separate self-critique stage file.
-- `dev-fix` reads `boss.json` plus the latest reviewer/judger/rescue rework notes when `workflow.next_command = 'dev-fix'`, then writes `worker.json`.
-- `dev-feature` and `dev-fix` satisfy dependencies from persisted run state (`accepted_task_ids` and current-round completed tasks), not only the current invocation.
+- `workflow-boss` writes `.agent-surface/workflows/current.json` so other roles can resolve `<run_id>` without guessing from mtime.
+- Worker commands read `boss.json` plus the latest reviewer/judger/rescue rework notes when `workflow.next_command` points at them, then write `worker.json`.
+- Worker commands fold self-audit into `worker.json`. There is no separate self-critique stage file.
+- Worker commands satisfy dependencies from persisted run state (`accepted_task_ids` and current-round completed tasks), not only the current invocation.
 - `workflow-reviewer` reads `run.json`, `boss.json`, `worker.json`, prior `reviewer.json`, per-task patches, and runner evidence, then independently reruns verification or marks `review_mode: "log_only"` with reason.
 - `workflow-reviewer` routes a first task rejection back to the route-specific worker, but two consecutive rejections for the same `task_id` in the same `run_id` must route to `workflow-judger`.
 - `workflow-judger` and `workflow-rescue` read the current role files instead of requiring manual copy-paste when workflow mode is active.
@@ -188,7 +185,7 @@ Minimum `run.json`:
   "base_commit": "git commit",
   "base_tree_hash": "git tree",
   "current_round": 0,
-  "workflow_next_command": "workflow-boss|dev-feature|dev-fix|workflow-reviewer|workflow-judger|workflow-rescue|null",
+  "workflow_next_command": "workflow-boss|dev-feature|dev-fix|dev-chore|dev-refactor|qa-trace|qa-review|workflow-reviewer|workflow-judger|workflow-rescue|workflow-close|null",
   "active_task_ids": [],
   "accepted_task_ids": [],
   "rework_task_ids": [],

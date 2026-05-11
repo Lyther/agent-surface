@@ -1,0 +1,29 @@
+{
+  "schema_version": "workflow.v3",
+  "run_id": "run-fixture-001",
+  "round_id": 2,
+  "final_verdict": "MERGE",
+  "run_state_update": {
+    "accepted_task_ids": [
+      "T1"
+    ],
+    "rework_task_ids": [],
+    "deferred_task_ids": [],
+    "closed_task_ids": [
+      "T1"
+    ]
+  },
+  "workflow": {
+    "dir": ".agent-surface/workflows/run-fixture-001",
+    "file": "judger.json",
+    "owner": "workflow-judger",
+    "run_id": "run-fixture-001",
+    "round_id": 2,
+    "next_command": "workflow-close",
+    "parent_artifact_hashes": [
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ]
+  }
+}

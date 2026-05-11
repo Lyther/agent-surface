@@ -46,7 +46,8 @@ This command creates the **context infrastructure** that enables smooth vibe cod
 2. **`.gitignore` Generation**:
     - **Action**: dynamically generate based on the detected languages (Rust/Python/Node).
     - **System Trash**: `.DS_Store`, `Thumbs.db`.
-    - **Build Artifacts**: `target/`, `dist/`, `build/`, `node_modules/`, `venv/`, `__pycache__/`, `*.lock` (optional, depends on stack).
+    - **Build Artifacts**: `target/`, `dist/`, `build/`, `node_modules/`, `venv/`, `__pycache__/`.
+    - **Lockfiles**: do not globally ignore `*.lock`; commit lockfiles when the project ecosystem expects reproducible application installs. Ignore only generated lockfiles when explicit repo policy says so.
     - **Sensitive**: `.env`, `*.pem`, `*.key`, `secrets/`.
     - **AI & IDE Config** (MANDATORY — all of these):
         - `.idea/` (JetBrains)
@@ -60,10 +61,10 @@ This command creates the **context infrastructure** that enables smooth vibe cod
         - `.geminirules` (Gemini rules symlink)
         - `.roorules`, `.clinerules`, `.traerules`, `.windsurfrules` (other tool-local overlays)
         - `.cursorignore` (Cursor ignore file)
-        - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` (project-level AI instructions)
+        - Private/local-only agent overlays.
         - `*.code-workspace` (Workspace file)
-    - **Remote Ban**: Project-level AI files are allowed and should exist when useful, but they MUST remain local-only overlays in `.gitignore`. Never commit or push them to the remote repo.
-    - **Safety Check**: If any agentic file is already tracked, stop and untrack it before proceeding.
+    - **Portable Instructions**: Project policy decides whether `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, or equivalent instruction files are committed. Private memory, local workflow state, and user-specific overlays are always ignored.
+    - **Safety Check**: If a private/local-only agentic file is already tracked, stop and untrack it before proceeding.
 3. **Env Safety**:
     - If `.env` exists: **IMMEDIATELY CHECK** if it is in `.gitignore`. If not, STOP and warn the user.
     - Generate `.env.example` with dummy values for all keys found in `.env` (or expected keys).
@@ -79,9 +80,10 @@ This command creates the **context infrastructure** that enables smooth vibe cod
         - Global: `root=true`, UTF-8, LF, `insert_final_newline`, `trim_trailing_whitespace`, `indent_style=space`, `indent_size=4`.
         - **Overrides**: 2 spaces for Web/Config (JSON/YAML/HTML/JS/CSS); Tabs for Makefile/Go; 72 chars for git commit messages.
 2. **`.cursorignore`**:
-    - **Logic**: Exclude ONLY large files that waste context tokens. AI needs to see configs/secrets to avoid mistakes.
+    - **Logic**: Exclude large files and real secrets from agent context by default.
     - **Include**: lockfiles (`*.lock`, `package-lock.json`, `uv.lock`), build artifacts (`target/`, `dist/`, `node_modules/`, `venv/`, `__pycache__/`), large assets (`*.wasm`, `*.so`, `*.dylib`, media files).
-    - **DO NOT exclude**: `.env`, secrets, IDE configs, workspace files — AI must see these to avoid committing them or duplicating config.
+    - **Always exclude**: `.env`, `.env.*` except `.env.example`, `secrets/`, `*.pem`, `*.key`, credential stores, private tokens, and local-only workflow state.
+    - **Env shape**: use `.env.example`. If real env shape is required, inspect key names only with explicit user approval and redact values.
 3. **`<project-name>.code-workspace`**:
     - Analyze the project’s code and manifests, then auto-generate or update a VS Code `.code-workspace` with: folders, search/files excludes, `formatOnSave`, per-language default formatters/linters, common build/test/lint tasks, and required launch configurations.
     - Output valid JSONC only.
@@ -109,7 +111,7 @@ This command creates the **context infrastructure** that enables smooth vibe cod
   - **MANDATORY formatters**: `gofumpt` (stricter superset of gofmt) + `goimports` (import hygiene). Plain `gofmt` alone is insufficient.
   - **MANDATORY linter**: `golangci-lint` configured from the full §5.3 recipe in `.cursor/rules/12-lang-go.mdc` — not the 6-linter minimum. The recipe enables `gosec`, `exhaustive`, `errorlint`, `gocritic`, `revive`, `unparam`, `bodyclose`, `contextcheck`, `nilerr`, `usestdlibvars`, `prealloc`, `dupl`, `goconst`, `unused`, plus complexity/cyclop/funlen/gocognit gates. Copy the config verbatim into the project's `.golangci.yml`.
   - **MANDATORY security scanner**: `govulncheck` in CI, blocking on known-vuln dependencies.
-  - **Pin**: record `go` toolchain line in `go.mod`; pin `golangci-lint` version in CI (`golangci/golangci-lint-action@v6` with explicit `version:` field — never latest).
+  - **Pin**: record `go` toolchain line in `go.mod`; pin the golangci-lint CI action and linter version explicitly using the current v2-compatible action for new projects. Prefer the repo's existing pinned version when present.
   - **Excludes**: add `issues.exclude-dirs` for vendored fixtures (`tests/fixtures/`) so linter doesn't run on non-code YAML.
 - **IF Web/Node**:
   - Require `package.json` with `"type": "module"`.
@@ -143,14 +145,14 @@ This command creates the **context infrastructure** that enables smooth vibe cod
 1. **Ensure `.cursor/` exists (Locally)**:
     - Create the folder so the user can drop private context files if needed.
     - Keep `.cursor/` gitignored. Local memory, lessons, and review notes must never be pushed.
-    - If the workflow command set is used, `.cursor/.workflow/*.json` are the local-only handoff files.
+    - If the workflow command set is used, `.agent-surface/workflows/<run_id>/` contains the canonical local-only handoff files. `.cursor/.workflow/` is Cursor compatibility only.
 2. **Create `docs/context/README.md`**:
     - **Content**: Insert a template explaining: "DUMP CONTEXT HERE. Paste raw requirements, emails, or brain dumps. The AI reads this folder to understand *Intent*."
 3. **Bootstrap CI (Minimal)**:
     - **Action**: Generate `.github/workflows/ci.yml`.
     - **Logic**: "Fail Fast".
     - **Steps**: Checkout -> Setup Cache -> Lint (Strict) -> Test (Unit).
-    - **Constraint**: Pin versions (e.g., `ubuntu-latest`, `actions/checkout@v4`). Don't use mutable tags.
+    - **Constraint**: Pin versions (for example `ubuntu-24.04` or the project-approved runner image, and pinned actions). Do not describe floating `latest` runner tags as pinned.
 
 ### Phase 7: UI Target Scaffold (web | desktop | mobile)
 

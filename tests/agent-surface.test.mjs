@@ -18,10 +18,11 @@ function run(args, options = {}) {
   });
 }
 
-function status(args) {
+function status(args, options = {}) {
   return spawnSync(process.execPath, [cli, ...args], {
     cwd: root,
     encoding: "utf8",
+    ...options,
   });
 }
 
@@ -35,6 +36,26 @@ function files(dir) {
   return out;
 }
 
+function assertGeminiTomlParses() {
+  const script = `
+import pathlib
+import sys
+import tomllib
+bad = []
+for p in pathlib.Path(sys.argv[1]).rglob("*.toml"):
+    try:
+        tomllib.loads(p.read_text())
+    except Exception as exc:
+        bad.append(f"{p}: {exc}")
+if bad:
+    raise SystemExit("\\n".join(bad))
+`;
+  execFileSync("python3", ["-c", script, path.join(root, "dist", "gemini-cli", ".gemini", "commands")], {
+    cwd: root,
+    encoding: "utf8",
+  });
+}
+
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -45,7 +66,18 @@ assert.equal(run(["check"]).trim(), "check: ok");
 
 const inventory = run(["inventory"]);
 assert.match(inventory, /^rules: 11$/m);
-assert.match(inventory, /^commands: 58$/m);
+assert.match(inventory, /^commands: 61$/m);
+assert.match(inventory, /^schemas: 10$/m);
+
+const escapeVictim = "/tmp/agent-surface-build-escape-victim";
+rmSync(escapeVictim, { recursive: true, force: true });
+mkdirSync(escapeVictim, { recursive: true });
+writeFileSync(path.join(escapeVictim, "keep.txt"), "keep\n");
+const unsafeBuild = status(["build", "--target", "../../agent-surface-build-escape-victim"]);
+assert.notEqual(unsafeBuild.status, 0);
+assert.match(`${unsafeBuild.stdout}${unsafeBuild.stderr}`, /unsafe build target/);
+assert.equal(existsSync(path.join(escapeVictim, "keep.txt")), true);
+rmSync(escapeVictim, { recursive: true, force: true });
 
 const genericRules = run(["check", "rules", "--scenario", "generic-chat"]);
 assert.match(genericRules, /^generic-chat:$/m);
@@ -60,7 +92,10 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
-assert.equal(generated.length, 174);
+assert.equal(generated.length, 177);
+assertGeminiTomlParses();
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "boot", "facade.toml"))), false);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "ops", "nuke.toml"))), false);
 
 const antigravity = readFileSync(
   path.join(root, "dist", "antigravity", "global_workflows", "workflow-boss.md"),
@@ -71,6 +106,7 @@ assert.match(antigravity, /^---\ndescription: "/);
 const gemini = readFileSync(path.join(root, "dist", "gemini-cli", ".gemini", "commands", "workflow", "boss.toml"), "utf8");
 assert.match(gemini, /^description = "Run workflow boss\."/);
 assert.equal(generated.some((file) => file.endsWith("dist/gemini-cli/.gemini/commands/workflow-boss.md")), false);
+assert.equal(generated.some((file) => file.endsWith("dist/gemini-cli/.gemini/commands/flow/flow.toml")), true);
 
 const clinePlan = run(["install", "--target", "cline", "--dest", "/tmp/agent-surface-cline", "--dry-run"]);
 assert.match(clinePlan, /^target: cline$/m);
@@ -107,10 +143,10 @@ const liveDest = "/tmp/agent-surface-live";
 rmSync(liveDest, { recursive: true, force: true });
 const liveInstall = run(["install", "--target", "cline", "--dest", liveDest]);
 assert.match(liveInstall, /^installed:$/m);
-assert.match(liveInstall, /wrote: 58/);
+assert.match(liveInstall, /wrote: 59/);
 assert.match(readFileSync(path.join(liveDest, ".clinerules", "workflows", "workflow-boss.md"), "utf8"), /^## OBJECTIVE/);
 const liveManifest = JSON.parse(readFileSync(path.join(liveDest, ".agent-surface", "cline-manifest.json"), "utf8"));
-assert.equal(liveManifest.managed.length, 58);
+assert.equal(liveManifest.managed.length, 59);
 assert.equal(liveManifest.managed[0].managed_by, "agent-surface");
 rmSync(liveDest, { recursive: true, force: true });
 
@@ -155,6 +191,124 @@ assert.match(scopeRootInstall, /^root source: scope-derived root$/m);
 assert.match(scopeRootInstall, /^installed:$/m);
 assert.equal(existsSync(path.join(scopeRootDest, ".clinerules", "workflows", "workflow-boss.md")), true);
 rmSync(scopeRootDest, { recursive: true, force: true });
+
+const evidenceDest = "/tmp/agent-surface-evidence";
+rmSync(evidenceDest, { recursive: true, force: true });
+const evidenceRun = run([
+  "run",
+  "--task",
+  "T1",
+  "--class",
+  "read_only",
+  "--timeout",
+  "5000",
+  "--out",
+  evidenceDest,
+  "--",
+  process.execPath,
+  "-e",
+  "process.stdout.write('ok\\n' + 'API' + '_KEY=abc123'); process.stderr.write('Authorization: ' + 'Bearer secret-token');",
+]);
+assert.match(evidenceRun, /exit_code: 0/);
+const evidenceFiles = files(evidenceDest);
+const evidenceJson = evidenceFiles.find((file) => file.endsWith(".evidence.json"));
+assert.ok(evidenceJson);
+const evidence = JSON.parse(readFileSync(evidenceJson, "utf8"));
+assert.equal(evidence.task_id, "T1");
+assert.equal(evidence.class, "read_only");
+assert.equal(evidence.exit_code, 0);
+const redactedApiKeyPattern = new RegExp("^ok\\n" + "API" + "_KEY=\\[REDACTED\\]$");
+const redactedAuthPattern = new RegExp("^Authorization: " + "Bearer \\[REDACTED\\]$");
+assert.match(readFileSync(path.join(evidenceDest, path.basename(evidence.stdout_ref)), "utf8"), redactedApiKeyPattern);
+assert.match(readFileSync(path.join(evidenceDest, path.basename(evidence.stderr_ref)), "utf8"), redactedAuthPattern);
+assert.match(evidence.stdout_hash, /^sha256:/);
+assert.match(evidence.stdout_raw_hash, /^sha256:/);
+assert.equal(evidence.stdout_raw_stored, false);
+assert.match(evidence.stderr_raw_hash, /^sha256:/);
+assert.equal(evidence.stderr_raw_stored, false);
+assert.equal(evidence.redaction.applied, true);
+rmSync(evidenceDest, { recursive: true, force: true });
+
+const argSecretDest = "/tmp/agent-surface-arg-secret";
+rmSync(argSecretDest, { recursive: true, force: true });
+const argSecretRun = run([
+  "run",
+  "--task",
+  "T1",
+  "--class",
+  "read_only",
+  "--timeout",
+  "5000",
+  "--out",
+  argSecretDest,
+  "--",
+  process.execPath,
+  "-e",
+  "process.exit(0)",
+  "Authorization: Bearer secret-token",
+]);
+assert.match(argSecretRun, /exit_code: 0/);
+const argSecretEvidenceJson = files(argSecretDest).find((file) => file.endsWith(".evidence.json"));
+const argSecretEvidence = JSON.parse(readFileSync(argSecretEvidenceJson, "utf8"));
+assert.equal(JSON.stringify(argSecretEvidence.cmd).includes("secret-token"), false);
+assert.match(argSecretEvidence.cmd_hash_raw, /^sha256:/);
+rmSync(argSecretDest, { recursive: true, force: true });
+
+const unsafeClassDest = "/tmp/agent-surface-unsafe-class";
+rmSync(unsafeClassDest, { recursive: true, force: true });
+const unsafeClass = status([
+  "run",
+  "--task",
+  "T1",
+  "--class",
+  "deployment",
+  "--timeout",
+  "5000",
+  "--out",
+  unsafeClassDest,
+  "--",
+  process.execPath,
+  "-e",
+  "process.exit(0)",
+]);
+assert.notEqual(unsafeClass.status, 0);
+assert.match(`${unsafeClass.stdout}${unsafeClass.stderr}`, /requires explicit approval/);
+rmSync(unsafeClassDest, { recursive: true, force: true });
+
+const workflowDest = "/tmp/agent-surface-workflow";
+rmSync(workflowDest, { recursive: true, force: true });
+const workflowRunDir = path.join(workflowDest, ".agent-surface", "workflows", "run-fixture-001");
+mkdirSync(workflowRunDir, { recursive: true });
+const workflowRun = JSON.parse(readFileSync(path.join(root, "tests", "fixtures", "workflow", "run.json"), "utf8"));
+workflowRun.active_task_ids = ["T2"];
+workflowRun.workflow_next_command = "workflow-reviewer";
+writeFileSync(path.join(workflowRunDir, "run.json"), `${JSON.stringify(workflowRun, null, 2)}\n`);
+writeFileSync(path.join(workflowRunDir, "events.ndjson"), "");
+writeFileSync(
+  path.join(workflowRunDir, "reviewer.json"),
+  readFileSync(path.join(root, "tests", "fixtures", "workflow", "reviewer-refactor.json"), "utf8"),
+);
+const workflowApply = status(
+  [
+    "workflow",
+    "apply",
+    "--role",
+    "workflow-reviewer",
+    "--run",
+    "run-fixture-001",
+    "--artifact",
+    path.join(".agent-surface", "workflows", "run-fixture-001", "reviewer.json"),
+  ],
+  { cwd: workflowDest },
+);
+assert.equal(workflowApply.status, 0, `${workflowApply.stdout}${workflowApply.stderr}`);
+const appliedRun = JSON.parse(readFileSync(path.join(workflowRunDir, "run.json"), "utf8"));
+assert.deepEqual(appliedRun.active_task_ids, []);
+assert.deepEqual(appliedRun.rework_task_ids, ["T2"]);
+assert.equal(appliedRun.workflow_next_command, "dev-refactor");
+const workflowDoctor = status(["workflow", "doctor", "--run", "run-fixture-001"], { cwd: workflowDest });
+assert.equal(workflowDoctor.status, 0, `${workflowDoctor.stdout}${workflowDoctor.stderr}`);
+rmSync(workflowDest, { recursive: true, force: true });
 
 const unsafeInstall = status(["install", "--target", "cline"]);
 assert.notEqual(unsafeInstall.status, 0);

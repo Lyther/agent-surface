@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import addFormats from "ajv-formats";
+import Ajv2020 from "ajv/dist/2020.js";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
@@ -9,6 +11,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const defaultQuarantinedCommands = new Set(["boot-facade.md", "ops-nuke.md"]);
 
 const targets = {
   cline: {
@@ -73,6 +76,34 @@ const ruleScenarios = {
   },
 };
 
+const workflowSchemaFiles = [
+  "workflow.run.schema.json",
+  "workflow.boss.schema.json",
+  "workflow.worker.schema.json",
+  "workflow.reviewer.schema.json",
+  "workflow.judger.schema.json",
+  "workflow.rescue.schema.json",
+  "workflow.event.schema.json",
+  "workflow.current.schema.json",
+];
+
+const registrySchemaFiles = [
+  { schema: "targets.schema.json", file: "registry/targets.json" },
+  { schema: "artifacts.schema.json", file: "registry/artifacts.json" },
+];
+
+const workflowFixtureFiles = [
+  { schema: "workflow.run.schema.json", file: "tests/fixtures/workflow/run.json" },
+  { schema: "workflow.boss.schema.json", file: "tests/fixtures/workflow/boss-chore.json" },
+  { schema: "workflow.worker.schema.json", file: "tests/fixtures/workflow/worker-chore.json" },
+  { schema: "workflow.worker.schema.json", file: "tests/fixtures/workflow/worker-refactor.json" },
+  { schema: "workflow.reviewer.schema.json", file: "tests/fixtures/workflow/reviewer-refactor.json" },
+  { schema: "workflow.judger.schema.json", file: "tests/fixtures/workflow/judger-close.json" },
+  { schema: "workflow.rescue.schema.json", file: "tests/fixtures/workflow/rescue-refactor.json" },
+  { schema: "workflow.event.schema.json", file: "tests/fixtures/workflow/event.json" },
+  { schema: "workflow.current.schema.json", file: "tests/fixtures/workflow/current.json" },
+];
+
 async function main() {
   const [command, ...args] = process.argv.slice(2);
 
@@ -105,6 +136,16 @@ async function main() {
     return;
   }
 
+  if (command === "run") {
+    await runEvidence(args);
+    return;
+  }
+
+  if (command === "workflow") {
+    await workflow(args);
+    return;
+  }
+
   if (command === "doctor") {
     await doctor();
     return;
@@ -122,6 +163,9 @@ Usage:
   agent-surface check rules [--scenario <name>]
   agent-surface build --target <cline|antigravity|gemini-cli|all> [--dry-run]
   agent-surface install --target <cline|antigravity|gemini-cli> [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
+  agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
+  agent-surface workflow doctor --run <run_id>
+  agent-surface workflow apply --role <role> --run <run_id> --artifact <path>
   agent-surface doctor
 `);
 }
@@ -137,6 +181,7 @@ async function inventory() {
     settings: (await files("settings", [".json", ".toml", ".yaml", ".yml"])).length,
     ignores: (await files("ignores", [".gitignore", ".clineignore", ".md", ".txt"])).length,
     plugins: (await files("plugins", [".json", ".md", ".toml", ".yaml", ".yml"])).length,
+    schemas: (await files("schemas", [".json"])).length,
   };
 
   for (const [type, count] of Object.entries(counts)) {
@@ -183,6 +228,19 @@ async function check() {
     if (!(await exists(path.join(root, "adapters", name)))) {
       errors.push(`registry target missing adapter directory: ${name}`);
     }
+    const implemented = Object.hasOwn(targets, name);
+    if (targetsConfig.in_scope[name].build_supported && !implemented) {
+      errors.push(`registry target marks build_supported without CLI adapter: ${name}`);
+    }
+    if (targetsConfig.in_scope[name].install_supported && !implemented) {
+      errors.push(`registry target marks install_supported without CLI adapter: ${name}`);
+    }
+  }
+
+  for (const name of Object.keys(targets)) {
+    if (!targetsConfig.in_scope[name]?.build_supported) {
+      errors.push(`CLI build target is not marked build_supported in registry: ${name}`);
+    }
   }
 
   for (const sourceType of artifactsConfig.source_types) {
@@ -195,6 +253,9 @@ async function check() {
     errors.push("commands/ops-server.md is local/private and must not be imported");
   }
 
+  await checkWorkflowSchemas(errors);
+  await checkRegistrySchemas(errors);
+
   if (errors.length > 0) {
     for (const error of errors) console.error(`ERROR: ${error}`);
     process.exitCode = 1;
@@ -202,6 +263,109 @@ async function check() {
   }
 
   console.log("check: ok");
+}
+
+async function checkWorkflowSchemas(errors) {
+  const schemas = new Map();
+  const ajv = createAjv();
+
+  for (const name of workflowSchemaFiles) {
+    const file = path.join(root, "schemas", name);
+    if (!(await exists(file))) {
+      errors.push(`workflow schema missing: schemas/${name}`);
+      continue;
+    }
+
+    let schema;
+    try {
+      schema = JSON.parse(await readFile(file, "utf8"));
+    } catch (error) {
+      errors.push(`workflow schema is not valid JSON: schemas/${name}: ${error.message}`);
+      continue;
+    }
+
+    if (schema.$schema !== "https://json-schema.org/draft/2020-12/schema") {
+      errors.push(`workflow schema missing draft 2020-12 marker: schemas/${name}`);
+    }
+    if (schema.type !== "object") {
+      errors.push(`workflow schema must describe an object: schemas/${name}`);
+    }
+
+    schemas.set(name, schema);
+    try {
+      ajv.addSchema(schema, name);
+    } catch (error) {
+      errors.push(`workflow schema failed to compile: schemas/${name}: ${error.message}`);
+    }
+  }
+
+  await checkWorkflowFixtures(ajv, schemas, errors);
+}
+
+async function checkRegistrySchemas(errors) {
+  for (const fixture of registrySchemaFiles) {
+    const schemaFile = path.join(root, "schemas", fixture.schema);
+    const dataFile = path.join(root, fixture.file);
+
+    if (!(await exists(schemaFile))) {
+      errors.push(`registry schema missing: schemas/${fixture.schema}`);
+      continue;
+    }
+
+    let schema;
+    let data;
+    try {
+      schema = JSON.parse(await readFile(schemaFile, "utf8"));
+      data = JSON.parse(await readFile(dataFile, "utf8"));
+    } catch (error) {
+      errors.push(`registry validation input is not valid JSON: ${fixture.file}: ${error.message}`);
+      continue;
+    }
+
+    const ajv = createAjv();
+    const validate = ajv.compile(schema);
+    if (!validate(data)) {
+      errors.push(`${fixture.file}: ${formatAjvErrors(validate.errors)}`);
+    }
+  }
+}
+
+async function checkWorkflowFixtures(ajv, schemas, errors) {
+  for (const fixture of workflowFixtureFiles) {
+    const schema = schemas.get(fixture.schema);
+    const file = path.join(root, fixture.file);
+
+    if (!schema) continue;
+    if (!(await exists(file))) {
+      errors.push(`workflow fixture missing: ${fixture.file}`);
+      continue;
+    }
+
+    let data;
+    try {
+      data = JSON.parse(await readFile(file, "utf8"));
+    } catch (error) {
+      errors.push(`workflow fixture is not valid JSON: ${fixture.file}: ${error.message}`);
+      continue;
+    }
+
+    const validate = ajv.getSchema(fixture.schema) ?? ajv.compile(schema);
+    if (!validate(data)) {
+      errors.push(`${fixture.file}: ${formatAjvErrors(validate.errors)}`);
+    }
+  }
+}
+
+function createAjv() {
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
+  addFormats(ajv);
+  return ajv;
+}
+
+function formatAjvErrors(errors) {
+  return (errors ?? [])
+    .map((error) => `${error.instancePath || "/"} ${error.message}`)
+    .join("; ");
 }
 
 async function checkRules(args) {
@@ -269,7 +433,12 @@ async function build(args) {
   const target = argValue(args, "--target") ?? "all";
   const dryRun = args.includes("--dry-run");
   const selected = target === "all" ? Object.keys(targets) : [target];
-  const commandFiles = await files("commands", [".md"]);
+  const commandFiles = await exportableCommandFiles();
+
+  for (const item of selected) {
+    if (!isSafeTargetName(item)) fail(`unsafe build target: ${item}`);
+    if (!Object.hasOwn(targets, item)) fail(`unsupported build target: ${item}`);
+  }
 
   if (!dryRun) {
     await rm(path.join(root, "dist", target === "all" ? "" : target), { recursive: true, force: true });
@@ -277,7 +446,6 @@ async function build(args) {
 
   for (const item of selected) {
     const adapter = targets[item];
-    if (!adapter) fail(`unsupported build target: ${item}`);
 
     const outputDir = path.join(root, "dist", item, adapter.outputRoot);
     let count = 0;
@@ -331,7 +499,7 @@ async function install(args) {
 }
 
 async function installPlan(target, adapter, installRoot, scope, rootSource) {
-  const commandFiles = await files("commands", [".md"]);
+  const commandFiles = await exportableCommandFiles();
   const version = await packageVersion();
   const generatedAt = new Date().toISOString();
   const manifestPath = path.join(installRoot, ".agent-surface", `${target}-manifest.json`);
@@ -564,6 +732,341 @@ async function doctor() {
   }
 }
 
+async function runEvidence(args) {
+  const separator = args.indexOf("--");
+  if (separator === -1 || separator === args.length - 1) {
+    fail("run requires -- before the command to execute");
+  }
+
+  const options = args.slice(0, separator);
+  const command = args[separator + 1];
+  const commandArgs = args.slice(separator + 2);
+  const taskId = requiredArgValue(options, "--task");
+  const klass = requiredArgValue(options, "--class");
+  const timeoutMs = Number(requiredArgValue(options, "--timeout"));
+  const outDir = path.resolve(requiredArgValue(options, "--out"));
+  const allowedClasses = new Set(["read_only", "build_test", "network", "filesystem_destructive", "deployment", "database_mutation"]);
+  const approval = approvalForClass(klass, options);
+
+  if (!allowedClasses.has(klass)) fail(`unsupported command class: ${klass}`);
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) fail("--timeout must be a positive integer");
+  if (!approval.approved) {
+    fail(`command class ${klass} requires explicit approval via --approved ${klass} or AGENT_SURFACE_APPROVED_CLASSES`);
+  }
+
+  await mkdir(outDir, { recursive: true });
+
+  const startedAt = new Date();
+  const startedStamp = safeTimestamp(startedAt.toISOString());
+  const basename = `${startedStamp}-${safeFilename(taskId)}`;
+  const started = Date.now();
+  const result = spawnSync(command, commandArgs, {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    timeout: timeoutMs,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const durationMs = Date.now() - started;
+  const stdoutRaw = result.stdout ?? "";
+  const stderrRaw = result.stderr ?? (result.error ? `${result.error.message}\n` : "");
+  const stdoutRedacted = redactEvidenceText(stdoutRaw);
+  const stderrRedacted = redactEvidenceText(stderrRaw);
+  const cmdRaw = [command, ...commandArgs];
+  const cmdRedacted = cmdRaw.map((part) => redactEvidenceText(part));
+  const stdout = stdoutRedacted.text;
+  const stderr = stderrRedacted.text;
+  const stdoutPath = path.join(outDir, `${basename}.stdout.log`);
+  const stderrPath = path.join(outDir, `${basename}.stderr.log`);
+  const evidencePath = path.join(outDir, `${basename}.evidence.json`);
+  const exitCode = typeof result.status === "number" ? result.status : result.error?.code === "ETIMEDOUT" ? 124 : 1;
+  const evidence = {
+    task_id: taskId,
+    class: klass,
+    cmd: cmdRedacted.map((part) => part.text),
+    cmd_hash_raw: `sha256:${sha256(JSON.stringify(cmdRaw))}`,
+    cwd: process.cwd(),
+    approval,
+    timeout_ms: timeoutMs,
+    exit_code: exitCode,
+    signal: result.signal ?? null,
+    timed_out: result.error?.code === "ETIMEDOUT",
+    started_at: startedAt.toISOString(),
+    duration_ms: durationMs,
+    tree_hash: gitValue(["rev-parse", "HEAD^{tree}"]),
+    stdout_ref: path.relative(process.cwd(), stdoutPath),
+    stdout_hash: `sha256:${sha256(stdout)}`,
+    stdout_raw_hash: `sha256:${sha256(stdoutRaw)}`,
+    stdout_raw_stored: false,
+    stderr_ref: path.relative(process.cwd(), stderrPath),
+    stderr_hash: `sha256:${sha256(stderr)}`,
+    stderr_raw_hash: `sha256:${sha256(stderrRaw)}`,
+    stderr_raw_stored: false,
+    redaction: {
+      applied: stdoutRedacted.applied || stderrRedacted.applied || cmdRedacted.some((part) => part.applied),
+      patterns: [...new Set([...stdoutRedacted.patterns, ...stderrRedacted.patterns, ...cmdRedacted.flatMap((part) => part.patterns)])],
+    },
+  };
+
+  await writeFile(stdoutPath, stdout);
+  await writeFile(stderrPath, stderr);
+  await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
+
+  console.log(`evidence: ${evidence.stdout_ref}`);
+  console.log(`metadata: ${path.relative(process.cwd(), evidencePath)}`);
+  console.log(`exit_code: ${exitCode}`);
+  process.exitCode = exitCode;
+}
+
+async function workflow(args) {
+  const [subcommand, ...rest] = args;
+  if (subcommand === "doctor") {
+    await workflowDoctor(rest);
+    return;
+  }
+  if (subcommand === "apply") {
+    await workflowApply(rest);
+    return;
+  }
+  fail("workflow requires doctor or apply");
+}
+
+async function workflowDoctor(args) {
+  const runId = requiredSafeId(args, "--run");
+  const runDir = workflowRunDir(runId);
+  const errors = [];
+  const schemas = await workflowSchemaValidators(errors);
+  const requiredFiles = ["run.json", "events.ndjson"];
+
+  for (const file of requiredFiles) {
+    if (!(await exists(path.join(runDir, file)))) errors.push(`missing workflow file: ${file}`);
+  }
+
+  await validateWorkflowJson(path.join(runDir, "run.json"), schemas.get("workflow.run.schema.json"), errors);
+  for (const [file, schemaName] of [
+    ["boss.json", "workflow.boss.schema.json"],
+    ["worker.json", "workflow.worker.schema.json"],
+    ["reviewer.json", "workflow.reviewer.schema.json"],
+    ["judger.json", "workflow.judger.schema.json"],
+    ["rescue.json", "workflow.rescue.schema.json"],
+  ]) {
+    const artifact = path.join(runDir, file);
+    if (await exists(artifact)) await validateWorkflowJson(artifact, schemas.get(schemaName), errors);
+  }
+
+  const eventsPath = path.join(runDir, "events.ndjson");
+  if (await exists(eventsPath)) {
+    const text = await readFile(eventsPath, "utf8");
+    let previousHash = null;
+    for (const [index, line] of text.split(/\r?\n/).filter(Boolean).entries()) {
+      let event;
+      try {
+        event = JSON.parse(line);
+      } catch (error) {
+        errors.push(`events.ndjson:${index + 1}: invalid JSON: ${error.message}`);
+        continue;
+      }
+      const validate = schemas.get("workflow.event.schema.json");
+      if (validate && !validate(event)) errors.push(`events.ndjson:${index + 1}: ${formatAjvErrors(validate.errors)}`);
+      if (event.prev_event_hash !== previousHash) {
+        errors.push(`events.ndjson:${index + 1}: prev_event_hash does not match previous event`);
+      }
+      const { event_hash: eventHash, ...eventWithoutHash } = event;
+      const computedHash = `sha256:${sha256(canonicalJson(eventWithoutHash))}`;
+      if (eventHash !== computedHash) {
+        errors.push(`events.ndjson:${index + 1}: event_hash does not match event content`);
+      }
+      previousHash = event.event_hash;
+    }
+  }
+
+  if (errors.length > 0) {
+    for (const error of errors) console.error(`ERROR: ${error}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(`workflow doctor: ok (${path.relative(process.cwd(), runDir)})`);
+}
+
+async function workflowApply(args) {
+  const role = requiredArgValue(args, "--role");
+  const runId = requiredSafeId(args, "--run");
+  const artifactArg = requiredArgValue(args, "--artifact");
+  const runDir = workflowRunDir(runId);
+  const artifactPath = path.resolve(artifactArg);
+  const roleSchemas = {
+    "workflow-reviewer": "workflow.reviewer.schema.json",
+    "workflow-judger": "workflow.judger.schema.json",
+    "workflow-rescue": "workflow.rescue.schema.json",
+  };
+  const schemaName = roleSchemas[role] ?? fail(`unsupported workflow apply role: ${role}`);
+  const errors = [];
+  const schemas = await workflowSchemaValidators(errors);
+  const runPath = path.join(runDir, "run.json");
+
+  if (!isPathInside(runDir, artifactPath)) fail("artifact must be inside the workflow run directory");
+
+  const runData = await readWorkflowJson(runPath, schemas.get("workflow.run.schema.json"), errors);
+  const artifact = await readWorkflowJson(artifactPath, schemas.get(schemaName), errors);
+  if (errors.length > 0) {
+    for (const error of errors) console.error(`ERROR: ${error}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (artifact.run_id !== runId || artifact.workflow?.run_id !== runId) fail("artifact run_id does not match --run");
+  if (artifact.workflow?.owner !== role) fail("artifact owner does not match --role");
+
+  const artifactHash = `sha256:${sha256(await readFile(artifactPath))}`;
+  const nextCommand = artifact.workflow.next_command ?? null;
+  const update = artifact.run_state_update ?? {};
+  const moved = new Set([
+    ...(update.accepted_task_ids ?? []),
+    ...(update.rework_task_ids ?? []),
+    ...(update.deferred_task_ids ?? []),
+    ...(update.closed_task_ids ?? []),
+  ]);
+
+  runData.current_round = Math.max(runData.current_round, artifact.round_id);
+  runData.workflow_next_command = nextCommand;
+  runData.active_task_ids = uniqueStrings((runData.active_task_ids ?? []).filter((taskId) => !moved.has(taskId)));
+  runData.accepted_task_ids = uniqueStrings([...(runData.accepted_task_ids ?? []), ...(update.accepted_task_ids ?? [])]);
+  runData.rework_task_ids = uniqueStrings([...(runData.rework_task_ids ?? []), ...(update.rework_task_ids ?? [])]);
+  runData.deferred_task_ids = uniqueStrings([...(runData.deferred_task_ids ?? []), ...(update.deferred_task_ids ?? [])]);
+  runData.closed_task_ids = uniqueStrings([...(runData.closed_task_ids ?? []), ...(update.closed_task_ids ?? [])]);
+  runData.last_artifact_hashes = {
+    ...(runData.last_artifact_hashes ?? {}),
+    [role]: artifactHash,
+  };
+  if (role === "workflow-judger" && ["MERGE", "MERGE_PARTIAL"].includes(artifact.final_verdict) && nextCommand === "workflow-close") {
+    runData.workflow_next_command = "workflow-close";
+  }
+
+  const runValidate = schemas.get("workflow.run.schema.json");
+  if (runValidate && !runValidate(runData)) {
+    fail(`updated run.json failed schema validation: ${formatAjvErrors(runValidate.errors)}`);
+  }
+
+  await writeFile(runPath, `${JSON.stringify(runData, null, 2)}\n`);
+  const eventHash = await appendWorkflowEvent(runDir, {
+    event_id: `${safeFilename(role)}-${Date.now()}`,
+    run_id: runId,
+    round_id: artifact.round_id,
+    role,
+    from: "REVIEWING",
+    to: nextCommand ?? null,
+    artifact: path.relative(runDir, artifactPath),
+    artifact_hash: artifactHash,
+    timestamp: new Date().toISOString(),
+    summary: `Applied ${role} state update.`,
+  });
+  await writeFile(path.join(process.cwd(), ".agent-surface", "workflows", "current.json"), `${JSON.stringify({
+    schema_version: "workflow.current.v1",
+    run_id: runData.status === "active" ? runId : null,
+    workflow_dir: runData.status === "active" ? path.relative(process.cwd(), runDir) : null,
+    updated_at: new Date().toISOString(),
+  }, null, 2)}\n`);
+
+  console.log(`workflow apply: ok (${role})`);
+  console.log(`run: ${path.relative(process.cwd(), runPath)}`);
+  console.log(`event_hash: ${eventHash}`);
+}
+
+async function workflowSchemaValidators(errors) {
+  const schemas = new Map();
+  const ajv = createAjv();
+
+  for (const name of workflowSchemaFiles) {
+    const schemaPath = path.join(root, "schemas", name);
+    let schema;
+    try {
+      schema = JSON.parse(await readFile(schemaPath, "utf8"));
+      ajv.addSchema(schema, name);
+      schemas.set(name, ajv.getSchema(name));
+    } catch (error) {
+      errors.push(`workflow schema failed to load: schemas/${name}: ${error.message}`);
+    }
+  }
+
+  return schemas;
+}
+
+async function validateWorkflowJson(file, validate, errors) {
+  if (!(await exists(file))) return;
+  await readWorkflowJson(file, validate, errors);
+}
+
+async function readWorkflowJson(file, validate, errors) {
+  let data;
+  try {
+    data = JSON.parse(await readFile(file, "utf8"));
+  } catch (error) {
+    errors.push(`${path.relative(process.cwd(), file)}: invalid JSON: ${error.message}`);
+    return null;
+  }
+
+  if (validate && !validate(data)) {
+    errors.push(`${path.relative(process.cwd(), file)}: ${formatAjvErrors(validate.errors)}`);
+  }
+  return data;
+}
+
+function workflowRunDir(runId) {
+  return path.join(process.cwd(), ".agent-surface", "workflows", runId);
+}
+
+function requiredSafeId(args, name) {
+  const value = requiredArgValue(args, name);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(value)) fail(`unsafe ${name}: ${value}`);
+  return value;
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values)].sort();
+}
+
+async function appendWorkflowEvent(runDir, event) {
+  const eventsPath = path.join(runDir, "events.ndjson");
+  const previousHash = await lastWorkflowEventHash(eventsPath);
+  const withPrevious = {
+    ...event,
+    prev_event_hash: previousHash,
+  };
+  const eventHash = `sha256:${sha256(canonicalJson(withPrevious))}`;
+  const fullEvent = {
+    ...withPrevious,
+    event_hash: eventHash,
+  };
+  await writeFile(eventsPath, `${await readFileIfExists(eventsPath) ?? ""}${JSON.stringify(fullEvent)}\n`);
+  return eventHash;
+}
+
+async function lastWorkflowEventHash(eventsPath) {
+  const current = await readFileIfExists(eventsPath);
+  if (current === null) return null;
+  const lines = current.toString("utf8").split(/\r?\n/).filter(Boolean);
+  if (lines.length === 0) return null;
+  try {
+    const event = JSON.parse(lines.at(-1));
+    return typeof event.event_hash === "string" ? event.event_hash : null;
+  } catch {
+    return null;
+  }
+}
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function isPathInside(parent, candidate) {
+  const relativePath = path.relative(parent, candidate);
+  return relativePath === "" || isSafeRelativePath(relativePath);
+}
+
 async function renderClineWorkflow(source) {
   return readFile(source, "utf8");
 }
@@ -601,12 +1104,28 @@ async function files(dir, extensions) {
   const base = path.join(root, dir);
   if (!(await exists(base))) return [];
 
+  return filesUnder(base, extensions);
+}
+
+async function filesUnder(base, extensions) {
+  const out = [];
   const entries = await readdir(base, { withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => path.join(base, entry.name))
-    .filter((file) => extensions.includes(path.extname(file)) || extensions.includes(path.basename(file)))
-    .sort();
+  for (const entry of entries) {
+    if (entry.name === ".git" || entry.name === "dist" || entry.name === "node_modules" || entry.name === ".agent-surface") continue;
+    const full = path.join(base, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...(await filesUnder(full, extensions)));
+      continue;
+    }
+    if (entry.isFile() && (extensions.includes(path.extname(full)) || extensions.includes(path.basename(full)))) {
+      out.push(full);
+    }
+  }
+  return out.sort();
+}
+
+async function exportableCommandFiles() {
+  return (await files("commands", [".md"])).filter((file) => !defaultQuarantinedCommands.has(path.basename(file)));
 }
 
 async function directories(base) {
@@ -794,7 +1313,8 @@ function tomlString(value) {
 }
 
 function tomlMultilineString(value) {
-  return `"""${value.replaceAll('"""', '\\"\\"\\"')}"""`;
+  if (!value.includes("'''")) return `'''${value}'''`;
+  return JSON.stringify(value);
 }
 
 function sha256(value) {
@@ -802,11 +1322,81 @@ function sha256(value) {
 }
 
 function isSafeRelativePath(file) {
-  return file !== "" && !path.isAbsolute(file) && !file.split(path.sep).includes("..");
+  return file !== "" && !path.isAbsolute(file) && !file.split(/[\\/]+/).includes("..");
+}
+
+function isSafeTargetName(target) {
+  return /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(target);
 }
 
 function safeTimestamp(value) {
   return value.replace(/[:.]/g, "-");
+}
+
+function safeFilename(value) {
+  return value.replace(/[^A-Za-z0-9_.-]/g, "_");
+}
+
+function redactEvidenceText(value) {
+  const patterns = [];
+  let text = value;
+  const replacements = [
+    {
+      name: "authorization-header",
+      pattern: /(Authorization:\s*(?:Bearer|Basic)\s+)[^\s\r\n]+/gi,
+      replacement: "$1[REDACTED]",
+    },
+    {
+      name: "cookie-header",
+      pattern: /(Cookie:\s*)[^\r\n]+/gi,
+      replacement: "$1[REDACTED]",
+    },
+    {
+      name: "secret-assignment",
+      pattern: /\b(api[_-]?key|secret|token|password|passwd|pwd)\b(\s*[:=]\s*)(["']?)[^\s'"]+\3/gi,
+      replacement: "$1$2$3[REDACTED]$3",
+    },
+    {
+      name: "private-key-block",
+      pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+      replacement: "[REDACTED PRIVATE KEY]",
+    },
+    {
+      name: "url-credential",
+      pattern: /:\/\/[^\/\s:@]+:[^\/\s:@]+@/g,
+      replacement: "://[REDACTED]@",
+    },
+  ];
+
+  for (const replacement of replacements) {
+    const next = text.replace(replacement.pattern, replacement.replacement);
+    if (next !== text) {
+      patterns.push(replacement.name);
+      text = next;
+    }
+  }
+
+  return { text, applied: patterns.length > 0, patterns };
+}
+
+function approvalForClass(klass, options) {
+  const approvalRequired = !new Set(["read_only", "build_test"]).has(klass);
+  if (!approvalRequired) {
+    return { required: false, approved: true, sources: [] };
+  }
+
+  const approvedArgs = new Set(argValues(options, "--approved"));
+  const approvedEnv = new Set((process.env.AGENT_SURFACE_APPROVED_CLASSES ?? "").split(",").map((item) => item.trim()).filter(Boolean));
+  const sources = [];
+
+  if (approvedArgs.has(klass) || approvedArgs.has("all")) sources.push("--approved");
+  if (approvedEnv.has(klass) || approvedEnv.has("all")) sources.push("AGENT_SURFACE_APPROVED_CLASSES");
+
+  return {
+    required: true,
+    approved: sources.length > 0,
+    sources,
+  };
 }
 
 async function packageVersion() {
@@ -835,10 +1425,27 @@ function commandVersion(command, args) {
   return output || `exit ${result.status}`;
 }
 
+function gitValue(args) {
+  const result = spawnSync("git", args, { encoding: "utf8" });
+  if (result.status !== 0) return null;
+  return result.stdout.trim() || null;
+}
+
 function argValue(args, name) {
   const index = args.indexOf(name);
   if (index === -1) return null;
   return args[index + 1] ?? fail(`missing value for ${name}`);
+}
+
+function argValues(args, name) {
+  const values = [];
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] !== name) continue;
+    const value = args[index + 1] ?? fail(`missing value for ${name}`);
+    values.push(value);
+    index += 1;
+  }
+  return values;
 }
 
 function requiredArgValue(args, name) {

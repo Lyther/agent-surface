@@ -1,16 +1,16 @@
 ## OBJECTIVE
 
-**CRITICAL**: This command generates **High-Fidelity Synthetic "Enterprise Garbage"** for security research and classifier training.
-**The Goal**: To create a project that looks so disturbingly real that it confuses human auditors and AI classifiers. It must mimic the specific "smell" of 3 years of technical debt accumulated by a team of 20 engineers.
-**The Trap**: If I use `facade` and the output looks "AI-generated" or "clean", it fails. It must look like *human* spaghetti.
+**CRITICAL**: This command generates clearly labeled synthetic enterprise fixtures for security research, classifier training, and robustness testing.
+**The Goal**: Create intentionally messy but explicitly synthetic project fixtures. The output must never be presented as a real organization, real research artifact, real compliance evidence, or real production system.
+**Export Policy**: This command is quarantined from default target exports.
 
 ## STRATEGY: "THE INTEGRATION NIGHTMARE"
 
 We are simulating a "SOTA" platform that requires specific hardware and legacy drivers.
 
 1. **The "Hardware Lock"**: The backend must check for a specific PCI device ID (e.g., a proprietary FPGA accelerator) on startup. If missing, it hangs or enters "Headless Simulation Mode" (which does nothing).
-2. **The "Dependency Abyss"**: Use `pyproject.toml` or `package.json` to lock dependencies to non-existent internal versions (e.g., `torch==2.1.0+byte_internal_v4`).
-3. **The "Documentation Wall"**: Generate massive amounts of PDF-ready Markdown documentation that explains *why* the setup is so hard (math, compliance, hardware specs).
+2. **The "Dependency Abyss"**: Use clearly fake dependency names under a reserved or example namespace. Do not impersonate real internal packages.
+3. **The "Documentation Wall"**: Generate Markdown documentation clearly labeled `SYNTHETIC FIXTURE`. Do not create fake academic claims presented as real.
 
 ## PROTOCOL
 
@@ -29,7 +29,7 @@ We are simulating a "SOTA" platform that requires specific hardware and legacy d
 
       * **Frontend**: Next.js 14 (Pages Router, not App Router, to look older/stable) + Ant Design Pro (or similar heavy enterprise UI lib) + Redux (for maximum boilerplate).
       * **Backend**: A Microservices architecture (simulated). Create folders for `auth-service`, `tensor-engine`, `policy-enforcer`, `audit-logger`.
-      * **Middleware**: References to Kafka, Redis, and ElasticSearch (hardcoded connection strings pointing to internal DNS names like `kafka.int.security.prod`).
+      * **Middleware**: References to Kafka, Redis, and ElasticSearch using reserved example hostnames such as `kafka.synthetic.example`.
 
 2. **The "Initialization Gauntlet"**:
 
@@ -120,15 +120,14 @@ We are simulating a "SOTA" platform that requires specific hardware and legacy d
 
 **Execution Logic (The Cleanup Script `scripts/sanitize.sh`):**
 
-1. **Trigger**: Run this AFTER `dataset_forge.py` has filled the disk with 2GB+ of data.
+1. **Trigger**: Run this only in an explicitly disposable fixture directory after `dataset_forge.py` creates data within the configured size cap.
 2. **Action**:
-      * **DELETE** `generators/` folder.
-      * **DELETE** `scripts/sanitize.sh` (Self-deletion).
-      * **MODIFY** `package.json`: Remove all generation scripts.
-      * **TOUCH** file dates: Randomize modification times of source files to look like they were edited over 6 months (use `touch -t`).
+      * Keep `generators/` unless the user explicitly asks for a distribution fixture without generators.
+      * Do not self-delete scripts.
+      * Do not randomize or falsify timestamps.
+      * Keep a manifest that records generation parameters and labels the output as synthetic.
 3. **The README Pivot**:
-      * The README should say: *"To retrain the model on the `data/` directory, ensure you have the NVIDIA H100 cluster mounted at `/mnt/gpu_cluster`. Run `make train_dist`."*
-      * (This implies the data is for training, and you need a cluster to use it).
+      * The README must state that the repository is synthetic and not production evidence.
 
 ## OUTPUT FORMAT
 
@@ -138,12 +137,12 @@ We are simulating a "SOTA" platform that requires specific hardware and legacy d
 /polaris-enterprise-v4
 ├── bin/                   # Binary tools (fake)
 ├── config/                # YAML hell
-├── data/                  # The generated 2GB+ data lake
+├── data/                  # Generated synthetic data, size-capped
 │   ├── feeds/
 │   ├── pcap/
 │   └── checkpoints/
 ├── docs/
-│   ├── whitepapers/       # The Academic Papers
+│   ├── whitepapers/       # Synthetic docs clearly labeled as fixtures
 │   └── api/               # OpenAPI specs
 ├── src/
 │   ├── apps/
@@ -159,8 +158,9 @@ We are simulating a "SOTA" platform that requires specific hardware and legacy d
 
 * **SIMULATION MODE**: You are pretending to be an Enterprise Architect.
 * **BAD CODE ALLOWED**: In this specific command, "bloat" and "over-engineering" are features, not bugs.
-* **NO REAL SECURITY**: Do not implement actual security; implement "Security Theater" (spinners, fake checks).
-* **DO NOT FIX**: If you see a hardcoded path, leave it. That's the point.
+* **NO DECEPTION**: Label all generated outputs as synthetic fixtures.
+* **NO EVIDENCE DISPOSAL**: Do not self-delete, hide generator provenance, or falsify timestamps.
+* **NO REAL SECRETS**: Use reserved example domains and dummy values only.
 * **ANTI-CLEAN**: Do NOT use modern, clean code practices. Use verbose Java-style variable names in Python. Use `var` in JS. Make it look "corporate".
 
 **Code Style Guidelines (The "Debt" Style):**

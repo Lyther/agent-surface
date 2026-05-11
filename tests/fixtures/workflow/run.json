@@ -1,0 +1,18 @@
+{
+  "schema_version": "workflow.v3",
+  "status": "active",
+  "run_id": "run-fixture-001",
+  "branch": "main",
+  "base_commit": "0000000000000000000000000000000000000000",
+  "base_tree_hash": "1111111111111111111111111111111111111111",
+  "current_round": 1,
+  "workflow_next_command": "dev-chore",
+  "active_task_ids": [
+    "T1"
+  ],
+  "accepted_task_ids": [],
+  "rework_task_ids": [],
+  "deferred_task_ids": [],
+  "closed_task_ids": [],
+  "last_artifact_hashes": {}
+}

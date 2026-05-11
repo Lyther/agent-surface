@@ -1,0 +1,36 @@
+{
+  "schema_version": "workflow.v3",
+  "run_id": "run-fixture-001",
+  "round_id": 1,
+  "aggregate_status": "PARTIAL",
+  "tasks_reviewed": [
+    {
+      "task_id": "T2",
+      "status": "REJECT",
+      "reason": "Missing behavior proof.",
+      "evidence_refs": [
+        ".agent-surface/workflows/run-fixture-001/rounds/round-001/evidence/T2/check.evidence.json"
+      ]
+    }
+  ],
+  "run_state_update": {
+    "accepted_task_ids": [],
+    "rework_task_ids": [
+      "T2"
+    ],
+    "deferred_task_ids": [],
+    "closed_task_ids": []
+  },
+  "workflow": {
+    "dir": ".agent-surface/workflows/run-fixture-001",
+    "file": "reviewer.json",
+    "owner": "workflow-reviewer",
+    "run_id": "run-fixture-001",
+    "round_id": 1,
+    "next_command": "dev-refactor",
+    "parent_artifact_hashes": [
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ]
+  }
+}
