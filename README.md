@@ -103,6 +103,8 @@ Use `agent-surface run` for workflow verification commands so stdout, stderr, ha
 
 Use `agent-surface workflow patch begin/end/verify` around each task so `patch_ref`, `patch_hash`, `pre_tree_hash`, `post_tree_hash`, changed files, and clean-apply proof are captured mechanically.
 
+`workflow doctor` validates workflow role artifacts, event hash chains, and patch manifests, including patch refs and patch content hashes.
+
 GitHub install smoke path:
 
 ```bash

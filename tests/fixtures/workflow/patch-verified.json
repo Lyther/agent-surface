@@ -1,0 +1,23 @@
+{
+  "schema_version": "workflow.patch.v1",
+  "run_id": "run-fixture-001",
+  "round_id": 1,
+  "task_id": "T1",
+  "filescope": [
+    "src/example.txt"
+  ],
+  "pre_tree_hash": "1111111111111111111111111111111111111111",
+  "pre_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "started_at": "2026-05-11T00:00:00.000Z",
+  "post_tree_hash": "2222222222222222222222222222222222222222",
+  "patch_ref": ".agent-surface/workflows/run-fixture-001/rounds/round-001/patches/T1.patch",
+  "patch_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "name_status_ref": ".agent-surface/workflows/run-fixture-001/rounds/round-001/patches/T1.name-status.txt",
+  "changed_files": [
+    "src/example.txt"
+  ],
+  "completed_at": "2026-05-11T00:00:01.000Z",
+  "applies_cleanly": true,
+  "verified_at": "2026-05-11T00:00:02.000Z",
+  "status": "verified"
+}

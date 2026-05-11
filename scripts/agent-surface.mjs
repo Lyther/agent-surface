@@ -88,6 +88,7 @@ const workflowSchemaFiles = [
   "workflow.rescue.schema.json",
   "workflow.event.schema.json",
   "workflow.current.schema.json",
+  "workflow.patch.schema.json",
 ];
 
 const registrySchemaFiles = [
@@ -105,6 +106,7 @@ const workflowFixtureFiles = [
   { schema: "workflow.rescue.schema.json", file: "tests/fixtures/workflow/rescue-refactor.json" },
   { schema: "workflow.event.schema.json", file: "tests/fixtures/workflow/event.json" },
   { schema: "workflow.current.schema.json", file: "tests/fixtures/workflow/current.json" },
+  { schema: "workflow.patch.schema.json", file: "tests/fixtures/workflow/patch-verified.json" },
 ];
 
 async function main() {
@@ -870,6 +872,7 @@ async function workflowDoctor(args) {
     const artifact = path.join(runDir, file);
     if (await exists(artifact)) await validateWorkflowJson(artifact, schemas.get(schemaName), errors);
   }
+  await validateWorkflowPatchManifests(runDir, schemas.get("workflow.patch.schema.json"), errors);
 
   const eventsPath = path.join(runDir, "events.ndjson");
   if (await exists(eventsPath)) {
@@ -904,6 +907,41 @@ async function workflowDoctor(args) {
   }
 
   console.log(`workflow doctor: ok (${path.relative(process.cwd(), runDir)})`);
+}
+
+async function validateWorkflowPatchManifests(runDir, validate, errors) {
+  const patchRoot = path.join(runDir, "rounds");
+  if (!(await exists(patchRoot))) return;
+  const manifests = (await filesUnder(patchRoot, [".json"]))
+    .filter((file) => path.basename(file).endsWith(".patch.json"));
+
+  for (const manifestPath of manifests) {
+    const manifest = await readWorkflowJson(manifestPath, validate, errors);
+    if (!manifest) continue;
+    const manifestRef = path.relative(runDir, manifestPath);
+
+    for (const key of ["patch_ref", "name_status_ref"]) {
+      if (!manifest[key]) continue;
+      const refPath = path.resolve(process.cwd(), manifest[key]);
+      if (!isPathInside(runDir, refPath)) {
+        errors.push(`${manifestRef}: ${key} must stay inside workflow run directory`);
+      }
+      if (!(await exists(refPath))) {
+        errors.push(`${manifestRef}: ${key} target missing: ${manifest[key]}`);
+      }
+    }
+
+    if (manifest.patch_ref && manifest.patch_hash) {
+      const patchPath = path.resolve(process.cwd(), manifest.patch_ref);
+      const patchContent = await readFileIfExists(patchPath);
+      if (patchContent !== null) {
+        const actualHash = `sha256:${sha256(patchContent)}`;
+        if (actualHash !== manifest.patch_hash) {
+          errors.push(`${manifestRef}: patch_hash does not match patch_ref content`);
+        }
+      }
+    }
+  }
 }
 
 async function workflowApply(args) {
