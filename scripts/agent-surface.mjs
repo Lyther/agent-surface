@@ -4,7 +4,7 @@ import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -166,6 +166,9 @@ Usage:
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
   agent-surface workflow doctor --run <run_id>
   agent-surface workflow apply --role <role> --run <run_id> --artifact <path>
+  agent-surface workflow patch begin --run <run_id> --round <n> --task <id> --file <path> [--file <path>...]
+  agent-surface workflow patch end --run <run_id> --round <n> --task <id>
+  agent-surface workflow patch verify --run <run_id> --round <n> --task <id>
   agent-surface doctor
 `);
 }
@@ -827,7 +830,11 @@ async function workflow(args) {
     await workflowApply(rest);
     return;
   }
-  fail("workflow requires doctor or apply");
+  if (subcommand === "patch") {
+    await workflowPatch(rest);
+    return;
+  }
+  fail("workflow requires doctor, apply, or patch");
 }
 
 async function workflowDoctor(args) {
@@ -972,6 +979,105 @@ async function workflowApply(args) {
   console.log(`event_hash: ${eventHash}`);
 }
 
+async function workflowPatch(args) {
+  const [subcommand, ...rest] = args;
+  if (subcommand === "begin") {
+    await workflowPatchBegin(rest);
+    return;
+  }
+  if (subcommand === "end") {
+    await workflowPatchEnd(rest);
+    return;
+  }
+  if (subcommand === "verify") {
+    await workflowPatchVerify(rest);
+    return;
+  }
+  fail("workflow patch requires begin, end, or verify");
+}
+
+async function workflowPatchBegin(args) {
+  const context = workflowPatchContext(args);
+  const filescope = argValues(args, "--file");
+  if (filescope.length === 0) fail("workflow patch begin requires at least one --file");
+  for (const file of filescope) {
+    if (!isSafeRelativePath(file)) fail(`unsafe --file: ${file}`);
+  }
+
+  await mkdir(context.patchDir, { recursive: true });
+  const preTreeHash = await buildWorktreeTree(filescope);
+  const manifest = {
+    schema_version: "workflow.patch.v1",
+    run_id: context.runId,
+    round_id: context.roundId,
+    task_id: context.taskId,
+    filescope: uniqueStrings(filescope),
+    pre_tree_hash: preTreeHash,
+    pre_head: gitValue(["rev-parse", "HEAD"]) ?? null,
+    started_at: new Date().toISOString(),
+    status: "begun",
+  };
+
+  await writeFile(context.manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  console.log(`patch begin: ${path.relative(process.cwd(), context.manifestPath)}`);
+  console.log(`pre_tree_hash: ${preTreeHash}`);
+}
+
+async function workflowPatchEnd(args) {
+  const context = workflowPatchContext(args);
+  const manifest = await readPatchManifest(context.manifestPath);
+  const postTreeHash = await buildWorktreeTree(manifest.filescope);
+  const patch = gitOutput(["diff", "--binary", "--full-index", manifest.pre_tree_hash, postTreeHash, "--", ...manifest.filescope]);
+  const nameStatus = gitOutput(["diff", "--name-status", manifest.pre_tree_hash, postTreeHash, "--", ...manifest.filescope]);
+  const changedFiles = parseNameStatusFiles(nameStatus);
+  const patchHash = `sha256:${sha256(patch)}`;
+  const updated = {
+    ...manifest,
+    post_tree_hash: postTreeHash,
+    patch_ref: path.relative(process.cwd(), context.patchPath),
+    patch_hash: patchHash,
+    name_status_ref: path.relative(process.cwd(), context.nameStatusPath),
+    changed_files: changedFiles,
+    completed_at: new Date().toISOString(),
+    status: "ended",
+  };
+
+  await writeFile(context.patchPath, patch);
+  await writeFile(context.nameStatusPath, nameStatus);
+  await writeFile(context.manifestPath, `${JSON.stringify(updated, null, 2)}\n`);
+  console.log(`patch end: ${path.relative(process.cwd(), context.patchPath)}`);
+  console.log(`patch_hash: ${patchHash}`);
+  console.log(`changed_files: ${changedFiles.length}`);
+}
+
+async function workflowPatchVerify(args) {
+  const context = workflowPatchContext(args);
+  const manifest = await readPatchManifest(context.manifestPath);
+  if (manifest.status !== "ended") fail("patch manifest is not ended");
+  const currentPatch = await readFile(context.patchPath, "utf8");
+  const currentHash = `sha256:${sha256(currentPatch)}`;
+  if (currentHash !== manifest.patch_hash) fail("patch hash mismatch");
+  const postTreeHash = await buildWorktreeTree(manifest.filescope);
+  if (postTreeHash !== manifest.post_tree_hash) fail("current worktree no longer matches patch post_tree_hash");
+
+  const whitespace = spawnSync("git", ["diff", "--check", manifest.pre_tree_hash, manifest.post_tree_hash, "--", ...manifest.filescope], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  });
+  if (whitespace.status !== 0) fail(`patch has whitespace errors:\n${whitespace.stdout}${whitespace.stderr}`);
+
+  const applyCheck = await verifyPatchApplies(manifest.pre_tree_hash, context.patchPath);
+  const verified = {
+    ...manifest,
+    applies_cleanly: applyCheck,
+    verified_at: new Date().toISOString(),
+    status: "verified",
+  };
+
+  await writeFile(context.manifestPath, `${JSON.stringify(verified, null, 2)}\n`);
+  console.log(`patch verify: ok (${path.relative(process.cwd(), context.patchPath)})`);
+}
+
 async function workflowSchemaValidators(errors) {
   const schemas = new Map();
   const ajv = createAjv();
@@ -989,6 +1095,89 @@ async function workflowSchemaValidators(errors) {
   }
 
   return schemas;
+}
+
+function workflowPatchContext(args) {
+  const runId = requiredSafeId(args, "--run");
+  const roundId = Number(requiredArgValue(args, "--round"));
+  const taskId = requiredSafeId(args, "--task");
+  if (!Number.isInteger(roundId) || roundId < 0) fail("--round must be a non-negative integer");
+  const roundName = `round-${String(roundId).padStart(3, "0")}`;
+  const patchDir = path.join(workflowRunDir(runId), "rounds", roundName, "patches");
+  const basename = safeFilename(taskId);
+  return {
+    runId,
+    roundId,
+    taskId,
+    patchDir,
+    manifestPath: path.join(patchDir, `${basename}.patch.json`),
+    patchPath: path.join(patchDir, `${basename}.patch`),
+    nameStatusPath: path.join(patchDir, `${basename}.name-status.txt`),
+  };
+}
+
+async function readPatchManifest(file) {
+  if (!(await exists(file))) fail(`patch manifest missing: ${path.relative(process.cwd(), file)}`);
+  const manifest = JSON.parse(await readFile(file, "utf8"));
+  if (manifest.schema_version !== "workflow.patch.v1") fail("unsupported patch manifest schema");
+  if (!Array.isArray(manifest.filescope) || manifest.filescope.length === 0) fail("patch manifest missing filescope");
+  return manifest;
+}
+
+async function buildWorktreeTree(filescope) {
+  const files = await gitLines(["ls-files", "--cached", "--others", "--exclude-standard", "--", ...filescope]);
+  const indexPath = path.join(await mkdtemp(path.join(os.tmpdir(), "agent-surface-index-")), "index");
+  const env = { ...process.env, GIT_INDEX_FILE: indexPath };
+
+  try {
+    gitOutput(["read-tree", "--empty"], env);
+    for (const file of files) {
+      if (!isSafeRelativePath(file)) fail(`unsafe git path: ${file}`);
+      const absolute = path.join(process.cwd(), file);
+      const fileStat = await stat(absolute).catch(() => null);
+      if (!fileStat?.isFile()) continue;
+      const blob = gitOutput(["hash-object", "-w", "--", file], env).trim();
+      const mode = fileStat.mode & 0o111 ? "100755" : "100644";
+      gitOutput(["update-index", "--add", "--cacheinfo", `${mode},${blob},${file}`], env);
+    }
+    return gitOutput(["write-tree"], env).trim();
+  } finally {
+    await rm(path.dirname(indexPath), { recursive: true, force: true });
+  }
+}
+
+async function verifyPatchApplies(preTreeHash, patchPath) {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "agent-surface-apply-"));
+  const indexDir = await mkdtemp(path.join(os.tmpdir(), "agent-surface-apply-index-"));
+  const env = { ...process.env, GIT_INDEX_FILE: path.join(indexDir, "index") };
+  try {
+    gitOutput(["read-tree", preTreeHash], env);
+    gitOutput(["--work-tree", tempDir, "checkout-index", "-a", "-f"], env);
+    const init = spawnSync("git", ["init"], {
+      cwd: tempDir,
+      encoding: "utf8",
+    });
+    if (init.status !== 0) fail(`git init failed for patch check:\n${init.stdout}${init.stderr}`);
+    const result = spawnSync("git", ["apply", "--check", patchPath], {
+      cwd: tempDir,
+      encoding: "utf8",
+    });
+    if (result.status !== 0) fail(`patch does not apply cleanly:\n${result.stdout}${result.stderr}`);
+    return true;
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+    await rm(indexDir, { recursive: true, force: true });
+  }
+}
+
+function parseNameStatusFiles(text) {
+  const files = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const parts = line.split(/\t+/);
+    files.push(...parts.slice(1));
+  }
+  return uniqueStrings(files.filter(Boolean));
 }
 
 async function validateWorkflowJson(file, validate, errors) {
@@ -1429,6 +1618,23 @@ function gitValue(args) {
   const result = spawnSync("git", args, { encoding: "utf8" });
   if (result.status !== 0) return null;
   return result.stdout.trim() || null;
+}
+
+function gitOutput(args, env = process.env) {
+  const result = spawnSync("git", args, {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    env,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (result.status !== 0) {
+    fail(`git ${args.join(" ")} failed:\n${result.stdout}${result.stderr}`);
+  }
+  return result.stdout;
+}
+
+async function gitLines(args) {
+  return gitOutput(args).split(/\r?\n/).filter(Boolean);
 }
 
 function argValue(args, name) {

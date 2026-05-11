@@ -10,8 +10,12 @@
       "files_changed": [
         "registry/artifacts.json"
       ],
+      "name_status_ref": ".agent-surface/workflows/run-fixture-001/rounds/round-001/patches/T1.name-status.txt",
       "patch_ref": ".agent-surface/workflows/run-fixture-001/rounds/round-001/patches/T1.patch",
       "patch_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "pre_tree_hash": "1111111111111111111111111111111111111111",
+      "post_tree_hash": "2222222222222222222222222222222222222222",
+      "applies_cleanly": true,
       "evidence_refs": [
         ".agent-surface/workflows/run-fixture-001/rounds/round-001/evidence/T1/check.evidence.json"
       ]

@@ -35,7 +35,7 @@ Protocol:
 agent-surface run --task <task_id> --class <class> --timeout <ms> --out .agent-surface/workflows/<run_id>/rounds/round-<round_id>/evidence/<task_id> -- <command...>
 ```
 
-7. Create per-task patches under `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/patches/`.
+7. Wrap each task with `agent-surface workflow patch begin/end/verify` so patches, tree hashes, changed files, and clean-apply proof are generated mechanically.
 8. Write canonical worker artifact to `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and latest copy to `.agent-surface/workflows/<run_id>/worker.json`.
 9. Set `workflow.owner = "dev-refactor"` and `workflow.next_command = "workflow-reviewer"`.
 
@@ -50,23 +50,26 @@ Worker artifact shape:
   "tasks_processed": [
     {
       "task_id": "T1",
-      "status": "PASS|BLOCKED|DEFERRED",
+      "status": "PASS",
       "files_changed": [],
+      "name_status_ref": ".agent-surface/workflows/<run_id>/rounds/round-001/patches/T1.name-status.txt",
       "patch_ref": ".agent-surface/workflows/<run_id>/rounds/round-001/patches/T1.patch",
       "patch_hash": "sha256:...",
+      "pre_tree_hash": "1111111111111111111111111111111111111111",
+      "post_tree_hash": "2222222222222222222222222222222222222222",
+      "applies_cleanly": true,
       "evidence_refs": [],
-      "verification": [],
+      "verify_results": [],
       "behavior_preservation": {
         "pre_change_evidence": [],
         "post_change_evidence": [],
         "api_changed": false
-      },
-      "risk_notes": []
+      }
     }
   ],
   "skipped": [],
   "remaining": [],
-  "stop_reason": "queue_empty|blocker|context_pressure|drift_check|max_tasks_cap",
+  "stop_reason": "queue_empty",
   "workflow": {
     "dir": ".agent-surface/workflows/<run_id>",
     "file": "worker.json",

@@ -36,7 +36,7 @@ If runner evidence is missing for a task that is marked `completed`, that task's
 For each entry in `worker.tasks_processed`, run this checklist independently:
 
 - AC compliance: each AC for that task is PASS / FAIL / UNKNOWN with cited evidence (log line, diff hunk, file:line).
-- Scope: verify `patch_ref` and `git diff --name-status` stay inside that task's narrowed FILESCOPE. Touching files outside = REJECT.
+- Scope: verify `patch_ref` and generated `name_status_ref` stay inside that task's narrowed FILESCOPE. Touching files outside = REJECT.
 - Correctness: logic bugs, edge cases, error handling, determinism — relative to that task's stated AC.
 - Security: injection, secret leakage, authz gaps, unsafe APIs introduced by this task.
 - Integrity: no disabled checks, no test sabotage, no phantom deps. The task's `verify` commands must have run; sabotaged tests = REJECT.
@@ -45,7 +45,7 @@ For each entry in `worker.tasks_processed`, run this checklist independently:
 - Reviewer independence: worker self-audit can guide inspection, but it is never proof.
 - Independent verification: rerun each completed task's verify commands when safe. If rerun is impossible, set `review_mode: "log_only"` with a concrete reason and validate hashes/tree binding.
 - Evidence binding: verify command evidence records `cmd`, `cwd`, command class, timeout, exit code, start time, duration, tree hash, stdout/stderr refs, hashes, and redaction status.
-- Patch isolation: verify each completed task has `patch_ref`, `patch_hash`, `pre_tree_hash`, `post_tree_hash`, and dependency-safe patch boundaries.
+- Patch isolation: verify each completed task has `patch_ref`, `patch_hash`, `pre_tree_hash`, `post_tree_hash`, `name_status_ref`, and `applies_cleanly: true` from `agent-surface workflow patch verify`.
 
 After per-task review, also check **batch-level invariants**:
 

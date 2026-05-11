@@ -154,6 +154,7 @@ review outcomes:
 - `run.json` — canonical state ledger for the active run
 - `events.ndjson` — append-only transition log
 - `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/patches/<task_id>.patch` — per-task patch for partial acceptance
+- `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/patches/<task_id>.patch.json` — patch manifest from `agent-surface workflow patch begin/end/verify`
 - `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/evidence/<task_id>/` — command transcripts and hashes
 
 ### Stage rules
@@ -198,7 +199,7 @@ Minimum `run.json`:
 Minimum expectations (v3):
 
 - **boss**: full BOSS JSON v3 — goal, branch/base binding, batch-level FILESCOPE, `tasks[]` (each with narrowed FILESCOPE, AC taxonomy, verify, depends_on, risk_notes), `batch_policy` (`stop_on`, `context_pressure_threshold_pct`, `max_tasks_per_round`, `drift_check_every`, `timeout_budget_ms`), route, and next handoff.
-- **worker**: per-task processing log — `tasks_processed[]` (each with task_id, status, summary, touched, patch_ref, patch_hash, pre_tree_hash, post_tree_hash, evidence_refs, verify_results, self_audit, decisions, assumptions, blocker), `skipped[]`, `remaining[]`, `stop_reason`, `stop_detail`. Feature route includes self-audit per task; fix route includes regression proof or a recorded infeasibility exception per task.
+- **worker**: per-task processing log — `tasks_processed[]` (each with task_id, status, summary, files_changed, name_status_ref, patch_ref, patch_hash, pre_tree_hash, post_tree_hash, applies_cleanly, evidence_refs, verify_results, self_audit, decisions, assumptions, blocker), `skipped[]`, `remaining[]`, `stop_reason`, `stop_detail`. Feature route includes self-audit per task; fix route includes regression proof or a recorded infeasibility exception per task.
 - **reviewer**: per-task verdicts in `tasks_reviewed[]` (each with task_id, status, review_mode, AC results, issues, independent_verify_results, consecutive_rejections), aggregate `aggregate_status`, `partial.accept/reject/deferred`, `batch_invariants`, severity policy, escalation recommendation with `escalated_task_ids`, and next recommended command.
 - **judger**: `final_verdict` (MERGE / MERGE_PARTIAL / REWORK / RESPEC / RESCUE), `per_task_findings[]`, `merge_partial.accept_task_ids` / `rework_task_ids` / `prune_task_ids` / `respec_task_ids`, patch-isolation findings, `action_plan[]`, and next recommended command.
 - **rescue**: decision (RESPEC / CONTEXT / PATCH / HUMAN), `scope` (task | batch), `target_task_ids`, diagnosis, payload appropriate to the decision, and next recommended command.

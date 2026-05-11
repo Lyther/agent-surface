@@ -65,6 +65,9 @@ node scripts/agent-surface.mjs install --target gemini-cli --scope project --dry
 node scripts/agent-surface.mjs install --target cline --dest /tmp/agent-surface-cline
 node scripts/agent-surface.mjs install --target cline --scope project --allow-scope-root
 node scripts/agent-surface.mjs run --task T1 --class build_test --timeout 120000 --out .agent-surface/workflows/<run_id>/rounds/round-001/evidence/T1 -- npm test
+node scripts/agent-surface.mjs workflow patch begin --run <run_id> --round 1 --task T1 --file src/example.ts
+node scripts/agent-surface.mjs workflow patch end --run <run_id> --round 1 --task T1
+node scripts/agent-surface.mjs workflow patch verify --run <run_id> --round 1 --task T1
 ```
 
 Rule scenario checks:
@@ -93,6 +96,8 @@ Start with `/flow` when the right path is unclear. Use `workflow-doctor` before 
 Workflow-aware workers currently include `dev-feature`, `dev-fix`, `dev-chore`, and `dev-refactor`.
 
 Use `agent-surface run` for workflow verification commands so stdout, stderr, hashes, timing, exit code, cwd, and git tree are captured as evidence by tooling instead of by model self-report.
+
+Use `agent-surface workflow patch begin/end/verify` around each task so `patch_ref`, `patch_hash`, `pre_tree_hash`, `post_tree_hash`, changed files, and clean-apply proof are captured mechanically.
 
 GitHub install smoke path:
 

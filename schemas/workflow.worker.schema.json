@@ -15,6 +15,85 @@
     "hash": {
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "gitTreeHash": {
+      "type": "string",
+      "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+    },
+    "verification": {
+      "type": "object",
+      "required": [
+        "cmd",
+        "class",
+        "exit_code"
+      ],
+      "properties": {
+        "cmd": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "class": {
+          "enum": [
+            "read_only",
+            "build_test",
+            "network",
+            "filesystem_destructive",
+            "deployment",
+            "database_mutation"
+          ]
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tree_hash": {
+          "$ref": "#/$defs/gitTreeHash"
+        },
+        "stdout_ref": {
+          "$ref": "#/$defs/safePath"
+        },
+        "stdout_hash": {
+          "$ref": "#/$defs/hash"
+        },
+        "stderr_ref": {
+          "$ref": "#/$defs/safePath"
+        },
+        "stderr_hash": {
+          "$ref": "#/$defs/hash"
+        },
+        "redaction": {
+          "enum": [
+            "none",
+            "applied"
+          ]
+        }
+      },
+      "additionalProperties": false
     }
   },
   "required": [
@@ -37,6 +116,10 @@
       "type": "integer",
       "minimum": 0
     },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
     "worker": {
       "enum": [
         "dev-feature",
@@ -53,8 +136,36 @@
           "task_id",
           "status",
           "files_changed",
-          "patch_ref",
           "evidence_refs"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "PASS"
+                }
+              },
+              "required": [
+                "status"
+              ]
+            },
+            "then": {
+              "required": [
+                "name_status_ref",
+                "patch_ref",
+                "patch_hash",
+                "pre_tree_hash",
+                "post_tree_hash",
+                "applies_cleanly"
+              ],
+              "properties": {
+                "applies_cleanly": {
+                  "const": true
+                }
+              }
+            }
+          }
         ],
         "properties": {
           "task_id": {
@@ -74,17 +185,134 @@
               "$ref": "#/$defs/safePath"
             }
           },
+          "summary": {
+            "type": "string"
+          },
+          "name_status_ref": {
+            "$ref": "#/$defs/safePath"
+          },
           "patch_ref": {
             "$ref": "#/$defs/safePath"
           },
           "patch_hash": {
             "$ref": "#/$defs/hash"
           },
+          "pre_tree_hash": {
+            "$ref": "#/$defs/gitTreeHash"
+          },
+          "post_tree_hash": {
+            "$ref": "#/$defs/gitTreeHash"
+          },
+          "applies_cleanly": {
+            "type": "boolean"
+          },
           "evidence_refs": {
             "type": "array",
             "items": {
               "$ref": "#/$defs/safePath"
             }
+          },
+          "verify_results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/verification"
+            }
+          },
+          "self_audit": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "check",
+                "result"
+              ],
+              "properties": {
+                "check": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "result": {
+                  "enum": [
+                    "pass",
+                    "fail",
+                    "not_run"
+                  ]
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "assumptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "known_limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "user_visible_behavior_changed": {
+            "type": "boolean"
+          },
+          "contracts_touched": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/safePath"
+            }
+          },
+          "blocker": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "detail",
+                  "needs"
+                ],
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "missing_context",
+                      "ambiguous_spec",
+                      "failing_verify",
+                      "dependency_unmet",
+                      "external_blocker",
+                      "unsafe_command",
+                      "schema_invalid",
+                      "dirty_worktree",
+                      "tool_timeout",
+                      "flaky_test",
+                      "permission_denied",
+                      "repeated_failure"
+                    ]
+                  },
+                  "detail": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "needs": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
           },
           "behavior_preservation": {
             "type": "object",
@@ -93,8 +321,12 @@
                 "boolean",
                 "string",
                 "number",
+                "array",
                 "null"
-              ]
+              ],
+              "items": {
+                "type": "string"
+              }
             }
           }
         },
@@ -135,6 +367,9 @@
         "drift_check",
         "max_tasks_cap"
       ]
+    },
+    "stop_detail": {
+      "type": "string"
     },
     "workflow": {
       "type": "object",

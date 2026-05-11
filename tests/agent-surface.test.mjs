@@ -310,6 +310,41 @@ const workflowDoctor = status(["workflow", "doctor", "--run", "run-fixture-001"]
 assert.equal(workflowDoctor.status, 0, `${workflowDoctor.stdout}${workflowDoctor.stderr}`);
 rmSync(workflowDest, { recursive: true, force: true });
 
+const patchDest = "/tmp/agent-surface-patch";
+rmSync(patchDest, { recursive: true, force: true });
+mkdirSync(path.join(patchDest, "src"), { recursive: true });
+execFileSync("git", ["init"], { cwd: patchDest, encoding: "utf8" });
+writeFileSync(path.join(patchDest, "src", "example.txt"), "before\n");
+execFileSync("git", ["add", "src/example.txt"], { cwd: patchDest, encoding: "utf8" });
+const unsafePatch = status(
+  ["workflow", "patch", "begin", "--run", "run-fixture-001", "--round", "1", "--task", "T1", "--file", "../escape.txt"],
+  { cwd: patchDest },
+);
+assert.notEqual(unsafePatch.status, 0);
+assert.match(`${unsafePatch.stdout}${unsafePatch.stderr}`, /unsafe --file/);
+const patchBegin = status(
+  ["workflow", "patch", "begin", "--run", "run-fixture-001", "--round", "1", "--task", "T1", "--file", "src/example.txt"],
+  { cwd: patchDest },
+);
+assert.equal(patchBegin.status, 0, `${patchBegin.stdout}${patchBegin.stderr}`);
+writeFileSync(path.join(patchDest, "src", "example.txt"), "after\n");
+const patchEnd = status(["workflow", "patch", "end", "--run", "run-fixture-001", "--round", "1", "--task", "T1"], {
+  cwd: patchDest,
+});
+assert.equal(patchEnd.status, 0, `${patchEnd.stdout}${patchEnd.stderr}`);
+const patchVerify = status(["workflow", "patch", "verify", "--run", "run-fixture-001", "--round", "1", "--task", "T1"], {
+  cwd: patchDest,
+});
+assert.equal(patchVerify.status, 0, `${patchVerify.stdout}${patchVerify.stderr}`);
+const patchManifest = JSON.parse(
+  readFileSync(path.join(patchDest, ".agent-surface", "workflows", "run-fixture-001", "rounds", "round-001", "patches", "T1.patch.json"), "utf8"),
+);
+assert.equal(patchManifest.status, "verified");
+assert.equal(patchManifest.applies_cleanly, true);
+assert.deepEqual(patchManifest.changed_files, ["src/example.txt"]);
+assert.match(patchManifest.patch_hash, /^sha256:[a-f0-9]{64}$/);
+rmSync(patchDest, { recursive: true, force: true });
+
 const unsafeInstall = status(["install", "--target", "cline"]);
 assert.notEqual(unsafeInstall.status, 0);
 assert.match(unsafeInstall.stderr, /live install requires explicit --dest or --allow-scope-root/);
