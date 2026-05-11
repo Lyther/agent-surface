@@ -8,7 +8,7 @@ Current implementation: command-source compiler for Cline, Antigravity, and Gemi
 
 `commands/` is the canonical home for user-invoked reusable procedures. Target adapters may render the same source as Claude commands, Gemini commands, Cline workflows, Antigravity workflows, Codex skills, or another native primitive.
 
-Default exports quarantine high-risk local-only commands such as `boot-facade` and `ops-nuke`; they remain source artifacts, not daily-use target commands.
+Default exports quarantine high-risk local-only commands such as `boot-facade` and `ops-nuke` through command metadata; they remain source artifacts and can be rendered only through explicit packs.
 
 `rules/` contains always-on or scoped behavior policy.
 
@@ -58,8 +58,10 @@ npm run doctor
 npm run build -- --target cline --dry-run
 npm run build -- --target antigravity --dry-run
 npm run build -- --target gemini-cli --dry-run
+node scripts/agent-surface.mjs build --target gemini-cli --pack all --dry-run
+node scripts/agent-surface.mjs build --target cline --pack destructive --dry-run
 node scripts/agent-surface.mjs check
-node scripts/agent-surface.mjs install --target cline --scope project --dry-run
+node scripts/agent-surface.mjs install --target cline --pack default --scope project --dry-run
 node scripts/agent-surface.mjs install --target antigravity --scope user --dry-run
 node scripts/agent-surface.mjs install --target gemini-cli --scope project --dry-run
 node scripts/agent-surface.mjs install --target cline --dest /tmp/agent-surface-cline
@@ -84,6 +86,8 @@ node scripts/agent-surface.mjs check rules --scenario shell-script
 `install` prints the files it will write, stale managed files it will remove, blocked paths, and the manifest path that tracks generated files. Live writes require explicit `--dest` or `--allow-scope-root` after reviewing the dry run. Existing unmanaged files block the install. Managed files changed since the last manifest block the install. Overwrites and stale managed removals are backed up under `.agent-surface/backups/`.
 
 `run` requires explicit approval for `network`, `filesystem_destructive`, `deployment`, and `database_mutation` command classes through `--approved <class>` or `AGENT_SURFACE_APPROVED_CLASSES`.
+
+Command frontmatter can declare `name`, `phase`, `risk`, `packs`, `default_export`, `approval_classes`, and `description`. `build` and `install` use `--pack default` unless told otherwise. `--pack all` renders every command source; named packs render the default set plus commands explicitly assigned to that pack.
 
 ## Workflow Kernel
 

@@ -1,3 +1,17 @@
+---
+name: ship-release
+phase: ship
+risk: deployment
+default_export: true
+packs:
+  - default
+  - release
+approval_classes:
+  - deployment
+  - network
+description: "Prepare and publish release artifacts through gated steps."
+---
+
 ## OBJECTIVE
 
 **THE HISTORIAN.**

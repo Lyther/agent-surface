@@ -11,7 +11,10 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const defaultQuarantinedCommands = new Set(["boot-facade.md", "ops-nuke.md"]);
+const commandMetadataFields = new Set(["name", "aliases", "phase", "risk", "packs", "default_export", "approval_classes", "description"]);
+const commandPhases = new Set(["observe", "decide", "build", "verify", "review", "arbitrate", "ship", "improve", "bootstrap", "game", "misc"]);
+const commandRisks = new Set(["safe", "writes", "destructive", "security-sensitive", "deception-risk", "deployment"]);
+const commandApprovalClasses = new Set(["network", "filesystem_destructive", "deployment", "database_mutation"]);
 
 const targets = {
   cline: {
@@ -161,8 +164,8 @@ Usage:
   agent-surface inventory
   agent-surface check
   agent-surface check rules [--scenario <name>]
-  agent-surface build --target <cline|antigravity|gemini-cli|all> [--dry-run]
-  agent-surface install --target <cline|antigravity|gemini-cli> [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
+  agent-surface build --target <cline|antigravity|gemini-cli|all> [--pack default|all|<pack>] [--dry-run]
+  agent-surface install --target <cline|antigravity|gemini-cli> [--pack default|all|<pack>] [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
   agent-surface workflow doctor --run <run_id>
   agent-surface workflow apply --role <role> --run <run_id> --artifact <path>
@@ -194,7 +197,8 @@ async function inventory() {
 
 async function check() {
   const errors = [];
-  const commandFiles = await files("commands", [".md"]);
+  const commands = await readCommands();
+  const commandFiles = commands.map((command) => command.file);
   const ruleFiles = await files("rules", [".md", ".mdc"]);
   const targetsConfig = JSON.parse(await readFile(path.join(root, "registry", "targets.json"), "utf8"));
   const artifactsConfig = JSON.parse(await readFile(path.join(root, "registry", "artifacts.json"), "utf8"));
@@ -258,6 +262,7 @@ async function check() {
 
   await checkWorkflowSchemas(errors);
   await checkRegistrySchemas(errors);
+  checkCommandMetadata(commands, errors);
 
   if (errors.length > 0) {
     for (const error of errors) console.error(`ERROR: ${error}`);
@@ -434,9 +439,10 @@ async function checkRules(args) {
 
 async function build(args) {
   const target = argValue(args, "--target") ?? "all";
+  const pack = argValue(args, "--pack") ?? "default";
   const dryRun = args.includes("--dry-run");
   const selected = target === "all" ? Object.keys(targets) : [target];
-  const commandFiles = await exportableCommandFiles();
+  const commandFiles = await exportableCommands(pack);
 
   for (const item of selected) {
     if (!isSafeTargetName(item)) fail(`unsafe build target: ${item}`);
@@ -455,12 +461,12 @@ async function build(args) {
 
     for (const source of commandFiles) {
       const rendered = await adapter.render(source);
-      const outputName = adapter.outputName ? adapter.outputName(source) : path.basename(source);
+      const outputName = adapter.outputName ? adapter.outputName(source) : path.basename(source.file);
       const targetPath = path.join(outputDir, outputName);
       count += 1;
 
       if (dryRun) {
-        console.log(`[dry-run] ${adapter.label}: ${relative(source)} -> ${relative(targetPath)}`);
+        console.log(`[dry-run] ${adapter.label}: ${source.relativePath} -> ${relative(targetPath)}`);
         continue;
       }
 
@@ -468,12 +474,13 @@ async function build(args) {
       await writeFile(targetPath, rendered);
     }
 
-    console.log(`${item}: ${count} command sources rendered${dryRun ? " (dry-run)" : ""}`);
+    console.log(`${item}: ${count} command sources rendered (pack: ${pack})${dryRun ? " (dry-run)" : ""}`);
   }
 }
 
 async function install(args) {
   const target = requiredArgValue(args, "--target");
+  const pack = argValue(args, "--pack") ?? "default";
   const scope = argValue(args, "--scope") ?? "project";
   const dryRun = args.includes("--dry-run");
   const allowScopeRoot = args.includes("--allow-scope-root");
@@ -488,7 +495,7 @@ async function install(args) {
 
   const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
   if (installRoot === path.parse(installRoot).root) fail("install root cannot be filesystem root");
-  const plan = await installPlan(target, adapter, installRoot, scope, dest ? "explicit --dest" : "scope-derived root");
+  const plan = await installPlan(target, adapter, installRoot, scope, pack, dest ? "explicit --dest" : "scope-derived root");
 
   printInstallPlan(plan);
   if (plan.blocked.length > 0) {
@@ -501,8 +508,8 @@ async function install(args) {
   }
 }
 
-async function installPlan(target, adapter, installRoot, scope, rootSource) {
-  const commandFiles = await exportableCommandFiles();
+async function installPlan(target, adapter, installRoot, scope, pack, rootSource) {
+  const commandFiles = await exportableCommands(pack);
   const version = await packageVersion();
   const generatedAt = new Date().toISOString();
   const manifestPath = path.join(installRoot, ".agent-surface", `${target}-manifest.json`);
@@ -513,7 +520,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource) {
 
   for (const source of commandFiles) {
     const rendered = await adapter.render(source);
-    const outputName = adapter.outputName ? adapter.outputName(source) : path.basename(source);
+    const outputName = adapter.outputName ? adapter.outputName(source) : path.basename(source.file);
     const output = path.join(installRoot, adapter.installOutputRoot, outputName);
     const relativeOutput = path.relative(installRoot, output);
     const hash = sha256(rendered);
@@ -522,11 +529,12 @@ async function installPlan(target, adapter, installRoot, scope, rootSource) {
       continue;
     }
 
-    writes.push({ source: relative(source), output, relativeOutput, content: rendered, sha256: hash });
+    writes.push({ source: source.relativePath, output, relativeOutput, content: rendered, sha256: hash });
     managed.push({
       target,
+      pack,
       scope,
-      source: relative(source),
+      source: source.relativePath,
       output: relativeOutput,
       sha256: hash,
       managed_by: "agent-surface",
@@ -610,6 +618,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource) {
 
   const manifest = {
     target,
+    pack,
     scope,
     generated_at: generatedAt,
     managed,
@@ -617,6 +626,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource) {
 
   return {
     target,
+    pack,
     scope,
     rootSource,
     installRoot,
@@ -632,6 +642,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource) {
 
 function printInstallPlan(plan) {
   console.log(`target: ${plan.target}`);
+  console.log(`pack: ${plan.pack}`);
   console.log(`scope: ${plan.scope}`);
   console.log(`root source: ${plan.rootSource}`);
   console.log(`root: ${plan.installRoot}`);
@@ -1257,12 +1268,12 @@ function isPathInside(parent, candidate) {
 }
 
 async function renderClineWorkflow(source) {
-  return readFile(source, "utf8");
+  return source.body;
 }
 
 async function renderAntigravityWorkflow(source) {
-  const body = await readFile(source, "utf8");
-  const description = yamlString(firstHeading(body) ?? `Run ${path.basename(source, ".md").replaceAll("-", " ")}.`);
+  const body = source.body;
+  const description = yamlString(source.metadata.description ?? firstHeading(body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
 
   if (body.startsWith("---\n")) {
     const frontmatterEnd = body.indexOf("\n---\n", 4);
@@ -1277,14 +1288,14 @@ async function renderAntigravityWorkflow(source) {
 }
 
 async function renderGeminiCommand(source) {
-  const body = await readFile(source, "utf8");
-  const description = tomlString(firstHeading(body) ?? `Run ${path.basename(source, ".md").replaceAll("-", " ")}.`);
+  const body = source.body;
+  const description = tomlString(source.metadata.description ?? firstHeading(body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   const prompt = tomlMultilineString(body);
   return `description = "${description}"\n\nprompt = ${prompt}\n`;
 }
 
 function geminiCommandOutputName(source) {
-  const basename = path.basename(source, ".md");
+  const basename = source.name;
   const [category, ...rest] = basename.split("-");
   return path.join(category, `${rest.join("-") || category}.toml`);
 }
@@ -1313,8 +1324,180 @@ async function filesUnder(base, extensions) {
   return out.sort();
 }
 
-async function exportableCommandFiles() {
-  return (await files("commands", [".md"])).filter((file) => !defaultQuarantinedCommands.has(path.basename(file)));
+async function readCommands() {
+  const commandFiles = await files("commands", [".md"]);
+  const commands = [];
+
+  for (const file of commandFiles) {
+    const text = await readFile(file, "utf8");
+    commands.push(parseCommand(file, text));
+  }
+
+  return commands;
+}
+
+function parseCommand(file, text) {
+  const name = path.basename(file, ".md");
+  const metadata = {
+    name,
+    aliases: [],
+    phase: commandPhaseFromName(name),
+    risk: "safe",
+    packs: ["default"],
+    default_export: true,
+    approval_classes: [],
+    description: null,
+  };
+  const frontmatterErrors = [];
+  let body = text;
+
+  if (text.startsWith("---\n")) {
+    const end = text.indexOf("\n---\n", 4);
+    if (end === -1) {
+      frontmatterErrors.push("frontmatter not closed");
+    } else {
+      const parsed = parseSimpleFrontmatter(text.slice(4, end), frontmatterErrors);
+      Object.assign(metadata, parsed);
+      body = text.slice(end + 5).replace(/^\s+/, "");
+    }
+  }
+
+  metadata.name ??= name;
+  metadata.aliases ??= [];
+  metadata.packs ??= metadata.default_export === false ? [] : ["default"];
+  metadata.approval_classes ??= [];
+  metadata.default_export ??= true;
+
+  return {
+    file,
+    relativePath: relative(file),
+    name,
+    body,
+    metadata,
+    frontmatterErrors,
+  };
+}
+
+function parseSimpleFrontmatter(text, errors) {
+  const out = {};
+  const lines = text.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line.trim()) continue;
+    const scalar = line.match(/^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*?)\s*$/);
+    if (!scalar) {
+      errors.push(`unsupported frontmatter line: ${line}`);
+      continue;
+    }
+
+    const [, key, rawValue] = scalar;
+    if (rawValue === "") {
+      const values = [];
+      for (let itemIndex = index + 1; itemIndex < lines.length; itemIndex += 1) {
+        const item = lines[itemIndex].match(/^\s+-\s*(.*?)\s*$/);
+        if (!item) break;
+        values.push(parseFrontmatterScalar(item[1]));
+        index = itemIndex;
+      }
+      out[key] = values;
+      continue;
+    }
+
+    out[key] = parseFrontmatterScalar(rawValue);
+  }
+  return out;
+}
+
+function parseFrontmatterScalar(value) {
+  const trimmed = value.trim();
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+async function exportableCommands(pack) {
+  if (!isSafeTargetName(pack)) fail(`unsafe command pack: ${pack}`);
+  const commands = await readCommands();
+  const errors = [];
+  checkCommandMetadata(commands, errors);
+  if (errors.length > 0) fail(`command metadata invalid:\n${errors.join("\n")}`);
+  const packs = commandPacks(commands);
+  if (!packs.has(pack)) fail(`unknown command pack: ${pack}`);
+  return commands.filter((command) => commandInPack(command, pack));
+}
+
+function commandInPack(command, pack) {
+  if (pack === "all") return true;
+  if (pack === "default") return command.metadata.default_export !== false;
+  return command.metadata.default_export !== false || command.metadata.packs.includes(pack);
+}
+
+function commandPacks(commands) {
+  const packs = new Set(["default", "all"]);
+  for (const command of commands) {
+    for (const pack of command.metadata.packs) packs.add(pack);
+  }
+  return packs;
+}
+
+function checkCommandMetadata(commands, errors) {
+  const names = new Set();
+  for (const command of commands) {
+    for (const error of command.frontmatterErrors) errors.push(`${command.relativePath}: ${error}`);
+    if (names.has(command.metadata.name)) errors.push(`duplicate command metadata name: ${command.metadata.name}`);
+    names.add(command.metadata.name);
+    for (const field of Object.keys(command.metadata)) {
+      if (!commandMetadataFields.has(field)) errors.push(`${command.relativePath}: unsupported metadata field: ${field}`);
+    }
+    if (typeof command.metadata.name !== "string") errors.push(`${command.relativePath}: name must be a string`);
+    if (command.metadata.name !== command.name) errors.push(`${command.relativePath}: metadata name must match filename`);
+    if (!isSafeTargetName(command.metadata.name)) errors.push(`${command.relativePath}: unsafe metadata name`);
+    if (!Array.isArray(command.metadata.aliases)) errors.push(`${command.relativePath}: aliases must be an array`);
+    if (!commandPhases.has(command.metadata.phase)) errors.push(`${command.relativePath}: unsupported phase: ${command.metadata.phase}`);
+    if (!commandRisks.has(command.metadata.risk)) errors.push(`${command.relativePath}: unsupported risk: ${command.metadata.risk}`);
+    if (typeof command.metadata.default_export !== "boolean") errors.push(`${command.relativePath}: default_export must be boolean`);
+    if (command.metadata.description !== null && typeof command.metadata.description !== "string") {
+      errors.push(`${command.relativePath}: description must be a string`);
+    }
+    if (!Array.isArray(command.metadata.packs)) errors.push(`${command.relativePath}: packs must be an array`);
+    if (!Array.isArray(command.metadata.approval_classes)) errors.push(`${command.relativePath}: approval_classes must be an array`);
+    for (const pack of command.metadata.packs ?? []) {
+      if (!isSafeTargetName(pack)) errors.push(`${command.relativePath}: unsafe pack name: ${pack}`);
+    }
+    for (const alias of command.metadata.aliases ?? []) {
+      if (!isSafeTargetName(alias)) errors.push(`${command.relativePath}: unsafe alias: ${alias}`);
+    }
+    for (const approvalClass of command.metadata.approval_classes ?? []) {
+      if (!commandApprovalClasses.has(approvalClass)) errors.push(`${command.relativePath}: unsupported approval class: ${approvalClass}`);
+    }
+    if (command.metadata.default_export === false && command.metadata.packs.includes("default")) {
+      errors.push(`${command.relativePath}: default_export false cannot include default pack`);
+    }
+    if (command.metadata.default_export === false && command.metadata.packs.length === 0) {
+      errors.push(`${command.relativePath}: quarantined command must declare at least one non-default pack`);
+    }
+  }
+}
+
+function commandPhaseFromName(name) {
+  const prefix = name.split("-")[0];
+  const map = {
+    arch: "decide",
+    boot: "observe",
+    dev: "build",
+    flow: "decide",
+    lint: "verify",
+    ops: "improve",
+    qa: "review",
+    ship: "ship",
+    stellaris: "game",
+    verify: "verify",
+    workflow: "arbitrate",
+  };
+  return map[prefix] ?? "misc";
 }
 
 async function directories(base) {
@@ -1515,7 +1698,7 @@ function isSafeRelativePath(file) {
 }
 
 function isSafeTargetName(target) {
-  return /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(target);
+  return typeof target === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(target);
 }
 
 function safeTimestamp(value) {

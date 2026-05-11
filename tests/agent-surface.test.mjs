@@ -79,6 +79,14 @@ assert.match(`${unsafeBuild.stdout}${unsafeBuild.stderr}`, /unsafe build target/
 assert.equal(existsSync(path.join(escapeVictim, "keep.txt")), true);
 rmSync(escapeVictim, { recursive: true, force: true });
 
+const unsafePack = status(["build", "--target", "cline", "--pack", "../bad"]);
+assert.notEqual(unsafePack.status, 0);
+assert.match(`${unsafePack.stdout}${unsafePack.stderr}`, /unsafe command pack/);
+
+const unknownPack = status(["build", "--target", "cline", "--pack", "unknown-pack"]);
+assert.notEqual(unknownPack.status, 0);
+assert.match(`${unknownPack.stdout}${unknownPack.stderr}`, /unknown command pack/);
+
 const genericRules = run(["check", "rules", "--scenario", "generic-chat"]);
 assert.match(genericRules, /^generic-chat:$/m);
 assert.match(genericRules, /rules\/00-precedence-and-safety\.mdc/);
@@ -97,6 +105,15 @@ assertGeminiTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "boot", "facade.toml"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "ops", "nuke.toml"))), false);
 
+const allPackBuild = run(["build", "--target", "gemini-cli", "--pack", "all"]);
+assert.match(allPackBuild, /gemini-cli: 61 command sources rendered \(pack: all\)/);
+assertGeminiTomlParses();
+const facadeToml = readFileSync(path.join(root, "dist", "gemini-cli", ".gemini", "commands", "boot", "facade.toml"), "utf8");
+const nukeToml = readFileSync(path.join(root, "dist", "gemini-cli", ".gemini", "commands", "ops", "nuke.toml"), "utf8");
+assert.match(facadeToml, /prompt = '''## OBJECTIVE/);
+assert.match(nukeToml, /prompt = '''## OBJECTIVE/);
+assert.doesNotMatch(facadeToml, /prompt = '''---/);
+
 const antigravity = readFileSync(
   path.join(root, "dist", "antigravity", "global_workflows", "workflow-boss.md"),
   "utf8",
@@ -110,9 +127,15 @@ assert.equal(generated.some((file) => file.endsWith("dist/gemini-cli/.gemini/com
 
 const clinePlan = run(["install", "--target", "cline", "--dest", "/tmp/agent-surface-cline", "--dry-run"]);
 assert.match(clinePlan, /^target: cline$/m);
+assert.match(clinePlan, /^pack: default$/m);
 assert.match(clinePlan, /^root source: explicit --dest$/m);
 assert.match(clinePlan, /\.clinerules\/workflows\/workflow-boss\.md <- commands\/workflow-boss\.md/);
 assert.match(clinePlan, /\.agent-surface\/cline-manifest\.json/);
+
+const destructivePlan = run(["install", "--target", "cline", "--pack", "destructive", "--dest", "/tmp/agent-surface-cline", "--dry-run"]);
+assert.match(destructivePlan, /^pack: destructive$/m);
+assert.match(destructivePlan, /\.clinerules\/workflows\/ops-nuke\.md <- commands\/ops-nuke\.md/);
+assert.doesNotMatch(destructivePlan, /\.clinerules\/workflows\/boot-facade\.md <- commands\/boot-facade\.md/);
 
 const geminiPlan = run(["install", "--target", "gemini-cli", "--dest", "/tmp/agent-surface-gemini", "--dry-run"]);
 assert.match(geminiPlan, /^target: gemini-cli$/m);
@@ -146,6 +169,7 @@ assert.match(liveInstall, /^installed:$/m);
 assert.match(liveInstall, /wrote: 59/);
 assert.match(readFileSync(path.join(liveDest, ".clinerules", "workflows", "workflow-boss.md"), "utf8"), /^## OBJECTIVE/);
 const liveManifest = JSON.parse(readFileSync(path.join(liveDest, ".agent-surface", "cline-manifest.json"), "utf8"));
+assert.equal(liveManifest.pack, "default");
 assert.equal(liveManifest.managed.length, 59);
 assert.equal(liveManifest.managed[0].managed_by, "agent-surface");
 rmSync(liveDest, { recursive: true, force: true });

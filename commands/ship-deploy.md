@@ -1,3 +1,18 @@
+---
+name: ship-deploy
+phase: ship
+risk: deployment
+default_export: true
+packs:
+  - default
+  - release
+  - deployment
+approval_classes:
+  - deployment
+  - network
+description: "Deploy verified artifacts with approval and rollback gates."
+---
+
 ## OBJECTIVE
 
 **THE LAUNCH BUTTON.**

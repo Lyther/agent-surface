@@ -1,3 +1,13 @@
+---
+name: flow
+phase: decide
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Route a task to the lightest safe agent-surface path."
+---
+
 ## OBJECTIVE
 
 Route an incoming task to the lightest agent-surface path that can handle it safely.
