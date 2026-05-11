@@ -32,6 +32,14 @@ Defaults:
 
 Use the smallest path that preserves evidence and safety.
 
+When running inside `agent-surface`, load the current registry first:
+
+```bash
+node scripts/agent-surface.mjs commands --json
+```
+
+Use registry `phase`, `risk`, `packs`, `approval_classes`, `default_export`, and `metadata_source` as the source of truth for available commands. The lifecycle map below is a human fallback, not authority.
+
 ```text
 direct:
   trivial mechanical edit, single-file doc tweak, obvious config correction

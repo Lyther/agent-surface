@@ -172,7 +172,7 @@ function printHelp() {
 
 Usage:
   agent-surface inventory
-  agent-surface commands [--pack default|all|<pack>] [--json]
+  agent-surface commands [--pack default|all|<pack>] [--phase <phase>] [--risk <risk>] [--json]
   agent-surface check
   agent-surface check rules [--scenario <name>]
   agent-surface check commands
@@ -451,16 +451,24 @@ async function checkRules(args) {
 
 async function commandsList(args) {
   const pack = argValue(args, "--pack") ?? "default";
+  const phase = argValue(args, "--phase");
+  const risk = argValue(args, "--risk");
   const asJson = args.includes("--json");
-  const commands = await exportableCommands(pack);
-  const registry = commandRegistry(commands, pack);
+  if (phase && !commandPhases.has(phase)) fail(`unsupported command phase: ${phase}`);
+  if (risk && !commandRisks.has(risk)) fail(`unsupported command risk: ${risk}`);
+
+  let commands = await exportableCommands(pack);
+  if (phase) commands = commands.filter((command) => command.metadata.phase === phase);
+  if (risk) commands = commands.filter((command) => command.metadata.risk === risk);
+
+  const registry = commandRegistry(commands, { pack, phase, risk });
 
   if (asJson) {
     console.log(JSON.stringify(registry, null, 2));
     return;
   }
 
-  console.log(`commands: ${registry.count} (pack: ${pack})`);
+  console.log(`commands: ${registry.count} (pack: ${pack}${phase ? ` phase: ${phase}` : ""}${risk ? ` risk: ${risk}` : ""})`);
   for (const command of registry.commands) {
     const aliases = command.aliases.length > 0 ? ` aliases=${command.aliases.join(",")}` : "";
     console.log(`${command.name} phase=${command.phase} risk=${command.risk} source=${command.source}${aliases}`);
@@ -1438,7 +1446,7 @@ function parseCommand(file, text) {
     name,
     aliases: [],
     phase: commandPhaseFromName(name),
-    risk: "safe",
+    risk: commandRiskFromName(name),
     packs: ["default"],
     default_export: true,
     approval_classes: [],
@@ -1528,9 +1536,10 @@ async function exportableCommands(pack) {
   return commands.filter((command) => commandInPack(command, pack));
 }
 
-function commandRegistry(commands, pack) {
+function commandRegistry(commands, filters) {
   return {
-    pack,
+    pack: filters.pack,
+    filters,
     count: commands.length,
     commands: commands.map(commandRegistryEntry),
   };
@@ -1547,6 +1556,7 @@ function commandRegistryEntry(command) {
     default_export: command.metadata.default_export,
     approval_classes: command.metadata.approval_classes,
     description: command.metadata.description,
+    metadata_source: command.hasFrontmatter ? "frontmatter" : "inferred",
     targets: Object.fromEntries(
       Object.entries(targets).map(([name, adapter]) => [
         name,
@@ -1684,6 +1694,33 @@ function commandPhaseFromName(name) {
     workflow: "arbitrate",
   };
   return map[prefix] ?? "misc";
+}
+
+function commandRiskFromName(name) {
+  if (name === "boot-facade") return "deception-risk";
+  if (name === "ops-nuke") return "destructive";
+  if (name === "ship-deploy" || name === "ship-release") return "deployment";
+  if (name === "ops-deps" || name === "qa-sec" || name === "qa-trace") return "security-sensitive";
+  if (name === "workflow-doctor") return "safe";
+  if (
+    name.startsWith("dev-") ||
+    name.startsWith("workflow-") ||
+    [
+      "boot-new",
+      "ops-docs",
+      "ops-learn",
+      "ship-artifact",
+      "ship-cicd",
+      "ship-commit",
+      "stellaris-implement",
+      "stellaris-init",
+      "stellaris-ui",
+      "stellaris-uplink",
+    ].includes(name)
+  ) {
+    return "writes";
+  }
+  return "safe";
 }
 
 async function directories(base) {
