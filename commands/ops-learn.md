@@ -35,7 +35,7 @@ debug (fix) → LEARN (classify) → lessons / AGENTS (persist)
 
 1. **Identify Root Cause**:
     - **Surface**: "The build failed."
-    - **Root**: "We imported a type from `dev-deps` in production code."
+    - **Root**: "We imported a type from development dependencies in production code."
 2. **Classify the Sink First**:
     - **Durable User Preference**: stable user correction or preference → `AGENTS.md` / `## Learned User Preferences`
     - **Durable Workspace Fact**: stable repo/tooling fact → `AGENTS.md` / `## Learned Workspace Facts`

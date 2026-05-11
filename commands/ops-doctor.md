@@ -51,7 +51,7 @@ Find broken references, token budget violations, rules drift, stale exports, and
 - Verify `~/.gemini/commands/` has `.toml` files matching exported command count (syncable root commands plus generated compatibility aliases).
 - Verify `~/.gemini/antigravity/global_workflows/` has `.md` files matching exported command count (syncable root commands plus generated compatibility aliases).
 - Verify `~/.claude/CLAUDE.md` exists and `~/.claude/commands/` has `.md` files matching exported command count (syncable root commands plus generated compatibility aliases).
-- Current compatibility alias set: `dev-component` -> `dev-feature`.
+- Verify compatibility aliases declared in command metadata resolve to real command sources.
 - Report: missing or stale targets.
 
 ### Check 8: AGENTS.md learned sections
@@ -68,7 +68,7 @@ DOCTOR REPORT — ~/.cursor/commands
 [CHECK 1] Workflow reachability
   All N nodes resolve
   OR
-  MISSING: arch-contract (referenced in workflow map)
+  MISSING: missing-command (referenced in workflow map)
   ORPHAN: ai-tap-gardener (not in any workflow map)
 
 [CHECK 2] Token budget
@@ -85,7 +85,7 @@ DOCTOR REPORT — ~/.cursor/commands
 [CHECK 4] Broken refs
   No broken internal references
   OR
-  BROKEN: dev-feature.md:18 references `arch-contract` — file does not exist
+  BROKEN: dev-feature.md:18 references `missing-command` — file does not exist
 
 [CHECK 5] Version pins
   No stale pins

@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const commandMetadataFields = new Set(["name", "aliases", "phase", "risk", "packs", "default_export", "approval_classes", "description"]);
+const commandPrefixes = new Set(["arch", "boot", "dev", "lint", "ops", "qa", "ship", "stellaris", "verify", "workflow"]);
 const commandPhases = new Set(["observe", "decide", "build", "verify", "review", "arbitrate", "ship", "improve", "bootstrap", "game", "misc"]);
 const commandRisks = new Set(["safe", "writes", "destructive", "security-sensitive", "deception-risk", "deployment"]);
 const commandApprovalClasses = new Set(["network", "filesystem_destructive", "deployment", "database_mutation"]);
@@ -122,9 +123,16 @@ async function main() {
     return;
   }
 
+  if (command === "commands") {
+    await commandsList(args);
+    return;
+  }
+
   if (command === "check") {
     if (args[0] === "rules") {
       await checkRules(args.slice(1));
+    } else if (args[0] === "commands") {
+      await checkCommands(args.slice(1));
     } else {
       await check();
     }
@@ -164,8 +172,10 @@ function printHelp() {
 
 Usage:
   agent-surface inventory
+  agent-surface commands [--pack default|all|<pack>] [--json]
   agent-surface check
   agent-surface check rules [--scenario <name>]
+  agent-surface check commands
   agent-surface build --target <cline|antigravity|gemini-cli|all> [--pack default|all|<pack>] [--dry-run]
   agent-surface install --target <cline|antigravity|gemini-cli> [--pack default|all|<pack>] [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
@@ -437,6 +447,54 @@ async function checkRules(args) {
   }
 
   console.log("rules check: ok");
+}
+
+async function commandsList(args) {
+  const pack = argValue(args, "--pack") ?? "default";
+  const asJson = args.includes("--json");
+  const commands = await exportableCommands(pack);
+  const registry = commandRegistry(commands, pack);
+
+  if (asJson) {
+    console.log(JSON.stringify(registry, null, 2));
+    return;
+  }
+
+  console.log(`commands: ${registry.count} (pack: ${pack})`);
+  for (const command of registry.commands) {
+    const aliases = command.aliases.length > 0 ? ` aliases=${command.aliases.join(",")}` : "";
+    console.log(`${command.name} phase=${command.phase} risk=${command.risk} source=${command.source}${aliases}`);
+  }
+}
+
+async function checkCommands(_args) {
+  const commands = await readCommands();
+  const metadataErrors = [];
+  const referenceErrors = [];
+
+  checkCommandMetadata(commands, metadataErrors);
+  collectCommandReferenceFindings(commands, referenceErrors);
+
+  console.log("commands:");
+  console.log(`  files: ${commands.length}`);
+  console.log(`  explicit_metadata: ${commands.filter((command) => command.hasFrontmatter).length}`);
+  console.log(`  metadata: ${metadataErrors.length > 0 ? "failed" : "ok"}`);
+  console.log(`  references: ${referenceErrors.length > 0 ? "failed" : "ok"}`);
+  console.log(`  packs: ${[...commandPacks(commands)].sort().join(", ")}`);
+
+  const errors = [
+    ...metadataErrors.map((error) => `metadata: ${error}`),
+    ...referenceErrors.map((error) => `reference: ${error}`),
+  ];
+
+  if (errors.length > 0) {
+    console.log("errors:");
+    for (const error of errors) console.log(`  ${error}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log("commands check: ok");
 }
 
 async function build(args) {
@@ -1388,12 +1446,14 @@ function parseCommand(file, text) {
   };
   const frontmatterErrors = [];
   let body = text;
+  let hasFrontmatter = false;
 
   if (text.startsWith("---\n")) {
     const end = text.indexOf("\n---\n", 4);
     if (end === -1) {
       frontmatterErrors.push("frontmatter not closed");
     } else {
+      hasFrontmatter = true;
       const parsed = parseSimpleFrontmatter(text.slice(4, end), frontmatterErrors);
       Object.assign(metadata, parsed);
       body = text.slice(end + 5).replace(/^\s+/, "");
@@ -1412,6 +1472,7 @@ function parseCommand(file, text) {
     name,
     body,
     metadata,
+    hasFrontmatter,
     frontmatterErrors,
   };
 }
@@ -1467,6 +1528,34 @@ async function exportableCommands(pack) {
   return commands.filter((command) => commandInPack(command, pack));
 }
 
+function commandRegistry(commands, pack) {
+  return {
+    pack,
+    count: commands.length,
+    commands: commands.map(commandRegistryEntry),
+  };
+}
+
+function commandRegistryEntry(command) {
+  return {
+    name: command.metadata.name,
+    source: command.relativePath,
+    aliases: command.metadata.aliases,
+    phase: command.metadata.phase,
+    risk: command.metadata.risk,
+    packs: command.metadata.packs,
+    default_export: command.metadata.default_export,
+    approval_classes: command.metadata.approval_classes,
+    description: command.metadata.description,
+    targets: Object.fromEntries(
+      Object.entries(targets).map(([name, adapter]) => [
+        name,
+        path.join(adapter.outputRoot, adapter.outputName ? adapter.outputName(command) : path.basename(command.file)),
+      ]),
+    ),
+  };
+}
+
 function commandInPack(command, pack) {
   if (pack === "all") return true;
   if (pack === "default") return command.metadata.default_export !== false;
@@ -1518,6 +1607,65 @@ function checkCommandMetadata(commands, errors) {
       errors.push(`${command.relativePath}: quarantined command must declare at least one non-default pack`);
     }
   }
+}
+
+function collectCommandReferenceFindings(commands, errors) {
+  const names = new Set(commands.map((command) => command.metadata.name));
+  const aliases = new Set(commands.flatMap((command) => command.metadata.aliases ?? []));
+  const seen = new Set();
+
+  for (const command of commands) {
+    for (const reference of commandReferences(command.body)) {
+      if (!isCommandLikeReference(reference.name, names, aliases)) continue;
+      if (names.has(reference.name) || aliases.has(reference.name)) continue;
+      const key = `${command.relativePath}:${reference.name}:${reference.line}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      errors.push(`${command.relativePath}:${reference.line}: unresolved command reference ${reference.raw}`);
+    }
+  }
+
+  const aliasOwners = new Map();
+  for (const command of commands) {
+    for (const alias of command.metadata.aliases ?? []) {
+      if (names.has(alias)) errors.push(`${command.relativePath}: alias collides with command name: ${alias}`);
+      const owner = aliasOwners.get(alias);
+      if (owner) errors.push(`${command.relativePath}: alias duplicates ${owner}: ${alias}`);
+      aliasOwners.set(alias, command.relativePath);
+    }
+  }
+
+}
+
+function commandReferences(text) {
+  const references = [];
+  const patterns = [
+    /(?<![\w/])\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)(?![\w/-])/g,
+    /`\/?([a-z][a-z0-9]*(?:-[a-z0-9]+)*)`/g,
+    /\[([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\]/g,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      references.push({
+        name: match[1],
+        raw: match[0],
+        line: lineNumberAt(text, match.index ?? 0),
+      });
+    }
+  }
+
+  return references;
+}
+
+function isCommandLikeReference(name, names, aliases) {
+  if (names.has(name) || aliases.has(name)) return true;
+  if (!name.includes("-")) return false;
+  return commandPrefixes.has(name.split("-")[0]);
+}
+
+function lineNumberAt(text, index) {
+  return text.slice(0, index).split(/\r?\n/).length;
 }
 
 function commandPhaseFromName(name) {

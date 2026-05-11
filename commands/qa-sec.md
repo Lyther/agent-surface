@@ -147,5 +147,5 @@ For every finding, calculate the **CVSS v4.0 Vector** and capture exploitability
 
 ## RELATED COMMANDS
 
-- `qa-pentest`: For active exploitation and payload fuzzing.
+- `qa-trace`: For active exploitability tracing and payload fuzzing.
 - `qa-audit`: For compliance and process review.

@@ -33,15 +33,15 @@ User invokes command (e.g., "dev-refactor", "arch-roadmap")
                        ↓
 [boot-context] → [arch-roadmap] → [arch-model] → [arch-api]
                                         ↓
-                                  [arch-breakdown]
+                                  [workflow-boss]
                                         ↓
                                 ┌→ [dev-feature] ──┐
                                 ↓       ↓          ↓
 [ops-monitor] ← [ship-deploy]   | [verify-test]    |
      ↑                ↑         ↓       ↓          ↓
-[ops-debug] ──→ [dev-fix] ──────┴─ [dev-refactor] ←┘
+[ops-report] ─→ [dev-fix] ──────┴─ [dev-refactor] ←┘
      ↑                ↑
-       [qa-pentest]
+       [qa-sec]
 ```
 
 ### Structured workflow (v3 — validated run ledger)
@@ -214,7 +214,7 @@ Minimum expectations (v3):
 
 ### Visibility rule
 
-No dedicated `workflow-status` command.
+Use `workflow-doctor` for current-run integrity checks.
 
 Instead, each workflow-aware command should:
 

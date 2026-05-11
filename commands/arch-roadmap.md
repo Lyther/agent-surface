@@ -140,9 +140,9 @@ Plus summary:
 ## Next Steps (MANDATORY)
 1. Run `arch-model` to define the data schema.
 2. Run `arch-api` to define API interfaces.
-3. Run `arch-breakdown` to create the first mission.
+3. Run `workflow-boss` to create the first mission.
 4. For maintenance/bugs, use `dev-chore` or `dev-fix`.
-5. For security, use `qa-sec` or `qa-pentest`.
+5. For security, use `qa-sec` or `qa-trace`.
 ```
 
 ## EXECUTION RULES

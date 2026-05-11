@@ -63,11 +63,29 @@ function sha256(value) {
 rmSync(path.join(root, "dist"), { recursive: true, force: true });
 
 assert.equal(run(["check"]).trim(), "check: ok");
+assert.match(run(["check", "commands"]), /commands check: ok/);
 
 const inventory = run(["inventory"]);
 assert.match(inventory, /^rules: 11$/m);
 assert.match(inventory, /^commands: 61$/m);
 assert.match(inventory, /^schemas: 11$/m);
+
+const defaultRegistry = JSON.parse(run(["commands", "--json"]));
+assert.equal(defaultRegistry.pack, "default");
+assert.equal(defaultRegistry.count, 59);
+assert.equal(defaultRegistry.commands.some((command) => command.name === "boot-facade"), false);
+const flowCommand = defaultRegistry.commands.find((command) => command.name === "flow");
+assert.ok(flowCommand);
+assert.equal(flowCommand.phase, "decide");
+assert.equal(flowCommand.risk, "safe");
+assert.equal(flowCommand.targets["gemini-cli"], path.join(".gemini", "commands", "flow", "flow.toml"));
+const allRegistry = JSON.parse(run(["commands", "--pack", "all", "--json"]));
+assert.equal(allRegistry.count, 61);
+assert.equal(allRegistry.commands.some((command) => command.name === "boot-facade"), true);
+const destructiveRegistry = JSON.parse(run(["commands", "--pack", "destructive", "--json"]));
+assert.equal(destructiveRegistry.count, 60);
+assert.equal(destructiveRegistry.commands.some((command) => command.name === "ops-nuke"), true);
+assert.equal(destructiveRegistry.commands.some((command) => command.name === "boot-facade"), false);
 
 const escapeVictim = "/tmp/agent-surface-build-escape-victim";
 rmSync(escapeVictim, { recursive: true, force: true });

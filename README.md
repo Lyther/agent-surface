@@ -52,6 +52,7 @@ Out of scope:
 ```bash
 npm run inventory
 npm run check
+npm run check:commands
 npm run check:rules
 npm run test
 npm run doctor
@@ -60,7 +61,10 @@ npm run build -- --target antigravity --dry-run
 npm run build -- --target gemini-cli --dry-run
 node scripts/agent-surface.mjs build --target gemini-cli --pack all --dry-run
 node scripts/agent-surface.mjs build --target cline --pack destructive --dry-run
+node scripts/agent-surface.mjs commands --json
+node scripts/agent-surface.mjs commands --pack all --json
 node scripts/agent-surface.mjs check
+node scripts/agent-surface.mjs check commands
 node scripts/agent-surface.mjs install --target cline --pack default --scope project --dry-run
 node scripts/agent-surface.mjs install --target antigravity --scope user --dry-run
 node scripts/agent-surface.mjs install --target gemini-cli --scope project --dry-run
@@ -87,7 +91,7 @@ node scripts/agent-surface.mjs check rules --scenario shell-script
 
 `run` requires explicit approval for `network`, `filesystem_destructive`, `deployment`, and `database_mutation` command classes through `--approved <class>` or `AGENT_SURFACE_APPROVED_CLASSES`.
 
-Command frontmatter can declare `name`, `phase`, `risk`, `packs`, `default_export`, `approval_classes`, and `description`. `build` and `install` use `--pack default` unless told otherwise. `--pack all` renders every command source; named packs render the default set plus commands explicitly assigned to that pack.
+Command frontmatter can declare `name`, `aliases`, `phase`, `risk`, `packs`, `default_export`, `approval_classes`, and `description`. `commands --json` emits the resolved registry with target paths. `check commands` validates metadata and command-like references. `build` and `install` use `--pack default` unless told otherwise. `--pack all` renders every command source; named packs render the default set plus commands explicitly assigned to that pack.
 
 ## Workflow Kernel
 
