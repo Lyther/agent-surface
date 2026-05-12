@@ -1,28 +1,22 @@
 {
   "in_scope": {
     "claude-code": {
-      "status": "planned",
-      "build_supported": false,
-      "install_supported": false,
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
       "renders": [
-        "rules",
         "commands",
-        "skills",
-        "subagents",
-        "hooks",
-        "mcps",
         "plugins"
       ]
     },
     "codex": {
-      "status": "planned",
-      "build_supported": false,
-      "install_supported": false,
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
       "renders": [
-        "rules",
         "skills",
-        "mcps",
-        "plugins"
+        "rules",
+        "subagents"
       ]
     },
     "gemini-cli": {
@@ -30,11 +24,8 @@
       "build_supported": true,
       "install_supported": true,
       "renders": [
-        "rules",
         "commands",
-        "subagents",
-        "hooks",
-        "mcps",
+        "rules",
         "plugins"
       ]
     },
@@ -43,12 +34,8 @@
       "build_supported": true,
       "install_supported": true,
       "renders": [
-        "rules",
         "commands-as-workflows",
-        "skills",
-        "hooks",
-        "mcps",
-        "ignores"
+        "rules"
       ]
     },
     "antigravity": {
@@ -60,50 +47,45 @@
       ]
     },
     "opencode": {
-      "status": "verify-before-write",
-      "build_supported": false,
-      "install_supported": false,
-      "renders": [
-        "rules",
-        "commands",
-        "subagents",
-        "mcps",
-        "plugins"
-      ]
-    },
-    "vscode": {
-      "status": "planned",
-      "build_supported": false,
-      "install_supported": false,
-      "renders": [
-        "settings"
-      ]
-    },
-    "cursor": {
-      "status": "planned",
-      "build_supported": false,
-      "install_supported": false,
-      "renders": [
-        "rules",
-        "commands",
-        "mcps"
-      ]
-    },
-    "copilot": {
-      "status": "planned",
-      "build_supported": false,
-      "install_supported": false,
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
       "renders": [
         "rules"
       ]
     },
-    "trae": {
-      "status": "verify-before-write",
-      "build_supported": false,
-      "install_supported": false,
+    "vscode": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "instructions",
+        "prompts"
+      ]
+    },
+    "cursor": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
       "renders": [
         "rules",
-        "mcps"
+        "commands"
+      ]
+    },
+    "copilot": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "instructions"
+      ]
+    },
+    "trae": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "rules"
       ]
     }
   },

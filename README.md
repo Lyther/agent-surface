@@ -2,11 +2,11 @@
 
 Typed source and adapter compiler for coding-agent surfaces.
 
-Current implementation: command-source compiler for Cline, Antigravity, and Gemini CLI. Planned surfaces include rules, skills, subagents, hooks, MCP config, settings, ignores, and plugin bundles.
+Current implementation: global command, rule, skill, prompt, and plugin-package compiler for Claude Code, Codex, Gemini CLI, Cline, Antigravity, Cursor, GitHub Copilot, VS Code, OpenCode, and Trae. Planned surfaces still include richer hooks, MCP config, ignores, and first-class subagent bundles.
 
 ## Model
 
-`commands/` is the canonical home for user-invoked reusable procedures. Target adapters may render the same source as Claude commands, Gemini commands, Cline workflows, Antigravity workflows, Codex skills, or another native primitive.
+`commands/` is the canonical home for user-invoked reusable procedures. Target adapters may render the same source as Claude commands, Gemini commands and extensions, Cline workflows, Antigravity workflows, Cursor commands, Codex skills, Claude plugin commands, or another native primitive.
 
 Default exports quarantine high-risk local-only commands such as `boot-facade` and `ops-nuke` through command metadata; they remain source artifacts and can be rendered only through explicit packs.
 
@@ -53,10 +53,15 @@ Out of scope:
 npm run inventory
 npm run check
 npm run check:commands
+npm run check:generated
 npm run check:rules
 npm run test
 npm run doctor
 npm run build -- --target cline --dry-run
+npm run build -- --target claude-code --dry-run
+npm run build -- --target codex --dry-run
+npm run build -- --target cursor --dry-run
+npm run build -- --target opencode --dry-run
 npm run build -- --target antigravity --dry-run
 npm run build -- --target gemini-cli --dry-run
 node scripts/agent-surface.mjs build --target gemini-cli --pack all --dry-run
@@ -67,7 +72,17 @@ node scripts/agent-surface.mjs commands --risk writes --json
 node scripts/agent-surface.mjs commands --pack all --json
 node scripts/agent-surface.mjs check
 node scripts/agent-surface.mjs check commands
+node scripts/agent-surface.mjs check generated
+node scripts/agent-surface.mjs check generated --target gemini-cli
 node scripts/agent-surface.mjs install --target cline --pack default --scope project --dry-run
+node scripts/agent-surface.mjs install --target cline --pack default --scope user --dry-run
+node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
+node scripts/agent-surface.mjs install --target codex --scope user --dry-run
+node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
+node scripts/agent-surface.mjs install --target copilot --scope user --dry-run
+node scripts/agent-surface.mjs install --target vscode --scope user --dry-run
+node scripts/agent-surface.mjs install --target opencode --scope user --dry-run
+node scripts/agent-surface.mjs install --target trae --scope user --dry-run
 node scripts/agent-surface.mjs install --target antigravity --scope user --dry-run
 node scripts/agent-surface.mjs install --target gemini-cli --scope project --dry-run
 node scripts/agent-surface.mjs install --target cline --dest /tmp/agent-surface-cline
@@ -95,6 +110,19 @@ node scripts/agent-surface.mjs check rules --scenario shell-script
 
 Command frontmatter can declare `name`, `aliases`, `phase`, `risk`, `packs`, `default_export`, `approval_classes`, and `description`. `commands --json` emits the resolved registry with target paths and marks metadata as `frontmatter` or `inferred`. `commands --phase` and `commands --risk` filter that registry for routers such as `/flow`. `check commands` validates metadata and command-like references. `build` and `install` use `--pack default` unless told otherwise. `--pack all` renders every command source; named packs render the default set plus commands explicitly assigned to that pack.
 
+Global target surfaces currently generated:
+
+- Claude Code: `~/.claude/commands/**` plus a packaged Claude plugin directory at `~/.agent-surface/claude-plugin/agent-surface/`.
+- Codex: `~/.agents/skills/<command>/SKILL.md`, per-skill `agents/openai.yaml`, and `~/.codex/AGENTS.md`.
+- Gemini CLI: `~/.gemini/commands/**`, `~/.gemini/GEMINI.md`, and `~/.gemini/extensions/agent-surface/`.
+- Cline: `~/Documents/Cline/Workflows/*.md` and `~/Documents/Cline/Rules/agent-surface.md` for user scope; project scope still writes `.clinerules/`.
+- Antigravity: `~/.gemini/antigravity/global_workflows/*.md`.
+- Cursor: `~/.cursor/commands/*.md` and `~/.cursor/rules/*.mdc`.
+- GitHub Copilot: VS Code user-profile `instructions/agent-surface-copilot.instructions.md`.
+- VS Code: user-profile `instructions/agent-surface.instructions.md` and `prompts/agent-surface.prompt.md`.
+- OpenCode: `~/.config/opencode/AGENTS.md`.
+- Trae: `~/.trae/user_rules.md`.
+
 ## Workflow Kernel
 
 Canonical workflow state lives under `.agent-surface/workflows/<run_id>/`.
@@ -120,10 +148,9 @@ npx github:Lyther/agent-surface inventory
 
 ## Next Milestone
 
-Focus adapters in this order:
+Use the managed global installs in normal work, then tighten target-specific validation where the host exposes a verifier:
 
-1. `cline`
-2. `antigravity`
-3. `gemini-cli`
-
-These targets have the clearest command/workflow primitives right now. Next, test one real target path at a time before installing into daily-use dotfolders.
+1. Claude Code: test standalone commands and the generated plugin with `claude --plugin-dir`.
+2. Gemini CLI: verify `/commands reload`, extension discovery, and `~/.gemini/GEMINI.md` loading.
+3. Cline: verify global Workflows and Rules appear in the UI.
+4. Cursor, Copilot, VS Code, OpenCode, and Trae: verify the generated global instruction files are actually attached in live sessions.

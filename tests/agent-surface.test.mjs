@@ -79,7 +79,11 @@ assert.ok(flowCommand);
 assert.equal(flowCommand.phase, "decide");
 assert.equal(flowCommand.risk, "safe");
 assert.equal(flowCommand.metadata_source, "frontmatter");
+assert.equal(flowCommand.targets["claude-code"], path.join(".claude", "commands", "flow", "flow.md"));
+assert.equal(flowCommand.targets.codex, path.join(".agents", "skills", "flow", "SKILL.md"));
+assert.equal(flowCommand.targets.cline, path.join("Documents", "Cline", "Workflows", "flow.md"));
 assert.equal(flowCommand.targets["gemini-cli"], path.join(".gemini", "commands", "flow", "flow.toml"));
+assert.equal(flowCommand.targets.cursor, path.join(".cursor", "commands", "flow.md"));
 const devFeatureCommand = defaultRegistry.commands.find((command) => command.name === "dev-feature");
 assert.ok(devFeatureCommand);
 assert.equal(devFeatureCommand.risk, "writes");
@@ -135,13 +139,34 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
-assert.equal(generated.length, 177);
+assert.equal(generated.length, 554);
 assertGeminiTomlParses();
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "flow", "flow.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "boot", "facade.md"))), false);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "flow", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "flow", "agents", "openai.yaml"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "AGENTS.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "boot-facade", "SKILL.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "boot", "facade.toml"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "ops", "nuke.toml"))), false);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "GEMINI.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "extensions", "agent-surface", "gemini-extension.json"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".agent-surface", "claude-plugin", "agent-surface", ".claude-plugin", "plugin.json"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cline", "Documents", "Cline", "Rules", "agent-surface.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "rules", "00-precedence-and-safety.mdc"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "copilot", "instructions", "agent-surface-copilot.instructions.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "vscode", "instructions", "agent-surface.instructions.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "opencode", ".config", "opencode", "AGENTS.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "trae", ".trae", "user_rules.md"))), true);
+const generatedCheck = run(["check", "generated"]);
+assert.match(generatedCheck, /claude-code: generated outputs 120 ok/);
+assert.match(generatedCheck, /copilot: generated outputs 1 ok/);
+assert.match(generatedCheck, /generated check: ok/);
+const copilotGeneratedCheck = run(["check", "generated", "--target", "copilot"]);
+assert.match(copilotGeneratedCheck, /copilot: generated outputs 1 ok/);
 
 const allPackBuild = run(["build", "--target", "gemini-cli", "--pack", "all"]);
-assert.match(allPackBuild, /gemini-cli: 61 command sources rendered \(pack: all\)/);
+assert.match(allPackBuild, /gemini-cli: 125 outputs rendered \(pack: all\)/);
 assertGeminiTomlParses();
 const facadeToml = readFileSync(path.join(root, "dist", "gemini-cli", ".gemini", "commands", "boot", "facade.toml"), "utf8");
 const nukeToml = readFileSync(path.join(root, "dist", "gemini-cli", ".gemini", "commands", "ops", "nuke.toml"), "utf8");
@@ -159,12 +184,18 @@ const gemini = readFileSync(path.join(root, "dist", "gemini-cli", ".gemini", "co
 assert.match(gemini, /^description = "Run workflow boss\."/);
 assert.equal(generated.some((file) => file.endsWith("dist/gemini-cli/.gemini/commands/workflow-boss.md")), false);
 assert.equal(generated.some((file) => file.endsWith("dist/gemini-cli/.gemini/commands/flow/flow.toml")), true);
+const codexFlow = readFileSync(path.join(root, "dist", "codex", ".agents", "skills", "flow", "SKILL.md"), "utf8");
+assert.match(codexFlow, /^---\nname: flow\n/);
+assert.match(codexFlow, /Use explicit invocation: `\$flow`\./);
+const claudeFlow = readFileSync(path.join(root, "dist", "claude-code", ".claude", "commands", "flow", "flow.md"), "utf8");
+assert.match(claudeFlow, /^## OBJECTIVE/);
 
 const clinePlan = run(["install", "--target", "cline", "--dest", "/tmp/agent-surface-cline", "--dry-run"]);
 assert.match(clinePlan, /^target: cline$/m);
 assert.match(clinePlan, /^pack: default$/m);
 assert.match(clinePlan, /^root source: explicit --dest$/m);
 assert.match(clinePlan, /\.clinerules\/workflows\/workflow-boss\.md <- commands\/workflow-boss\.md/);
+assert.match(clinePlan, /\.clinerules\/agent-surface\.md <- rules\/\*\.mdc/);
 assert.match(clinePlan, /\.agent-surface\/cline-manifest\.json/);
 
 const destructivePlan = run(["install", "--target", "cline", "--pack", "destructive", "--dest", "/tmp/agent-surface-cline", "--dry-run"]);
@@ -175,6 +206,17 @@ assert.doesNotMatch(destructivePlan, /\.clinerules\/workflows\/boot-facade\.md <
 const geminiPlan = run(["install", "--target", "gemini-cli", "--dest", "/tmp/agent-surface-gemini", "--dry-run"]);
 assert.match(geminiPlan, /^target: gemini-cli$/m);
 assert.match(geminiPlan, /\.gemini\/commands\/workflow\/boss\.toml <- commands\/workflow-boss\.md/);
+assert.match(geminiPlan, /\.gemini\/GEMINI\.md <- rules\/\*\.mdc/);
+
+const claudePlan = run(["install", "--target", "claude-code", "--dest", "/tmp/agent-surface-claude", "--dry-run"]);
+assert.match(claudePlan, /^target: claude-code$/m);
+assert.match(claudePlan, /\.claude\/commands\/workflow\/boss\.md <- commands\/workflow-boss\.md/);
+assert.match(claudePlan, /\.agent-surface\/claude-plugin\/agent-surface\/\.claude-plugin\/plugin\.json <- package\.json/);
+
+const codexPlan = run(["install", "--target", "codex", "--dest", "/tmp/agent-surface-codex", "--dry-run"]);
+assert.match(codexPlan, /^target: codex$/m);
+assert.match(codexPlan, /\.agents\/skills\/workflow-boss\/SKILL\.md <- commands\/workflow-boss\.md/);
+assert.match(codexPlan, /\.codex\/AGENTS\.md <- rules\/\*\.mdc/);
 
 const staleDest = "/tmp/agent-surface-stale";
 rmSync(staleDest, { recursive: true, force: true });
@@ -201,13 +243,31 @@ const liveDest = "/tmp/agent-surface-live";
 rmSync(liveDest, { recursive: true, force: true });
 const liveInstall = run(["install", "--target", "cline", "--dest", liveDest]);
 assert.match(liveInstall, /^installed:$/m);
-assert.match(liveInstall, /wrote: 59/);
+assert.match(liveInstall, /wrote: 60/);
 assert.match(readFileSync(path.join(liveDest, ".clinerules", "workflows", "workflow-boss.md"), "utf8"), /^## OBJECTIVE/);
 const liveManifest = JSON.parse(readFileSync(path.join(liveDest, ".agent-surface", "cline-manifest.json"), "utf8"));
 assert.equal(liveManifest.pack, "default");
-assert.equal(liveManifest.managed.length, 59);
+assert.equal(liveManifest.managed.length, 60);
 assert.equal(liveManifest.managed[0].managed_by, "agent-surface");
 rmSync(liveDest, { recursive: true, force: true });
+
+const claudeLiveDest = "/tmp/agent-surface-claude-live";
+rmSync(claudeLiveDest, { recursive: true, force: true });
+const claudeLiveInstall = run(["install", "--target", "claude-code", "--dest", claudeLiveDest]);
+assert.match(claudeLiveInstall, /wrote: 120/);
+assert.match(readFileSync(path.join(claudeLiveDest, ".claude", "commands", "workflow", "boss.md"), "utf8"), /^## OBJECTIVE/);
+const claudeLiveManifest = JSON.parse(readFileSync(path.join(claudeLiveDest, ".agent-surface", "claude-code-manifest.json"), "utf8"));
+assert.equal(claudeLiveManifest.managed.length, 120);
+rmSync(claudeLiveDest, { recursive: true, force: true });
+
+const codexLiveDest = "/tmp/agent-surface-codex-live";
+rmSync(codexLiveDest, { recursive: true, force: true });
+const codexLiveInstall = run(["install", "--target", "codex", "--dest", codexLiveDest]);
+assert.match(codexLiveInstall, /wrote: 119/);
+assert.match(readFileSync(path.join(codexLiveDest, ".agents", "skills", "workflow-boss", "SKILL.md"), "utf8"), /^---\nname: workflow-boss\n/);
+const codexLiveManifest = JSON.parse(readFileSync(path.join(codexLiveDest, ".agent-surface", "codex-manifest.json"), "utf8"));
+assert.equal(codexLiveManifest.managed.length, 119);
+rmSync(codexLiveDest, { recursive: true, force: true });
 
 const unmanagedDest = "/tmp/agent-surface-unmanaged";
 rmSync(unmanagedDest, { recursive: true, force: true });
@@ -426,9 +486,24 @@ const invalidScope = status(["install", "--target", "cline", "--scope", "workspa
 assert.notEqual(invalidScope.status, 0);
 assert.match(invalidScope.stderr, /unsupported install scope/);
 
+const globalProjectScope = status(["install", "--target", "cursor", "--scope", "project", "--dry-run"]);
+assert.notEqual(globalProjectScope.status, 0);
+assert.match(globalProjectScope.stderr, /supports --scope user only/);
+
 const clineUserScope = status(["install", "--target", "cline", "--scope", "user", "--dry-run"]);
-assert.notEqual(clineUserScope.status, 0);
-assert.match(clineUserScope.stderr, /supports --scope project only/);
+assert.equal(clineUserScope.status, 0, `${clineUserScope.stdout}${clineUserScope.stderr}`);
+assert.match(clineUserScope.stdout, /Documents\/Cline\/Workflows\/workflow-boss\.md <- commands\/workflow-boss\.md/);
+
+for (const target of ["cursor", "copilot", "vscode", "opencode", "trae"]) {
+  const targetDest = `/tmp/agent-surface-${target}-live`;
+  rmSync(targetDest, { recursive: true, force: true });
+  const install = run(["install", "--target", target, "--dest", targetDest]);
+  assert.match(install, /^installed:$/m);
+  const manifest = JSON.parse(readFileSync(path.join(targetDest, ".agent-surface", `${target}-manifest.json`), "utf8"));
+  assert.equal(manifest.target, target);
+  assert.equal(manifest.managed.length > 0, true);
+  rmSync(targetDest, { recursive: true, force: true });
+}
 
 const allSource = files(root)
   .filter((file) => !file.includes(`${path.sep}.git${path.sep}`))

@@ -1,8 +1,12 @@
 # OpenCode adapter
 
-OpenCode is in scope only after primitive verification.
+Current implementation writes global OpenCode instructions.
 
-Locally observed CLI primitives:
+Implemented target path:
+
+- `~/.config/opencode/AGENTS.md`
+
+Locally observed CLI primitives remain future work:
 
 - `opencode agent`
 - `opencode mcp`

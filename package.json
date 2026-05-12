@@ -12,6 +12,7 @@
     "build": "node scripts/agent-surface.mjs build",
     "check": "node scripts/agent-surface.mjs check",
     "check:commands": "node scripts/agent-surface.mjs check commands",
+    "check:generated": "node scripts/agent-surface.mjs check generated",
     "check:rules": "node scripts/agent-surface.mjs check rules",
     "doctor": "node scripts/agent-surface.mjs doctor",
     "test": "node tests/agent-surface.test.mjs",

@@ -2,6 +2,7 @@
 
 Native surfaces:
 
-- `.cursor/rules`
-- command exports, subject to current primitive verification
-- MCP config
+- global commands: `~/.cursor/commands/*.md`
+- global rules: `~/.cursor/rules/*.mdc`
+
+MCP config is not mutated automatically. Review `~/.cursor/mcp.json` separately because it can contain secrets and live tool access.

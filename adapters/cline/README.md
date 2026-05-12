@@ -1,10 +1,13 @@
 # Cline adapter
 
-Render `commands/*.md` as Cline workflows.
+Current implementation renders command sources to Cline workflow files and generated rules.
 
-Target paths:
+Implemented target paths:
 
+- user: `~/Documents/Cline/Workflows/*.md`
+- user: `~/Documents/Cline/Rules/agent-surface.md`
 - project: `.clinerules/workflows/*.md`
-- user/global: `~/Documents/Cline/Rules/workflows/*.md` or the current Cline-configured global rules directory
+- project: `.clinerules/agent-surface.md`
+- custom: any reviewed `--dest` path
 
 Cline built-in slash commands are not treated as a custom command-file primitive.

@@ -18,27 +18,72 @@ const commandRisks = new Set(["safe", "writes", "destructive", "security-sensiti
 const commandApprovalClasses = new Set(["network", "filesystem_destructive", "deployment", "database_mutation"]);
 
 const targets = {
+  "claude-code": {
+    label: "Claude Code commands and plugin package",
+    commandOutputRoot: ".claude/commands",
+    renderCommand: renderClaudeCommand,
+    installRoot: installRootClaude,
+    commandOutputName: groupedMarkdownCommandOutputName,
+    additionalCommandOutputs: [claudePluginCommandOutput],
+    staticOutputs: claudeStaticOutputs,
+  },
+  codex: {
+    label: "Codex skills and global instructions",
+    commandOutputRoot: ".agents/skills",
+    renderCommand: renderCodexSkill,
+    installRoot: installRootCodex,
+    commandOutputName: codexSkillOutputName,
+    additionalCommandOutputs: [codexOpenAiAgentOutput],
+    staticOutputs: codexStaticOutputs,
+  },
   cline: {
-    label: "Cline workflows",
-    outputRoot: ".clinerules/workflows",
-    render: renderClineWorkflow,
-    installRoot: installRootProjectOnly,
-    installOutputRoot: ".clinerules/workflows",
+    label: "Cline workflows and rules",
+    commandOutputRoot: clineWorkflowRoot,
+    renderCommand: renderClineWorkflow,
+    installRoot: installRootCline,
+    staticOutputs: clineStaticOutputs,
   },
   antigravity: {
     label: "Antigravity workflows",
-    outputRoot: "global_workflows",
-    render: renderAntigravityWorkflow,
+    commandOutputRoot: "global_workflows",
+    renderCommand: renderAntigravityWorkflow,
     installRoot: installRootAntigravity,
-    installOutputRoot: "global_workflows",
   },
   "gemini-cli": {
-    label: "Gemini CLI commands",
-    outputRoot: ".gemini/commands",
-    render: renderGeminiCommand,
+    label: "Gemini CLI commands, context, and extension package",
+    commandOutputRoot: ".gemini/commands",
+    renderCommand: renderGeminiCommand,
     installRoot: installRootGemini,
-    installOutputRoot: ".gemini/commands",
-    outputName: geminiCommandOutputName,
+    commandOutputName: geminiCommandOutputName,
+    additionalCommandOutputs: [geminiExtensionCommandOutput],
+    staticOutputs: geminiStaticOutputs,
+  },
+  cursor: {
+    label: "Cursor global commands and rules",
+    commandOutputRoot: ".cursor/commands",
+    renderCommand: renderCursorCommand,
+    installRoot: installRootHomeOnly,
+    staticOutputs: cursorStaticOutputs,
+  },
+  copilot: {
+    label: "GitHub Copilot global instructions",
+    installRoot: installRootVsCode,
+    staticOutputs: copilotStaticOutputs,
+  },
+  vscode: {
+    label: "VS Code user prompt and instruction files",
+    installRoot: installRootVsCode,
+    staticOutputs: vscodeStaticOutputs,
+  },
+  opencode: {
+    label: "OpenCode global instructions",
+    installRoot: installRootHomeOnly,
+    staticOutputs: opencodeStaticOutputs,
+  },
+  trae: {
+    label: "Trae global user rules",
+    installRoot: installRootHomeOnly,
+    staticOutputs: traeStaticOutputs,
   },
 };
 
@@ -133,6 +178,8 @@ async function main() {
       await checkRules(args.slice(1));
     } else if (args[0] === "commands") {
       await checkCommands(args.slice(1));
+    } else if (args[0] === "generated") {
+      await checkGenerated(args.slice(1));
     } else {
       await check();
     }
@@ -176,8 +223,9 @@ Usage:
   agent-surface check
   agent-surface check rules [--scenario <name>]
   agent-surface check commands
-  agent-surface build --target <cline|antigravity|gemini-cli|all> [--pack default|all|<pack>] [--dry-run]
-  agent-surface install --target <cline|antigravity|gemini-cli> [--pack default|all|<pack>] [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
+  agent-surface check generated [--target <target|all>] [--pack default|all|<pack>]
+  agent-surface build --target <target|all> [--pack default|all|<pack>] [--dry-run]
+  agent-surface install --target <target> [--pack default|all|<pack>] [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
   agent-surface workflow doctor --run <run_id>
   agent-surface workflow apply --role <role> --run <run_id> --artifact <path>
@@ -505,6 +553,102 @@ async function checkCommands(_args) {
   console.log("commands check: ok");
 }
 
+async function checkGenerated(args) {
+  const target = argValue(args, "--target") ?? "all";
+  const pack = argValue(args, "--pack") ?? "default";
+  const selected = target === "all" ? Object.keys(targets) : [target];
+  const commandFiles = await exportableCommands(pack);
+  const errors = [];
+
+  for (const item of selected) {
+    if (!isSafeTargetName(item)) fail(`unsafe generated target: ${item}`);
+    if (!Object.hasOwn(targets, item)) fail(`unsupported generated target: ${item}`);
+  }
+
+  for (const item of selected) {
+    const adapter = targets[item];
+    const outputs = await targetOutputs(adapter, commandFiles, { target: item, scope: "user", mode: "check" });
+    const targetErrors = validateGeneratedTarget(item, outputs);
+    console.log(`${item}: generated outputs ${outputs.length} ${targetErrors.length > 0 ? "failed" : "ok"}`);
+    errors.push(...targetErrors.map((error) => `${item}: ${error}`));
+  }
+
+  if (errors.length > 0) {
+    console.log("errors:");
+    for (const error of errors) console.log(`  ${error}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log("generated check: ok");
+}
+
+function validateGeneratedTarget(target, outputs) {
+  const errors = [];
+  const byPath = new Map(outputs.map((output) => [output.relativeOutput, output]));
+
+  const requirePath = (relativeOutput) => {
+    if (!byPath.has(relativeOutput)) errors.push(`missing output ${relativeOutput}`);
+    return byPath.get(relativeOutput);
+  };
+
+  const requireJson = (relativeOutput) => {
+    const output = requirePath(relativeOutput);
+    if (!output) return null;
+    try {
+      return JSON.parse(output.content);
+    } catch (error) {
+      errors.push(`${relativeOutput} is not valid JSON: ${error.message}`);
+      return null;
+    }
+  };
+
+  const requireContains = (relativeOutput, pattern) => {
+    const output = requirePath(relativeOutput);
+    if (output && !pattern.test(output.content)) errors.push(`${relativeOutput} missing ${pattern}`);
+  };
+
+  if (outputs.length === 0) errors.push("no outputs generated");
+
+  if (target === "claude-code") {
+    requirePath(path.join(".claude", "commands", "flow", "flow.md"));
+    const plugin = requireJson(path.join(".agent-surface", "claude-plugin", "agent-surface", ".claude-plugin", "plugin.json"));
+    if (plugin && plugin.name !== "agent-surface") errors.push("Claude plugin name must be agent-surface");
+    requirePath(path.join(".agent-surface", "claude-plugin", "agent-surface", "commands", "flow", "flow.md"));
+  } else if (target === "codex") {
+    requireContains(path.join(".agents", "skills", "flow", "SKILL.md"), /^---\nname: flow\n/);
+    requireContains(path.join(".agents", "skills", "flow", "agents", "openai.yaml"), /allow_implicit_invocation: false/);
+    requireContains(path.join(".codex", "AGENTS.md"), /agent-surface global Codex rules/);
+  } else if (target === "gemini-cli") {
+    const extension = requireJson(path.join(".gemini", "extensions", "agent-surface", "gemini-extension.json"));
+    if (extension && extension.contextFileName !== "GEMINI.md") errors.push("Gemini extension contextFileName must be GEMINI.md");
+    requireContains(path.join(".gemini", "GEMINI.md"), /agent-surface global Gemini rules/);
+    requirePath(path.join(".gemini", "extensions", "agent-surface", "commands", "flow", "flow.toml"));
+    for (const output of outputs.filter((item) => item.relativeOutput.endsWith(".toml"))) {
+      if (!/^description = ".+"\n\nprompt = /s.test(output.content)) errors.push(`${output.relativeOutput} is not a Gemini command TOML shape`);
+    }
+  } else if (target === "cline") {
+    requirePath(path.join("Documents", "Cline", "Workflows", "flow.md"));
+    requireContains(path.join("Documents", "Cline", "Rules", "agent-surface.md"), /agent-surface Cline global rules/);
+  } else if (target === "antigravity") {
+    requireContains(path.join("global_workflows", "flow.md"), /^---\ndescription: "/);
+  } else if (target === "cursor") {
+    requirePath(path.join(".cursor", "commands", "flow.md"));
+    requirePath(path.join(".cursor", "rules", "00-precedence-and-safety.mdc"));
+  } else if (target === "copilot") {
+    requireContains(path.join("instructions", "agent-surface-copilot.instructions.md"), /^---\ndescription: "agent-surface Copilot global instructions"\napplyTo: "\*\*"/);
+  } else if (target === "vscode") {
+    requireContains(path.join("instructions", "agent-surface.instructions.md"), /^---\ndescription: "agent-surface VS Code instructions"\napplyTo: "\*\*"/);
+    requireContains(path.join("prompts", "agent-surface.prompt.md"), /^---\ndescription: "Route a task to the lightest safe agent-surface path"/);
+  } else if (target === "opencode") {
+    requireContains(path.join(".config", "opencode", "AGENTS.md"), /agent-surface global OpenCode rules/);
+  } else if (target === "trae") {
+    requireContains(path.join(".trae", "user_rules.md"), /agent-surface Trae user rules/);
+  }
+
+  return errors;
+}
+
 async function build(args) {
   const target = argValue(args, "--target") ?? "all";
   const pack = argValue(args, "--pack") ?? "default";
@@ -523,26 +667,20 @@ async function build(args) {
 
   for (const item of selected) {
     const adapter = targets[item];
+    const outputs = await targetOutputs(adapter, commandFiles, { target: item, scope: "user", mode: "build" });
 
-    const outputDir = path.join(root, "dist", item, adapter.outputRoot);
-    let count = 0;
-
-    for (const source of commandFiles) {
-      const rendered = await adapter.render(source);
-      const outputName = adapter.outputName ? adapter.outputName(source) : path.basename(source.file);
-      const targetPath = path.join(outputDir, outputName);
-      count += 1;
-
+    for (const output of outputs) {
+      const targetPath = path.join(root, "dist", item, output.relativeOutput);
       if (dryRun) {
-        console.log(`[dry-run] ${adapter.label}: ${source.relativePath} -> ${relative(targetPath)}`);
+        console.log(`[dry-run] ${adapter.label}: ${output.source} -> ${relative(targetPath)}`);
         continue;
       }
 
       await mkdir(path.dirname(targetPath), { recursive: true });
-      await writeFile(targetPath, rendered);
+      await writeFile(targetPath, output.content);
     }
 
-    console.log(`${item}: ${count} command sources rendered (pack: ${pack})${dryRun ? " (dry-run)" : ""}`);
+    console.log(`${item}: ${outputs.length} outputs rendered (pack: ${pack})${dryRun ? " (dry-run)" : ""}`);
   }
 }
 
@@ -582,27 +720,26 @@ async function installPlan(target, adapter, installRoot, scope, pack, rootSource
   const generatedAt = new Date().toISOString();
   const manifestPath = path.join(installRoot, ".agent-surface", `${target}-manifest.json`);
   const previousManifest = await readJsonIfExists(manifestPath);
+  const outputs = await targetOutputs(adapter, commandFiles, { target, scope, mode: "install" });
   const writes = [];
   const managed = [];
   const blocked = [];
 
-  for (const source of commandFiles) {
-    const rendered = await adapter.render(source);
-    const outputName = adapter.outputName ? adapter.outputName(source) : path.basename(source.file);
-    const output = path.join(installRoot, adapter.installOutputRoot, outputName);
+  for (const item of outputs) {
+    const output = path.join(installRoot, item.relativeOutput);
     const relativeOutput = path.relative(installRoot, output);
-    const hash = sha256(rendered);
+    const hash = sha256(item.content);
     if (!isSafeRelativePath(relativeOutput)) {
       blocked.push(`unsafe output path: ${relativeOutput}`);
       continue;
     }
 
-    writes.push({ source: source.relativePath, output, relativeOutput, content: rendered, sha256: hash });
+    writes.push({ source: item.source, output, relativeOutput, content: item.content, sha256: hash });
     managed.push({
       target,
       pack,
       scope,
-      source: source.relativePath,
+      source: item.source,
       output: relativeOutput,
       sha256: hash,
       managed_by: "agent-surface",
@@ -1375,6 +1512,32 @@ async function renderClineWorkflow(source) {
   return source.body;
 }
 
+async function renderClaudeCommand(source) {
+  return source.body;
+}
+
+async function renderCursorCommand(source) {
+  return source.body;
+}
+
+async function renderCodexSkill(source) {
+  const description = yamlString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
+  return [
+    "---",
+    `name: ${source.name}`,
+    `description: "${description}"`,
+    "---",
+    "",
+    `# ${source.name}`,
+    "",
+    `Use explicit invocation: \`$${source.name}\`.`,
+    `This skill is generated by agent-surface from \`${source.relativePath}\`.`,
+    `Treat any slash-command syntax below as source documentation. In Codex, invoke \`$${source.name}\` and express options in natural language.`,
+    "",
+    source.body,
+  ].join("\n");
+}
+
 async function renderAntigravityWorkflow(source) {
   const body = source.body;
   const description = yamlString(source.metadata.description ?? firstHeading(body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
@@ -1398,10 +1561,230 @@ async function renderGeminiCommand(source) {
   return `description = "${description}"\n\nprompt = ${prompt}\n`;
 }
 
+async function claudePluginCommandOutput(source) {
+  return {
+    source: source.relativePath,
+    relativeOutput: path.join(".agent-surface", "claude-plugin", "agent-surface", "commands", groupedMarkdownCommandOutputName(source)),
+    content: await renderClaudeCommand(source),
+  };
+}
+
+async function codexOpenAiAgentOutput(source) {
+  const description = yamlBlockString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
+  return {
+    source: source.relativePath,
+    relativeOutput: path.join(".agents", "skills", source.name, "agents", "openai.yaml"),
+    content: [
+      "interface:",
+      `  display_name: "${source.name}"`,
+      "  short_description: >-",
+      `    ${description}`,
+      "policy:",
+      "  allow_implicit_invocation: false",
+      "",
+    ].join("\n"),
+  };
+}
+
+async function geminiExtensionCommandOutput(source) {
+  return {
+    source: source.relativePath,
+    relativeOutput: path.join(".gemini", "extensions", "agent-surface", "commands", geminiCommandOutputName(source)),
+    content: await renderGeminiCommand(source),
+  };
+}
+
+async function claudeStaticOutputs(commands) {
+  const metadata = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+  return [
+    {
+      source: "package.json",
+      relativeOutput: path.join(".agent-surface", "claude-plugin", "agent-surface", ".claude-plugin", "plugin.json"),
+      content: `${JSON.stringify({
+        name: "agent-surface",
+        description: "Portable agent-surface command pack generated from Lyther/agent-surface.",
+        version: metadata.version,
+        author: { name: "Lyther" },
+      }, null, 2)}\n`,
+    },
+    {
+      source: "README.md",
+      relativeOutput: path.join(".agent-surface", "claude-plugin", "agent-surface", "README.md"),
+      content: [
+        "# agent-surface Claude Code plugin",
+        "",
+        "Generated plugin package. Load for local testing with:",
+        "",
+        "```bash",
+        "claude --plugin-dir ~/.agent-surface/claude-plugin/agent-surface",
+        "```",
+        "",
+        `Packaged commands: ${commands.length}`,
+        "",
+      ].join("\n"),
+    },
+  ];
+}
+
+async function codexStaticOutputs() {
+  return [
+    {
+      source: "rules/*.mdc",
+      relativeOutput: path.join(".codex", "AGENTS.md"),
+      content: await renderInstructionDocument("AGENTS.md - agent-surface global Codex rules", "Codex global instructions"),
+    },
+  ];
+}
+
+async function clineStaticOutputs(_commands, context) {
+  return [
+    {
+      source: "rules/*.mdc",
+      relativeOutput: path.join(outputRootFor(clineRuleRoot, context), "agent-surface.md"),
+      content: await renderInstructionDocument("agent-surface Cline global rules", "Cline rules"),
+    },
+  ];
+}
+
+async function geminiStaticOutputs(commands) {
+  const metadata = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+  return [
+    {
+      source: "rules/*.mdc",
+      relativeOutput: path.join(".gemini", "GEMINI.md"),
+      content: await renderInstructionDocument("GEMINI.md - agent-surface global Gemini rules", "Gemini CLI global context"),
+    },
+    {
+      source: "package.json",
+      relativeOutput: path.join(".gemini", "extensions", "agent-surface", "gemini-extension.json"),
+      content: `${JSON.stringify({
+        name: "agent-surface",
+        version: metadata.version,
+        contextFileName: "GEMINI.md",
+      }, null, 2)}\n`,
+    },
+    {
+      source: "rules/*.mdc",
+      relativeOutput: path.join(".gemini", "extensions", "agent-surface", "GEMINI.md"),
+      content: await renderInstructionDocument("agent-surface Gemini extension context", `Gemini extension commands: ${commands.length}`),
+    },
+  ];
+}
+
+async function cursorStaticOutputs() {
+  const rules = await readRules();
+  return rules.map((rule) => ({
+    source: rule.file,
+    relativeOutput: path.join(".cursor", "rules", path.basename(rule.file)),
+    content: rule.text,
+  }));
+}
+
+async function copilotStaticOutputs() {
+  return [
+    {
+      source: "rules/*.mdc",
+      relativeOutput: path.join("instructions", "agent-surface-copilot.instructions.md"),
+      content: await renderVsCodeInstructionDocument("agent-surface Copilot global instructions", "copilot"),
+    },
+  ];
+}
+
+async function vscodeStaticOutputs() {
+  return [
+    {
+      source: "rules/*.mdc",
+      relativeOutput: path.join("instructions", "agent-surface.instructions.md"),
+      content: await renderVsCodeInstructionDocument("agent-surface VS Code instructions", "vscode"),
+    },
+    {
+      source: "commands/flow.md",
+      relativeOutput: path.join("prompts", "agent-surface.prompt.md"),
+      content: await renderVsCodePromptDocument(),
+    },
+  ];
+}
+
+async function opencodeStaticOutputs() {
+  return [
+    {
+      source: "rules/*.mdc",
+      relativeOutput: path.join(".config", "opencode", "AGENTS.md"),
+      content: await renderInstructionDocument("AGENTS.md - agent-surface global OpenCode rules", "OpenCode global instructions"),
+    },
+  ];
+}
+
+async function traeStaticOutputs() {
+  return [
+    {
+      source: "rules/*.mdc",
+      relativeOutput: path.join(".trae", "user_rules.md"),
+      content: await renderInstructionDocument("agent-surface Trae user rules", "Trae user rules"),
+    },
+  ];
+}
+
+async function renderInstructionDocument(title, subtitle) {
+  const rules = await readRules();
+  return [
+    `# ${title}`,
+    "",
+    `> ${subtitle}. Generated by agent-surface from \`rules/*.mdc\`.`,
+    "",
+    ...rules.flatMap((rule) => [
+      `## ${path.basename(rule.file)}`,
+      "",
+      stripFrontmatter(rule.text).trim(),
+      "",
+    ]),
+  ].join("\n");
+}
+
+async function renderVsCodeInstructionDocument(title, target) {
+  return [
+    "---",
+    `description: "${yamlString(title)}"`,
+    'applyTo: "**"',
+    "---",
+    "",
+    await renderInstructionDocument(title, `${target} global instruction file`),
+  ].join("\n");
+}
+
+async function renderVsCodePromptDocument() {
+  const flow = (await readCommands()).find((command) => command.name === "flow");
+  return [
+    "---",
+    'description: "Route a task to the lightest safe agent-surface path"',
+    'name: "agent-surface-flow"',
+    'agent: "agent"',
+    "---",
+    "",
+    flow?.body ?? "Route this task to the lightest safe agent-surface path.",
+    "",
+  ].join("\n");
+}
+
+function stripFrontmatter(text) {
+  if (!text.startsWith("---\n")) return text;
+  const end = text.indexOf("\n---\n", 4);
+  return end === -1 ? text : text.slice(end + 5);
+}
+
 function geminiCommandOutputName(source) {
   const basename = source.name;
   const [category, ...rest] = basename.split("-");
   return path.join(category, `${rest.join("-") || category}.toml`);
+}
+
+function groupedMarkdownCommandOutputName(source) {
+  const [category, ...rest] = source.name.split("-");
+  return path.join(category, `${rest.join("-") || category}.md`);
+}
+
+function codexSkillOutputName(source) {
+  return path.join(source.name, "SKILL.md");
 }
 
 async function files(dir, extensions) {
@@ -1558,12 +1941,50 @@ function commandRegistryEntry(command) {
     description: command.metadata.description,
     metadata_source: command.hasFrontmatter ? "frontmatter" : "inferred",
     targets: Object.fromEntries(
-      Object.entries(targets).map(([name, adapter]) => [
-        name,
-        path.join(adapter.outputRoot, adapter.outputName ? adapter.outputName(command) : path.basename(command.file)),
-      ]),
+      Object.entries(targets)
+        .filter(([, adapter]) => adapter.renderCommand)
+        .map(([name, adapter]) => [name, commandRelativeOutput(adapter, command, { target: name, scope: "user", mode: "registry" })]),
     ),
   };
+}
+
+async function targetOutputs(adapter, commands, context) {
+  const outputs = [];
+
+  for (const command of commands) {
+    if (adapter.renderCommand) {
+      outputs.push({
+        source: command.relativePath,
+        relativeOutput: commandRelativeOutput(adapter, command, context),
+        content: await adapter.renderCommand(command, context),
+      });
+    }
+
+    for (const buildOutput of adapter.additionalCommandOutputs ?? []) {
+      outputs.push(await buildOutput(command, context));
+    }
+  }
+
+  if (adapter.staticOutputs) {
+    outputs.push(...(await adapter.staticOutputs(commands, context)));
+  }
+
+  const seen = new Set();
+  for (const output of outputs) {
+    if (!isSafeRelativePath(output.relativeOutput)) fail(`unsafe generated output path: ${output.relativeOutput}`);
+    if (seen.has(output.relativeOutput)) fail(`duplicate generated output path: ${output.relativeOutput}`);
+    seen.add(output.relativeOutput);
+  }
+
+  return outputs.sort((left, right) => left.relativeOutput.localeCompare(right.relativeOutput));
+}
+
+function commandRelativeOutput(adapter, command, context) {
+  return path.join(outputRootFor(adapter.commandOutputRoot, context), adapter.commandOutputName ? adapter.commandOutputName(command, context) : path.basename(command.file));
+}
+
+function outputRootFor(value, context) {
+  return typeof value === "function" ? value(context) : value;
 }
 
 function commandInPack(command, pack) {
@@ -1903,6 +2324,10 @@ function yamlString(value) {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replace(/\s+/g, " ").trim();
 }
 
+function yamlBlockString(value) {
+  return value.replace(/\s+/g, " ").trim().replaceAll('"', '\\"');
+}
+
 function tomlString(value) {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replace(/\s+/g, " ").trim();
 }
@@ -2004,13 +2429,46 @@ function installRootProjectOnly(scope) {
   return process.cwd();
 }
 
+function installRootHomeOnly(scope) {
+  if (scope !== "user") fail("this target supports --scope user only unless --dest is supplied");
+  return os.homedir();
+}
+
 function installRootGemini(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
+function installRootClaude(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
+function installRootCodex(scope) {
+  if (scope !== "user") fail("codex install supports --scope user only unless --dest is supplied");
+  return os.homedir();
+}
+
+function installRootCline(scope) {
   return scope === "user" ? os.homedir() : process.cwd();
 }
 
 function installRootAntigravity(scope) {
   if (scope !== "user") fail("antigravity install supports --scope user only unless --dest is supplied");
   return path.join(os.homedir(), ".gemini", "antigravity");
+}
+
+function installRootVsCode(scope) {
+  if (scope !== "user") fail("vscode install supports --scope user only unless --dest is supplied");
+  if (process.platform === "darwin") return path.join(os.homedir(), "Library", "Application Support", "Code", "User");
+  if (process.platform === "win32") return path.join(process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"), "Code", "User");
+  return path.join(os.homedir(), ".config", "Code", "User");
+}
+
+function clineWorkflowRoot(context) {
+  return context.scope === "user" ? path.join("Documents", "Cline", "Workflows") : path.join(".clinerules", "workflows");
+}
+
+function clineRuleRoot(context) {
+  return context.scope === "user" ? path.join("Documents", "Cline", "Rules") : ".clinerules";
 }
 
 function commandVersion(command, args) {
