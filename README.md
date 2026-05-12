@@ -123,7 +123,7 @@ Global target surfaces currently generated:
 - Codex: `~/.agents/skills/<command>/SKILL.md`, per-skill `agents/openai.yaml`, and `~/.codex/AGENTS.md`.
 - Gemini CLI: `~/.gemini/commands/**`, `~/.gemini/GEMINI.md`, and `~/.gemini/extensions/agent-surface/`.
 - Cline: `~/Documents/Cline/Workflows/*.md` and `~/Documents/Cline/Rules/agent-surface.md` for user scope; project scope still writes `.clinerules/`.
-- Kilo: `~/.config/kilo/commands/*.md`, `~/.config/kilo/AGENTS.md`, `~/.config/kilo/rules/agent-surface.md`, and a safe `kilo.jsonc.instructions` merge for user scope; project scope writes `.kilo/commands/*.md`, root `AGENTS.md`, `.kilo/rules/agent-surface.md`, and project `kilo.jsonc`.
+- Kilo: `~/.config/kilo/commands/*.md`, `~/.config/kilo/AGENTS.md`, ordered per-rule files under `~/.config/kilo/rules/*.md`, and a safe `kilo.jsonc.instructions` merge for user scope; project scope writes `.kilo/commands/*.md`, root `AGENTS.md`, ordered `.kilo/rules/*.md`, and project `kilo.jsonc`.
 - Antigravity: `~/.gemini/antigravity/global_workflows/*.md`.
 - Cursor: `~/.cursor/commands/*.md` and `~/.cursor/rules/*.mdc`.
 - GitHub Copilot: VS Code user-profile `instructions/agent-surface-copilot.instructions.md`.

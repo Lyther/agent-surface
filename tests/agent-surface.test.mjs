@@ -140,7 +140,7 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
-assert.equal(generated.length, 615);
+assert.equal(generated.length, 625);
 assertGeminiTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "flow", "flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "boot", "facade.md"))), false);
@@ -156,7 +156,8 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-co
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cline", "Documents", "Cline", "Rules", "agent-surface.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "commands", "flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "AGENTS.md"))), true);
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "rules", "agent-surface.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "rules", "00-precedence-and-safety.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "rules", "14-lang-shell.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "rules", "00-precedence-and-safety.mdc"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "copilot", "instructions", "agent-surface-copilot.instructions.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "vscode", "instructions", "agent-surface.instructions.md"))), true);
@@ -164,7 +165,7 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "opencode"
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "trae", ".trae", "user_rules.md"))), true);
 const generatedCheck = run(["check", "generated"]);
 assert.match(generatedCheck, /claude-code: generated outputs 120 ok/);
-assert.match(generatedCheck, /kilo: generated outputs 61 ok/);
+assert.match(generatedCheck, /kilo: generated outputs 71 ok/);
 assert.match(generatedCheck, /copilot: generated outputs 1 ok/);
 assert.match(generatedCheck, /generated check: ok/);
 const copilotGeneratedCheck = run(["check", "generated", "--target", "copilot"]);
@@ -207,8 +208,9 @@ const kiloPlan = run(["install", "--target", "kilo", "--dest", "/tmp/agent-surfa
 assert.match(kiloPlan, /^target: kilo$/m);
 assert.match(kiloPlan, /\.kilo\/commands\/workflow-boss\.md <- commands\/workflow-boss\.md/);
 assert.match(kiloPlan, /AGENTS\.md <- rules\/\*\.mdc/);
-assert.match(kiloPlan, /\.kilo\/rules\/agent-surface\.md <- rules\/\*\.mdc/);
-assert.match(kiloPlan, /kilo\.jsonc instructions \+= \.kilo\/rules\/agent-surface\.md/);
+assert.match(kiloPlan, /\.kilo\/rules\/00-precedence-and-safety\.md <- rules\/00-precedence-and-safety\.mdc/);
+assert.match(kiloPlan, /\.kilo\/rules\/14-lang-shell\.md <- rules\/14-lang-shell\.mdc/);
+assert.match(kiloPlan, /kilo\.jsonc instructions \+= \.kilo\/rules\/00-precedence-and-safety\.md, .*\.kilo\/rules\/14-lang-shell\.md/);
 assert.match(kiloPlan, /\.agent-surface\/kilo-manifest\.json/);
 
 const destructivePlan = run(["install", "--target", "cline", "--pack", "destructive", "--dest", "/tmp/agent-surface-cline", "--dry-run"]);
@@ -511,8 +513,9 @@ const kiloUserScope = status(["install", "--target", "kilo", "--scope", "user", 
 assert.equal(kiloUserScope.status, 0, `${kiloUserScope.stdout}${kiloUserScope.stderr}`);
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/commands\/workflow-boss\.md <- commands\/workflow-boss\.md/);
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/AGENTS\.md <- rules\/\*\.mdc/);
-assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/agent-surface\.md <- rules\/\*\.mdc/);
-assert.match(kiloUserScope.stdout, /\.config\/kilo\/kilo\.jsonc instructions \+= \.\/rules\/agent-surface\.md/);
+assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/00-precedence-and-safety\.md <- rules\/00-precedence-and-safety\.mdc/);
+assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/14-lang-shell\.md <- rules\/14-lang-shell\.mdc/);
+assert.match(kiloUserScope.stdout, /\.config\/kilo\/kilo\.jsonc instructions \+= \.\/rules\/00-precedence-and-safety\.md, .*\.\/rules\/14-lang-shell\.md/);
 
 const invalidKiloDest = "/tmp/agent-surface-kilo-invalid";
 rmSync(invalidKiloDest, { recursive: true, force: true });
@@ -536,6 +539,7 @@ writeFileSync(
     "  // keep this comment",
     "  \"instructions\": [",
     "    \"./existing-rule.md\",",
+    "    \".kilo/rules/agent-surface.md\",",
     "  ],",
     "  \"marker\": \",]\"",
     "}",
@@ -547,7 +551,9 @@ const mergedKiloConfig = readFileSync(path.join(existingKiloDest, "kilo.jsonc"),
 assert.match(mergedKiloConfig, /\/\/ keep this comment/);
 assert.match(mergedKiloConfig, /"marker": ",\]"/);
 assert.match(mergedKiloConfig, /"\.\/existing-rule\.md"/);
-assert.match(mergedKiloConfig, /"\.kilo\/rules\/agent-surface\.md"/);
+assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/agent-surface\.md"/);
+assert.match(mergedKiloConfig, /"\.kilo\/rules\/00-precedence-and-safety\.md"/);
+assert.match(mergedKiloConfig, /"\.kilo\/rules\/14-lang-shell\.md"/);
 rmSync(existingKiloDest, { recursive: true, force: true });
 
 const inlineKiloDest = "/tmp/agent-surface-kilo-inline";
@@ -556,7 +562,20 @@ mkdirSync(inlineKiloDest, { recursive: true });
 writeFileSync(path.join(inlineKiloDest, "kilo.jsonc"), "{\"instructions\":[\"./existing-rule.md\"]}\n");
 run(["install", "--target", "kilo", "--dest", inlineKiloDest]);
 const inlineKiloConfig = JSON.parse(readFileSync(path.join(inlineKiloDest, "kilo.jsonc"), "utf8"));
-assert.deepEqual(inlineKiloConfig.instructions, ["./existing-rule.md", ".kilo/rules/agent-surface.md"]);
+assert.deepEqual(inlineKiloConfig.instructions, [
+  "./existing-rule.md",
+  ".kilo/rules/00-precedence-and-safety.md",
+  ".kilo/rules/01-response-style.md",
+  ".kilo/rules/02-agent-workflow.md",
+  ".kilo/rules/03-project-defaults.md",
+  ".kilo/rules/05-tooling.md",
+  ".kilo/rules/06-test-policy.md",
+  ".kilo/rules/10-lang-python.md",
+  ".kilo/rules/11-lang-rust.md",
+  ".kilo/rules/12-lang-go.md",
+  ".kilo/rules/13-lang-typescript.md",
+  ".kilo/rules/14-lang-shell.md",
+]);
 rmSync(inlineKiloDest, { recursive: true, force: true });
 
 for (const target of ["cursor", "copilot", "vscode", "opencode", "trae", "kilo"]) {
@@ -569,7 +588,19 @@ for (const target of ["cursor", "copilot", "vscode", "opencode", "trae", "kilo"]
   assert.equal(manifest.managed.length > 0, true);
   if (target === "kilo") {
     const kiloConfig = JSON.parse(readFileSync(path.join(targetDest, "kilo.jsonc"), "utf8"));
-    assert.deepEqual(kiloConfig.instructions, [".kilo/rules/agent-surface.md"]);
+    assert.deepEqual(kiloConfig.instructions, [
+      ".kilo/rules/00-precedence-and-safety.md",
+      ".kilo/rules/01-response-style.md",
+      ".kilo/rules/02-agent-workflow.md",
+      ".kilo/rules/03-project-defaults.md",
+      ".kilo/rules/05-tooling.md",
+      ".kilo/rules/06-test-policy.md",
+      ".kilo/rules/10-lang-python.md",
+      ".kilo/rules/11-lang-rust.md",
+      ".kilo/rules/12-lang-go.md",
+      ".kilo/rules/13-lang-typescript.md",
+      ".kilo/rules/14-lang-shell.md",
+    ]);
   }
   rmSync(targetDest, { recursive: true, force: true });
 }
