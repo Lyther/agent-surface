@@ -2,7 +2,7 @@
 
 Typed source and adapter compiler for coding-agent surfaces.
 
-Current implementation: global command, rule, skill, prompt, and plugin-package compiler for Claude Code, Codex, Gemini CLI, Cline, Antigravity, Cursor, GitHub Copilot, VS Code, OpenCode, and Trae. Planned surfaces still include richer hooks, MCP config, ignores, and first-class subagent bundles.
+Current implementation: global command, rule, skill, prompt, and plugin-package compiler for Claude Code, Codex, Gemini CLI, Cline, Kilo, Antigravity, Cursor, GitHub Copilot, VS Code, OpenCode, and Trae. Planned surfaces still include richer hooks, MCP config, ignores, and first-class subagent bundles.
 
 ## Model
 
@@ -32,6 +32,7 @@ In scope:
 - Codex
 - Gemini CLI
 - Cline
+- Kilo
 - Antigravity
 - OpenCode, behind primitive verification
 - VS Code generic settings
@@ -47,64 +48,70 @@ Out of scope:
 - Positron
 - Void
 
-## Commands
+## Quick Start
 
 ```bash
 npm run inventory
 npm run check
+npm run test
+npm run doctor
+npm run build -- --target all
+```
+
+Use dry-run before live installs:
+
+```bash
+node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
+node scripts/agent-surface.mjs install --target codex --scope user --dry-run
+node scripts/agent-surface.mjs install --target gemini-cli --scope user --dry-run
+node scripts/agent-surface.mjs install --target cline --scope user --dry-run
+node scripts/agent-surface.mjs install --target kilo --scope user --dry-run
+node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
+node scripts/agent-surface.mjs install --target vscode --scope user --dry-run
+node scripts/agent-surface.mjs install --target copilot --scope user --dry-run
+node scripts/agent-surface.mjs install --target opencode --scope user --dry-run
+node scripts/agent-surface.mjs install --target trae --scope user --dry-run
+node scripts/agent-surface.mjs install --target antigravity --scope user --dry-run
+```
+
+`install` prints the files it will write, stale managed files it will remove, blocked paths, and the manifest path that tracks generated files. Live writes require explicit `--dest` or `--allow-scope-root` after reviewing the dry run. Existing unmanaged files block the install. Managed files changed since the last manifest block the install. Overwrites and stale managed removals are backed up under `.agent-surface/backups/`.
+
+## CLI Reference
+
+Common checks:
+
+```bash
+npm run check
 npm run check:commands
 npm run check:generated
 npm run check:rules
-npm run test
-npm run doctor
-npm run build -- --target cline --dry-run
-npm run build -- --target claude-code --dry-run
-npm run build -- --target codex --dry-run
-npm run build -- --target cursor --dry-run
-npm run build -- --target opencode --dry-run
-npm run build -- --target antigravity --dry-run
-npm run build -- --target gemini-cli --dry-run
-node scripts/agent-surface.mjs build --target gemini-cli --pack all --dry-run
-node scripts/agent-surface.mjs build --target cline --pack destructive --dry-run
+npm test
+```
+
+Registry and pack inspection:
+
+```bash
 node scripts/agent-surface.mjs commands --json
 node scripts/agent-surface.mjs commands --phase ship --json
 node scripts/agent-surface.mjs commands --risk writes --json
 node scripts/agent-surface.mjs commands --pack all --json
-node scripts/agent-surface.mjs check
-node scripts/agent-surface.mjs check commands
-node scripts/agent-surface.mjs check generated
-node scripts/agent-surface.mjs check generated --target gemini-cli
-node scripts/agent-surface.mjs install --target cline --pack default --scope project --dry-run
-node scripts/agent-surface.mjs install --target cline --pack default --scope user --dry-run
-node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
-node scripts/agent-surface.mjs install --target codex --scope user --dry-run
-node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
-node scripts/agent-surface.mjs install --target copilot --scope user --dry-run
-node scripts/agent-surface.mjs install --target vscode --scope user --dry-run
-node scripts/agent-surface.mjs install --target opencode --scope user --dry-run
-node scripts/agent-surface.mjs install --target trae --scope user --dry-run
-node scripts/agent-surface.mjs install --target antigravity --scope user --dry-run
-node scripts/agent-surface.mjs install --target gemini-cli --scope project --dry-run
-node scripts/agent-surface.mjs install --target cline --dest /tmp/agent-surface-cline
-node scripts/agent-surface.mjs install --target cline --scope project --allow-scope-root
+```
+
+Pack-specific rendering:
+
+```bash
+node scripts/agent-surface.mjs build --target gemini-cli --pack all --dry-run
+node scripts/agent-surface.mjs build --target cline --pack destructive --dry-run
+```
+
+Workflow evidence helpers:
+
+```bash
 node scripts/agent-surface.mjs run --task T1 --class build_test --timeout 120000 --out .agent-surface/workflows/<run_id>/rounds/round-001/evidence/T1 -- npm test
 node scripts/agent-surface.mjs workflow patch begin --run <run_id> --round 1 --task T1 --file src/example.ts
 node scripts/agent-surface.mjs workflow patch end --run <run_id> --round 1 --task T1
 node scripts/agent-surface.mjs workflow patch verify --run <run_id> --round 1 --task T1
 ```
-
-Rule scenario checks:
-
-```bash
-node scripts/agent-surface.mjs check rules --scenario python-source
-node scripts/agent-surface.mjs check rules --scenario python-tooling
-node scripts/agent-surface.mjs check rules --scenario rust-source
-node scripts/agent-surface.mjs check rules --scenario go-ci
-node scripts/agent-surface.mjs check rules --scenario typescript-eslint
-node scripts/agent-surface.mjs check rules --scenario shell-script
-```
-
-`install` prints the files it will write, stale managed files it will remove, blocked paths, and the manifest path that tracks generated files. Live writes require explicit `--dest` or `--allow-scope-root` after reviewing the dry run. Existing unmanaged files block the install. Managed files changed since the last manifest block the install. Overwrites and stale managed removals are backed up under `.agent-surface/backups/`.
 
 `run` requires explicit approval for `network`, `filesystem_destructive`, `deployment`, and `database_mutation` command classes through `--approved <class>` or `AGENT_SURFACE_APPROVED_CLASSES`.
 
@@ -116,6 +123,7 @@ Global target surfaces currently generated:
 - Codex: `~/.agents/skills/<command>/SKILL.md`, per-skill `agents/openai.yaml`, and `~/.codex/AGENTS.md`.
 - Gemini CLI: `~/.gemini/commands/**`, `~/.gemini/GEMINI.md`, and `~/.gemini/extensions/agent-surface/`.
 - Cline: `~/Documents/Cline/Workflows/*.md` and `~/Documents/Cline/Rules/agent-surface.md` for user scope; project scope still writes `.clinerules/`.
+- Kilo: `~/.config/kilo/commands/*.md`, `~/.config/kilo/AGENTS.md`, `~/.config/kilo/rules/agent-surface.md`, and a safe `kilo.jsonc.instructions` merge for user scope; project scope writes `.kilo/commands/*.md`, root `AGENTS.md`, `.kilo/rules/agent-surface.md`, and project `kilo.jsonc`.
 - Antigravity: `~/.gemini/antigravity/global_workflows/*.md`.
 - Cursor: `~/.cursor/commands/*.md` and `~/.cursor/rules/*.mdc`.
 - GitHub Copilot: VS Code user-profile `instructions/agent-surface-copilot.instructions.md`.
@@ -139,6 +147,16 @@ Use `agent-surface workflow patch begin/end/verify` around each task so `patch_r
 
 `workflow doctor` validates workflow role artifacts, event hash chains, and patch manifests, including patch refs and patch content hashes.
 
+Experimental loop shape:
+
+```text
+Codex plans and verifies the workflow.
+Claude Code owns Claude-native subagent creation and delegation.
+Local Ollama-backed Claude sessions can be launched with `ollama launch claude --model <model>`.
+Use worktrees when multiple workers may edit files.
+Keep Codex as the final reviewer before `ship-commit`.
+```
+
 GitHub install smoke path:
 
 ```bash
@@ -153,4 +171,5 @@ Use the managed global installs in normal work, then tighten target-specific val
 1. Claude Code: test standalone commands and the generated plugin with `claude --plugin-dir`.
 2. Gemini CLI: verify `/commands reload`, extension discovery, and `~/.gemini/GEMINI.md` loading.
 3. Cline: verify global Workflows and Rules appear in the UI.
-4. Cursor, Copilot, VS Code, OpenCode, and Trae: verify the generated global instruction files are actually attached in live sessions.
+4. Kilo: verify global commands and the `kilo.jsonc` Rules entry attach in the extension or CLI.
+5. Cursor, Copilot, VS Code, OpenCode, and Trae: verify the generated global instruction files are actually attached in live sessions.
