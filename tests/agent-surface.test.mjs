@@ -82,6 +82,7 @@ assert.equal(flowCommand.metadata_source, "frontmatter");
 assert.equal(flowCommand.targets["claude-code"], path.join(".claude", "commands", "flow", "flow.md"));
 assert.equal(flowCommand.targets.codex, path.join(".agents", "skills", "flow", "SKILL.md"));
 assert.equal(flowCommand.targets.cline, path.join("Documents", "Cline", "Workflows", "flow.md"));
+assert.equal(flowCommand.targets.kilo, path.join(".config", "kilo", "commands", "flow.md"));
 assert.equal(flowCommand.targets["gemini-cli"], path.join(".gemini", "commands", "flow", "flow.toml"));
 assert.equal(flowCommand.targets.cursor, path.join(".cursor", "commands", "flow.md"));
 const devFeatureCommand = defaultRegistry.commands.find((command) => command.name === "dev-feature");
@@ -139,7 +140,7 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
-assert.equal(generated.length, 554);
+assert.equal(generated.length, 615);
 assertGeminiTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "flow", "flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "boot", "facade.md"))), false);
@@ -153,6 +154,9 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cl
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "extensions", "agent-surface", "gemini-extension.json"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".agent-surface", "claude-plugin", "agent-surface", ".claude-plugin", "plugin.json"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cline", "Documents", "Cline", "Rules", "agent-surface.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "commands", "flow.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "AGENTS.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "rules", "agent-surface.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "rules", "00-precedence-and-safety.mdc"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "copilot", "instructions", "agent-surface-copilot.instructions.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "vscode", "instructions", "agent-surface.instructions.md"))), true);
@@ -160,6 +164,7 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "opencode"
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "trae", ".trae", "user_rules.md"))), true);
 const generatedCheck = run(["check", "generated"]);
 assert.match(generatedCheck, /claude-code: generated outputs 120 ok/);
+assert.match(generatedCheck, /kilo: generated outputs 61 ok/);
 assert.match(generatedCheck, /copilot: generated outputs 1 ok/);
 assert.match(generatedCheck, /generated check: ok/);
 const copilotGeneratedCheck = run(["check", "generated", "--target", "copilot"]);
@@ -197,6 +202,14 @@ assert.match(clinePlan, /^root source: explicit --dest$/m);
 assert.match(clinePlan, /\.clinerules\/workflows\/workflow-boss\.md <- commands\/workflow-boss\.md/);
 assert.match(clinePlan, /\.clinerules\/agent-surface\.md <- rules\/\*\.mdc/);
 assert.match(clinePlan, /\.agent-surface\/cline-manifest\.json/);
+
+const kiloPlan = run(["install", "--target", "kilo", "--dest", "/tmp/agent-surface-kilo", "--dry-run"]);
+assert.match(kiloPlan, /^target: kilo$/m);
+assert.match(kiloPlan, /\.kilo\/commands\/workflow-boss\.md <- commands\/workflow-boss\.md/);
+assert.match(kiloPlan, /AGENTS\.md <- rules\/\*\.mdc/);
+assert.match(kiloPlan, /\.kilo\/rules\/agent-surface\.md <- rules\/\*\.mdc/);
+assert.match(kiloPlan, /kilo\.jsonc instructions \+= \.kilo\/rules\/agent-surface\.md/);
+assert.match(kiloPlan, /\.agent-surface\/kilo-manifest\.json/);
 
 const destructivePlan = run(["install", "--target", "cline", "--pack", "destructive", "--dest", "/tmp/agent-surface-cline", "--dry-run"]);
 assert.match(destructivePlan, /^pack: destructive$/m);
@@ -494,7 +507,59 @@ const clineUserScope = status(["install", "--target", "cline", "--scope", "user"
 assert.equal(clineUserScope.status, 0, `${clineUserScope.stdout}${clineUserScope.stderr}`);
 assert.match(clineUserScope.stdout, /Documents\/Cline\/Workflows\/workflow-boss\.md <- commands\/workflow-boss\.md/);
 
-for (const target of ["cursor", "copilot", "vscode", "opencode", "trae"]) {
+const kiloUserScope = status(["install", "--target", "kilo", "--scope", "user", "--dry-run"]);
+assert.equal(kiloUserScope.status, 0, `${kiloUserScope.stdout}${kiloUserScope.stderr}`);
+assert.match(kiloUserScope.stdout, /\.config\/kilo\/commands\/workflow-boss\.md <- commands\/workflow-boss\.md/);
+assert.match(kiloUserScope.stdout, /\.config\/kilo\/AGENTS\.md <- rules\/\*\.mdc/);
+assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/agent-surface\.md <- rules\/\*\.mdc/);
+assert.match(kiloUserScope.stdout, /\.config\/kilo\/kilo\.jsonc instructions \+= \.\/rules\/agent-surface\.md/);
+
+const invalidKiloDest = "/tmp/agent-surface-kilo-invalid";
+rmSync(invalidKiloDest, { recursive: true, force: true });
+mkdirSync(invalidKiloDest, { recursive: true });
+writeFileSync(path.join(invalidKiloDest, "kilo.jsonc"), "{\"instructions\":\"bad\"}\n");
+const invalidKiloInstall = status(["install", "--target", "kilo", "--dest", invalidKiloDest]);
+assert.notEqual(invalidKiloInstall.status, 0);
+assert.match(`${invalidKiloInstall.stdout}${invalidKiloInstall.stderr}`, /kilo\.jsonc: instructions must be an array/);
+assert.equal(existsSync(path.join(invalidKiloDest, ".kilo")), false);
+assert.equal(existsSync(path.join(invalidKiloDest, "AGENTS.md")), false);
+assert.equal(existsSync(path.join(invalidKiloDest, ".agent-surface", "kilo-manifest.json")), false);
+rmSync(invalidKiloDest, { recursive: true, force: true });
+
+const existingKiloDest = "/tmp/agent-surface-kilo-existing";
+rmSync(existingKiloDest, { recursive: true, force: true });
+mkdirSync(existingKiloDest, { recursive: true });
+writeFileSync(
+  path.join(existingKiloDest, "kilo.jsonc"),
+  [
+    "{",
+    "  // keep this comment",
+    "  \"instructions\": [",
+    "    \"./existing-rule.md\",",
+    "  ],",
+    "  \"marker\": \",]\"",
+    "}",
+    "",
+  ].join("\n"),
+);
+run(["install", "--target", "kilo", "--dest", existingKiloDest]);
+const mergedKiloConfig = readFileSync(path.join(existingKiloDest, "kilo.jsonc"), "utf8");
+assert.match(mergedKiloConfig, /\/\/ keep this comment/);
+assert.match(mergedKiloConfig, /"marker": ",\]"/);
+assert.match(mergedKiloConfig, /"\.\/existing-rule\.md"/);
+assert.match(mergedKiloConfig, /"\.kilo\/rules\/agent-surface\.md"/);
+rmSync(existingKiloDest, { recursive: true, force: true });
+
+const inlineKiloDest = "/tmp/agent-surface-kilo-inline";
+rmSync(inlineKiloDest, { recursive: true, force: true });
+mkdirSync(inlineKiloDest, { recursive: true });
+writeFileSync(path.join(inlineKiloDest, "kilo.jsonc"), "{\"instructions\":[\"./existing-rule.md\"]}\n");
+run(["install", "--target", "kilo", "--dest", inlineKiloDest]);
+const inlineKiloConfig = JSON.parse(readFileSync(path.join(inlineKiloDest, "kilo.jsonc"), "utf8"));
+assert.deepEqual(inlineKiloConfig.instructions, ["./existing-rule.md", ".kilo/rules/agent-surface.md"]);
+rmSync(inlineKiloDest, { recursive: true, force: true });
+
+for (const target of ["cursor", "copilot", "vscode", "opencode", "trae", "kilo"]) {
   const targetDest = `/tmp/agent-surface-${target}-live`;
   rmSync(targetDest, { recursive: true, force: true });
   const install = run(["install", "--target", target, "--dest", targetDest]);
@@ -502,6 +567,10 @@ for (const target of ["cursor", "copilot", "vscode", "opencode", "trae"]) {
   const manifest = JSON.parse(readFileSync(path.join(targetDest, ".agent-surface", `${target}-manifest.json`), "utf8"));
   assert.equal(manifest.target, target);
   assert.equal(manifest.managed.length > 0, true);
+  if (target === "kilo") {
+    const kiloConfig = JSON.parse(readFileSync(path.join(targetDest, "kilo.jsonc"), "utf8"));
+    assert.deepEqual(kiloConfig.instructions, [".kilo/rules/agent-surface.md"]);
+  }
   rmSync(targetDest, { recursive: true, force: true });
 }
 

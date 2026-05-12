@@ -38,6 +38,15 @@
         "rules"
       ]
     },
+    "kilo": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "commands-as-workflows",
+        "rules"
+      ]
+    },
     "antigravity": {
       "status": "implemented",
       "build_supported": true,

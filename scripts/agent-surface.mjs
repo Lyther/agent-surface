@@ -43,6 +43,13 @@ const targets = {
     installRoot: installRootCline,
     staticOutputs: clineStaticOutputs,
   },
+  kilo: {
+    label: "Kilo workflows and instructions",
+    commandOutputRoot: kiloWorkflowRoot,
+    renderCommand: renderKiloWorkflow,
+    installRoot: installRootKilo,
+    staticOutputs: kiloStaticOutputs,
+  },
   antigravity: {
     label: "Antigravity workflows",
     commandOutputRoot: "global_workflows",
@@ -630,6 +637,9 @@ function validateGeneratedTarget(target, outputs) {
   } else if (target === "cline") {
     requirePath(path.join("Documents", "Cline", "Workflows", "flow.md"));
     requireContains(path.join("Documents", "Cline", "Rules", "agent-surface.md"), /agent-surface Cline global rules/);
+  } else if (target === "kilo") {
+    requirePath(path.join(".config", "kilo", "commands", "flow.md"));
+    requireContains(path.join(".config", "kilo", "AGENTS.md"), /agent-surface Kilo rules/);
   } else if (target === "antigravity") {
     requireContains(path.join("global_workflows", "flow.md"), /^---\ndescription: "/);
   } else if (target === "cursor") {
@@ -797,6 +807,11 @@ async function installPlan(target, adapter, installRoot, scope, pack, rootSource
     : [];
   const staleRemovals = staleManaged.map((item) => item.output);
   const staleRemovalActions = [];
+  const configMerges = target === "kilo" ? [await prepareKiloConfigMerge(kiloConfigMerge(installRoot, scope))] : [];
+
+  for (const item of configMerges) {
+    if (item.action === "blocked") blocked.push(item.error);
+  }
 
   for (const item of staleManaged) {
     if (!isSafeRelativePath(item.output)) {
@@ -840,6 +855,7 @@ async function installPlan(target, adapter, installRoot, scope, pack, rootSource
     writes,
     staleRemovals,
     staleRemovalActions,
+    configMerges,
     blocked,
     manifest,
   };
@@ -863,6 +879,14 @@ function printInstallPlan(plan) {
   }
   console.log("planned manifest:");
   console.log(`  ${path.relative(plan.installRoot, plan.manifestPath)}`);
+  console.log("planned config merges:");
+  if (plan.configMerges.length === 0) {
+    console.log("  none");
+  } else {
+    for (const item of plan.configMerges) {
+      console.log(`  ${item.relativeOutput} instructions += ${item.instruction}`);
+    }
+  }
   console.log("blocked:");
   if (plan.blocked.length === 0) {
     console.log("  none");
@@ -877,6 +901,7 @@ async function applyInstallPlan(plan) {
   let skipped = 0;
   let removed = 0;
   let backups = 0;
+  let configMerges = 0;
 
   await mkdir(plan.installRoot, { recursive: true });
 
@@ -909,6 +934,12 @@ async function applyInstallPlan(plan) {
     backups += 1;
   }
 
+  for (const item of plan.configMerges) {
+    const result = await applyKiloConfigMerge(plan.installRoot, backupRoot, item);
+    backups += result.backup ? 1 : 0;
+    configMerges += result.changed ? 1 : 0;
+  }
+
   await mkdir(path.dirname(plan.manifestPath), { recursive: true });
   await writeFile(plan.manifestPath, `${JSON.stringify(plan.manifest, null, 2)}\n`);
 
@@ -916,7 +947,67 @@ async function applyInstallPlan(plan) {
   console.log(`  wrote: ${written}`);
   console.log(`  skipped unchanged: ${skipped}`);
   console.log(`  removed stale: ${removed}`);
+  console.log(`  config merges: ${configMerges}`);
   console.log(`  backups: ${backups === 0 ? "none" : path.relative(plan.installRoot, backupRoot)}`);
+}
+
+function kiloConfigMerge(installRoot, scope) {
+  const relativeOutput = scope === "user" ? path.join(".config", "kilo", "kilo.jsonc") : "kilo.jsonc";
+  const instruction = scope === "user" ? "./rules/agent-surface.md" : ".kilo/rules/agent-surface.md";
+  return {
+    output: path.join(installRoot, relativeOutput),
+    relativeOutput,
+    instruction,
+  };
+}
+
+async function applyKiloConfigMerge(installRoot, backupRoot, merge) {
+  if (merge.action === "skip") return { changed: false, backup: false };
+  if (merge.action === "blocked") fail(merge.error);
+  const existing = await readFileIfExists(merge.output);
+  if (existing !== null) await backupExisting(installRoot, backupRoot, merge.output);
+  await mkdir(path.dirname(merge.output), { recursive: true });
+  await writeFile(merge.output, merge.content);
+  return { changed: true, backup: existing !== null };
+}
+
+async function prepareKiloConfigMerge(merge) {
+  if (!isSafeRelativePath(merge.relativeOutput)) {
+    return { ...merge, action: "blocked", error: `unsafe Kilo config path: ${merge.relativeOutput}` };
+  }
+
+  const existing = await readFileIfExists(merge.output);
+  if (existing === null) {
+    return {
+      ...merge,
+      action: "write",
+      content: `${JSON.stringify({
+        $schema: "https://app.kilo.ai/config.json",
+        instructions: [merge.instruction],
+      }, null, 2)}\n`,
+    };
+  }
+
+  const text = existing.toString("utf8");
+  const parsed = parseJsoncResult(text);
+  if (!parsed.ok) {
+    return { ...merge, action: "blocked", error: `${merge.relativeOutput}: invalid JSONC: ${parsed.error.message}` };
+  }
+  if (parsed.value === null || typeof parsed.value !== "object" || Array.isArray(parsed.value)) {
+    return { ...merge, action: "blocked", error: `${merge.relativeOutput}: config must be an object` };
+  }
+
+  const instructions = parsed.value.instructions ?? [];
+  if (!Array.isArray(instructions)) {
+    return { ...merge, action: "blocked", error: `${merge.relativeOutput}: instructions must be an array` };
+  }
+  if (!instructions.every((item) => typeof item === "string")) {
+    return { ...merge, action: "blocked", error: `${merge.relativeOutput}: instructions must contain only strings` };
+  }
+  if (instructions.includes(merge.instruction)) return { ...merge, action: "skip" };
+
+  const content = mergeKiloInstructionJsonc(text, merge.instruction);
+  return { ...merge, action: "merge", content };
 }
 
 async function backupExisting(installRoot, backupRoot, file) {
@@ -943,6 +1034,8 @@ async function doctor() {
   checks.push(["gemini", commandVersion("gemini", ["--version"])]);
   checks.push(["claude", commandVersion("claude", ["--version"])]);
   checks.push(["codex", commandVersion("codex", ["--version"])]);
+  checks.push(["kilo", commandVersion("kilo", ["--version"])]);
+  checks.push(["kilo-config", await kiloConfigStatus()]);
   checks.push(["opencode", commandVersion("opencode", ["--version"])]);
   checks.push(["gh", commandVersion("gh", ["--version"])]);
 
@@ -1512,6 +1605,10 @@ async function renderClineWorkflow(source) {
   return source.body;
 }
 
+async function renderKiloWorkflow(source) {
+  return source.body;
+}
+
 async function renderClaudeCommand(source) {
   return source.body;
 }
@@ -1642,6 +1739,21 @@ async function clineStaticOutputs(_commands, context) {
       source: "rules/*.mdc",
       relativeOutput: path.join(outputRootFor(clineRuleRoot, context), "agent-surface.md"),
       content: await renderInstructionDocument("agent-surface Cline global rules", "Cline rules"),
+    },
+  ];
+}
+
+async function kiloStaticOutputs(_commands, context) {
+  return [
+    {
+      source: "rules/*.mdc",
+      relativeOutput: kiloInstructionPath(context),
+      content: await renderInstructionDocument("AGENTS.md - agent-surface Kilo rules", "Kilo instructions"),
+    },
+    {
+      source: "rules/*.mdc",
+      relativeOutput: kiloRulePath(context),
+      content: await renderInstructionDocument("agent-surface Kilo discoverable rules", "Kilo custom rules"),
     },
   ];
 }
@@ -1906,6 +2018,267 @@ function parseFrontmatterScalar(value) {
     return trimmed.slice(1, -1);
   }
   return trimmed;
+}
+
+function parseJsonc(text, label) {
+  const result = parseJsoncResult(text);
+  if (result.ok) return result.value;
+  fail(`${label}: invalid JSONC: ${result.error.message}`);
+}
+
+function parseJsoncResult(text) {
+  try {
+    return { ok: true, value: JSON.parse(stripJsonc(text)) };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+function stripJsonc(text) {
+  return removeJsonTrailingCommas(removeJsoncComments(text));
+}
+
+function removeJsoncComments(text) {
+  let out = "";
+  let inString = false;
+  let quote = "";
+  let escaped = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (inString) {
+      out += char;
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === quote) {
+        inString = false;
+        quote = "";
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      inString = true;
+      quote = char;
+      out += char;
+      continue;
+    }
+
+    if (char === "/" && next === "/") {
+      while (index < text.length && text[index] !== "\n") index += 1;
+      out += "\n";
+      continue;
+    }
+
+    if (char === "/" && next === "*") {
+      index += 2;
+      while (index < text.length && !(text[index] === "*" && text[index + 1] === "/")) index += 1;
+      index += 1;
+      continue;
+    }
+
+    out += char;
+  }
+
+  return out;
+}
+
+function removeJsonTrailingCommas(text) {
+  let out = "";
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (inString) {
+      out += char;
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      out += char;
+      continue;
+    }
+
+    if (char === ",") {
+      let nextIndex = index + 1;
+      while (/\s/.test(text[nextIndex] ?? "")) nextIndex += 1;
+      if (text[nextIndex] === "}" || text[nextIndex] === "]") continue;
+    }
+
+    out += char;
+  }
+
+  return out;
+}
+
+function mergeKiloInstructionJsonc(text, instruction) {
+  const tokens = jsoncTokens(text);
+  const instructionsRange = findJsoncPropertyArray(tokens, "instructions");
+  if (instructionsRange) {
+    return insertJsoncArrayString(text, instructionsRange, instruction);
+  }
+  return insertJsoncRootProperty(text, tokens, "instructions", [instruction]);
+}
+
+function insertJsoncArrayString(text, range, value) {
+  const valueJson = JSON.stringify(value);
+  const openLineStart = lineStart(text, range.open.start);
+  const closeLineStart = lineStart(text, range.close.start);
+  if (openLineStart === closeLineStart) {
+    return insertInlineJsoncArrayString(text, range, valueJson);
+  }
+  const closeIndent = text.slice(closeLineStart, range.close.start);
+  const valueIndent = `${closeIndent}  `;
+  const items = range.tokens.filter((token) => token.type !== ",");
+  if (items.length === 0) {
+    return `${text.slice(0, closeLineStart)}${valueIndent}${valueJson}\n${text.slice(closeLineStart)}`;
+  }
+
+  const lastToken = range.tokens.at(-1);
+  if (lastToken?.type === ",") {
+    return `${text.slice(0, closeLineStart)}${valueIndent}${valueJson}\n${text.slice(closeLineStart)}`;
+  }
+
+  return `${text.slice(0, lastToken.end)},${text.slice(lastToken.end, closeLineStart)}${valueIndent}${valueJson}\n${text.slice(closeLineStart)}`;
+}
+
+function insertInlineJsoncArrayString(text, range, valueJson) {
+  const items = range.tokens.filter((token) => token.type !== ",");
+  if (items.length === 0) {
+    return `${text.slice(0, range.open.end)}${valueJson}${text.slice(range.close.start)}`;
+  }
+
+  const lastToken = range.tokens.at(-1);
+  const separator = lastToken?.type === "," ? " " : ", ";
+  const insertAt = lastToken?.type === "," ? lastToken.end : lastToken?.end ?? range.open.end;
+  return `${text.slice(0, insertAt)}${separator}${valueJson}${text.slice(insertAt)}`;
+}
+
+function insertJsoncRootProperty(text, tokens, key, value) {
+  const rootOpen = tokens.find((token) => token.type === "{" && token.depth === 0);
+  const rootClose = tokens.findLast((token) => token.type === "}" && token.depth === 0);
+  if (!rootOpen || !rootClose) return `${JSON.stringify({ [key]: value }, null, 2)}\n`;
+
+  const keyJson = JSON.stringify(key);
+  const valueJson = JSON.stringify(value, null, 2)
+    .split("\n")
+    .map((line, index) => (index === 0 ? line : `  ${line}`))
+    .join("\n");
+  const closeLineStart = lineStart(text, rootClose.start);
+  const closeIndent = text.slice(closeLineStart, rootClose.start);
+  const propIndent = `${closeIndent}  `;
+  const property = `${propIndent}${keyJson}: ${valueJson}\n`;
+  const rootTokens = tokens.filter((token) => token.start > rootOpen.start && token.end <= rootClose.start);
+
+  if (rootTokens.length === 0) {
+    return `${text.slice(0, closeLineStart)}${property}${text.slice(closeLineStart)}`;
+  }
+
+  const lastToken = rootTokens.at(-1);
+  if (lastToken.type === ",") {
+    return `${text.slice(0, closeLineStart)}${property}${text.slice(closeLineStart)}`;
+  }
+
+  return `${text.slice(0, lastToken.end)},${text.slice(lastToken.end, closeLineStart)}${property}${text.slice(closeLineStart)}`;
+}
+
+function findJsoncPropertyArray(tokens, key) {
+  for (let index = 0; index < tokens.length - 2; index += 1) {
+    const keyToken = tokens[index];
+    const colon = tokens[index + 1];
+    const open = tokens[index + 2];
+    if (keyToken.type !== "string" || keyToken.value !== key || keyToken.depth !== 1) continue;
+    if (colon.type !== ":" || open.type !== "[") continue;
+
+    let depth = 0;
+    for (let closeIndex = index + 2; closeIndex < tokens.length; closeIndex += 1) {
+      const token = tokens[closeIndex];
+      if (token.type === "[") depth += 1;
+      if (token.type === "]") depth -= 1;
+      if (depth === 0) {
+        return {
+          open,
+          close: token,
+          tokens: tokens.slice(index + 3, closeIndex),
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function jsoncTokens(text) {
+  const tokens = [];
+  let depth = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (char === "/" && next === "/") {
+      while (index < text.length && text[index] !== "\n") index += 1;
+      continue;
+    }
+
+    if (char === "/" && next === "*") {
+      index += 2;
+      while (index < text.length && !(text[index] === "*" && text[index + 1] === "/")) index += 1;
+      index += 1;
+      continue;
+    }
+
+    if (char === "\"") {
+      const start = index;
+      index += 1;
+      while (index < text.length) {
+        if (text[index] === "\\") {
+          index += 2;
+          continue;
+        }
+        if (text[index] === "\"") break;
+        index += 1;
+      }
+      const raw = text.slice(start, index + 1);
+      tokens.push({ type: "string", value: JSON.parse(raw), start, end: index + 1, depth });
+      continue;
+    }
+
+    if (char === "{" || char === "[") {
+      tokens.push({ type: char, start: index, end: index + 1, depth });
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}" || char === "]") {
+      depth -= 1;
+      tokens.push({ type: char, start: index, end: index + 1, depth });
+      continue;
+    }
+
+    if (char === ":" || char === ",") {
+      tokens.push({ type: char, start: index, end: index + 1, depth });
+    }
+  }
+
+  return tokens;
+}
+
+function lineStart(text, index) {
+  return text.lastIndexOf("\n", index - 1) + 1;
 }
 
 async function exportableCommands(pack) {
@@ -2182,6 +2555,11 @@ async function readJsonIfExists(file) {
   return JSON.parse(await readFile(file, "utf8"));
 }
 
+async function readJsoncIfExists(file) {
+  if (!(await exists(file))) return null;
+  return parseJsonc(await readFile(file, "utf8"), path.relative(root, file));
+}
+
 async function readFileIfExists(file) {
   try {
     return await readFile(file);
@@ -2451,6 +2829,10 @@ function installRootCline(scope) {
   return scope === "user" ? os.homedir() : process.cwd();
 }
 
+function installRootKilo(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
 function installRootAntigravity(scope) {
   if (scope !== "user") fail("antigravity install supports --scope user only unless --dest is supplied");
   return path.join(os.homedir(), ".gemini", "antigravity");
@@ -2463,12 +2845,40 @@ function installRootVsCode(scope) {
   return path.join(os.homedir(), ".config", "Code", "User");
 }
 
+async function kiloConfigStatus() {
+  const configDir = path.join(os.homedir(), ".config", "kilo");
+  if (!(await exists(configDir))) return "missing";
+
+  const metadata = await readJsonIfExists(path.join(configDir, "package.json"));
+  const pluginVersion = metadata?.dependencies?.["@kilocode/plugin"] ?? metadata?.devDependencies?.["@kilocode/plugin"];
+  const config = await readJsoncIfExists(path.join(configDir, "kilo.jsonc"));
+  const instructions = Array.isArray(config?.instructions) ? config.instructions : [];
+  const markers = [];
+  if (pluginVersion) markers.push(`plugin ${pluginVersion}`);
+  if (await exists(path.join(configDir, "AGENTS.md"))) markers.push("AGENTS.md");
+  if (await exists(path.join(configDir, "commands"))) markers.push("commands");
+  if (instructions.includes("./rules/agent-surface.md")) markers.push("rules configured");
+  return markers.length > 0 ? `present (${markers.join(", ")})` : "present";
+}
+
 function clineWorkflowRoot(context) {
   return context.scope === "user" ? path.join("Documents", "Cline", "Workflows") : path.join(".clinerules", "workflows");
 }
 
 function clineRuleRoot(context) {
   return context.scope === "user" ? path.join("Documents", "Cline", "Rules") : ".clinerules";
+}
+
+function kiloWorkflowRoot(context) {
+  return context.scope === "user" ? path.join(".config", "kilo", "commands") : path.join(".kilo", "commands");
+}
+
+function kiloInstructionPath(context) {
+  return context.scope === "user" ? path.join(".config", "kilo", "AGENTS.md") : "AGENTS.md";
+}
+
+function kiloRulePath(context) {
+  return context.scope === "user" ? path.join(".config", "kilo", "rules", "agent-surface.md") : path.join(".kilo", "rules", "agent-surface.md");
 }
 
 function commandVersion(command, args) {
