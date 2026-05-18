@@ -41,14 +41,19 @@ User invokes command (e.g., "dev-refactor", "arch-roadmap")
      ↑                ↑         ↓       ↓          ↓
 [ops-report] ─→ [dev-fix] ──────┴─ [dev-refactor] ←┘
      ↑                ↑
-       [qa-sec]
+         [qa-sec]
 ```
+
+For formal workflow mode, start `workflow-orchestrator`. It is the long-running monitor that spawns each role session, chooses provider/model/role assignments from quality, cost, speed, context, prior outcomes, and review independence, and stays active until the run is closed, quarantined, aborted, human-blocked, or has no remaining task work. `boot-workflow` remains the workflow map, ledger contract, and role-file reference.
 
 ### Structured workflow (v3 — validated run ledger)
 
 For medium/high-risk tasks requiring formal spec → implement → verify → review cycles. **A round processes a batch of tasks**, not a single task.
 
 ```text
+[workflow-orchestrator] [long-running monitor: choose role + provider/model, spawn, heartbeat, rehydrate]
+    |
+    v
 [workflow-boss] [validated run: run_id + lock + base commit/tree + filescope + tasks[] + batch_policy]
     |
     v

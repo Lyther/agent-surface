@@ -47,6 +47,19 @@ For each entry in `worker.tasks_processed`, run this checklist independently:
 - Evidence binding: verify command evidence records `cmd`, `cwd`, command class, timeout, exit code, start time, duration, tree hash, stdout/stderr refs, hashes, and redaction status.
 - Patch isolation: verify each completed task has `patch_ref`, `patch_hash`, `pre_tree_hash`, `post_tree_hash`, `name_status_ref`, and `applies_cleanly: true` from `agent-surface workflow patch verify`.
 
+## CROSS-DOMAIN QA CHECKLIST (completed batch)
+
+After the per-task checklist, review the completed batch as a codebase change, not just as a set of AC boxes:
+
+- Security and privacy: validate auth/authz, injection, path traversal, unsafe shell/process use, secret exposure, sensitive logs, unsafe defaults, and evidence redaction when touched.
+- Documentation: confirm README, adapter docs, command help, schemas, examples, and operational notes match changed behavior. Missing docs for public behavior, config, CLI, security posture, or workflow semantics are at least `major`.
+- Dependencies: confirm dependency additions/updates were approved, justified, reflected in lockfiles, and covered by vulnerability/license expectations. Phantom deps or unreviewed lockfile churn are `major` or `blocker`.
+- Tests and gates: verify tests cover meaningful behavior and failure paths, not just snapshots or mock choreography. Deleted, weakened, skipped, or sabotaged gates are `blocker`.
+- Config, CI, and deployment: inspect workflow YAML, package scripts, generated manifests, install paths, permissions, and release packaging when touched.
+- Compatibility: check public CLI/API/config contracts, generated target paths, migration behavior, backward compatibility, and stale artifact cleanup.
+- Maintainability: flag unnecessary complexity, duplicated policy, broad refactors hidden inside feature work, TODO placeholders, and scope creep outside the BOSS filescope.
+- Observability and operations: when behavior affects installs, automation, security, or deployments, confirm errors, logs, dry-runs, backups, and recovery paths remain understandable.
+
 After per-task review, also check **batch-level invariants**:
 
 - Worker handoff integrity: `worker.workflow.run_id` matches `boss.workflow.run_id`. Mismatch = stale worker = REJECT entire batch.

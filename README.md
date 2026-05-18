@@ -137,7 +137,11 @@ Canonical workflow state lives under `.agent-surface/workflows/<run_id>/`.
 
 Cursor-specific `.cursor/.workflow/` files are compatibility artifacts only; canonical `.agent-surface` state wins when they disagree.
 
-Start with `/flow` when the right path is unclear. Use `workflow-doctor` before acting on an existing run, and `workflow-close` to archive metrics and unresolved risks after an accepted or aborted run.
+Start with `/flow` when the right path is unclear. For formal workflow mode, start `workflow-orchestrator`; it is the long-running monitor session that spawns BOSS, worker, reviewer, judger, rescue, QA, and close roles until the run has no remaining work or automation must stop. Use `workflow-doctor` before acting on an existing run, and `workflow-close` to archive metrics and unresolved risks after an accepted or aborted run.
+
+`workflow-boss` should queue the largest coherent batch it can specify safely; `workflow-reviewer` gates the batch across AC compliance, security, docs, dependency hygiene, tests, config, and other QA risks before anything reaches `ship-commit`.
+
+`workflow-orchestrator` chooses the next role, provider, model, and launch shape from the ledger, local availability, cost, speed, context, prior outcomes, and required model independence. It records local `agents.json` state and keeps monitoring until the remaining task queue is finished, closed, quarantined, aborted, or handed to a human. It does not replace BOSS, worker, reviewer, judger, rescue, or close role-file ownership.
 
 Workflow-aware workers currently include `dev-feature`, `dev-fix`, `dev-chore`, and `dev-refactor`.
 

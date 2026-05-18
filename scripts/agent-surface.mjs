@@ -1974,7 +1974,7 @@ function parseCommand(file, text) {
     risk: commandRiskFromName(name),
     packs: ["default"],
     default_export: true,
-    approval_classes: [],
+    approval_classes: commandApprovalClassesFromName(name),
     description: null,
   };
   const frontmatterErrors = [];
@@ -2531,6 +2531,11 @@ function commandRiskFromName(name) {
     return "writes";
   }
   return "safe";
+}
+
+function commandApprovalClassesFromName(name) {
+  if (name === "workflow-orchestrator") return ["network"];
+  return [];
 }
 
 async function directories(base) {

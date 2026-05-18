@@ -131,6 +131,8 @@ This command creates the **context infrastructure** that enables smooth vibe cod
     - **Mandatory Hooks**: `trailing-whitespace`, `end-of-file-fixer`, `check-yaml`.
     - **Language Hooks**: `ruff` (Python), `fmt` (Rust), `prettier` (Web).
     - **Go hooks**: `gofumpt`, `goimports`, `go-mod-tidy`, `go-vet`, `golangci-lint`. Use the **active fork** `TekWizely/pre-commit-golang` — the older `dnephin/pre-commit-golang` is archived (upstream abandoned ~2023) and MUST NOT be used for new projects. If the active fork's hook set is insufficient, prefer a `local` hook that calls `make lint` directly rather than pulling in an archived dep.
+    - **Commit message policy**: generate a local `commit-msg` hook that runs `scripts/check-commit-message.sh` and rejects AI attribution, AI co-author trailers, generated-by/generated-with signatures, vendor/tool advertising phrases, and AI-agent names anywhere in commit messages. The blocklist must include at least: `Cursor`, `cursoragent@cursor.com`, `Claude`, `Codex`, `ChatGPT`, `OpenAI`, `Anthropic`, `Gemini`, `Copilot`, `Windsurf`, `Aider`, `Devin`, `Replit Agent`, `Qodo`, `Tabnine`, `Amazon Q`, `CodeWhisperer`, `Sourcegraph Cody`, `Cline`, `Roo Code`, `OpenCode`, `Kilo Code`, `Trae`, `Continue.dev`, `Codeium`, `Augment Code`, and `Zed AI`. The hook must fail closed with a clear error; it must not rewrite the message silently.
+    - **Commit range policy**: generate `scripts/check-commit-range.sh` for CI/pre-push use. It must inspect every commit in a provided rev-list range and reject the same forbidden AI attribution, advertising, and agent-name patterns. This protects against `git commit --no-verify`, injected `git commit --trailer`, and local hook drift. Commit history is not an advertising surface for tool vendors.
 3. **Scaffold Project Rules**:
     - Copy `.cursor/rules/*.mdc` templates into the project's `.cursor/rules/`.
     - Generate `AGENTS.md` at project root for local cross-tool compatibility.
@@ -151,8 +153,9 @@ This command creates the **context infrastructure** that enables smooth vibe cod
 3. **Bootstrap CI (Minimal)**:
     - **Action**: Generate `.github/workflows/ci.yml`.
     - **Logic**: "Fail Fast".
-    - **Steps**: Checkout -> Setup Cache -> Lint (Strict) -> Test (Unit).
+    - **Steps**: Checkout with full history -> Check commit messages with `scripts/check-commit-range.sh` -> Setup Cache -> Lint (Strict) -> Test (Unit).
     - **Constraint**: Pin versions (for example `ubuntu-24.04` or the project-approved runner image, and pinned actions). Do not describe floating `latest` runner tags as pinned.
+    - **GitHub Actions range check**: use `fetch-depth: 0`. For pull requests, check `origin/${GITHUB_BASE_REF}..HEAD`; for pushes, check `${{ github.event.before }}..HEAD` and fall back to `HEAD` when the before SHA is all zeros. This status check is mandatory for protected branches.
 
 ### Phase 7: UI Target Scaffold (web | desktop | mobile)
 

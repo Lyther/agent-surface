@@ -16,7 +16,8 @@ If essential repo context is missing, run `boot-context` first.
 - **The worker burns through the queue** in dependency order, stopping only on (a) a blocker on the current task, (b) self-assessed context pressure, or (c) the queue going empty.
 - **The reviewer reviews the batch**, emitting per-task verdicts plus an aggregate status.
 - **Single-task runs are still legal** — a queue of one uses the same v3 ledger shape.
-- **Don't over-batch.** Group tasks that share FILESCOPE, contract, or test surface. Don't queue 30 unrelated chores into one BOSS — that defeats reviewer focus.
+- **Maximize coherent batching.** Assign as many related tasks as can be specified safely in one round, constrained by shared FILESCOPE, route, dependency chain, risk, context budget, and verification cost.
+- **Don't over-batch.** Group tasks that share FILESCOPE, contract, or test surface. Don't queue unrelated chores or mixed-risk work into one BOSS — that defeats reviewer focus.
 - **Use workflow only when it earns its overhead.** Direct small edits do not need six roles. Use this path for medium/high-risk, multi-step, cross-file, security-sensitive, or ambiguity-heavy work.
 - **The run ledger is the source of truth.** `run.json` plus `events.ndjson` records state transitions; role files are artifacts, not state authority.
 
@@ -24,7 +25,7 @@ If essential repo context is missing, run `boot-context` first.
 
 ### Phase 0: Workflow bootstrap (role files)
 
-- `workflow-boss` is the entrypoint that starts or refreshes workflow mode.
+- `workflow-orchestrator` is the monitored workflow entrypoint. `workflow-boss` is the first spec-owning role it spawns, and it may still be invoked directly for manual respec or recovery.
 - Use the project-local workflow folder: `.agent-surface/workflows/<run_id>/`
 - Write the active-run pointer at `.agent-surface/workflows/current.json`.
 - Treat `.cursor/.workflow/` as a Cursor compatibility surface only. It may mirror latest role files, but it is not canonical.
@@ -72,11 +73,13 @@ If essential repo context is missing, run `boot-context` first.
 Build a list of 1 to N tasks. Each task is independently reviewable, verifiable, and revertable.
 
 - Sort tasks by dependency. Use `depends_on: [task_id, …]` when a task requires the output of an earlier one.
+- Prefer a full useful queue over a tiny handoff. If more related tasks fit the same route, FILESCOPE, and verification surface, include them instead of leaving obvious follow-up tasks for a later BOSS round.
 - Prefer one concern, one testable behavior, one reversible patch per task. Estimate by filescope size, dependency count, and verify cost, not line count.
+- Split the run instead of batching when tasks require different worker routes, unrelated filescopes, incompatible risk levels, or separate human approvals.
 - Each task gets its own `plan` (3–8 steps), `ac`, and `verify` commands.
 - Don't pre-commit the worker to a specific implementation — leave room for judgment, but pin the contract.
 - Each task must be isolatable: require either `patch_required: true` (default) or `commit_required: true` if the user wants per-task commits. Without patch/commit isolation, `MERGE_PARTIAL` is disabled.
-- Default `max_tasks_per_round` to 3 unless the task queue is tiny or low-risk. Larger batches require a short justification.
+- Default `max_tasks_per_round` to 5 for coherent low/medium-risk queues. Use fewer for high-risk, ambiguous, cross-cutting, dependency, data, security, or approval-gated work. Larger batches require a short justification tied to shared filescope and cheap verification.
 
 Keep the process deterministic: route by explicit `workflow.next_command` plus the task queue, not free-form agent debate.
 
@@ -110,7 +113,7 @@ Define when the worker should stop the round:
 
 - `stop_on`: subset of `["blocker", "context_pressure", "queue_empty", "max_tasks_cap", "drift_check"]` (default: all five).
 - `context_pressure_threshold_pct`: heuristic for context budget (default: 70), backed by concrete counters.
-- `max_tasks_per_round`: default 3. Use 5 only for low-risk small tasks; justify anything higher.
+- `max_tasks_per_round`: default 5 for coherent low/medium-risk queues. Use 1–3 for high-risk or unclear work; justify anything higher than 5.
 - `drift_check_every`: re-read BOSS spec after this many completed tasks (default: 5). Catches scope drift before it metastasizes.
 - `timeout_budget_ms`: max elapsed runner time for a round before handoff.
 - Context pressure counters: files opened, total bytes read, commands run, verify cycles, log bytes, failed attempts, elapsed time, and model-reported context usage when available.
