@@ -143,6 +143,8 @@ Start with `/flow` when the right path is unclear. For formal workflow mode, sta
 
 `workflow-orchestrator` chooses the next role, provider, model, and launch shape from the ledger, local availability, cost, speed, context, prior outcomes, and required model independence. It records local `agents.json` state and keeps monitoring until the remaining task queue is finished, closed, quarantined, aborted, or handed to a human. It does not replace BOSS, worker, reviewer, judger, rescue, or close role-file ownership.
 
+For Ollama thinking models, workflow roles should hide or drop the reasoning trace, not disable thinking. Use explicit thinking for non-trivial worker/reviewer roles and never persist the `thinking` field in workflow artifacts.
+
 Workflow-aware workers currently include `dev-feature`, `dev-fix`, `dev-chore`, and `dev-refactor`.
 
 Use `agent-surface run` for workflow verification commands so stdout, stderr, hashes, timing, exit code, cwd, and git tree are captured as evidence by tooling instead of by model self-report.
