@@ -72,6 +72,8 @@ Minimum shape:
         "max_output_tokens": 0,
         "tool_fit": ["terminal", "apply_patch", "structured_output"],
         "independence_group": "openai|anthropic|google|deepseek|moonshot|zai|minimax|other",
+        "thinking_mode": "true|false|low|medium|high|default|not_applicable|unknown",
+        "thinking_trace_policy": "hidden|dropped|not_requested|not_supported|unknown",
         "selection_reason": "why this model is assigned to this role",
         "source_refs": ["provider probe, pricing page, leaderboard snapshot, or local benchmark ref"]
       },
@@ -81,6 +83,8 @@ Minimum shape:
         "estimated_cost_usd": null,
         "tokens_in": null,
         "tokens_out": null,
+        "thinking_present": null,
+        "thinking_persisted": false,
         "blind_spots": [],
         "lesson": "short reusable lesson or null"
       },
@@ -145,7 +149,7 @@ Probe provider availability before each monitored run. Treat display names, lead
 | Cursor | May need `HTTP_PROXY=http://127.0.0.1:7890` and `HTTPS_PROXY=http://127.0.0.1:7890`. If it reports no account models, do not assign it workflow roles. |
 | Gemini | Requires compatible Node. User reports Node v26 / npm 11.12.1 works; Node v18 can fail. Use `GEMINI_CLI_TRUST_WORKSPACE=true` or `--skip-trust` for headless runs. |
 | Grok | Build model id is `grok-build`; use with caution and verify local CLI behavior before assigning write-scoped roles. |
-| Ollama Cloud | Verify model IDs before use. Direct `ollama run` supports `--think false --hidethinking` when evidence logs must not include reasoning traces. |
+| Ollama Cloud | Verify model IDs before use. For thinking-capable models, `--think=false` / API `think:false` disables thinking. `--hidethinking` is the hide-only CLI switch. For non-trivial workflow roles, prefer thinking enabled and hide/drop the trace. |
 
 ## MODEL ROUTING
 
@@ -174,6 +178,7 @@ Match model signals to the role instead of collapsing everything into one leader
 - QA/security/research: prefer search, BrowseComp/SimpleQA, domain benchmarks, tool calling, and conservative uncertainty handling.
 - UI/visual tasks: prefer vision/MMMU/MMMU-Pro/ScreenSpot-style signals and multimodal launch support.
 - Long runs: penalize high TTFT/latency, weak heartbeats, quota fragility, expensive retries, and models that degrade under context pressure even if nominal context is large.
+- Ollama thinking-capable runs: treat `think:false` as a quality-reducing non-thinking mode, not a privacy mode. Use it only for cheap formatting, extraction, or latency-sensitive non-reasoning tasks.
 
 | Role class | Selection rule | Guardrail |
 | --- | --- | --- |
@@ -197,7 +202,7 @@ Seed candidate matrix for May 2026. Treat it as a starting point, not truth. Ref
 | `deepseek-v4-pro` / provider `pro-max` label | Low cost for 1M-class context, strong math/reasoning/domain and decent SWE/coding signals; useful non-Western model-family diversity. | Very high latency in public snapshot, no multimodal in that row, pricing labels/discounts change, quality must be proven locally. | Economy worker for large-context tasks, shadow reviewer, second opinion before escalating to premium models. |
 | `deepseek-v4-flash` / provider `flash-max` label | Extremely cheap, 1M-class context, useful for bulk exploration. | Lower coding/tool/search signals than Pro; latency still non-trivial; not a sole high-risk reviewer. | Low-risk worker, bulk scan, cheap shadow QA. |
 | `kimi-k2.6` | Cheap coding/tool candidate with good search, SciCode, GPQA, SWE-bench Verified, and BrowseComp signals; useful independent reviewer versus OpenAI/Claude. | 262K context and high latency in public snapshot; verify launch ID and local harness behavior. | Worker, chore/refactor, second-opinion reviewer, research QA. |
-| `glm-5.1` | Cheap/fast coding-reasoning candidate with decent MCP/tool and SWE-bench Pro signals; good model-family diversity. | 200K context, no multimodal in snapshot, and possible long-loop behavior; require heartbeat stops. | Worker, reviewer diversity, rescue second opinion. |
+| `glm-5.1` | Cheap/fast coding-reasoning candidate with decent MCP/tool and SWE-bench Pro signals; good model-family diversity. | 200K context, no multimodal in snapshot, and possible long-loop behavior; require heartbeat stops. Avoid Ollama `think` level strings until the exact task shape is proven; use `think:true` first. | Worker, reviewer diversity, rescue second opinion. |
 | `glm-5` | Very fast, cheap, high Code Arena among economy choices. | Weaker coding/tool/reasoning than GLM-5.1 and no multimodal in snapshot. | Low-risk worker, docs/chore, cheap exploratory pass. |
 | `qwen3.5-397b` / `qwen3.6-plus` | Cheap long-context family with useful finance/legal/health/domain signals and reasonable GPQA. | Weaker coding/tool signals and slow latency in snapshot; not primary implementation reviewer. | Domain QA, research pass, low-risk worker if provider is already approved. |
 | `minimax-m2.7` | Very cheap and fast enough for small bounded tasks. | Lower agentic-terminal/code confidence; do not use as sole reviewer for high-risk changes. | Low-risk docs/chore worker, cheap shadow QA. |
@@ -208,18 +213,47 @@ The orchestrator must learn from each run without treating anecdotes as permanen
 
 1. Before launch, record a `selection_snapshot` in `agents.json`: model id, provider, role, quality/cost/speed/context/tool-fit tiers, independence group, selection reason, approval ref, and source refs.
 2. During the run, record heartbeats with wall time, context pressure, commands, checks, retries, and drift/blocker notes.
-3. After role completion, update `outcome_summary`: accepted/partial/rejected/failed, wall time, estimated cost or token counters when available, evidence quality, reviewer findings, blind spots, and a one-line lesson.
+3. After role completion, update `outcome_summary`: accepted/partial/rejected/failed, wall time, estimated cost or token counters when available, thinking mode and whether a thinking field was present, evidence quality, reviewer findings, blind spots, and a one-line lesson.
 4. On future assignments, prefer models with good local outcomes for the same role and risk class, but reserve some low-risk tasks for exploration when the queue has enough slack.
 5. Promote a model only after repeated local wins: clean patch, low rework, good evidence, acceptable cost, and no repeated blind spots.
 6. Demote a model for repeated scope drift, missing evidence, over-eager PASS verdicts, broken tool use, excessive latency, excessive cost, or repeated user/reviewer corrections.
 7. Keep model lessons local to the repo/run unless the user asks to publish or distribute them. Do not commit `agents.json`.
+
+## OLLAMA THINKING POLICY
+
+For thinking-capable Ollama models, privacy and reasoning quality are separate decisions:
+
+- `--think=false` or API `think:false` disables thinking. Do not use it for non-trivial coding, review, judging, rescue, security, or research roles.
+- `--hidethinking` hides the thinking trace while still using the thinking model path. This is the preferred CLI posture for non-trivial workflow roles.
+- API `think:true` requests thinking and returns final content separately from the `thinking` field. The orchestrator must drop the `thinking` field before writing prompts, logs, `agents.json`, role artifacts, or evidence refs.
+- Omitted `think` may default to thinking enabled for supported models, but explicit `think:true` is clearer for workflow roles.
+- Level strings such as `low`, `medium`, or `high` are model-specific. Do not use them by default unless a current local probe on the same task shape shows they still produce usable final content.
+- Prefer the HTTP API for machine-captured workflow artifacts because it can request `stream:false`, `think:true`, and structured output without CLI spinner or control-sequence noise.
+
+Recommended API posture for non-trivial Ollama workflow roles:
+
+```json
+{
+  "stream": false,
+  "think": true,
+  "format": "json"
+}
+```
+
+Recommended CLI posture when a CLI role launch is required:
+
+```bash
+ollama run <model> --think --hidethinking "$(cat "$prompt_file")"
+```
+
+Use `think:false` only for cheap formatting, extraction, or latency-sensitive tasks where reasoning quality is not part of the role contract, and record that downgrade in `selection_snapshot.thinking_mode`.
 
 ## OUTPUT HYGIENE
 
 - Strip `NODE_TLS_REJECT_UNAUTHORIZED` from spawned networked agents unless a role explicitly proves a temporary local TLS exception is required.
 - Keep proxy settings explicit per launch. Do not rely on hidden parent-shell proxy state.
 - Keep raw provider logs local. When recording evidence, store the final answer, command, exit code, and redacted diagnostics instead of full thought-bearing JSON.
-- For direct Ollama probes, prefer `ollama run <model> --think false --hidethinking ...` when only the final answer is needed.
+- For Ollama thinking models, never persist the `thinking` field. Record only model id, `think` setting, trace handling, latency, token counters, final response/verdict, findings, and whether a thinking field was present.
 - Gemini JSON includes token counters for thoughts in `stats`; those are usage metrics, not chain-of-thought text. Record counts only when useful.
 - Grok JSON can include thought-like fields. Do not paste raw JSON into workflow artifacts without redaction.
 
@@ -250,6 +284,7 @@ ollama show kimi-k2.6:cloud
 ollama show deepseek-v4-pro:cloud
 ollama show glm-5.1:cloud
 ollama show minimax-m2.7:cloud
+curl -s http://localhost:11434/api/generate -d '{"model":"kimi-k2.6:cloud","prompt":"Reply OK only.","stream":false,"think":true,"format":"json"}' | jq '{response,done_reason,prompt_eval_count,eval_count,thinking_present:(has("thinking") and (.thinking|length > 0))}'
 ```
 
 Do not claim any provider or model ID is verified unless the current worker ran the probe and recorded the output as local evidence.

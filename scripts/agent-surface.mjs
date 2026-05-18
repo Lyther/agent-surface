@@ -2526,6 +2526,7 @@ function commandRiskFromName(name) {
       "stellaris-init",
       "stellaris-ui",
       "stellaris-uplink",
+      "workflow-orchestrator",
     ].includes(name)
   ) {
     return "writes";
