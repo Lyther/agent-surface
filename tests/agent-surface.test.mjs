@@ -68,7 +68,8 @@ assert.match(run(["check", "commands"]), /commands check: ok/);
 const inventory = run(["inventory"]);
 assert.match(inventory, /^rules: 11$/m);
 assert.match(inventory, /^commands: 62$/m);
-assert.match(inventory, /^schemas: 11$/m);
+assert.match(inventory, /^external: 5$/m);
+assert.match(inventory, /^schemas: 13$/m);
 
 const defaultRegistry = JSON.parse(run(["commands", "--json"]));
 assert.equal(defaultRegistry.pack, "default");

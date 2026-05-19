@@ -98,11 +98,17 @@
       ]
     }
   },
+  "planned": [
+    "droid",
+    "goose",
+    "pi",
+    "pool",
+    "vscodium",
+    "windsurf",
+    "zed"
+  ],
   "out_of_scope": [
     "roo-code",
-    "windsurf",
-    "vscodium",
-    "positron",
-    "void"
+    "xcode"
   ]
 }

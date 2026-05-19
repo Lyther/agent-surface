@@ -21,6 +21,7 @@ The other source folders are kept deliberately so new agent primitives can be ad
 - `settings/`
 - `ignores/`
 - `plugins/`
+- `external/`
 - `registry/`
 - `schemas/`
 
@@ -28,25 +29,32 @@ The other source folders are kept deliberately so new agent primitives can be ad
 
 In scope:
 
-- Claude Code
-- Codex
-- Gemini CLI
-- Cline
-- Kilo
 - Antigravity
-- OpenCode, behind primitive verification
-- VS Code generic settings
+- Claude Code
+- Cline
+- Codex
 - Cursor
+- Gemini CLI
 - GitHub Copilot
+- Kilo
+- OpenCode
 - Trae
+- VS Code
 
-Out of scope:
+Planned but not yet implemented:
 
-- Roo Code
-- Windsurf
+- Droid
+- Goose
+- Pi
+- Pool
 - VSCodium
-- Positron
-- Void
+- Windsurf
+- Zed
+
+Will never be implemented:
+
+- Roo Code: will be EoL'd at May 15, 2026
+- Xcode: please don't torture me
 
 ## Quick Start
 
@@ -116,6 +124,10 @@ node scripts/agent-surface.mjs workflow patch verify --run <run_id> --round 1 --
 `run` requires explicit approval for `network`, `filesystem_destructive`, `deployment`, and `database_mutation` command classes through `--approved <class>` or `AGENT_SURFACE_APPROVED_CLASSES`.
 
 Command frontmatter can declare `name`, `aliases`, `phase`, `risk`, `packs`, `default_export`, `approval_classes`, and `description`. `commands --json` emits the resolved registry with target paths and marks metadata as `frontmatter` or `inferred`. `commands --phase` and `commands --risk` filter that registry for routers such as `/flow`. `check commands` validates metadata and command-like references. `build` and `install` use `--pack default` unless told otherwise. `--pack all` renders every command source; named packs render the default set plus commands explicitly assigned to that pack.
+
+Optional external services live under `external/` as git submodules and are tracked in `registry/optional-services.json`. They are not required for core build/install. `agentmemory` and `pua` are marked optional-caution: use the locally patched `agentmemory-mcp` wiring and keep PUA narrowly enabled because it can increase token use and reduce model performance on normal tasks.
+
+Target MCP and skill support is recorded separately in `registry/target-capabilities.json`. This is intentionally distinct from `registry/targets.json`: the compiler may render commands/rules for a target while MCPs and external `SKILL.md` packs are only local-wired or manual-only. Kilo and Antigravity keep command sources under their workflow surfaces; external skills stay native `SKILL.md` directories where the host supports them.
 
 Global target surfaces currently generated:
 

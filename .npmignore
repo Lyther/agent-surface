@@ -1,0 +1,3 @@
+# Optional external submodules are git checkout aids, not core npm payload.
+external/*
+!external/README.md

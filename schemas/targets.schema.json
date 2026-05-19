@@ -4,6 +4,7 @@
   "type": "object",
   "required": [
     "in_scope",
+    "planned",
     "out_of_scope"
   ],
   "properties": {
@@ -35,6 +36,12 @@
           }
         },
         "additionalProperties": false
+      }
+    },
+    "planned": {
+      "type": "array",
+      "items": {
+        "type": "string"
       }
     },
     "out_of_scope": {

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "agent-surface optional external services",
+  "type": "object",
+  "required": [
+    "services"
+  ],
+  "properties": {
+    "services": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "status",
+          "source_url",
+          "path",
+          "commit",
+          "kind",
+          "optional",
+          "local_wiring",
+          "notes"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "optional",
+              "optional-caution"
+            ]
+          },
+          "source_url": {
+            "type": "string",
+            "pattern": "^https://github\\.com/[^/]+/[^/]+$"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^external/[A-Za-z0-9._-]+$"
+          },
+          "commit": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "kind": {
+            "enum": [
+              "mcp",
+              "skill-pack",
+              "behavior-pack"
+            ]
+          },
+          "optional": {
+            "const": true
+          },
+          "local_wiring": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "notes": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

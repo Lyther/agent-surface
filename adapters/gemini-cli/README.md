@@ -11,3 +11,5 @@ Implemented target paths:
 - user/project: `.gemini/extensions/agent-surface/commands/**/*.toml`
 
 MCP settings are not mutated automatically. Add MCP servers through Gemini CLI or a reviewed `settings.json` change.
+
+Gemini CLI skill support is tracked as command-based in `registry/target-capabilities.json`; generated reusable behavior is distributed as commands and extension content, not native `SKILL.md` directories.

@@ -12,3 +12,5 @@ Known project-level surfaces:
 - `.trae/mcp.json`
 
 MCP config is not mutated automatically.
+
+MCP and skill support are tracked in `registry/target-capabilities.json`. Trae remains manual-only for MCP until the live config shape is verified again; reusable behavior currently ships as rules.

@@ -16,4 +16,6 @@ Implemented target paths:
 
 Kilo workflows are Markdown slash commands. Kilo automatically loads `AGENTS.md`, but the extension Rules UI is backed by the `instructions` array in `kilo.jsonc`, so the installer merges an explicit ordered list of generated rule files and preserves existing config keys. Older generated `agent-surface.md` rule entries are removed from `instructions` during migration because the matching managed file is removed as stale output.
 
-This adapter does not mutate MCP config, providers, or tool permissions.
+Native MCP and skill support is tracked in `registry/target-capabilities.json`. Local user wiring currently includes `agentmemory` in `~/.config/kilo/kilo.jsonc` and optional external `SKILL.md` packs in `~/.kilocode/skills/`.
+
+This adapter does not mutate providers or broad tool permissions. Kilo workflows are the target name for command sources; native skills remain separate `SKILL.md` directories.
