@@ -1,0 +1,15 @@
+[submodule "external/agentmemory"]
+	path = external/agentmemory
+	url = https://github.com/rohitg00/agentmemory.git
+[submodule "external/sanyuan-skills"]
+	path = external/sanyuan-skills
+	url = https://github.com/sanyuan0704/sanyuan-skills.git
+[submodule "external/andrej-karpathy-skills"]
+	path = external/andrej-karpathy-skills
+	url = https://github.com/multica-ai/andrej-karpathy-skills.git
+[submodule "external/ctf-skills"]
+	path = external/ctf-skills
+	url = https://github.com/ljagiello/ctf-skills.git
+[submodule "external/pua"]
+	path = external/pua
+	url = https://github.com/tanweai/pua.git

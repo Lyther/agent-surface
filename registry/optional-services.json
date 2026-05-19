@@ -1,0 +1,93 @@
+{
+  "services": {
+    "agentmemory": {
+      "status": "optional-caution",
+      "source_url": "https://github.com/rohitg00/agentmemory",
+      "path": "external/agentmemory",
+      "commit": "68fddd418e1bbcc41d32a1c61b7a78d91eb7c4dc",
+      "kind": "mcp",
+      "optional": true,
+      "local_wiring": [
+        "Codex MCP: /Users/bytedance/.codex/config.toml mcp_servers.agentmemory",
+        "Cursor MCP: /Users/bytedance/.cursor/mcp.json mcpServers.agentmemory",
+        "Gemini MCP: /Users/bytedance/.gemini/settings.json mcpServers.agentmemory",
+        "Claude Code MCP: claude mcp list shows agentmemory connected",
+        "Cline MCP: /Users/bytedance/.cline/data/settings/cline_mcp_settings.json mcpServers.agentmemory",
+        "Kilo MCP: /Users/bytedance/.config/kilo/kilo.jsonc mcp.agentmemory",
+        "Antigravity MCP: /Users/bytedance/.gemini/antigravity/settings.json mcpServers.agentmemory",
+        "OpenCode MCP: /Users/bytedance/.config/opencode/opencode.json mcp.agentmemory"
+      ],
+      "notes": [
+        "Use only the locally patched installed binary at /Users/bytedance/.local/bin/agentmemory-mcp for MCP wiring.",
+        "The disclosure bundle at /tmp/agentmemory-disclosure-0.9.15 documents vulnerable public 0.9.14 and 0.9.15 artifacts; do not replace the local patched install with npm latest without review.",
+        "Keep REST, viewer, and stream ports loopback-only; do not publish private disclosure details."
+      ]
+    },
+    "sanyuan-skills": {
+      "status": "optional",
+      "source_url": "https://github.com/sanyuan0704/sanyuan-skills",
+      "path": "external/sanyuan-skills",
+      "commit": "08b6572ef108f22d4e8a3ecf9182a4bbef097744",
+      "kind": "skill-pack",
+      "optional": true,
+      "local_wiring": [
+        "Codex/agent skills: ~/.agents/skills/{book-study,code-review-expert,sigma,skill-forge,skill-review,wiki-ingest}",
+        "Claude skills: ~/.claude/skills mirrors those ~/.agents/skills entries",
+        "Cline/Kilo/Antigravity/OpenCode skills: mirrored into each target's native skill directory"
+      ],
+      "notes": [
+        "Optional production-grade skills for review, tutoring, skill creation, wiki ingestion, and book study."
+      ]
+    },
+    "andrej-karpathy-skills": {
+      "status": "optional",
+      "source_url": "https://github.com/multica-ai/andrej-karpathy-skills",
+      "path": "external/andrej-karpathy-skills",
+      "commit": "2c606141936f1eeef17fa3043a72095b4765b9c2",
+      "kind": "skill-pack",
+      "optional": true,
+      "local_wiring": [
+        "Codex/agent skill: ~/.agents/skills/karpathy-guidelines",
+        "Claude skill: ~/.claude/skills/karpathy-guidelines",
+        "Cline/Kilo/Antigravity/OpenCode skill: mirrored into each target's native skill directory"
+      ],
+      "notes": [
+        "Optional coding-behavior guideline skill focused on assumptions, simplicity, surgical changes, and verification."
+      ]
+    },
+    "ctf-skills": {
+      "status": "optional",
+      "source_url": "https://github.com/ljagiello/ctf-skills",
+      "path": "external/ctf-skills",
+      "commit": "1af14f9030fee9da46014a8a3ed61a555b81ab98",
+      "kind": "skill-pack",
+      "optional": true,
+      "local_wiring": [
+        "Codex/agent skills: ~/.agents/skills/ctf-* plus solve-challenge",
+        "Claude skills: ~/.claude/skills/ctf-* plus solve-challenge",
+        "Cline/Kilo/Antigravity/OpenCode skills: mirrored into each target's native skill directory"
+      ],
+      "notes": [
+        "Already wired locally before this optional submodule was added.",
+        "Optional CTF skill pack; some skills may recommend installing challenge tools on demand."
+      ]
+    },
+    "pua": {
+      "status": "optional-caution",
+      "source_url": "https://github.com/tanweai/pua",
+      "path": "external/pua",
+      "commit": "56332fe2eb33fc2600016adbb4468510e6289fbd",
+      "kind": "behavior-pack",
+      "optional": true,
+      "local_wiring": [
+        "Codex/agent skills: ~/.agents/skills/pua and ~/.agents/skills/pua-en",
+        "Claude skills: ~/.claude/skills/pua and ~/.claude/skills/pua-en",
+        "Cline/Kilo/Antigravity/OpenCode skills: only pua and pua-en mirrored into each target's native skill directory"
+      ],
+      "notes": [
+        "Already wired locally before this optional submodule was added.",
+        "Use narrowly because this behavior pack can increase token use and reduce model performance on normal tasks."
+      ]
+    }
+  }
+}

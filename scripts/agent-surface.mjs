@@ -147,6 +147,8 @@ const workflowSchemaFiles = [
 const registrySchemaFiles = [
   { schema: "targets.schema.json", file: "registry/targets.json" },
   { schema: "artifacts.schema.json", file: "registry/artifacts.json" },
+  { schema: "optional-services.schema.json", file: "registry/optional-services.json" },
+  { schema: "target-capabilities.schema.json", file: "registry/target-capabilities.json" },
 ];
 
 const workflowFixtureFiles = [
@@ -254,6 +256,7 @@ async function inventory() {
     settings: (await files("settings", [".json", ".toml", ".yaml", ".yml"])).length,
     ignores: (await files("ignores", [".gitignore", ".clineignore", ".md", ".txt"])).length,
     plugins: (await files("plugins", [".json", ".md", ".toml", ".yaml", ".yml"])).length,
+    external: (await directDirectories(path.join(root, "external"))).length,
     schemas: (await files("schemas", [".json"])).length,
   };
 
@@ -269,6 +272,7 @@ async function check() {
   const ruleFiles = await files("rules", [".md", ".mdc"]);
   const targetsConfig = JSON.parse(await readFile(path.join(root, "registry", "targets.json"), "utf8"));
   const artifactsConfig = JSON.parse(await readFile(path.join(root, "registry", "artifacts.json"), "utf8"));
+  const capabilitiesConfig = JSON.parse(await readFile(path.join(root, "registry", "target-capabilities.json"), "utf8"));
   const banned = new Set(targetsConfig.out_of_scope);
 
   if (commandFiles.length === 0) errors.push("commands/ is empty");
@@ -302,6 +306,9 @@ async function check() {
     if (!(await exists(path.join(root, "adapters", name)))) {
       errors.push(`registry target missing adapter directory: ${name}`);
     }
+    if (!Object.hasOwn(capabilitiesConfig.targets, name)) {
+      errors.push(`registry target missing capability record: ${name}`);
+    }
     const implemented = Object.hasOwn(targets, name);
     if (targetsConfig.in_scope[name].build_supported && !implemented) {
       errors.push(`registry target marks build_supported without CLI adapter: ${name}`);
@@ -314,6 +321,12 @@ async function check() {
   for (const name of Object.keys(targets)) {
     if (!targetsConfig.in_scope[name]?.build_supported) {
       errors.push(`CLI build target is not marked build_supported in registry: ${name}`);
+    }
+  }
+
+  for (const name of Object.keys(capabilitiesConfig.targets)) {
+    if (!Object.hasOwn(targetsConfig.in_scope, name)) {
+      errors.push(`capability target missing from registry: ${name}`);
     }
   }
 
