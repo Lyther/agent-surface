@@ -60,6 +60,7 @@ When `/docs` is invoked with **no type argument**, print this catalog. For each 
 |------------|-----------|-----------------|------------------|
 | `stp` | Software Test Plan | How do we verify the system works? Test strategy, environments, coverage targets, entry/exit criteria. | `docs/test-plan.md` |
 | `str` | Software Test Report | Did the system pass? Test execution results, coverage metrics, known failures, sign-off. | `docs/test-report.md` |
+| `system-card` | System / Safety Evaluation Card | What is the system intended to do, how was it evaluated, how does it compare with adjacent systems, what controls and limitations are evidenced, and how can the evaluation be reproduced? | `docs/system-card/{version}/system-card.md` |
 
 ### Delivery & Operations
 
@@ -78,7 +79,7 @@ When `/docs` is invoked with **no type argument**, print this catalog. For each 
 | `spmp` | Software Project Management Plan | How is the project run? Milestones, roles, deliverables, risk register, communication plan. | `docs/project-plan.md` |
 | `scmp` | Software Configuration Management Plan | How do we control versions and changes? Branching strategy, release process, artifact management. | `docs/scm.md` |
 
-**Total: 15 document types across 4 lifecycle phases.**
+**Total: 16 document types across 4 lifecycle phases.**
 
 When printing the catalog, also run a quick probe for each type:
 
@@ -342,6 +343,89 @@ Each document type has a required structure. When creating, use these as skeleto
 ## 7. Sign-off
 ```
 
+### system-card — System / Safety Evaluation Card
+
+Use this for comprehensive, system-card/model-card-style evaluation packages. It is not just prose: it should pair a long-form report with committed raw data, run metadata, and deterministic visual figures.
+
+Recommended artifact layout:
+
+```text
+docs/system-card/{version}/
+  system-card.md
+  data/
+    comparators.yaml
+    benchmark-results.csv
+    capability-matrix.csv
+    run-metadata.json
+  figures/
+    capability-heatmap.svg
+    detection-precision-recall.svg
+    latency-p95.svg
+    coverage-by-risk-family.svg
+    pipeline-and-trust-boundaries.svg
+    release-evidence-flow.svg
+```
+
+```markdown
+# {Project Name} {Version} System Card
+
+## 1. Executive Summary
+- Intended users, release identity, high-level verdict, and comparison caveats.
+
+## 2. System Overview
+- Scope, ingest modes, main components, policy/reporting surfaces, APIs/SDKs, provider lanes, and trust boundaries.
+
+## 3. Intended Use and Non-Goals
+- Good-fit workflows.
+- Explicit non-goals: what this system does not replace or claim to solve.
+
+## 4. Benchmark Methodology
+- Fixture/corpus inventory and labels.
+- Comparator applicability rules.
+- Commands or scripts used.
+- Host/run metadata: commit, tag, OS, arch, hostname, language/runtime version, container availability, tool versions, timestamp.
+- Metric definitions and denominator rules.
+
+## 5. Detection / Quality Results
+- TP, FP, TN, FN, precision, recall, F1, rule IDs hit, blocking outcomes, and false-positive/false-negative notes.
+- Mark rows as `not_applicable` when a comparator does not target that fixture family.
+
+## 6. Performance Results
+- P50, P95, P99, min, max, sample count, exit-code distribution, and memory fields if collected.
+- If a run has fewer samples than planned, record the reason.
+
+## 7. Comparative Capability Matrix
+- Primary domain, input modes, output formats, offline mode, API mode, policy controls, redaction/audit trail, rule trust story, provider/SBOM story, best-fit use case, and known non-goals.
+
+## 8. Security Controls and Trust Boundaries
+- Signed rules or model artifacts.
+- Archive/input hardening.
+- Subprocess/container isolation.
+- Path jails and auth.
+- Redaction, suppression, audit metadata, and release integrity.
+- Use `unknown` for competitors where behavior was not measured or documented.
+
+## 9. Limitations
+- Tool availability, corpus size, optional/private corpora, no live exploit testing, version pin caveats, and claims deliberately not made.
+
+## 10. Reproduction
+- Exact commands to regenerate data, charts, and the Markdown.
+
+## 11. Appendix
+- Raw tables, comparator versions, source links, skipped rows, failed probes, and docs-only evidence.
+```
+
+System-card evidence rules:
+
+- Separate **measured results** from **docs-only capability claims**. Do not infer competitor quality without local measurements.
+- Preserve `not_available`, `not_applicable`, `skipped`, `failed`, and numeric `0` as distinct states.
+- Use applicability-aware denominators for precision/recall/F1; never score a dependency scanner as `0` on a SAST-only fixture.
+- Commit raw data tables and run metadata alongside the rendered report. The report should be regenerable from those files.
+- Generate deterministic figures: fixed dimensions, embedded labels, no remote assets, no external fonts, and stable ordering.
+- Include exact release identity and dirty/untracked state in metadata. A dirty-tree report must say it is dirty.
+- Cite external projects only for documented capabilities unless their tools were live-run in the current benchmark environment.
+- For comparative claims, prefer neutral wording: "not measured", "not applicable", "docs claim", "live-run", "failed to run", or "not available".
+
 ### sum — Software User Manual
 
 ```markdown
@@ -456,6 +540,7 @@ Each document type has a required structure. When creating, use these as skeleto
 10. **AUDIT HYGIENE STANDARDS**: During `--audit`, enforce: no future tense in docs ("This does X" not "This will do X"), no first person ("I" has no place in technical docs), all cross-references must be hyperlinked, and docs must be right-sized — short, living, and tied to code.
 11. **CI/CD INTEGRATION**: `--check` and `--audit` must support pipeline usage. When running in a CI context (detect via `CI=true` env var or `--ci` flag), output machine-parseable results and return non-zero exit codes on violations: exit 1 for missing required docs, exit 1 for broken links, exit 1 for stale docs past threshold. This allows gating merges on documentation health.
 12. **MONITORING LINKAGE**: When creating or auditing runbooks, verify that incident response entries reference specific alert names or monitoring rules. Flag runbook entries with no link to the alerting system — a runbook that can't be found from the alert is a runbook that won't be used.
+13. **COMPARATIVE EVALUATION HONESTY**: For `system-card`, benchmark/system-card/model-card outputs must be reproducible evidence packages, not narrative-only reports. Store raw data and run metadata, separate live-run measurements from docs-only claims, keep not-available and not-applicable states distinct, and avoid unsupported competitor quality rankings.
 
 ## OUTPUT FORMAT
 
