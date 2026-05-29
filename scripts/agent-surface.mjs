@@ -155,6 +155,8 @@ const workflowFixtureFiles = [
   { schema: "workflow.run.schema.json", file: "tests/fixtures/workflow/run.json" },
   { schema: "workflow.boss.schema.json", file: "tests/fixtures/workflow/boss-chore.json" },
   { schema: "workflow.worker.schema.json", file: "tests/fixtures/workflow/worker-chore.json" },
+  { schema: "workflow.worker.schema.json", file: "tests/fixtures/workflow/worker-blocked.json" },
+  { schema: "workflow.worker.schema.json", file: "tests/fixtures/workflow/worker-blocked-legacy.json" },
   { schema: "workflow.worker.schema.json", file: "tests/fixtures/workflow/worker-refactor.json" },
   { schema: "workflow.reviewer.schema.json", file: "tests/fixtures/workflow/reviewer-refactor.json" },
   { schema: "workflow.judger.schema.json", file: "tests/fixtures/workflow/judger-close.json" },

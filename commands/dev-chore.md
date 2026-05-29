@@ -25,18 +25,20 @@ Workflow mode is ON when `.agent-surface/workflows/<run_id>/run.json` is active,
 Protocol:
 
 1. Load `run.json`, `boss.json`, and latest reviewer/judger/rescue handoff when `workflow.next_command = "dev-chore"`.
-2. Process only active task IDs, respecting dependencies and FILESCOPE.
-3. Scope autofix commands to the task FILESCOPE. Repo-wide autofix requires explicit BOSS approval.
-4. Dependency updates require manifest/lockfile intent, changelog or advisory note, and rollback note.
-5. Run task verify commands through:
+2. Start from `boss.context_capsule` and inspect only deltas unless evidence is missing, stale, contradictory, or changed since BOSS captured it.
+3. Process only active task IDs, respecting dependencies and FILESCOPE.
+4. Scope autofix commands to the task FILESCOPE. Repo-wide autofix requires explicit BOSS approval.
+5. Dependency updates require manifest/lockfile intent, changelog or advisory note, and rollback note.
+6. Run task verify commands through:
 
 ```text
 agent-surface run --task <task_id> --class <class> --timeout <ms> --out .agent-surface/workflows/<run_id>/rounds/round-<round_id>/evidence/<task_id> -- <command...>
 ```
 
-6. Wrap each task with `agent-surface workflow patch begin/end/verify` so patches, tree hashes, changed files, and clean-apply proof are generated mechanically.
-7. Write canonical worker artifact to `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and latest copy to `.agent-surface/workflows/<run_id>/worker.json`.
-8. Set `workflow.owner = "dev-chore"` and `workflow.next_command = "workflow-reviewer"`.
+7. Wrap each task with `agent-surface workflow patch begin/end/verify` so patches, tree hashes, changed files, and clean-apply proof are generated mechanically.
+8. Before marking a task blocked, apply the Blocker Discipline section below.
+9. Write canonical worker artifact to `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and latest copy to `.agent-surface/workflows/<run_id>/worker.json`.
+10. Set `workflow.owner = "dev-chore"` and `workflow.next_command = "workflow-reviewer"`.
 
 Worker artifact shape:
 
@@ -79,6 +81,16 @@ Worker artifact shape:
 ## DIRECT MODE
 
 If no active workflow exists, perform the smallest maintenance change that satisfies the user request. Do not auto-commit. Report changed files and checks.
+
+## BLOCKER DISCIPLINE
+
+Do not emit a blocker until you have attempted the safe discovery or repair available to the worker.
+
+- Not blockers: repo discovery, selecting verify commands from manifests/Makefiles/CI, scoped format/lint/test failures in owned files, and documentation alignment for public behavior in FILESCOPE. Resolve these before stopping.
+- Conditional worker-owned recovery: generated artifact refresh is allowed only when BOSS assigned generated outputs or the repo's generator/check explicitly requires it; record the generator command and keep the normal generated-file gate green.
+- Human-required blockers: secrets or credential access, unapproved dependency add/update, destructive commands, database mutation, deployment, production data, approval-gated network calls, product decisions not inferable from BOSS/user evidence, or files outside FILESCOPE.
+- Repeated failure: after two focused correction attempts on the same task, stop with `blocker.type="repeated_failure"`, `resolution_class="human_required"` unless the next safe action is purely mechanical, and include the failed attempts.
+- Every blocker should include `type`, `detail`, `needs`, `resolution_class` (`auto_resolvable` or `human_required`), `attempts`, and `recommended_decision`. Legacy v3 artifacts may omit the last three fields, but new worker output should include them.
 
 ## SAFETY RULES
 

@@ -1,0 +1,59 @@
+{
+  "schema_version": "workflow.v3",
+  "run_id": "run-fixture-001",
+  "round_id": 1,
+  "worker": "dev-feature",
+  "tasks_processed": [
+    {
+      "task_id": "T1",
+      "status": "BLOCKED",
+      "summary": "verify command could not be selected from repo metadata",
+      "files_changed": [],
+      "evidence_refs": [],
+      "blocker": {
+        "type": "missing_context",
+        "detail": "no package script, Makefile target, or CI job names the requested verifier",
+        "needs": "worker should inspect adjacent tests or ask BOSS to respec the verify gate",
+        "resolution_class": "auto_resolvable",
+        "attempts": [
+          "checked package.json scripts",
+          "checked Makefile targets"
+        ],
+        "recommended_decision": "return to dev-feature with a bounded verify-command discovery task"
+      }
+    },
+    {
+      "task_id": "T2",
+      "status": "BLOCKED",
+      "summary": "dependency addition needs approval",
+      "files_changed": [],
+      "evidence_refs": [],
+      "blocker": {
+        "type": "dependency_missing",
+        "detail": "requested implementation requires a new runtime dependency",
+        "needs": "human approval for dependency mutation and lockfile update",
+        "resolution_class": "human_required",
+        "attempts": [],
+        "recommended_decision": "ask for dependency approval or rescope to existing dependencies"
+      }
+    }
+  ],
+  "skipped": [],
+  "remaining": [
+    "T1",
+    "T2"
+  ],
+  "stop_reason": "blocker",
+  "stop_detail": "blocked on T1 verify-command discovery and T2 dependency approval",
+  "workflow": {
+    "dir": ".agent-surface/workflows/run-fixture-001",
+    "file": "worker.json",
+    "owner": "dev-feature",
+    "run_id": "run-fixture-001",
+    "round_id": 1,
+    "next_command": "workflow-reviewer",
+    "parent_artifact_hashes": [
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ]
+  }
+}

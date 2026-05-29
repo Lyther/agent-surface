@@ -1,0 +1,37 @@
+{
+  "schema_version": "workflow.v3",
+  "run_id": "run-fixture-001",
+  "round_id": 1,
+  "worker": "dev-feature",
+  "tasks_processed": [
+    {
+      "task_id": "T1",
+      "status": "BLOCKED",
+      "summary": "legacy blocked task shape",
+      "files_changed": [],
+      "evidence_refs": [],
+      "blocker": {
+        "type": "missing_context",
+        "detail": "legacy v3 blocker without taxonomy fields",
+        "needs": "normal reviewer evidence assessment"
+      }
+    }
+  ],
+  "skipped": [],
+  "remaining": [
+    "T1"
+  ],
+  "stop_reason": "blocker",
+  "stop_detail": "legacy blocker shape remains schema-compatible",
+  "workflow": {
+    "dir": ".agent-surface/workflows/run-fixture-001",
+    "file": "worker.json",
+    "owner": "dev-feature",
+    "run_id": "run-fixture-001",
+    "round_id": 1,
+    "next_command": "workflow-reviewer",
+    "parent_artifact_hashes": [
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ]
+  }
+}

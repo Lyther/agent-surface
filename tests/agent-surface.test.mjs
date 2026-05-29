@@ -461,6 +461,12 @@ assert.deepEqual(appliedRun.rework_task_ids, ["T2"]);
 assert.equal(appliedRun.workflow_next_command, "dev-refactor");
 const workflowDoctor = status(["workflow", "doctor", "--run", "run-fixture-001"], { cwd: workflowDest });
 assert.equal(workflowDoctor.status, 0, `${workflowDoctor.stdout}${workflowDoctor.stderr}`);
+const invalidBlockedWorker = JSON.parse(readFileSync(path.join(root, "tests", "fixtures", "workflow", "worker-blocked-legacy.json"), "utf8"));
+delete invalidBlockedWorker.tasks_processed[0].blocker;
+writeFileSync(path.join(workflowRunDir, "worker.json"), `${JSON.stringify(invalidBlockedWorker, null, 2)}\n`);
+const invalidBlockedDoctor = status(["workflow", "doctor", "--run", "run-fixture-001"], { cwd: workflowDest });
+assert.notEqual(invalidBlockedDoctor.status, 0);
+assert.match(`${invalidBlockedDoctor.stdout}${invalidBlockedDoctor.stderr}`, /worker\.json/);
 rmSync(workflowDest, { recursive: true, force: true });
 
 const patchDest = "/tmp/agent-surface-patch";
