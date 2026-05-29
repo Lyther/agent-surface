@@ -79,7 +79,7 @@ Build a list of 1 to N tasks. Each task is independently reviewable, verifiable,
 - Each task gets its own `plan` (3–8 steps), `ac`, and `verify` commands.
 - Don't pre-commit the worker to a specific implementation — leave room for judgment, but pin the contract.
 - Each task must be isolatable: require either `patch_required: true` (default) or `commit_required: true` if the user wants per-task commits. Without patch/commit isolation, `MERGE_PARTIAL` is disabled.
-- Default `max_tasks_per_round` to 5 for coherent low/medium-risk queues. Use fewer for high-risk, ambiguous, cross-cutting, dependency, data, security, or approval-gated work. Larger batches require a short justification tied to shared filescope and cheap verification.
+- Default `max_tasks_per_round` to 3 until local telemetry proves larger batches preserve clean-pass rate. Use 5 only for explicitly low/medium-risk coherent queues with shared filescope, cheap verification, and no security/data/dependency/approval-gated surface. Anything above 5 requires recent workflow telemetry showing clean-pass rate is not dropping.
 
 Keep the process deterministic: route by explicit `workflow.next_command` plus the task queue, not free-form agent debate.
 
@@ -113,7 +113,7 @@ Define when the worker should stop the round:
 
 - `stop_on`: subset of `["blocker", "context_pressure", "queue_empty", "max_tasks_cap", "drift_check"]` (default: all five).
 - `context_pressure_threshold_pct`: heuristic for context budget (default: 70), backed by concrete counters.
-- `max_tasks_per_round`: default 5 for coherent low/medium-risk queues. Use 1–3 for high-risk or unclear work; justify anything higher than 5.
+- `max_tasks_per_round`: default 3. Use 5 only when the queue is explicitly low/medium-risk, coherent, and cheap to verify; justify anything higher than 5 with measured prior clean-pass and rework data, not just a desire to reduce handoff count.
 - `drift_check_every`: re-read BOSS spec after this many completed tasks (default: 5). Catches scope drift before it metastasizes.
 - `timeout_budget_ms`: max elapsed runner time for a round before handoff.
 - Context pressure counters: files opened, total bytes read, commands run, verify cycles, log bytes, failed attempts, elapsed time, and model-reported context usage when available.

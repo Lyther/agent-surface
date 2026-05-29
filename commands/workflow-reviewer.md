@@ -60,6 +60,8 @@ After the per-task checklist, review the completed batch as a codebase change, n
 - Maintainability: flag unnecessary complexity, duplicated policy, broad refactors hidden inside feature work, TODO placeholders, and scope creep outside the BOSS filescope.
 - Observability and operations: when behavior affects installs, automation, security, or deployments, confirm errors, logs, dry-runs, backups, and recovery paths remain understandable.
 
+Specialist QA commands are escalation routes, not mandatory serial phases. Use `qa-review` or `qa-sec` when the BOSS route, touched surface, or reviewer findings need deeper domain coverage, and treat that specialist pass as the detailed review for that domain rather than stacking duplicate checklist work. `qa-sec` is a heavyweight security/supply-chain audit path; use it for explicit security audit, dependency/supply-chain proof, secrets/auth/crypto/install-risk surfaces, or reviewer escalation, not as a routine add-on for every batch.
+
 After per-task review, also check **batch-level invariants**:
 
 - Worker handoff integrity: `worker.workflow.run_id` matches `boss.workflow.run_id`. Mismatch = stale worker = REJECT entire batch.
@@ -69,6 +71,8 @@ After per-task review, also check **batch-level invariants**:
 - Run ledger coherence: `accepted_task_ids`, `active_task_ids`, `deferred_task_ids`, and `rework_task_ids` must be consistent with BOSS dependencies and reviewer/judger handoffs.
 - Dirty worktree: reject if uncommitted changes cannot be attributed to current task patches or accepted prior task patches.
 - Security/privacy: reject evidence that contains obvious secrets, unredacted `.env` data, production credentials, or irrelevant customer data.
+- Blocker taxonomy: for current worker outputs, a `BLOCKED` task should include `blocker.resolution_class`, `blocker.attempts`, and `blocker.recommended_decision`. Legacy v3 artifacts with only `type`, `detail`, and `needs` are schema-compatible but lower-confidence evidence.
+- Lazy auto-resolvable stop: `status="BLOCKED"` with `blocker.resolution_class="auto_resolvable"` is REJECT unless `blocker.type="repeated_failure"` or the attempts prove the worker exhausted the safe mechanical repair. The next command should route back to the owning worker with a concrete instruction to resolve the named auto-resolvable blocker, not to `workflow-judger`.
 
 ## SEVERITY POLICY
 

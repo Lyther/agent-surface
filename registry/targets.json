@@ -24,9 +24,11 @@
       "build_supported": true,
       "install_supported": true,
       "renders": [
+        "legacy-transition",
         "commands",
         "rules",
-        "plugins"
+        "plugins",
+        "skills"
       ]
     },
     "cline": {
@@ -53,6 +55,16 @@
       "install_supported": true,
       "renders": [
         "commands-as-workflows"
+      ]
+    },
+    "antigravity-cli": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "plugins",
+        "skills",
+        "rules"
       ]
     },
     "opencode": {

@@ -25,19 +25,21 @@ Workflow mode is ON when `.agent-surface/workflows/<run_id>/run.json` is active,
 Protocol:
 
 1. Load `run.json`, `boss.json`, and latest reviewer/judger/rescue handoff when `workflow.next_command = "dev-refactor"`.
-2. Process only active task IDs, respecting dependencies and FILESCOPE.
-3. Capture pre-change proof: tests, lint, typecheck, behavior snapshot, or explicit reason the proof is unavailable.
-4. If coverage is weak, add pinning tests before changing structure.
-5. Apply one structural transformation at a time. Preserve public API unless BOSS AC explicitly permits a rename/move.
-6. Run task verify commands through:
+2. Start from `boss.context_capsule` and inspect only deltas unless evidence is missing, stale, contradictory, or changed since BOSS captured it.
+3. Process only active task IDs, respecting dependencies and FILESCOPE.
+4. Capture pre-change proof: tests, lint, typecheck, behavior snapshot, or explicit reason the proof is unavailable.
+5. If coverage is weak, add pinning tests before changing structure.
+6. Apply one structural transformation at a time. Preserve public API unless BOSS AC explicitly permits a rename/move.
+7. Run task verify commands through:
 
 ```text
 agent-surface run --task <task_id> --class <class> --timeout <ms> --out .agent-surface/workflows/<run_id>/rounds/round-<round_id>/evidence/<task_id> -- <command...>
 ```
 
-7. Wrap each task with `agent-surface workflow patch begin/end/verify` so patches, tree hashes, changed files, and clean-apply proof are generated mechanically.
-8. Write canonical worker artifact to `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and latest copy to `.agent-surface/workflows/<run_id>/worker.json`.
-9. Set `workflow.owner = "dev-refactor"` and `workflow.next_command = "workflow-reviewer"`.
+8. Wrap each task with `agent-surface workflow patch begin/end/verify` so patches, tree hashes, changed files, and clean-apply proof are generated mechanically.
+9. Before marking a task blocked, apply the Blocker Discipline section below.
+10. Write canonical worker artifact to `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and latest copy to `.agent-surface/workflows/<run_id>/worker.json`.
+11. Set `workflow.owner = "dev-refactor"` and `workflow.next_command = "workflow-reviewer"`.
 
 Worker artifact shape:
 
@@ -85,6 +87,16 @@ Worker artifact shape:
 ## DIRECT MODE
 
 If no active workflow exists, keep the refactor narrow and reversible. Run the cheapest behavior-preserving checks before and after. Do not auto-commit.
+
+## BLOCKER DISCIPLINE
+
+Do not emit a blocker until you have attempted the safe discovery or repair available to the worker.
+
+- Not blockers: repo discovery, selecting verify commands from manifests/Makefiles/CI, scoped format/lint/test failures in owned files, and documentation alignment for public behavior in FILESCOPE. Resolve these before stopping.
+- Conditional worker-owned recovery: generated artifact refresh is allowed only when BOSS assigned generated outputs or the repo's generator/check explicitly requires it; record the generator command and keep the normal generated-file gate green.
+- Human-required blockers: secrets or credential access, unapproved dependency add/update, destructive commands, database mutation, deployment, production data, approval-gated network calls, product decisions not inferable from BOSS/user evidence, or files outside FILESCOPE.
+- Repeated failure: after two focused correction attempts on the same task, stop with `blocker.type="repeated_failure"`, `resolution_class="human_required"` unless the next safe action is purely mechanical, and include the failed attempts.
+- Every blocker should include `type`, `detail`, `needs`, `resolution_class` (`auto_resolvable` or `human_required`), `attempts`, and `recommended_decision`. Legacy v3 artifacts may omit the last three fields, but new worker output should include them.
 
 ## SAFETY RULES
 

@@ -106,6 +106,10 @@ Minimum shape:
 6. After each role exits, re-read `run.json`, the new role artifact, and `events.ndjson`; then spawn the next role if work remains.
 7. If ledger evidence is missing or inconsistent, stop and hand off to the user or `workflow-rescue`; do not reconstruct state from chat memory.
 
+### Parallel worker option
+
+Default workflow execution is serial. Parallel workers are allowed only when BOSS has split tasks into independent FILESCOPEs with no dependency edge, no shared generated outputs, no shared service port or database fixture, and separate patch manifests. Use separate worktrees or equivalent isolation per worker, then route the combined accepted patches through one reviewer batch. Do not parallelize merely to hide a vague spec or shared-hunk risk.
+
 ## EXIT CONDITIONS
 
 The orchestrator remains active until one of these terminal conditions is reached:
@@ -116,6 +120,15 @@ The orchestrator remains active until one of these terminal conditions is reache
 - No active, rework, deferred, or remaining task IDs can be advanced, and the next command is `workflow-close`.
 
 Non-terminal role completion is not an orchestrator exit condition. It is a handoff point to validate artifacts, update `agents.json`, and spawn the next role.
+
+## AUTO-RESOLVABLE BLOCKERS
+
+The monitor must not treat `resolution_class` as decoration. After a worker exits with `stop_reason="blocker"`, inspect blocked task entries before launching the next role.
+
+- If a blocked task has `blocker.resolution_class="auto_resolvable"` and `blocker.type!="repeated_failure"`, requeue only that task to the same worker role with the blocker detail, attempts, and recommended decision. This is a short-circuit back to the role that can edit files; it is not reviewer approval and not orchestrator implementation.
+- If the same task returns the same auto-resolvable blocker twice, stop the short-circuit and route through `workflow-reviewer`; repeated failure needs independent review or judger escalation.
+- If `resolution_class` is missing on a legacy v3 blocker, do not invent it. Route normally and let reviewer evaluate evidence quality.
+- If `resolution_class="human_required"`, do not auto-resolve. Preserve the handoff and require the normal reviewer/judger/human route.
 
 Headless launch patterns are examples. Verify flags locally before use and satisfy the authorization gate before running them.
 
@@ -155,6 +168,8 @@ Probe provider availability before each monitored run. Treat display names, lead
 
 No external model is a durable default. Re-probe provider IDs, quota, context size, write capability, and observed behavior before each monitored run, then record the probe command and result in local evidence.
 
+Before changing worker model tier, batch caps, or QA routing to optimize speed, profile the latest comparable runs when local telemetry exists. Read `agents.json` for per-role `outcome_summary.wall_time_seconds`, accepted/partial/rejected status, retry count, and model notes; read `events.ndjson` timestamps for handoff gaps; compare clean-pass rate, rework loops per accepted task, judger escalations, and reviewer rerun time. If telemetry is missing, record that as a measurement gap and keep conservative routing. Do not assume a provider label or model family is faster than current local evidence.
+
 Optimize the workflow, not a single role. Model choice is a trade-off across:
 
 - **Quality**: coding, tool use, reasoning, instruction following, and repo-scale consistency.
@@ -166,7 +181,7 @@ Optimize the workflow, not a single role. Model choice is a trade-off across:
 - **Privacy and approval**: local-only constraints, external-service approval, and whether prompts contain sensitive code or evidence.
 - **Observed outcomes**: prior accept/reject rates, failure modes, drift incidents, cost, latency, and user corrections from this repo.
 
-Do not always choose the highest-quality model. Use expensive frontier models where failure cost is high; use cheaper or faster models for bounded worker tasks, routine chores, shadow reviews, and exploration. A premium model that creates perfect code too slowly or expensively can still be the wrong orchestration choice.
+Do not always choose the highest-quality model. Use expensive frontier models where failure cost is high; use cheaper or faster models for bounded worker tasks, routine chores, shadow reviews, and exploration after local probes support the speed/quality trade-off. A premium model that creates perfect code too slowly or expensively can still be the wrong orchestration choice.
 
 Do not assign the same model family to worker and reviewer for non-trivial work when an approved alternative exists. If the worker used `gpt-5.5`, prefer Claude, Gemini, DeepSeek, Kimi, GLM, or another independent reviewer candidate; if the worker used Claude, prefer OpenAI, Gemini, DeepSeek, Kimi, GLM, or another independent reviewer candidate. If forced to reuse the same family, record the reason and require stricter evidence validation.
 
@@ -216,8 +231,12 @@ The orchestrator must learn from each run without treating anecdotes as permanen
 3. After role completion, update `outcome_summary`: accepted/partial/rejected/failed, wall time, estimated cost or token counters when available, thinking mode and whether a thinking field was present, evidence quality, reviewer findings, blind spots, and a one-line lesson.
 4. On future assignments, prefer models with good local outcomes for the same role and risk class, but reserve some low-risk tasks for exploration when the queue has enough slack.
 5. Promote a model only after repeated local wins: clean patch, low rework, good evidence, acceptable cost, and no repeated blind spots.
-6. Demote a model for repeated scope drift, missing evidence, over-eager PASS verdicts, broken tool use, excessive latency, excessive cost, or repeated user/reviewer corrections.
+6. Demote a model or batch policy for repeated scope drift, missing evidence, over-eager PASS verdicts, broken tool use, excessive latency, excessive cost, lower clean-pass rate, higher rework loops, more judger escalations, or repeated user/reviewer corrections.
 7. Keep model lessons local to the repo/run unless the user asks to publish or distribute them. Do not commit `agents.json`.
+
+## REVIEWER CALIBRATION LOOP
+
+Reviewer independence reduces shared blind spots, but it is not a proof of correctness. Periodically sample reviewer PASS verdicts for human or higher-trust spot-checks, especially after changing worker model tier, enabling parallel workers, raising batch caps, or changing reviewer provider family. Record the sampled task IDs, disagreement rate, and dominant miss type in local run notes. If reviewer-human divergence exceeds roughly 20-25% on sampled high-signal tasks, demote the reviewer/model policy and return to stricter evidence or smaller batches until recalibrated.
 
 ## OLLAMA THINKING POLICY
 
@@ -266,7 +285,7 @@ node scripts/agent-surface.mjs build --target all
 npm run check:commands
 npm run check:generated
 node scripts/agent-surface.mjs install --target codex --scope user --dry-run
-node scripts/agent-surface.mjs install --target gemini-cli --scope user --dry-run
+node scripts/agent-surface.mjs install --target antigravity-cli --scope user --dry-run
 node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
 ```
 

@@ -43,6 +43,8 @@ You must be provided:
 | **RESPEC** | The BOSS spec itself is wrong for one or more tasks. Hand back to `workflow-boss` with diagnosis. |
 | **RESCUE** | Process / tooling blocker that no role can resolve from spec alone. Route to `workflow-rescue`. |
 
+For `BLOCKED` tasks, inspect `blocker.resolution_class` when present. `auto_resolvable` should normally become `REWORK` with a concrete worker action unless the worker already failed the same mechanical repair twice; `human_required` may become `RESPEC`, `RESCUE`, or a human handoff depending on the blocker type. Legacy v3 blockers without `resolution_class` remain valid input but require conservative evidence review.
+
 `MERGE_PARTIAL` is preferred only when mechanically safe. If accepted and rejected work share unisolated hunks or hidden preparatory edits, choose REWORK or RESPEC instead.
 
 ## OUTPUT FORMAT
@@ -128,6 +130,7 @@ Key finding: <short summary>
 7. In workflow mode, write only judger-owned artifacts for the current round; never modify another role file.
 8. `judger.json` is the machine-readable artifact. Chat output stays brief and human-readable.
 9. **Partial merge only when mechanically possible.** If reviewer was PARTIAL and the passing task patches are isolated, dependency-complete, and cleanly applicable, prefer `MERGE_PARTIAL` over `REWORK`. Otherwise do not fake cherry-pickability.
+10. `auto_resolvable` blockers are not RESCUE by default. Send them back to the owning worker with a bounded action plan unless repeated failure evidence shows the worker exhausted safe mechanical repair.
 10. **PRUNE is legitimate.** A task that turns out to be redundant or unworkable can be dropped from the queue here. Record it in `merge_partial.prune_task_ids` with reason in `action_plan`.
 11. Unknown critical evidence means fail closed: choose REWORK, RESPEC, or RESCUE, not MERGE.
 12. Write the canonical artifact under `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/judger.json`, write the compatibility copy, and append only the judger event to `events.ndjson`.
