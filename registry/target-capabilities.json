@@ -69,20 +69,22 @@
           "local: ~/.gemini/settings.json contains mcpServers.agentmemory"
         ],
         "notes": [
-          "Gemini MCP settings are not merged by agent-surface install because settings.json may contain secrets."
+          "Legacy transition target only. Gemini MCP settings are not merged by agent-surface install because settings.json may contain secrets."
         ]
       },
       "skills": {
-        "status": "manual",
+        "status": "native",
         "locations": [
+          ".gemini/extensions/<extension>/skills/<name>/SKILL.md",
           ".gemini/commands/**/*.toml"
         ],
         "distribution": "generated",
         "verified_by": [
-          "local: build target gemini-cli renders command TOML files"
+          "docs: https://github.com/google-gemini/gemini-cli/blob/main/docs/extensions/writing-extensions.md",
+          "local: build target gemini-cli renders command TOML files and extension skills"
         ],
         "notes": [
-          "No native SKILL.md surface is recorded here; reusable behaviors are distributed as commands/extensions."
+          "Gemini CLI remains generated only for the transition window; Google announced consumer migration to Antigravity CLI by June 18, 2026."
         ]
       }
     },
@@ -158,11 +160,11 @@
         ],
         "distribution": "local-wired",
         "verified_by": [
-          "docs: https://codelabs.developers.google.com/getting-started-google-antigravity",
-          "local: ~/.gemini/antigravity/settings.json contains mcpServers.agentmemory"
+          "local: ~/.gemini/antigravity/settings.json contains mcpServers.agentmemory",
+          "local: agy --help exposes --add-mcp JSON input on the installed desktop CLI"
         ],
         "notes": [
-          "Google Antigravity exposes MCP servers in prompts; local config path is based on observed Antigravity home."
+          "Legacy Antigravity desktop/home support. agent-surface does not auto-merge MCP config because settings may contain secrets."
         ]
       },
       "skills": {
@@ -175,7 +177,36 @@
           "local: ~/.gemini/antigravity/skills exists and contains optional external skill symlinks"
         ],
         "notes": [
-          "Antigravity uses workflows as the command name; generated command sources remain under global_workflows."
+          "Antigravity uses workflows as the legacy command name; generated command sources remain under global_workflows for compatibility."
+        ]
+      }
+    },
+    "antigravity-cli": {
+      "mcp": {
+        "status": "native",
+        "locations": [
+          "~/.gemini/antigravity-cli/plugins/<plugin>/mcp_config.json"
+        ],
+        "distribution": "manual-only",
+        "verified_by": [
+          "docs: https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/"
+        ],
+        "notes": [
+          "Antigravity CLI plugin MCP config is tracked as the latest target surface. agent-surface does not generate MCP config yet because optional service wiring can contain secrets."
+        ]
+      },
+      "skills": {
+        "status": "native",
+        "locations": [
+          "~/.gemini/antigravity-cli/plugins/<plugin>/skills/*.md"
+        ],
+        "distribution": "generated",
+        "verified_by": [
+          "docs: https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/",
+          "local: build target antigravity-cli renders plugins/agent-surface/skills/*.md"
+        ],
+        "notes": [
+          "Antigravity CLI is the replacement name for the former Gemini CLI surface; generated plugin skills and rules live under the antigravity-cli target."
         ]
       }
     },

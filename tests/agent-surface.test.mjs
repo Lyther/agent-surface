@@ -84,6 +84,7 @@ assert.equal(flowCommand.targets["claude-code"], path.join(".claude", "commands"
 assert.equal(flowCommand.targets.codex, path.join(".agents", "skills", "flow", "SKILL.md"));
 assert.equal(flowCommand.targets.cline, path.join("Documents", "Cline", "Workflows", "flow.md"));
 assert.equal(flowCommand.targets.kilo, path.join(".config", "kilo", "commands", "flow.md"));
+assert.equal(flowCommand.targets["antigravity-cli"], path.join("plugins", "agent-surface", "skills", "flow.md"));
 assert.equal(flowCommand.targets["gemini-cli"], path.join(".gemini", "commands", "flow", "flow.toml"));
 assert.equal(flowCommand.targets.cursor, path.join(".cursor", "commands", "flow.md"));
 const devFeatureCommand = defaultRegistry.commands.find((command) => command.name === "dev-feature");
@@ -146,7 +147,7 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
-assert.equal(generated.length, 635);
+assert.equal(generated.length, 768);
 assertGeminiTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "flow", "flow.md"))), true);
 assert.equal(
@@ -170,12 +171,17 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cl
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "ops", "nuke.toml"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "GEMINI.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "extensions", "agent-surface", "gemini-extension.json"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "extensions", "agent-surface", "skills", "flow", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".agent-surface", "claude-plugin", "agent-surface", ".claude-plugin", "plugin.json"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cline", "Documents", "Cline", "Rules", "agent-surface.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "commands", "flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "rules", "00-precedence-and-safety.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "rules", "14-lang-shell.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity", "global_workflows", "flow.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "plugins", "agent-surface", "plugin.json"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "plugins", "agent-surface", "skills", "flow.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "plugins", "agent-surface", "rules", "00-precedence-and-safety.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "rules", "00-precedence-and-safety.mdc"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "copilot", "instructions", "agent-surface-copilot.instructions.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "vscode", "instructions", "agent-surface.instructions.md"))), true);
@@ -184,13 +190,16 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "trae", ".
 const generatedCheck = run(["check", "generated"]);
 assert.match(generatedCheck, /claude-code: generated outputs 122 ok/);
 assert.match(generatedCheck, /kilo: generated outputs 72 ok/);
+assert.match(generatedCheck, /antigravity: generated outputs 60 ok/);
+assert.match(generatedCheck, /antigravity-cli: generated outputs 73 ok/);
+assert.match(generatedCheck, /gemini-cli: generated outputs 183 ok/);
 assert.match(generatedCheck, /copilot: generated outputs 1 ok/);
 assert.match(generatedCheck, /generated check: ok/);
 const copilotGeneratedCheck = run(["check", "generated", "--target", "copilot"]);
 assert.match(copilotGeneratedCheck, /copilot: generated outputs 1 ok/);
 
 const allPackBuild = run(["build", "--target", "gemini-cli", "--pack", "all"]);
-assert.match(allPackBuild, /gemini-cli: 127 outputs rendered \(pack: all\)/);
+assert.match(allPackBuild, /gemini-cli: 189 outputs rendered \(pack: all\)/);
 assertGeminiTomlParses();
 const facadeToml = readFileSync(path.join(root, "dist", "gemini-cli", ".gemini", "commands", "boot", "facade.toml"), "utf8");
 const nukeToml = readFileSync(path.join(root, "dist", "gemini-cli", ".gemini", "commands", "ops", "nuke.toml"), "utf8");
@@ -203,11 +212,29 @@ const antigravity = readFileSync(
   "utf8",
 );
 assert.match(antigravity, /^---\ndescription: "/);
+const antigravityPlugin = JSON.parse(
+  readFileSync(path.join(root, "dist", "antigravity-cli", "plugins", "agent-surface", "plugin.json"), "utf8"),
+);
+assert.equal(antigravityPlugin.name, "agent-surface");
+const antigravityFlowSkill = readFileSync(path.join(root, "dist", "antigravity-cli", "plugins", "agent-surface", "skills", "flow.md"), "utf8");
+assert.match(antigravityFlowSkill, /^---\nname: flow\n/);
+assert.match(antigravityFlowSkill, /for Antigravity CLI plugin skill/);
+const antigravityRule = readFileSync(
+  path.join(root, "dist", "antigravity-cli", "plugins", "agent-surface", "rules", "00-precedence-and-safety.md"),
+  "utf8",
+);
+assert.match(antigravityRule, /Antigravity CLI plugin rule/);
 
 const gemini = readFileSync(path.join(root, "dist", "gemini-cli", ".gemini", "commands", "workflow", "boss.toml"), "utf8");
 assert.match(gemini, /^description = "Run workflow boss\."/);
 assert.equal(generated.some((file) => file.endsWith("dist/gemini-cli/.gemini/commands/workflow-boss.md")), false);
 assert.equal(generated.some((file) => file.endsWith("dist/gemini-cli/.gemini/commands/flow/flow.toml")), true);
+const geminiFlowSkill = readFileSync(
+  path.join(root, "dist", "gemini-cli", ".gemini", "extensions", "agent-surface", "skills", "flow", "SKILL.md"),
+  "utf8",
+);
+assert.match(geminiFlowSkill, /^---\nname: flow\n/);
+assert.match(geminiFlowSkill, /for Gemini CLI extension skill/);
 const codexFlow = readFileSync(path.join(root, "dist", "codex", ".agents", "skills", "flow", "SKILL.md"), "utf8");
 assert.match(codexFlow, /^---\nname: flow\n/);
 assert.match(codexFlow, /Use explicit invocation: `\$flow`\./);
@@ -241,6 +268,11 @@ const geminiPlan = run(["install", "--target", "gemini-cli", "--dest", "/tmp/age
 assert.match(geminiPlan, /^target: gemini-cli$/m);
 assert.match(geminiPlan, /\.gemini\/commands\/workflow\/boss\.toml <- commands\/workflow-boss\.md/);
 assert.match(geminiPlan, /\.gemini\/GEMINI\.md <- rules\/\*\.mdc/);
+
+const antigravityCliPlan = run(["install", "--target", "antigravity-cli", "--dest", "/tmp/agent-surface-antigravity-cli", "--dry-run"]);
+assert.match(antigravityCliPlan, /^target: antigravity-cli$/m);
+assert.match(antigravityCliPlan, /plugins\/agent-surface\/skills\/workflow-boss\.md <- commands\/workflow-boss\.md/);
+assert.match(antigravityCliPlan, /plugins\/agent-surface\/rules\/00-precedence-and-safety\.md <- rules\/00-precedence-and-safety\.mdc/);
 
 const claudePlan = run(["install", "--target", "claude-code", "--dest", "/tmp/agent-surface-claude", "--dry-run"]);
 assert.match(claudePlan, /^target: claude-code$/m);

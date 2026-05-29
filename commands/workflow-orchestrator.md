@@ -285,7 +285,7 @@ node scripts/agent-surface.mjs build --target all
 npm run check:commands
 npm run check:generated
 node scripts/agent-surface.mjs install --target codex --scope user --dry-run
-node scripts/agent-surface.mjs install --target gemini-cli --scope user --dry-run
+node scripts/agent-surface.mjs install --target antigravity-cli --scope user --dry-run
 node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
 ```
 

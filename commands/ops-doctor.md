@@ -49,6 +49,7 @@ Find broken references, token budget violations, rules drift, stale exports, and
 - Verify `.gemini/commands/` has `.toml` files matching exported command count (syncable root commands plus generated compatibility aliases).
 - Verify `~/.gemini/GEMINI.md` exists and is non-empty.
 - Verify `~/.gemini/commands/` has `.toml` files matching exported command count (syncable root commands plus generated compatibility aliases).
+- Verify `~/.gemini/antigravity-cli/plugins/agent-surface/` has generated plugin metadata, skills, and rules for Antigravity CLI.
 - Verify `~/.gemini/antigravity/global_workflows/` has `.md` files matching exported command count (syncable root commands plus generated compatibility aliases).
 - Verify `~/.claude/CLAUDE.md` exists and `~/.claude/commands/` has `.md` files matching exported command count (syncable root commands plus generated compatibility aliases).
 - Verify compatibility aliases declared in command metadata resolve to real command sources.
