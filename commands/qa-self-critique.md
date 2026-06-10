@@ -1,3 +1,12 @@
+---
+name: qa-self-critique
+phase: review
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Find issues in recently modified files and fix them immediately."
+---
 ## OBJECTIVE
 
 **PRE-COMMIT SELF-VERIFICATION & AUTO-FIX.**

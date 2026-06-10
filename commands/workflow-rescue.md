@@ -1,3 +1,12 @@
+---
+name: workflow-rescue
+phase: arbitrate
+risk: writes
+default_export: true
+packs:
+  - default
+description: "Resolve repeated workflow failures with a single decisive action."
+---
 ## OBJECTIVE
 
 Handle repeated failures with one decisive move, **per task**:

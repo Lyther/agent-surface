@@ -1,3 +1,12 @@
+---
+name: verify-test
+phase: verify
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Run and interpret the relevant test evidence."
+---
 ## OBJECTIVE
 
 **THE TRUTH SERUM.**

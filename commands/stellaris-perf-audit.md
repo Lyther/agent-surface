@@ -1,3 +1,12 @@
+---
+name: stellaris-perf-audit
+phase: game
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Audit Stellaris mod performance without sacrificing clarity or AI behavior."
+---
 ## OBJECTIVE
 
 **THE WATCHMAKER**: Ensure the mod runs smoothly in the Late Game (Year 2400+) without compromising **Accessibility** (UI Clarity & AI Capability).

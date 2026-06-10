@@ -1,3 +1,12 @@
+---
+name: lint-kernel
+phase: verify
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Apply Linux kernel patch and C review discipline."
+---
 ## §0 META: YOU WILL BE AUDITED
 
 You are working on Linux kernel C code (or out-of-tree kernel modules) that will be **reviewed line-by-line by a maintainer who has rejected thousands of patches** and assumes you have not read `Documentation/process/submitting-patches.rst`.

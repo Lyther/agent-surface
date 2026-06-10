@@ -1,3 +1,12 @@
+---
+name: verify-edge
+phase: verify
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Stress I/O surfaces and edge cases with targeted harnesses."
+---
 ## OBJECTIVE
 
 **TOTAL WARFARE.**

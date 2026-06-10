@@ -1,3 +1,12 @@
+---
+name: ship-cicd
+phase: ship
+risk: writes
+default_export: true
+packs:
+  - default
+description: "Repair and harden CI/CD pipelines with evidence gates."
+---
 ## OBJECTIVE
 
 **THE ASSEMBLY LINE.**

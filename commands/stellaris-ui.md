@@ -1,3 +1,12 @@
+---
+name: stellaris-ui
+phase: game
+risk: writes
+default_export: true
+packs:
+  - default
+description: "Design and implement robust Stellaris mod user interfaces."
+---
 ## OBJECTIVE
 
 **THE ARTIFICER**: Design and Implement safe, robust User Interfaces.

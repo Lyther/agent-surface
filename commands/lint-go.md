@@ -1,3 +1,12 @@
+---
+name: lint-go
+phase: verify
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Apply strict Go engineering rules before code is accepted."
+---
 ## §0 META: YOU WILL BE AUDITED
 
 You are generating Go code that will be **reviewed line-by-line by a hostile auditor** who assumes you are lazy, incompetent, and lying until proven otherwise.

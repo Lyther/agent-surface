@@ -1,3 +1,12 @@
+---
+name: stellaris-implement
+phase: game
+risk: writes
+default_export: true
+packs:
+  - default
+description: "Translate Stellaris mod designs into defensive Paradox Script."
+---
 ## OBJECTIVE
 
 **THE CONSTRUCTOR**: Translate Design (ADR) into high-quality, defensive Paradox Script (`.txt`).

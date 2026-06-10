@@ -1,3 +1,12 @@
+---
+name: ops-learn
+phase: improve
+risk: writes
+default_export: true
+packs:
+  - default
+description: "Extract durable patterns and persist them to the right memory sink."
+---
 ## OBJECTIVE
 
 **FAIL ONCE. NEVER FAIL THE SAME WAY TWICE.**

@@ -1,3 +1,12 @@
+---
+name: stellaris-design
+phase: game
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Design deterministic implementation paths for Stellaris mods."
+---
 ## OBJECTIVE
 
 **THE STRATEGIST**: Conduct Cross-Analysis to provide deterministic implementation paths.

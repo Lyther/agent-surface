@@ -1,3 +1,12 @@
+---
+name: stellaris-validate
+phase: game
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Catch Stellaris mod failures before launch."
+---
 ## OBJECTIVE
 
 **THE INSPECTOR**: Catch Stellaris-mod failures before launch: encoding, namespaces, scope, and performance landmines.

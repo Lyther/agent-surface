@@ -1,3 +1,12 @@
+---
+name: ops-docs
+phase: improve
+risk: writes
+default_export: true
+packs:
+  - default
+description: "Manage project documentation lifecycle, freshness, and hygiene."
+---
 ## OBJECTIVE
 
 **THE PAPER TRAIL.**
@@ -60,7 +69,7 @@ When `/docs` is invoked with **no type argument**, print this catalog. For each 
 |------------|-----------|-----------------|------------------|
 | `stp` | Software Test Plan | How do we verify the system works? Test strategy, environments, coverage targets, entry/exit criteria. | `docs/test-plan.md` |
 | `str` | Software Test Report | Did the system pass? Test execution results, coverage metrics, known failures, sign-off. | `docs/test-report.md` |
-| `system-card` | System / Safety Evaluation Card | What is the system intended to do, how was it evaluated, how does it compare with adjacent systems, what controls and limitations are evidenced, and how can the evaluation be reproduced? | `docs/system-card/{version}/system-card.md` |
+| `system-card` | System / Safety Evaluation Card | What is the system intended to do, how was it evaluated, how does it compare with adjacent systems, what controls and limitations are evidenced, and how can the evaluation be reproduced? | `docs/system-card.md` |
 
 ### Delivery & Operations
 
@@ -345,35 +354,26 @@ Each document type has a required structure. When creating, use these as skeleto
 
 ### system-card — System / Safety Evaluation Card
 
-Use this for comprehensive, system-card/model-card-style evaluation packages. It is not just prose: it should pair a long-form report with committed raw data, run metadata, and deterministic visual figures.
+Use this for comprehensive, system-card/model-card-style evaluation documents. The default deliverable is a **single standalone Markdown file**: it must not depend on local docs, local figures, local CSV files, external images, or "see also" links to be understood.
 
-Recommended artifact layout:
+Standalone rules:
 
-```text
-docs/system-card/{version}/
-  system-card.md
-  data/
-    comparators.yaml
-    benchmark-results.csv
-    capability-matrix.csv
-    run-metadata.json
-  figures/
-    capability-heatmap.svg
-    detection-precision-recall.svg
-    latency-p95.svg
-    coverage-by-risk-family.svg
-    pipeline-and-trust-boundaries.svg
-    release-evidence-flow.svg
-```
+- Inline or summarize every source document the card depends on. Do not send readers to `README.md`, `docs/architecture.md`, benchmark reports, roadmaps, changelogs, or runbooks for required context.
+- Do not use outbound Markdown links to local repository files. If evidence came from a local file, cite it as plain text in an evidence note and include the relevant claim or excerpt in the card.
+- External competitor/product sources are allowed only in a final References section. Summarize the relevant capability claim in the body so the body remains readable offline.
+- Embed visualizations directly in the document as Mermaid diagrams/charts or Markdown/ASCII fallbacks. Do not reference separate `.svg`, `.png`, `.csv`, or generated data files.
+- Raw run logs and large artifacts may be kept outside git for audit, but the committed system card must include enough run metadata, metric definitions, and summarized results to stand alone.
 
 ```markdown
 # {Project Name} {Version} System Card
 
 ## 1. Executive Summary
-- Intended users, release identity, high-level verdict, and comparison caveats.
+- Intended users, release identity, evaluation date, high-level verdict, and comparison caveats.
+- One compact table: what is proven, what is partially proven, what is not claimed.
 
 ## 2. System Overview
 - Scope, ingest modes, main components, policy/reporting surfaces, APIs/SDKs, provider lanes, and trust boundaries.
+- Include a self-contained architecture narrative. Do not link to architecture docs.
 
 ## 3. Intended Use and Non-Goals
 - Good-fit workflows.
@@ -384,20 +384,31 @@ docs/system-card/{version}/
 - Comparator applicability rules.
 - Commands or scripts used.
 - Host/run metadata: commit, tag, OS, arch, hostname, language/runtime version, container availability, tool versions, timestamp.
-- Metric definitions and denominator rules.
+- Metric definitions and denominator rules for every table and chart.
+- Ground-truth source and label policy.
 
 ## 5. Detection / Quality Results
-- TP, FP, TN, FN, precision, recall, F1, rule IDs hit, blocking outcomes, and false-positive/false-negative notes.
+- TP, FP, TN, FN, precision, recall, F1, accuracy where meaningful, rule IDs hit, blocking outcomes, and false-positive/false-negative notes.
+- Break down by fixture, risk family, endpoint class, input mode, and scan mode when data exists.
 - Mark rows as `not_applicable` when a comparator does not target that fixture family.
 
 ## 6. Performance Results
-- P50, P95, P99, min, max, sample count, exit-code distribution, and memory fields if collected.
+- Wall time, setup time, requests parsed, endpoints discovered, replay count, LLM call count, canonical token total, estimated LLM cost when available, P50, P95, P99, min, max, sample count, exit-code distribution, and memory fields if collected.
 - If a run has fewer samples than planned, record the reason.
 
-## 7. Comparative Capability Matrix
-- Primary domain, input modes, output formats, offline mode, API mode, policy controls, redaction/audit trail, rule trust story, provider/SBOM story, best-fit use case, and known non-goals.
+## 7. Visual Metrics
+- Include at least four embedded visuals:
+  - Precision / recall / F1 by system or fixture.
+  - Capability heatmap across comparable products.
+  - Coverage funnel: inputs -> parsed requests -> candidate objects -> replays -> findings.
+  - Performance or cost chart: wall time, token usage, LLM calls, or setup effort.
+- Prefer Mermaid `xychart-beta`, `quadrantChart`, `flowchart`, or Markdown heatmap tables. If Mermaid cannot express the metric cleanly, use a Markdown table plus ASCII bar chart.
 
-## 8. Security Controls and Trust Boundaries
+## 8. Comparative Capability Matrix
+- Primary domain, input modes, output formats, offline mode, API mode, policy controls, redaction/audit trail, rule trust story, provider/SBOM story, setup effort, evidence type, best-fit use case, and known non-goals.
+- Separate `measured`, `docs_only`, `not_measured`, `not_applicable`, `failed_to_run`, and `unknown`.
+
+## 9. Security Controls and Trust Boundaries
 - Signed rules or model artifacts.
 - Archive/input hardening.
 - Subprocess/container isolation.
@@ -405,14 +416,15 @@ docs/system-card/{version}/
 - Redaction, suppression, audit metadata, and release integrity.
 - Use `unknown` for competitors where behavior was not measured or documented.
 
-## 9. Limitations
+## 10. Limitations
 - Tool availability, corpus size, optional/private corpora, no live exploit testing, version pin caveats, and claims deliberately not made.
 
-## 10. Reproduction
-- Exact commands to regenerate data, charts, and the Markdown.
+## 11. Reproduction
+- Exact commands to regenerate measurements and embedded charts.
+- If raw logs are not committed, name the run directory and summarize retained artifacts.
 
-## 11. Appendix
-- Raw tables, comparator versions, source links, skipped rows, failed probes, and docs-only evidence.
+## 12. Evidence Appendix
+- Inline raw result tables, comparator versions, skipped rows, failed probes, docs-only evidence summaries, and references.
 ```
 
 System-card evidence rules:
@@ -420,11 +432,13 @@ System-card evidence rules:
 - Separate **measured results** from **docs-only capability claims**. Do not infer competitor quality without local measurements.
 - Preserve `not_available`, `not_applicable`, `skipped`, `failed`, and numeric `0` as distinct states.
 - Use applicability-aware denominators for precision/recall/F1; never score a dependency scanner as `0` on a SAST-only fixture.
-- Commit raw data tables and run metadata alongside the rendered report. The report should be regenerable from those files.
-- Generate deterministic figures: fixed dimensions, embedded labels, no remote assets, no external fonts, and stable ordering.
+- Include raw data tables and run metadata inside the rendered report when the user asks for a standalone document. The report should be regenerable from the embedded tables and commands.
+- Generate deterministic embedded figures: fixed ordering, embedded labels, no remote assets, no external fonts, and no references to separate image files.
 - Include exact release identity and dirty/untracked state in metadata. A dirty-tree report must say it is dirty.
 - Cite external projects only for documented capabilities unless their tools were live-run in the current benchmark environment.
 - For comparative claims, prefer neutral wording: "not measured", "not applicable", "docs claim", "live-run", "failed to run", or "not available".
+- Minimum metric set for a serious system card: confusion-matrix counts, precision/recall/F1, fixture coverage, endpoint/request coverage, replay coverage, terminal scan status, scan errors, wall time, setup effort, LLM call count, canonical token total, output artifact coverage, security-control coverage, and docs-only comparator coverage.
+- If a standalone card currently links to local files for core context, replace the link with a concise inline summary and move the source into the evidence appendix as plain text provenance.
 
 ### sum — Software User Manual
 

@@ -1,3 +1,12 @@
+---
+name: ship-commit
+phase: ship
+risk: writes
+default_export: true
+packs:
+  - default
+description: "Commit and publish accepted local changes safely."
+---
 ## OBJECTIVE
 
 **THE ATOMIC SURGEON.**

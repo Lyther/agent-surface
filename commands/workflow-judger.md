@@ -1,3 +1,12 @@
+---
+name: workflow-judger
+phase: arbitrate
+risk: writes
+default_export: true
+packs:
+  - default
+description: "Arbitrate repeated task failures and decide merge, rework, or escalation."
+---
 ## OBJECTIVE
 
 Prevent bad merges after repeated failures. **Operate at task granularity** — accept the passing tasks, escalate the stubborn ones.

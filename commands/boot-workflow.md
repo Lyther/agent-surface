@@ -1,3 +1,12 @@
+---
+name: boot-workflow
+phase: observe
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Show workflow diagrams on demand without embedding them in rule files."
+---
 ## OBJECTIVE
 
 Keep ASCII workflow diagrams out of rule files (prompt token budget), but still available on demand.

@@ -1,3 +1,12 @@
+---
+name: boot-repro
+phase: observe
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Create a reproducible environment and command path for a project."
+---
 ## INPUT HANDLING (The Pipe)
 
 - **IF** input is a URL (e.g., `git clone ...` or `https://...`):

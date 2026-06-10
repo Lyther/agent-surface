@@ -54,7 +54,7 @@ audit:
   unknown risk, suspected vulnerability, broad design review, claim verification
 
 parallel:
-  independent exploration branches or competing implementation approaches
+  independent exploration branches, competing implementation approaches, or bounded swarm investigation
 
 ship:
   accepted local changes need commit, push, release, or deployment
@@ -63,7 +63,7 @@ ship:
 ## LIFECYCLE MAP
 
 ```text
-Observe:   boot-context, ops-report, ops-learn
+Observe:   boot-context, ops-report, ops-learn, ops-swarm
 Decide:    ops-ask, arch-roadmap, workflow-boss
 Build:     dev-feature, dev-fix, dev-refactor, dev-chore
 Verify:    verify-test, verify-spec, verify-coverage, verify-performance, verify-edge, verify-prove

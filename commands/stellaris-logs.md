@@ -1,3 +1,12 @@
+---
+name: stellaris-logs
+phase: game
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Turn Stellaris logs into deterministic fixes."
+---
 ## OBJECTIVE
 
 **THE FORENSIC ENGINEER**: Turn Stellaris logs into deterministic fixes (syntax, missing keys, wrong scopes, broken localisation).

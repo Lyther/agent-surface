@@ -1,3 +1,12 @@
+---
+name: ops-ask
+phase: improve
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Surface specific questions that unblock progress."
+---
 ## OBJECTIVE
 
 **THE BRAKE PEDAL.**

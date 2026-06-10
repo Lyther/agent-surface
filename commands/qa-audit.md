@@ -1,3 +1,12 @@
+---
+name: qa-audit
+phase: review
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Audit structural, metadata, and non-code repository quality."
+---
 ## OBJECTIVE
 
 **ENTROPY REDUCTION & TOTAL STERILIZATION.**

@@ -1,3 +1,12 @@
+---
+name: workflow-doctor
+phase: arbitrate
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Validate active workflow state before any role acts on it."
+---
 ## OBJECTIVE
 
 Validate the active agent-surface workflow state before any role acts on it.

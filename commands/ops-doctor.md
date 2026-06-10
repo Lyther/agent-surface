@@ -1,3 +1,12 @@
+---
+name: ops-doctor
+phase: improve
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Run a health check on the local command repository."
+---
 ## OBJECTIVE
 
 Run a health check on the `~/.cursor/commands` repo itself.

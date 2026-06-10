@@ -1,3 +1,12 @@
+---
+name: lint-rust
+phase: verify
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Apply strict Rust engineering rules before code is accepted."
+---
 ## §0 META: YOU WILL BE AUDITED
 
 You are generating Rust code that will be **reviewed line-by-line by a hostile auditor** who assumes you are lazy, incompetent, and lying until proven otherwise.

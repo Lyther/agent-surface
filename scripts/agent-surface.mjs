@@ -2504,6 +2504,7 @@ function checkCommandMetadata(commands, errors) {
   const names = new Set();
   for (const command of commands) {
     for (const error of command.frontmatterErrors) errors.push(`${command.relativePath}: ${error}`);
+    if (!command.hasFrontmatter) errors.push(`${command.relativePath}: command frontmatter missing`);
     if (names.has(command.metadata.name)) errors.push(`duplicate command metadata name: ${command.metadata.name}`);
     names.add(command.metadata.name);
     for (const field of Object.keys(command.metadata)) {

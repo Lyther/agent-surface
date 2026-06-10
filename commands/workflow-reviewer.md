@@ -1,3 +1,12 @@
+---
+name: workflow-reviewer
+phase: arbitrate
+risk: writes
+default_export: true
+packs:
+  - default
+description: "Review batched implementation output against the BOSS spec and evidence."
+---
 ## OBJECTIVE
 
 Gate batched implementation output against a BOSS spec using validated artifacts and independently checked evidence.

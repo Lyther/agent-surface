@@ -1,3 +1,12 @@
+---
+name: boot-context
+phase: observe
+risk: safe
+default_export: true
+packs:
+  - default
+description: "Reload durable memory, active work, and repository reality before editing."
+---
 ## OBJECTIVE
 
 **THE CONTEXT CANNON.**

@@ -1,3 +1,12 @@
+---
+name: dev-feature
+phase: build
+risk: writes
+default_export: true
+packs:
+  - default
+description: "Implement real behavior and prove it with relevant checks."
+---
 ## OBJECTIVE
 
 **IMPLEMENT & PROVE.**

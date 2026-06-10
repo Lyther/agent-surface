@@ -1,3 +1,12 @@
+---
+name: qa-trace
+phase: review
+risk: security-sensitive
+default_export: true
+packs:
+  - default
+description: "Find high-impact logic, security, race, privacy, and design failures with evidence."
+---
 ## OBJECTIVE
 
 **EVIDENCE-LED TRACE CAMPAIGN.**

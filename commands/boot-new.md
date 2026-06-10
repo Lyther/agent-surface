@@ -1,3 +1,12 @@
+---
+name: boot-new
+phase: observe
+risk: writes
+default_export: true
+packs:
+  - default
+description: "Bootstrap a new project from a user vision into a working structure."
+---
 ## OBJECTIVE
 
 **THE ARCHITECT**: User provides the vision (ingredients); You build the Michelin-star kitchen.

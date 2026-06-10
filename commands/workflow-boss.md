@@ -1,3 +1,12 @@
+---
+name: workflow-boss
+phase: arbitrate
+risk: writes
+default_export: true
+packs:
+  - default
+description: "Decompose related tasks into an implementable spec without writing code."
+---
 ## OBJECTIVE
 
 Decompose **a batch of related tasks** into an implementable spec **without writing code**.

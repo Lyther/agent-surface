@@ -1,3 +1,14 @@
+---
+name: workflow-orchestrator
+phase: arbitrate
+risk: writes
+default_export: true
+packs:
+  - default
+approval_classes:
+  - network
+description: "Run the long-running workflow monitor and role handoffs."
+---
 ## OBJECTIVE
 
 Run the long-running workflow monitor without replacing workflow roles, role-file ownership, or ledger authority.

@@ -1,3 +1,12 @@
+---
+name: stellaris-uplink
+phase: game
+risk: writes
+default_export: true
+packs:
+  - default
+description: "Ingest and cross-reference Stellaris reference data."
+---
 ## OBJECTIVE
 
 **THE SCIENCE OFFICER**: Ingest "Gold Standard" Vanilla data and cross-reference with the Syntax Submodule and Reference Mods.
