@@ -250,6 +250,19 @@ assert.match(geminiFlowSkill, /for Gemini CLI extension skill/);
 const codexFlow = readFileSync(path.join(root, "dist", "codex", ".agents", "skills", "flow", "SKILL.md"), "utf8");
 assert.match(codexFlow, /^---\nname: flow\n/);
 assert.match(codexFlow, /Use explicit invocation: `\$flow`\./);
+const codexSwarm = readFileSync(path.join(root, "dist", "codex", ".agents", "skills", "ops-swarm", "SKILL.md"), "utf8");
+assert.match(codexSwarm, /Use real external\/headless agents when they are available and approved/);
+assert.match(codexSwarm, /minimax-m3:cloud/);
+assert.match(codexSwarm, /cursor agent -p/);
+assert.match(codexSwarm, /Antigravity desktop/);
+const codexWorkflowOrchestrator = readFileSync(
+  path.join(root, "dist", "codex", ".agents", "skills", "workflow-orchestrator", "SKILL.md"),
+  "utf8",
+);
+assert.match(codexWorkflowOrchestrator, /Do not hide behind native subagents/);
+assert.match(codexWorkflowOrchestrator, /grok -m grok-build/);
+assert.match(codexWorkflowOrchestrator, /Cursor and Grok both expose `agent`-named surfaces/);
+assert.match(codexWorkflowOrchestrator, /antigravity chat --help/);
 const claudeFlow = readFileSync(path.join(root, "dist", "claude-code", ".claude", "commands", "flow", "flow.md"), "utf8");
 assert.match(claudeFlow, /^## OBJECTIVE/);
 

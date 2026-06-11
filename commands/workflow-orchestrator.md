@@ -17,6 +17,8 @@ Run the long-running workflow monitor without replacing workflow roles, role-fil
 
 The monitor may plan, spawn, observe, and hand off to approved headless role sessions. It is not BOSS, worker, reviewer, judger, rescue, close, or ship. It invokes those commands as managed role sessions, then validates their artifacts and advances by the ledger.
 
+Prefer real managed role sessions over only the current model's native subagent tool. Native subagents are allowed for local fan-out, but they do not provide provider/model independence by themselves. For non-trivial workflow runs, explicitly consider background headless Ollama Cloud integrations, Grok Build, Claude Code, Codex exec, OpenCode, Goose, and other approved local agents before settling on an in-process subagent.
+
 Direct role commands remain valid for manual recovery, debugging, or user-directed single-role work. They are not the normal start point for a monitored workflow run.
 
 ## ROLE HIERARCHY
@@ -45,7 +47,7 @@ Durable workflow authority lives in `.agent-surface/workflows/<run_id>/run.json`
 3. Validate `run_id`, round, branch, lock, parent hashes, active task IDs, file scope, `run.json.workflow_next_command`, and artifact `workflow.next_command` before launching any role.
 4. Start by invoking `workflow-boss` unless an active run is already valid. Do not synthesize BOSS artifacts from monitor memory.
 5. Spawn or reuse a managed role session only when its `run_id`, command, role class, task scope, file scope, and base tree match the ledger.
-6. Choose the role, provider, model, session shape, and write access from the ledger route, task risk, local availability, quota, context size, quality/cost/speed tradeoff, prior outcomes, approval state, and whether the role needs source writes.
+6. Choose the role, provider, model, session shape, and write access from the ledger route, task risk, local availability, quota, context size, quality/cost/speed tradeoff, prior outcomes, approval state, whether the role needs source writes, and whether external/headless provider diversity is available.
 7. Feed each role only the task spec, filescope, role contract, relevant role files, and redacted evidence refs it needs.
 8. Require heartbeat evidence for long-running sessions: current task, files touched, command running, last check result, current blocker, and latest artifact path.
 9. After a role writes its artifact, validate the file exists, update monitor state, and follow the next command from the ledger.
@@ -67,8 +69,9 @@ Minimum shape:
       "agent_id": "stable monitor-local id",
       "command": "workflow-boss|dev-feature|dev-fix|dev-chore|dev-refactor|workflow-reviewer|workflow-judger|workflow-rescue|workflow-close|qa-trace|qa-review",
       "role_class": "boss|worker|reviewer|judger|rescue|closer|qa",
-      "provider": "codex|claude-code|gemini|cursor|grok|ollama-codex|ollama-claude|ollama-opencode|other",
+      "provider": "codex|claude-code|grok|ollama-codex|ollama-claude|ollama-opencode|opencode|goose|gemini|antigravity-cli|antigravity-desktop|cursor|native-subagent|other",
       "model": "provider model id",
+      "launch_shape": "headless_cli|ollama_launch|ollama_api|native_subagent|interactive_supervised|other",
       "task_ids": [],
       "filescope": [],
       "session_ref": "sub-agent id, process id, tty id, or external session handle",
@@ -112,10 +115,12 @@ Minimum shape:
 1. Read the ledger first: `current.json`, `run.json`, `boss.json`, latest downstream role file, patch manifests, and redacted evidence refs.
 2. Choose the next managed role from `run.json.workflow_next_command` and artifact `workflow.next_command`; do not infer the route from mtime, chat history, or provider session state.
 3. Pick a provider/model only after checking local availability, quota, approval state, risk, context size, independence from adjacent roles, and whether the role needs write access.
-4. Launch the role with a strict prompt containing role command, allowed output file, exact `run_id`, round, task IDs, filescope, parent artifact hashes, allowed checks, and the rule that ledger artifacts are authoritative.
-5. If the agent loses context, exits, or drifts from scope, respawn and rehydrate from role files and evidence refs.
-6. After each role exits, re-read `run.json`, the new role artifact, and `events.ndjson`; then spawn the next role if work remains.
-7. If ledger evidence is missing or inconsistent, stop and hand off to the user or `workflow-rescue`; do not reconstruct state from chat memory.
+4. Prefer approved external/headless launches for meaningful role work. Use native subagents only when they are the best fit or when external providers are unavailable, unapproved, over-budget, privacy-incompatible, or too slow for the role.
+5. Launch the role with a strict prompt containing role command, allowed output file, exact `run_id`, round, task IDs, filescope, parent artifact hashes, allowed checks, and the rule that ledger artifacts are authoritative.
+6. Record the exact redacted launch command, provider, model, launch shape, probe evidence, and selection reason in `agents.json`.
+7. If the agent loses context, exits, or drifts from scope, respawn and rehydrate from role files and evidence refs.
+8. After each role exits, re-read `run.json`, the new role artifact, and `events.ndjson`; then spawn the next role if work remains.
+9. If ledger evidence is missing or inconsistent, stop and hand off to the user or `workflow-rescue`; do not reconstruct state from chat memory.
 
 ### Parallel worker option
 
@@ -141,19 +146,30 @@ The monitor must not treat `resolution_class` as decoration. After a worker exit
 - If `resolution_class` is missing on a legacy v3 blocker, do not invent it. Route normally and let reviewer evaluate evidence quality.
 - If `resolution_class="human_required"`, do not auto-resolve. Preserve the handoff and require the normal reviewer/judger/human route.
 
-Headless launch patterns are examples. Verify flags locally before use and satisfy the authorization gate before running them.
+## HEADLESS PROVIDER LAUNCHES
+
+Headless launch patterns are examples. Verify flags locally before use and satisfy the authorization gate before running them. Do not hide behind native subagents when approved external providers are available and useful for independence, speed, cost, or specialization.
 
 ```bash
 env -u NODE_TLS_REJECT_UNAUTHORIZED grok -m grok-build --cwd "$repo" --prompt-file "$prompt_file" --output-format json --max-turns 12
-env -u NODE_TLS_REJECT_UNAUTHORIZED grok agent headless -m grok-build --cwd "$repo" --prompt-file "$prompt_file" --output-format json
-env -u NODE_TLS_REJECT_UNAUTHORIZED cursor agent --workspace "$repo" --model gpt-5 --print --output-format json "$(cat "$prompt_file")"
-env -u NODE_TLS_REJECT_UNAUTHORIZED PATH=/opt/homebrew/bin:$PATH GEMINI_CLI_TRUST_WORKSPACE=true gemini --prompt "$(cat "$prompt_file")" --output-format json --model gemini-3-pro-preview
-ollama launch codex --model kimi-k2.6:cloud
-ollama launch opencode --model minimax-m2.7:cloud
-ollama launch claude --model glm-5.1:cloud -- -p "$(cat "$prompt_file")"
+env -u NODE_TLS_REJECT_UNAUTHORIZED grok -m grok-build agent headless
+env -u NODE_TLS_REJECT_UNAUTHORIZED cursor agent -p --workspace "$repo" --model gpt-5 --output-format json --sandbox enabled "$(cat "$prompt_file")"
+claude -p "$(cat "$prompt_file")" --output-format json --model claude-sonnet-4-6 --max-budget-usd 1.00
+codex exec -m gpt-5.4 -C "$repo" -s workspace-write --json "$(cat "$prompt_file")"
+opencode run -m ollama/kimi-k2.6:cloud --format json --dir "$repo" "$(cat "$prompt_file")"
+env -u NODE_TLS_REJECT_UNAUTHORIZED PATH=/opt/homebrew/bin:$PATH gemini -p "$(cat "$prompt_file")" --output-format json --approval-mode plan
+ollama launch codex --model kimi-k2.6:cloud -- --cd "$repo" --sandbox workspace-write
+ollama launch opencode --model minimax-m3:cloud
+ollama launch claude --model glm-5.1:cloud -- -p "$(cat "$prompt_file")" --output-format json
+curl -sS http://localhost:11434/api/generate \
+  -d '{"model":"deepseek-v4-pro:cloud","prompt":"<redacted packet prompt>","stream":false,"think":true,"options":{"num_predict":1024}}'
 ```
 
-Cursor and Grok headless modes can write files and run shell commands. Give them the same role contract, filescope, and evidence requirements as any other managed role. Keep provider logs local or redact them before referencing evidence.
+Cursor and Grok both expose `agent`-named surfaces, but their argv shapes differ. Do not reuse Grok launch patterns for Cursor or Cursor launch patterns for Grok. Cursor headless is `cursor agent -p ...`; Grok Build is `grok -m grok-build ...` or its own `grok ... agent headless` path after a local probe.
+
+Cursor and Grok headless modes can write files and run shell commands. Give them the same role contract, filescope, and evidence requirements as any other managed role. Keep provider logs local or redact them before referencing evidence. Grok JSON output may include `thought`; Ollama API output may include `thinking`. Never persist either field.
+
+Antigravity currently has two distinct meanings in this project. `antigravity-cli` is the Google migration target for the new terminal platform; verify its real executable and non-interactive flags before assigning workflow roles. The local `antigravity` binary may be the desktop app launcher: `antigravity chat` opens or reuses a desktop chat session with `ask`, `edit`, or `agent` mode and should be recorded as `interactive_supervised`, not a verified headless worker, unless its current help exposes a non-interactive output mode.
 
 ## HEARTBEATS AND STALE SESSIONS
 
@@ -170,10 +186,16 @@ Probe provider availability before each monitored run. Treat display names, lead
 
 | Provider | Compact note |
 | --- | --- |
-| Cursor | May need `HTTP_PROXY=http://127.0.0.1:7890` and `HTTPS_PROXY=http://127.0.0.1:7890`. If it reports no account models, do not assign it workflow roles. |
-| Gemini | Requires compatible Node. User reports Node v26 / npm 11.12.1 works; Node v18 can fail. Use `GEMINI_CLI_TRUST_WORKSPACE=true` or `--skip-trust` for headless runs. |
-| Grok | Build model id is `grok-build`; use with caution and verify local CLI behavior before assigning write-scoped roles. |
-| Ollama Cloud | Verify model IDs before use. For thinking-capable models, `--think=false` / API `think:false` disables thinking. `--hidethinking` is the hide-only CLI switch. For non-trivial workflow roles, prefer thinking enabled and hide/drop the trace. |
+| Cursor | Headless mode is `cursor agent -p ...`; `--output-format json` works only with `--print`. Use `--workspace`, `--model`, `--sandbox enabled`, and `--approve-mcps` only after MCP approval. May need `HTTP_PROXY=http://127.0.0.1:7890` and `HTTPS_PROXY=http://127.0.0.1:7890`. If `cursor agent models` reports no account models, do not assign it workflow roles. |
+| Antigravity CLI | Google migration notes say this is the current terminal platform with async background workflows, plugins, skills, hooks, subagents, and extensions. Verify the current executable and non-interactive flags locally before use; do not assume legacy `gemini` flags apply. |
+| Antigravity desktop | Local `antigravity chat --help` exposes supervised desktop chat modes, not a JSON/print headless mode. Treat `antigravity chat -m agent ...` as interactive-supervised unless a current probe proves a headless output mode. |
+| Gemini | Legacy transition CLI. Requires compatible Node. User reports Node v26 / npm 11.12.1 works; Node v18 can fail. Use `GEMINI_CLI_TRUST_WORKSPACE=true`, `--skip-trust`, `-p/--prompt`, `--output-format json`, and `--approval-mode plan` for bounded headless runs. |
+| Grok | Build model id is `grok-build`; local `grok models` also reports `grok-composer-2.5-fast`. Use with caution and verify local CLI behavior before assigning write-scoped roles. |
+| Claude Code | Headless print mode is `claude -p`. Use `--model`, `--output-format json`, `--max-budget-usd`, `--permission-mode`, `--tools`, `--allowedTools`, `--add-dir`, and `--settings` to constrain role sessions. |
+| Codex | Headless mode is `codex exec`. Use `-C`, `-s read-only\|workspace-write`,`--json`,`--output-schema`,`--oss --local-provider ollama`, or explicit`-m` as appropriate. |
+| OpenCode | Headless mode is `opencode run`. Use `--dir`, `-m provider/model`, `--format json`, `--agent`, and avoid `--dangerously-skip-permissions` unless the worktree is externally sandboxed. |
+| Goose | Installed locally in this workspace snapshot; inspect current help before assigning roles because CLI flags may vary by release. |
+| Ollama Cloud | Verify model IDs before use. For thinking-capable models, `--think=false` / API `think:false` disables thinking. `--hidethinking` is the hide-only CLI switch. For non-trivial workflow roles, prefer thinking enabled and hide/drop the trace. Very small `num_predict` budgets can produce thinking but no final answer. |
 
 ## MODEL ROUTING
 
@@ -214,7 +236,7 @@ Match model signals to the role instead of collapsing everything into one leader
 | `rescue` | Senior model or human path chosen for the specific failure mode and blind spot observed. | PATCH mode is proposed-only unless the user explicitly authorizes takeover. Prefer a model family not used in the failed worker/reviewer loop. |
 | `qa` | Domain-specific reviewer or cheaper shadow model only after the BOSS/reviewer route requires it. | Security or network-sensitive probes still require explicit approval. Use multiple cheap QA passes only when they add independent coverage. |
 
-Seed candidate matrix for May 2026. Treat it as a starting point, not truth. Refresh launch IDs, pricing, quota, context, and benchmark rows before a real run.
+Seed candidate matrix for June 2026. Treat it as a starting point, not truth. Refresh launch IDs, pricing, quota, context, and benchmark rows before a real run. Local probes on 2026-06-11 verified `ollama show` for `kimi-k2.6:cloud`, `glm-5.1:cloud`, `deepseek-v4-pro:cloud`, `minimax-m3:cloud`, and generation for all four through the local Ollama API.
 
 | Candidate | Current strengths | Trade-off / caution | Good default roles |
 | --- | --- | --- | --- |
@@ -231,7 +253,7 @@ Seed candidate matrix for May 2026. Treat it as a starting point, not truth. Ref
 | `glm-5.1` | Cheap/fast coding-reasoning candidate with decent MCP/tool and SWE-bench Pro signals; good model-family diversity. | 200K context, no multimodal in snapshot, and possible long-loop behavior; require heartbeat stops. Avoid Ollama `think` level strings until the exact task shape is proven; use `think:true` first. | Worker, reviewer diversity, rescue second opinion. |
 | `glm-5` | Very fast, cheap, high Code Arena among economy choices. | Weaker coding/tool/reasoning than GLM-5.1 and no multimodal in snapshot. | Low-risk worker, docs/chore, cheap exploratory pass. |
 | `qwen3.5-397b` / `qwen3.6-plus` | Cheap long-context family with useful finance/legal/health/domain signals and reasonable GPQA. | Weaker coding/tool signals and slow latency in snapshot; not primary implementation reviewer. | Domain QA, research pass, low-risk worker if provider is already approved. |
-| `minimax-m2.7` | Very cheap and fast enough for small bounded tasks. | Lower agentic-terminal/code confidence; do not use as sole reviewer for high-risk changes. | Low-risk docs/chore worker, cheap shadow QA. |
+| `minimax-m3` | Large-context Ollama Cloud model with tools, thinking, and vision capabilities in local probe. | Local smoke showed `thinking` can appear even when `think:false`; always drop thought fields and verify final content. | Low-risk docs/chore worker, cheap shadow QA, multimodal/research packet candidate after probe. |
 
 ## MODEL LEARNING LOOP
 
@@ -276,6 +298,8 @@ Recommended CLI posture when a CLI role launch is required:
 ollama run <model> --think --hidethinking "$(cat "$prompt_file")"
 ```
 
+Operational caveat: thinking consumes output budget. A local 2026-06-11 smoke test with `glm-5.1:cloud`, `think:true`, and `num_predict:64` returned thinking but no final answer. For non-trivial workflow roles, set enough max output for both reasoning and final content, and treat empty final content as a failed probe.
+
 Use `think:false` only for cheap formatting, extraction, or latency-sensitive tasks where reasoning quality is not part of the role contract, and record that downgrade in `selection_snapshot.thinking_mode`.
 
 ## OUTPUT HYGIENE
@@ -307,14 +331,24 @@ Useful local probes:
 ```bash
 env -u NODE_TLS_REJECT_UNAUTHORIZED cursor agent models
 env -u NODE_TLS_REJECT_UNAUTHORIZED cursor agent status
+env -u NODE_TLS_REJECT_UNAUTHORIZED cursor agent --help
+env -u NODE_TLS_REJECT_UNAUTHORIZED cursor agent -p --workspace "$PWD" --output-format json --sandbox enabled "Reply OK only."
+env -u NODE_TLS_REJECT_UNAUTHORIZED antigravity --help
+env -u NODE_TLS_REJECT_UNAUTHORIZED antigravity chat --help
 env -u NODE_TLS_REJECT_UNAUTHORIZED PATH=/opt/homebrew/bin:$PATH gemini --help
 env -u NODE_TLS_REJECT_UNAUTHORIZED grok models
 env -u NODE_TLS_REJECT_UNAUTHORIZED grok -m grok-build -p "Reply with OK only." --output-format json --max-turns 1
 ollama show kimi-k2.6:cloud
 ollama show deepseek-v4-pro:cloud
 ollama show glm-5.1:cloud
-ollama show minimax-m2.7:cloud
-curl -s http://localhost:11434/api/generate -d '{"model":"kimi-k2.6:cloud","prompt":"Reply OK only.","stream":false,"think":true,"format":"json"}' | jq '{response,done_reason,prompt_eval_count,eval_count,thinking_present:(has("thinking") and (.thinking|length > 0))}'
+ollama show minimax-m3:cloud
+claude -p "Reply OK only." --output-format json --max-budget-usd 0.05
+grok models
+grok -m grok-build -p "Reply OK only." --output-format json --max-turns 1
+codex exec --help
+opencode run --help
+goose --version
+curl -s http://localhost:11434/api/generate -d '{"model":"kimi-k2.6:cloud","prompt":"Reply OK only.","stream":false,"think":true,"options":{"num_predict":128}}' | jq '{response,done_reason,prompt_eval_count,eval_count,thinking_present:(has("thinking") and (.thinking|length > 0))}'
 ```
 
 Do not claim any provider or model ID is verified unless the current worker ran the probe and recorded the output as local evidence.

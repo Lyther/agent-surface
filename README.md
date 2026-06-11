@@ -163,7 +163,7 @@ Start with `/flow` when the right path is unclear. For formal workflow mode, sta
 
 Latency tuning is measurement-first: profile role wall time, handoff gaps, clean-pass rate, rework loops, and judger escalations from local workflow telemetry before changing model tier, batch caps, or QA routing. Workers consume BOSS `context_capsule` first, resolve worker-owned blockers before stopping, and reserve `qa-review` / `qa-sec` for escalation rather than stacking duplicate serial review by default.
 
-For Ollama thinking models, workflow roles should hide or drop the reasoning trace, not disable thinking. Use explicit thinking for non-trivial worker/reviewer roles and never persist the `thinking` field in workflow artifacts.
+For Ollama thinking models, workflow roles should hide or drop the reasoning trace, not disable thinking. Use explicit thinking for non-trivial worker/reviewer roles and never persist the `thinking` field in workflow artifacts. Grok Build JSON output may include `thought`; treat it the same way.
 
 Workflow-aware workers currently include `dev-feature`, `dev-fix`, `dev-chore`, and `dev-refactor`.
 
@@ -176,11 +176,13 @@ Use `agent-surface workflow patch begin/end/verify` around each task so `patch_r
 Experimental loop shape:
 
 ```text
-Codex plans and verifies the workflow.
-Claude Code owns Claude-native subagent creation and delegation.
-Local Ollama-backed Claude sessions can be launched with `ollama launch claude --model <model>`.
+Codex coordinates and verifies the workflow ledger.
+workflow-orchestrator explicitly considers external/headless agents before using only native subagents.
+Approved candidates include Ollama Cloud integrations, Grok Build, Cursor Agent headless, Claude Code headless, Codex exec, OpenCode, Goose, legacy Gemini headless, Antigravity CLI headless once locally verified, and native subagents.
+Local probes on 2026-06-11 verified Ollama Cloud model entries: kimi-k2.6:cloud, glm-5.1:cloud, deepseek-v4-pro:cloud, minimax-m3:cloud.
+Local Cursor probe verified `cursor agent -p` as the headless command shape, but the account reported no available models. Local `antigravity chat` opened the desktop app and is not a verified headless worker path.
 Use worktrees when multiple workers may edit files.
-Keep Codex as the final reviewer before `ship-commit`.
+Keep an independent reviewer or judger provider/model family before `ship-commit`.
 ```
 
 GitHub install smoke path:
@@ -195,8 +197,8 @@ npx github:Lyther/agent-surface inventory
 Use the managed global installs in normal work, then tighten target-specific validation where the host exposes a verifier:
 
 1. Claude Code: test standalone commands and the generated plugin with `claude --plugin-dir`.
-2. Antigravity CLI: verify plugin discovery, skill discovery, and generated rule attachment once the local CLI exposes plugin install/validate commands.
-3. Gemini CLI legacy export: verify `/commands reload`, extension discovery, and `~/.gemini/GEMINI.md` loading while the transition target remains supported.
+2. Antigravity CLI: verify plugin discovery, skill discovery, generated rule attachment, and the non-interactive headless launch path once the local CLI exposes plugin install/validate/headless commands.
+3. Gemini CLI legacy export: verify `/commands reload`, extension discovery, `~/.gemini/GEMINI.md` loading, and `gemini -p --output-format json` while the transition target remains supported.
 4. Cline: verify global Workflows and Rules appear in the UI.
 5. Kilo: verify global commands and the `kilo.jsonc` Rules entry attach in the extension or CLI.
-6. Cursor, Copilot, VS Code, OpenCode, and Trae: verify the generated global instruction files are actually attached in live sessions.
+6. Cursor, Copilot, VS Code, OpenCode, and Trae: verify the generated global instruction files are actually attached in live sessions; for Cursor Agent, require `cursor agent models` to report usable account models before assigning workflow roles.
