@@ -97,7 +97,8 @@
         "rules",
         "commands",
         "ignores",
-        "mcps"
+        "mcps",
+        "hooks"
       ]
     },
     "copilot": {

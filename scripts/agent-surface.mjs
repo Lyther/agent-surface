@@ -120,12 +120,17 @@ const targets = {
   },
   cursor: {
     label: "Cursor global commands and rules",
-    renders: ["rules", "commands", "ignores", "mcps"],
+    renders: ["rules", "commands", "ignores", "mcps", "hooks"],
     commandOutputRoot: ".cursor/commands",
     renderCommand: renderCursorCommand,
     installRoot: installRootHomeOnly,
     ignoreFilename: ".cursorignore",
     mcpOutput: path.join(".cursor", "mcp.json"),
+    hooks: {
+      configOutput: path.join(".cursor", "hooks.json"),
+      scriptDir: path.join(".cursor", "hooks"),
+      events: ["afterFileEdit", "afterShellExecution", "stop"],
+    },
     staticOutputs: cursorStaticOutputs,
   },
   copilot: {
@@ -257,6 +262,8 @@ async function main() {
       await checkSubagents();
     } else if (args[0] === "mcps") {
       await checkMcps();
+    } else if (args[0] === "hooks") {
+      await checkHooks();
     } else {
       await check();
     }
@@ -304,6 +311,7 @@ Usage:
   agent-surface check ignores
   agent-surface check subagents
   agent-surface check mcps
+  agent-surface check hooks
   agent-surface build --target <target|all> [--pack default|all|<pack>] [--dry-run]
   agent-surface install --target <target> [--pack default|all|<pack>] [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
@@ -801,6 +809,35 @@ async function checkMcps() {
   console.log("mcps check: ok");
 }
 
+async function checkHooks() {
+  const script = await readHookScript();
+  const errors = [];
+  if (!script) {
+    errors.push(`hooks/${hookScriptName} missing`);
+  } else {
+    if (!/^#!/.test(script.body)) errors.push(`hooks/${hookScriptName}: missing shebang`);
+    if (!/\nexit 0\n?$/.test(script.body)) errors.push(`hooks/${hookScriptName}: must end with "exit 0" so the hook is fail-open`);
+    // A shipped example hook must stay safe: no network, destructive, or
+    // privilege-escalating commands, and no decoded-then-executed payloads.
+    const disallowed = /\b(rm\s+-rf|curl|wget|sudo|eval|base64\s+-d|mkfifo)\b|:\(\)\s*\{/;
+    if (disallowed.test(script.body)) errors.push(`hooks/${hookScriptName}: contains a command not allowed in a safe example hook`);
+  }
+  const emitters = Object.entries(targets)
+    .filter(([, adapter]) => adapter.hooks)
+    .map(([name]) => name)
+    .sort();
+
+  console.log(`hooks: scripts ${script ? 1 : 0}, emitters ${emitters.length} (${emitters.join(", ")})`);
+  if (errors.length > 0) {
+    console.log("errors:");
+    for (const error of errors) console.log(`  ${error}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log("hooks check: ok");
+}
+
 function validateGeneratedTarget(target, outputs) {
   const errors = [];
   const byPath = new Map(outputs.map((output) => [output.relativeOutput, output]));
@@ -872,6 +909,9 @@ function validateGeneratedTarget(target, outputs) {
     requireContains(".cursorignore", /agent-surface canonical AI-tool ignore baseline/);
     const cursorMcp = requireJson(path.join(".cursor", "mcp.json"));
     if (cursorMcp && !cursorMcp.mcpServers?.["sequential-thinking"]) errors.push(".cursor/mcp.json missing sequential-thinking server");
+    requireContains(path.join(".cursor", "hooks", "audit-log.sh"), /\nexit 0\n?$/);
+    const cursorHooks = requireJson(path.join(".cursor", "hooks.json"));
+    if (cursorHooks && !Array.isArray(cursorHooks.hooks?.afterFileEdit)) errors.push(".cursor/hooks.json missing afterFileEdit hook");
   } else if (target === "copilot") {
     requireContains(path.join("instructions", "agent-surface-copilot.instructions.md"), /^---\ndescription: "agent-surface Copilot global instructions"\napplyTo: "\*\*"/);
   } else if (target === "vscode") {
@@ -2698,6 +2738,9 @@ function targetProducers(adapter) {
   if (adapter.mcpOutput) {
     producers.push({ id: "mcps", produce: (commands, context) => produceMcpOutputs(adapter, context) });
   }
+  if (adapter.hooks) {
+    producers.push({ id: "hooks", produce: (commands, context) => produceHookOutputs(adapter, context) });
+  }
   return producers;
 }
 
@@ -2936,6 +2979,36 @@ function renderMcpServers(mcps) {
   const mcpServers = {};
   for (const mcp of mcps) mcpServers[mcp.name] = mcpServerEntry(mcp);
   return `${JSON.stringify({ mcpServers }, null, 2)}\n`;
+}
+
+// Hooks ship executable behavior, so the canonical example is intentionally
+// fail-open and metadata-only. It is wired via "sh <path>" (no execute bit
+// needed) and emitted with scopeClass "project" so user-scope installs skip it.
+const hookScriptName = "audit-log.sh";
+let hookScriptCache;
+async function readHookScript() {
+  if (hookScriptCache !== undefined) return hookScriptCache;
+  const file = path.join(root, "hooks", hookScriptName);
+  hookScriptCache = (await exists(file)) ? { source: relative(file), body: await readFile(file, "utf8") } : null;
+  return hookScriptCache;
+}
+
+async function produceHookOutputs(adapter) {
+  if (!adapter.hooks) return [];
+  const script = await readHookScript();
+  if (!script) return [];
+  const scriptOutput = path.join(adapter.hooks.scriptDir, hookScriptName);
+  const commandPath = scriptOutput.split(path.sep).join("/");
+  return [
+    { source: script.source, relativeOutput: scriptOutput, content: script.body, scopeClass: "project" },
+    { source: script.source, relativeOutput: adapter.hooks.configOutput, content: renderCursorHooksConfig(adapter.hooks.events, commandPath), scopeClass: "project" },
+  ];
+}
+
+function renderCursorHooksConfig(events, commandPath) {
+  const hooks = {};
+  for (const event of events) hooks[event] = [{ command: `sh ${commandPath} ${event}` }];
+  return `${JSON.stringify({ version: 1, hooks }, null, 2)}\n`;
 }
 
 function commandRelativeOutput(adapter, command, context) {

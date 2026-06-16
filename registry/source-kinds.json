@@ -1,0 +1,91 @@
+{
+  "source_kinds": {
+    "commands": {
+      "source_dir": "commands",
+      "load_mode": "on_demand",
+      "scope": "both",
+      "install_scopes": [
+        "user",
+        "project"
+      ],
+      "risk_class": "content",
+      "default_policy": "default",
+      "budget": {
+        "warn_tokens": 20000,
+        "hard_tokens": 40000
+      }
+    },
+    "rules": {
+      "source_dir": "rules",
+      "load_mode": "always_on",
+      "scope": "both",
+      "install_scopes": [
+        "user",
+        "project"
+      ],
+      "risk_class": "content",
+      "default_policy": "default",
+      "budget": {
+        "warn_tokens": 8000,
+        "hard_tokens": 12000
+      }
+    },
+    "ignores": {
+      "source_dir": "ignores",
+      "load_mode": "external_tool",
+      "scope": "project",
+      "install_scopes": [
+        "project"
+      ],
+      "risk_class": "context_filter",
+      "default_policy": "default",
+      "budget": {
+        "warn_tokens": 20000,
+        "hard_tokens": 40000
+      }
+    },
+    "subagents": {
+      "source_dir": "subagents",
+      "load_mode": "isolated_session",
+      "scope": "both",
+      "install_scopes": [
+        "user",
+        "project"
+      ],
+      "risk_class": "content",
+      "default_policy": "default",
+      "budget": {
+        "warn_tokens": 12000,
+        "hard_tokens": 20000
+      }
+    },
+    "mcps": {
+      "source_dir": "mcps",
+      "load_mode": "external_tool",
+      "scope": "project",
+      "install_scopes": [
+        "project"
+      ],
+      "risk_class": "external_tool",
+      "default_policy": "manual",
+      "budget": {
+        "warn_tokens": 0,
+        "hard_tokens": 0
+      }
+    },
+    "hooks": {
+      "source_dir": "hooks",
+      "load_mode": "triggered_hook",
+      "scope": "project",
+      "install_scopes": [
+        "project"
+      ],
+      "risk_class": "executable",
+      "default_policy": "manual",
+      "budget": {
+        "warn_tokens": 0,
+        "hard_tokens": 0
+      }
+    }
+  }
+}

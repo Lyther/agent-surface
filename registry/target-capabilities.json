@@ -501,6 +501,22 @@
           "Cursor MCP config may contain secrets and live tool access, so installs never auto-merge the user-global ~/.cursor/mcp.json; the generated file is project-scope only and Cursor's user-scope install skips it."
         ]
       },
+      "hooks": {
+        "status": "native",
+        "locations": [
+          ".cursor/hooks.json",
+          ".cursor/hooks/*.sh"
+        ],
+        "distribution": "generated",
+        "verified_by": [
+          "docs: https://cursor.com/docs/agent/hooks",
+          "local: build target cursor renders project .cursor/hooks.json and .cursor/hooks/audit-log.sh from hooks/"
+        ],
+        "notes": [
+          "agent-surface renders a project-scoped .cursor/hooks.json (version 1) wired to a fail-open, metadata-only example script invoked as \"sh .cursor/hooks/audit-log.sh <event>\"; it logs only a timestamp and event name and always exits 0, so it can neither block the agent nor leak file/command content.",
+          "Hook artifacts are project-scope only; Cursor's user-scope install skips them and the installer blocks rather than clobbers an existing file. The example is observe-only (afterFileEdit, afterShellExecution, stop); blocking before-hooks are intentionally not shipped."
+        ]
+      },
       "skills": {
         "status": "manual",
         "locations": [

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "agent-surface source kinds",
+  "type": "object",
+  "required": [
+    "source_kinds"
+  ],
+  "properties": {
+    "source_kinds": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "source_dir",
+          "load_mode",
+          "scope",
+          "install_scopes",
+          "risk_class",
+          "default_policy",
+          "budget"
+        ],
+        "properties": {
+          "source_dir": {
+            "type": "string",
+            "minLength": 1
+          },
+          "load_mode": {
+            "enum": [
+              "always_on",
+              "catalog",
+              "on_demand",
+              "isolated_session",
+              "external_tool",
+              "triggered_hook"
+            ]
+          },
+          "scope": {
+            "enum": [
+              "user",
+              "project",
+              "both"
+            ]
+          },
+          "install_scopes": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "user",
+                "project"
+              ]
+            }
+          },
+          "risk_class": {
+            "enum": [
+              "content",
+              "context_filter",
+              "config",
+              "external_tool",
+              "executable"
+            ]
+          },
+          "default_policy": {
+            "enum": [
+              "default",
+              "manual",
+              "explicit_pack",
+              "never_install_live"
+            ]
+          },
+          "budget": {
+            "$ref": "#/$defs/budget"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "budget": {
+      "type": "object",
+      "required": [
+        "warn_tokens",
+        "hard_tokens"
+      ],
+      "properties": {
+        "warn_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hard_tokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

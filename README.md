@@ -2,7 +2,7 @@
 
 Typed source and adapter compiler for coding-agent surfaces.
 
-Current implementation: global command, rule, skill, subagent, ignore, MCP-config, prompt, and plugin-package compiler for Claude Code, Codex, Antigravity CLI, Cline, Kilo, Antigravity, Cursor, GitHub Copilot, VS Code, OpenCode, and Trae. A legacy Gemini CLI transition export remains available while Google moves users to Antigravity CLI. Planned surfaces still include richer hooks and settings.
+Current implementation: global command, rule, skill, subagent, ignore, MCP-config, hook, prompt, and plugin-package compiler for Claude Code, Codex, Antigravity CLI, Cline, Kilo, Antigravity, Cursor, GitHub Copilot, VS Code, OpenCode, and Trae. A legacy Gemini CLI transition export remains available while Google moves users to Antigravity CLI. Planned surfaces still include settings and broader hook coverage (Claude Code hooks land in a shared settings file and need a safe merge first).
 
 ## Model
 
@@ -16,7 +16,7 @@ The other source folders are kept deliberately so new agent primitives can be ad
 
 - `skills/`
 - `subagents/` (active: example agents render to Claude Code, Codex, and Kilo subagent files)
-- `hooks/`
+- `hooks/` (active: `hooks/audit-log.sh` renders as a project-scoped Cursor `.cursor/hooks.json` + script)
 - `mcps/` (active: `mcps/*.json` render as project-scoped `.cursor/mcp.json` and `.mcp.json`)
 - `settings/`
 - `ignores/` (active: `ignores/default.ignore` renders as `.cursorignore`, `.kilocodeignore`, `.clineignore`)
@@ -154,6 +154,8 @@ Ignore files (`.cursorignore`, `.kilocodeignore`, `.clineignore`) are project-ro
 Subagent definitions in `subagents/*.md` (frontmatter `name`, `description`, `access`) render per target: Claude Code `.claude/agents/<name>.md`, Codex `.codex/agents/<name>.toml`, and Kilo `.kilo/agents/<name>.md` (project) / `~/.config/kilo/agents/<name>.md` (user). `access: read-only` maps to a read-only tool/sandbox/permission set per target; `model` is left to inherit. The shipped examples are generic agents, not promoted workflow roles. Validate the source with `check subagents`.
 
 MCP servers in `mcps/*.json` (`name`, `command`+`args` or `url`, optional `env`/`headers`) render to the standard `mcpServers` shape as project-scoped `.cursor/mcp.json` and `.mcp.json`. They are project-root artifacts: `build` and project-scope installs write them, user-scope installs skip them, and the installer blocks rather than clobbers an existing file, so live user MCP config is never auto-merged. The source must be secret-free; sensitive values must use `${ENV_VAR}` placeholders, which `check mcps` enforces. The shipped example is the no-secret sequential-thinking server.
+
+Hooks ship from `hooks/audit-log.sh` into a project-scoped Cursor `.cursor/hooks.json` (version 1) plus the script under `.cursor/hooks/`. The example is observe-only (`afterFileEdit`, `afterShellExecution`, `stop`), invoked as `sh .cursor/hooks/audit-log.sh <event>` so no execute bit is needed. It is fail-open and metadata-only: it logs just a timestamp and the event name, never file or command content, and always exits 0, so it can neither block the agent nor leak secrets. Like ignores, the artifacts are project-scope only (user-scope installs skip them; install blocks rather than clobbers). `check hooks` rejects shipped hooks that are not fail-open or that use network/destructive commands. Claude-style hooks live in a shared settings file and are deferred until a safe merge exists.
 
 ## Workflow Kernel
 

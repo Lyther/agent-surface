@@ -28,6 +28,9 @@
           },
           "ignores": {
             "$ref": "#/$defs/capability"
+          },
+          "hooks": {
+            "$ref": "#/$defs/capability"
           }
         },
         "additionalProperties": false

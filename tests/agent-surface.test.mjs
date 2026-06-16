@@ -180,7 +180,7 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
-assert.equal(generated.length, 791);
+assert.equal(generated.length, 793);
 assertGeminiTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "flow", "flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "swarm.md"))), true);
@@ -251,6 +251,17 @@ assert.equal(claudeMcp.mcpServers["sequential-thinking"].command, "npx");
 const mcpsCheck = run(["check", "mcps"]);
 assert.match(mcpsCheck, /mcps check: ok/);
 assert.match(mcpsCheck, /sources 1, emitters 2 \(claude-code, cursor\)/);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "hooks.json"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "hooks", "audit-log.sh"))), true);
+const cursorHooks = JSON.parse(readFileSync(path.join(root, "dist", "cursor", ".cursor", "hooks.json"), "utf8"));
+assert.equal(cursorHooks.version, 1);
+assert.equal(cursorHooks.hooks.afterFileEdit[0].command, "sh .cursor/hooks/audit-log.sh afterFileEdit");
+const auditHook = readFileSync(path.join(root, "dist", "cursor", ".cursor", "hooks", "audit-log.sh"), "utf8");
+assert.match(auditHook, /^#!/);
+assert.match(auditHook, /\nexit 0\n$/);
+const hooksCheck = run(["check", "hooks"]);
+assert.match(hooksCheck, /hooks check: ok/);
+assert.match(hooksCheck, /scripts 1, emitters 1 \(cursor\)/);
 const generatedCheck = run(["check", "generated"]);
 assert.match(generatedCheck, /claude-code: generated outputs 127 ok/);
 assert.match(generatedCheck, /kilo: generated outputs 76 ok/);
@@ -720,6 +731,13 @@ const claudeUserScope = status(["install", "--target", "claude-code", "--scope",
 assert.equal(claudeUserScope.status, 0, `${claudeUserScope.stdout}${claudeUserScope.stderr}`);
 assert.match(claudeUserScope.stdout, /\.mcp\.json \(project-scope only\)/);
 assert.doesNotMatch(claudeUserScope.stdout, /\.mcp\.json <- /);
+
+const cursorUserScope = status(["install", "--target", "cursor", "--scope", "user", "--dry-run"], { env: userScopeEnv });
+assert.equal(cursorUserScope.status, 0, `${cursorUserScope.stdout}${cursorUserScope.stderr}`);
+assert.match(cursorUserScope.stdout, /\.cursor\/hooks\.json \(project-scope only\)/);
+assert.match(cursorUserScope.stdout, /\.cursor\/hooks\/audit-log\.sh \(project-scope only\)/);
+assert.match(cursorUserScope.stdout, /\.cursor\/mcp\.json \(project-scope only\)/);
+assert.doesNotMatch(cursorUserScope.stdout, /\.cursor\/hooks\.json <- /);
 rmSync(userScopeHome, { recursive: true, force: true });
 
 const kiloIgnoreDest = "/tmp/agent-surface-kilo-ignore-proj";
