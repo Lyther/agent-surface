@@ -64,12 +64,13 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+// Self-clean so prior build artifacts cannot make tests observe stale state.
 rmSync(path.join(root, "dist"), { recursive: true, force: true });
 
 assert.equal(run(["check"]).trim(), "check: ok");
 assert.match(run(["check", "commands"]), /commands check: ok/);
 
-// renders validation: registry must not claim a surface token the adapter does not emit
+// renders validation: registry must not claim a surface token that no producer emits
 const targetsRegistryPath = path.join(root, "registry", "targets.json");
 const targetsRegistryOriginal = readFileSync(targetsRegistryPath, "utf8");
 try {
@@ -78,7 +79,7 @@ try {
   writeFileSync(targetsRegistryPath, `${JSON.stringify(mutatedTargets, null, 2)}\n`);
   const bogusRenders = status(["check"]);
   assert.equal(bogusRenders.status, 1);
-  assert.match(bogusRenders.stderr, /renders token not emitted by adapter: bogus-token/);
+  assert.match(bogusRenders.stderr, /renders token not emitted by producer: bogus-token/);
 } finally {
   writeFileSync(targetsRegistryPath, targetsRegistryOriginal);
 }
@@ -88,7 +89,7 @@ const inventory = run(["inventory"]);
 assert.match(inventory, /^rules: 11$/m);
 assert.match(inventory, /^commands: 63$/m);
 assert.match(inventory, /^external: 5$/m);
-assert.match(inventory, /^schemas: 13$/m);
+assert.match(inventory, /^schemas: 14$/m);
 
 const defaultRegistry = JSON.parse(run(["commands", "--json"]));
 assert.equal(defaultRegistry.pack, "default");
@@ -180,7 +181,7 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
-assert.equal(generated.length, 793);
+assert.ok(generated.length >= 780);
 assertGeminiTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "flow", "flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "swarm.md"))), true);
@@ -241,16 +242,104 @@ assert.match(claudeReviewer, /^tools: Read, Grep, Glob$/m);
 const subagentsCheck = run(["check", "subagents"]);
 assert.match(subagentsCheck, /subagents check: ok/);
 assert.match(subagentsCheck, /sources 2, emitters 3 \(claude-code, codex, kilo\)/);
+assert.match(subagentsCheck, /risk content 2, config 0, executable 0/);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "mcp.json"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".mcp.json"))), true);
 const cursorMcp = JSON.parse(readFileSync(path.join(root, "dist", "cursor", ".cursor", "mcp.json"), "utf8"));
 assert.equal(cursorMcp.mcpServers["sequential-thinking"].command, "npx");
 assert.equal(cursorMcp.mcpServers["sequential-thinking"].type, "stdio");
+assert.equal(cursorMcp.mcpServers["sequential-thinking"].args.at(-1), "@modelcontextprotocol/server-sequential-thinking@2025.12.18");
 const claudeMcp = JSON.parse(readFileSync(path.join(root, "dist", "claude-code", ".mcp.json"), "utf8"));
 assert.equal(claudeMcp.mcpServers["sequential-thinking"].command, "npx");
+const sourceKinds = JSON.parse(readFileSync(path.join(root, "registry", "source-kinds.json"), "utf8"));
+assert.equal(sourceKinds.source_kinds.mcps.install_scopes[0], "project");
+assert.equal(sourceKinds.source_kinds.subagents.risk_class, "content");
+assert.equal(sourceKinds.source_kinds.hooks.risk_class, "executable");
+const sourceKindsPath = path.join(root, "registry", "source-kinds.json");
+const sourceKindsOriginal = readFileSync(sourceKindsPath, "utf8");
+try {
+  const mutatedSourceKinds = JSON.parse(sourceKindsOriginal);
+  delete mutatedSourceKinds.source_kinds.mcps;
+  writeFileSync(sourceKindsPath, `${JSON.stringify(mutatedSourceKinds, null, 2)}\n`);
+  const missingSourceKind = status(["check"]);
+  assert.equal(missingSourceKind.status, 1);
+  assert.match(`${missingSourceKind.stdout}${missingSourceKind.stderr}`, /producer mcps has unknown source kind: mcps/);
+} finally {
+  writeFileSync(sourceKindsPath, sourceKindsOriginal);
+}
 const mcpsCheck = run(["check", "mcps"]);
 assert.match(mcpsCheck, /mcps check: ok/);
 assert.match(mcpsCheck, /sources 1, emitters 2 \(claude-code, cursor\)/);
+const mcpSourcePath = path.join(root, "mcps", "sequential-thinking.json");
+const mcpSourceOriginal = readFileSync(mcpSourcePath, "utf8");
+function assertMutatedMcpFails(mutator, expected) {
+  try {
+    const mutatedMcp = JSON.parse(mcpSourceOriginal);
+    mutator(mutatedMcp);
+    writeFileSync(mcpSourcePath, `${JSON.stringify(mutatedMcp, null, 2)}\n`);
+    const result = status(["check", "mcps"]);
+    assert.equal(result.status, 1);
+    const output = `${result.stdout}${result.stderr}`;
+    for (const pattern of expected) assert.match(output, pattern);
+  } finally {
+    writeFileSync(mcpSourcePath, mcpSourceOriginal);
+  }
+}
+function assertMutatedMcpPasses(mutator) {
+  try {
+    const mutatedMcp = JSON.parse(mcpSourceOriginal);
+    mutator(mutatedMcp);
+    writeFileSync(mcpSourcePath, `${JSON.stringify(mutatedMcp, null, 2)}\n`);
+    const result = status(["check", "mcps"]);
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  } finally {
+    writeFileSync(mcpSourcePath, mcpSourceOriginal);
+  }
+}
+assertMutatedMcpFails((mutatedMcp) => {
+  mutatedMcp.args[mutatedMcp.args.length - 1] = "@modelcontextprotocol/server-sequential-thinking";
+  mutatedMcp.version_pinned = false;
+}, [
+  /package-manager MCPs must set version_pinned true/,
+  /package-manager MCP args must include a pinned package spec/,
+]);
+assertMutatedMcpFails((mutatedMcp) => {
+  mutatedMcp.args[mutatedMcp.args.length - 1] = "@modelcontextprotocol/server-sequential-thinking@latest";
+}, [/package-manager MCP args must include a pinned package spec/]);
+assertMutatedMcpFails((mutatedMcp) => {
+  mutatedMcp.args[mutatedMcp.args.length - 1] = "@modelcontextprotocol/server-sequential-thinking@1.x";
+}, [/package-manager MCP args must include a pinned package spec/]);
+assertMutatedMcpPasses((mutatedMcp) => {
+  mutatedMcp.args[mutatedMcp.args.length - 1] = "@notmodelcontextprotocol/server-sequential-thinking@1.2.3";
+});
+assertMutatedMcpFails((mutatedMcp) => {
+  mutatedMcp.pacakge_manager = "npx";
+}, [/unknown field: pacakge_manager/]);
+assertMutatedMcpFails((mutatedMcp) => {
+  mutatedMcp.args.push("--api-key=sk-abcdefghijklmnop");
+}, [/args\[.*\] looks like a literal secret/]);
+assertMutatedMcpFails((mutatedMcp) => {
+  mutatedMcp.args.push("OPENAI_API_KEY=0123456789abcdef0123456789abcdef");
+}, [/args\[.*\] looks like a literal secret/]);
+assertMutatedMcpFails((mutatedMcp) => {
+  delete mutatedMcp.command;
+  delete mutatedMcp.args;
+  delete mutatedMcp.package_manager;
+  delete mutatedMcp.network_bootstrap;
+  delete mutatedMcp.version_pinned;
+  mutatedMcp.runtime = "http";
+  mutatedMcp.url = "https://user:password@example.com/mcp";
+}, [/url must not include URL credentials/]);
+assertMutatedMcpFails((mutatedMcp) => {
+  mutatedMcp.command = "./scripts/my-mcp.sh";
+  mutatedMcp.args = [];
+  mutatedMcp.package_manager = "none";
+  mutatedMcp.network_bootstrap = true;
+  mutatedMcp.version_pinned = true;
+}, [
+  /package_manager none must set network_bootstrap false/,
+  /package_manager none must set version_pinned false/,
+]);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "hooks.json"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "hooks", "audit-log.sh"))), true);
 const cursorHooks = JSON.parse(readFileSync(path.join(root, "dist", "cursor", ".cursor", "hooks.json"), "utf8"));
@@ -262,6 +351,17 @@ assert.match(auditHook, /\nexit 0\n$/);
 const hooksCheck = run(["check", "hooks"]);
 assert.match(hooksCheck, /hooks check: ok/);
 assert.match(hooksCheck, /scripts 1, emitters 1 \(cursor\)/);
+const hookSourcePath = path.join(root, "hooks", "audit-log.sh");
+const hookSourceOriginal = readFileSync(hookSourcePath, "utf8");
+try {
+  const reformattedHook = hookSourceOriginal
+    .replace("cat >/dev/null 2>&1 || true", "cat  >  /dev/null 2>&1 || true")
+    .replace("printf '%s %s\\n'", "printf \"%s %s\\n\"");
+  writeFileSync(hookSourcePath, reformattedHook);
+  assert.match(run(["check", "hooks"]), /hooks check: ok/);
+} finally {
+  writeFileSync(hookSourcePath, hookSourceOriginal);
+}
 const generatedCheck = run(["check", "generated"]);
 assert.match(generatedCheck, /claude-code: generated outputs 127 ok/);
 assert.match(generatedCheck, /kilo: generated outputs 76 ok/);

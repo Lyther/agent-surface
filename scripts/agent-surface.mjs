@@ -10,6 +10,22 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { approximateTokens, tomlMultilineString, tomlString, yamlString } from "./agent-surface/format.mjs";
+import { mergeKiloInstructionJsonc, parseJsoncResult } from "./agent-surface/jsonc.mjs";
+import {
+  checkHooks,
+  checkIgnores,
+  checkMcps,
+  checkSubagents,
+  ignoreOutputs,
+  produceHookOutputs,
+  produceMcpOutputs,
+  produceSubagentOutputs,
+  renderClaudeSubagent,
+  renderCodexSubagent,
+  renderKiloSubagent,
+} from "./agent-surface/source-primitives.mjs";
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const commandMetadataFields = new Set(["name", "aliases", "phase", "risk", "packs", "default_export", "approval_classes", "description"]);
 const commandPrefixes = new Set(["arch", "boot", "dev", "lint", "ops", "qa", "ship", "stellaris", "verify", "workflow"]);
@@ -46,7 +62,8 @@ const subagentCapableStatuses = new Set(["native", "native-experimental"]);
 const targets = {
   "claude-code": {
     label: "Claude Code commands and plugin package",
-    renders: ["commands", "plugins", "subagents", "mcps"],
+    commandRenders: ["commands", "plugins"],
+    staticRenders: ["plugins"],
     commandOutputRoot: ".claude/commands",
     renderCommand: renderClaudeCommand,
     installRoot: installRootClaude,
@@ -60,7 +77,8 @@ const targets = {
   },
   codex: {
     label: "Codex skills and global instructions",
-    renders: ["skills", "rules", "subagents"],
+    commandRenders: ["skills"],
+    staticRenders: ["rules"],
     commandOutputRoot: ".agents/skills",
     renderCommand: renderCodexSkill,
     installRoot: installRootCodex,
@@ -73,7 +91,8 @@ const targets = {
   },
   cline: {
     label: "Cline workflows and rules",
-    renders: ["commands-as-workflows", "rules", "ignores"],
+    commandRenders: ["commands-as-workflows"],
+    staticRenders: ["rules"],
     commandOutputRoot: clineWorkflowRoot,
     renderCommand: renderClineWorkflow,
     installRoot: installRootCline,
@@ -82,7 +101,8 @@ const targets = {
   },
   kilo: {
     label: "Kilo workflows and instructions",
-    renders: ["commands-as-workflows", "rules", "ignores", "subagents"],
+    commandRenders: ["commands-as-workflows"],
+    staticRenders: ["rules"],
     commandOutputRoot: kiloWorkflowRoot,
     renderCommand: renderKiloWorkflow,
     installRoot: installRootKilo,
@@ -94,14 +114,15 @@ const targets = {
   },
   antigravity: {
     label: "Antigravity workflows",
-    renders: ["commands-as-workflows"],
+    commandRenders: ["commands-as-workflows"],
     commandOutputRoot: "global_workflows",
     renderCommand: renderAntigravityWorkflow,
     installRoot: installRootAntigravity,
   },
   "antigravity-cli": {
     label: "Antigravity CLI plugin",
-    renders: ["plugins", "skills", "rules"],
+    commandRenders: ["skills"],
+    staticRenders: ["plugins", "rules"],
     commandOutputRoot: path.join("plugins", "agent-surface", "skills"),
     commandOutputName: antigravityCliSkillOutputName,
     renderCommand: renderAntigravityCliSkill,
@@ -110,7 +131,8 @@ const targets = {
   },
   "gemini-cli": {
     label: "Gemini CLI legacy commands, context, and extension package",
-    renders: ["legacy-transition", "commands", "rules", "plugins", "skills"],
+    commandRenders: ["legacy-transition", "commands", "plugins", "skills"],
+    staticRenders: ["plugins", "rules"],
     commandOutputRoot: ".gemini/commands",
     renderCommand: renderGeminiCommand,
     installRoot: installRootGemini,
@@ -120,7 +142,8 @@ const targets = {
   },
   cursor: {
     label: "Cursor global commands and rules",
-    renders: ["rules", "commands", "ignores", "mcps", "hooks"],
+    commandRenders: ["commands"],
+    staticRenders: ["rules"],
     commandOutputRoot: ".cursor/commands",
     renderCommand: renderCursorCommand,
     installRoot: installRootHomeOnly,
@@ -135,25 +158,25 @@ const targets = {
   },
   copilot: {
     label: "GitHub Copilot global instructions",
-    renders: ["instructions"],
+    staticRenders: ["instructions"],
     installRoot: installRootVsCode,
     staticOutputs: copilotStaticOutputs,
   },
   vscode: {
     label: "VS Code user prompt and instruction files",
-    renders: ["instructions", "prompts"],
+    staticRenders: ["instructions", "prompts"],
     installRoot: installRootVsCode,
     staticOutputs: vscodeStaticOutputs,
   },
   opencode: {
     label: "OpenCode global instructions",
-    renders: ["rules"],
+    staticRenders: ["rules"],
     installRoot: installRootHomeOnly,
     staticOutputs: opencodeStaticOutputs,
   },
   trae: {
     label: "Trae global user rules",
-    renders: ["rules"],
+    staticRenders: ["rules"],
     installRoot: installRootHomeOnly,
     staticOutputs: traeStaticOutputs,
   },
@@ -212,6 +235,7 @@ const workflowSchemaFiles = [
 const registrySchemaFiles = [
   { schema: "targets.schema.json", file: "registry/targets.json" },
   { schema: "artifacts.schema.json", file: "registry/artifacts.json" },
+  { schema: "source-kinds.schema.json", file: "registry/source-kinds.json" },
   { schema: "optional-services.schema.json", file: "registry/optional-services.json" },
   { schema: "target-capabilities.schema.json", file: "registry/target-capabilities.json" },
 ];
@@ -257,13 +281,13 @@ async function main() {
     } else if (args[0] === "generated") {
       await checkGenerated(args.slice(1));
     } else if (args[0] === "ignores") {
-      await checkIgnores();
+      await checkIgnores(targets);
     } else if (args[0] === "subagents") {
-      await checkSubagents();
+      await checkSubagents(targets);
     } else if (args[0] === "mcps") {
-      await checkMcps();
+      await checkMcps(targets);
     } else if (args[0] === "hooks") {
-      await checkHooks();
+      await checkHooks(targets);
     } else {
       await check();
     }
@@ -352,6 +376,7 @@ async function check() {
   const targetsConfig = JSON.parse(await readFile(path.join(root, "registry", "targets.json"), "utf8"));
   const artifactsConfig = JSON.parse(await readFile(path.join(root, "registry", "artifacts.json"), "utf8"));
   const capabilitiesConfig = JSON.parse(await readFile(path.join(root, "registry", "target-capabilities.json"), "utf8"));
+  const sourceKindsConfig = await readSourceKinds();
   const banned = new Set(targetsConfig.out_of_scope);
 
   if (commandFiles.length === 0) errors.push("commands/ is empty");
@@ -397,15 +422,15 @@ async function check() {
     }
     if (implemented) {
       // renders records emitted target surface classes (not one-to-one source
-      // directories). A token is honest only when the adapter actually emits it;
-      // source-directory-backed tokens stay unclaimed until their producer ships.
-      const declared = new Set(targets[name].renders ?? []);
+      // directories). Producers, not hand-maintained adapter prose, are the
+      // source of truth for whether a target actually emits a token.
+      const declared = producerEmitsFor(targets[name]);
       const registered = targetsConfig.in_scope[name].renders ?? [];
       for (const token of registered) {
-        if (!declared.has(token)) errors.push(`registry target ${name} declares renders token not emitted by adapter: ${token}`);
+        if (!declared.has(token)) errors.push(`registry target ${name} declares renders token not emitted by producer: ${token}`);
       }
       for (const token of declared) {
-        if (!registered.includes(token)) errors.push(`adapter ${name} emits renders token not declared in registry: ${token}`);
+        if (!registered.includes(token)) errors.push(`producer for ${name} emits renders token not declared in registry: ${token}`);
       }
     }
   }
@@ -428,6 +453,8 @@ async function check() {
     }
   }
 
+  checkSourceKinds(sourceKindsConfig, artifactsConfig, capabilitiesConfig, errors);
+
   if (await exists(path.join(root, "commands", "ops-server.md"))) {
     errors.push("commands/ops-server.md is local/private and must not be imported");
   }
@@ -443,6 +470,57 @@ async function check() {
   }
 
   console.log("check: ok");
+}
+
+let sourceKindsCache;
+async function readSourceKinds() {
+  if (sourceKindsCache !== undefined) return sourceKindsCache;
+  sourceKindsCache = JSON.parse(await readFile(path.join(root, "registry", "source-kinds.json"), "utf8"));
+  return sourceKindsCache;
+}
+
+function sourceKindPolicy(sourceKindsConfig, sourceKind) {
+  return sourceKind ? sourceKindsConfig.source_kinds[sourceKind] : null;
+}
+
+function outputSourceKindError(output, sourceKindsConfig) {
+  if (!output.sourceKind) return `output ${output.relativeOutput} has no source kind`;
+  if (!sourceKindPolicy(sourceKindsConfig, output.sourceKind)) {
+    return `output ${output.relativeOutput} has unknown source kind: ${output.sourceKind}`;
+  }
+  return null;
+}
+
+function checkSourceKinds(sourceKindsConfig, artifactsConfig, capabilitiesConfig, errors) {
+  for (const [name, policy] of Object.entries(sourceKindsConfig.source_kinds)) {
+    if (!artifactsConfig.source_types.includes(policy.source_dir)) {
+      errors.push(`source kind ${name} points at source_dir missing from registry/artifacts.json: ${policy.source_dir}`);
+    }
+    if (!Array.isArray(policy.install_scopes) || policy.install_scopes.length === 0) {
+      errors.push(`source kind ${name} must declare at least one install scope`);
+    }
+    if (policy.budget.hard_tokens > 0 && policy.budget.warn_tokens > policy.budget.hard_tokens) {
+      errors.push(`source kind ${name} budget warn_tokens exceeds hard_tokens`);
+    }
+  }
+
+  const sourceKinds = new Set(Object.keys(sourceKindsConfig.source_kinds));
+  for (const [targetName, adapter] of Object.entries(targets)) {
+    for (const producer of targetProducers(adapter)) {
+      if (!producer.sourceKind) {
+        errors.push(`target ${targetName} producer ${producer.id} has no source kind`);
+      } else if (!sourceKinds.has(producer.sourceKind)) {
+        errors.push(`target ${targetName} producer ${producer.id} has unknown source kind: ${producer.sourceKind}`);
+      }
+    }
+  }
+  for (const [targetName, capabilities] of Object.entries(capabilitiesConfig.targets ?? {})) {
+    for (const [dimension, capability] of Object.entries(capabilities)) {
+      if (capability?.distribution === "generated" && ["ignores", "subagents", "mcps", "hooks"].includes(dimension) && !sourceKinds.has(dimension)) {
+        errors.push(`target ${targetName} generated capability ${dimension} has no source kind policy`);
+      }
+    }
+  }
 }
 
 async function checkWorkflowSchemas(errors, capabilitiesConfig) {
@@ -713,7 +791,9 @@ async function checkGenerated(args) {
   const pack = argValue(args, "--pack") ?? "default";
   const selected = target === "all" ? Object.keys(targets) : [target];
   const commandFiles = await exportableCommands(pack);
+  const sourceKindsConfig = await readSourceKinds();
   const errors = [];
+  const warnings = [];
 
   for (const item of selected) {
     if (!isSafeTargetName(item)) fail(`unsafe generated target: ${item}`);
@@ -724,8 +804,16 @@ async function checkGenerated(args) {
     const adapter = targets[item];
     const outputs = await targetOutputs(adapter, commandFiles, { target: item, scope: "user", mode: "check" });
     const targetErrors = validateGeneratedTarget(item, outputs);
+    const budgetFindings = validateOutputBudgets(item, outputs, sourceKindsConfig);
     console.log(`${item}: generated outputs ${outputs.length} ${targetErrors.length > 0 ? "failed" : "ok"}`);
     errors.push(...targetErrors.map((error) => `${item}: ${error}`));
+    errors.push(...budgetFindings.errors);
+    warnings.push(...budgetFindings.warnings);
+  }
+
+  if (warnings.length > 0) {
+    console.log("warnings:");
+    for (const warning of warnings) console.log(`  ${warning}`);
   }
 
   if (errors.length > 0) {
@@ -738,104 +826,28 @@ async function checkGenerated(args) {
   console.log("generated check: ok");
 }
 
-async function checkIgnores() {
-  const ignore = await readIgnores();
-  const emitters = Object.entries(targets)
-    .filter(([, adapter]) => adapter.ignoreFilename)
-    .map(([name]) => name)
-    .sort();
+function validateOutputBudgets(target, outputs, sourceKindsConfig) {
   const errors = [];
-
-  if (!ignore) {
-    errors.push("ignores/default.ignore is missing");
-  } else if (ignore.body.trim().length === 0) {
-    errors.push("ignores/default.ignore is empty");
+  const warnings = [];
+  for (const output of outputs) {
+    const sourceKindError = outputSourceKindError(output, sourceKindsConfig);
+    if (sourceKindError) {
+      errors.push(`${target}: ${sourceKindError}`);
+      continue;
+    }
+    const policy = sourceKindPolicy(sourceKindsConfig, output.sourceKind);
+    const hard = policy.budget.hard_tokens;
+    const warn = policy.budget.warn_tokens;
+    if (hard === 0 && warn === 0) continue;
+    const tokens = approximateTokens(output.content);
+    const label = `${target}: ${output.relativeOutput} (${output.sourceKind}) approx ${tokens} tokens`;
+    if (hard > 0 && tokens > hard) {
+      errors.push(`${label} exceeds hard cap ${hard}`);
+    } else if (warn > 0 && tokens > warn) {
+      warnings.push(`${label} exceeds warning cap ${warn}`);
+    }
   }
-
-  console.log(`ignores: source ${ignore ? "ok" : "missing"}, emitters ${emitters.length} (${emitters.join(", ")})`);
-  if (errors.length > 0) {
-    console.log("errors:");
-    for (const error of errors) console.log(`  ${error}`);
-    process.exitCode = 1;
-    return;
-  }
-
-  console.log("ignores check: ok");
-}
-
-async function checkSubagents() {
-  const subagents = await readSubagents();
-  const errors = subagents.flatMap((subagent) => subagent.errors);
-  const names = subagents.map((subagent) => subagent.name);
-  for (const dup of new Set(names.filter((name, index) => names.indexOf(name) !== index))) {
-    errors.push(`duplicate subagent name: ${dup}`);
-  }
-  const emitters = Object.entries(targets)
-    .filter(([, adapter]) => adapter.renderSubagent)
-    .map(([name]) => name)
-    .sort();
-
-  console.log(`subagents: sources ${subagents.length}, emitters ${emitters.length} (${emitters.join(", ")})`);
-  if (errors.length > 0) {
-    console.log("errors:");
-    for (const error of errors) console.log(`  ${error}`);
-    process.exitCode = 1;
-    return;
-  }
-
-  console.log("subagents check: ok");
-}
-
-async function checkMcps() {
-  const mcps = await readMcps();
-  const errors = mcps.flatMap((mcp) => mcp.errors);
-  const names = mcps.map((mcp) => mcp.name);
-  for (const dup of new Set(names.filter((name, index) => names.indexOf(name) !== index))) {
-    errors.push(`duplicate mcp server name: ${dup}`);
-  }
-  const emitters = Object.entries(targets)
-    .filter(([, adapter]) => adapter.mcpOutput)
-    .map(([name]) => name)
-    .sort();
-
-  console.log(`mcps: sources ${mcps.length}, emitters ${emitters.length} (${emitters.join(", ")})`);
-  if (errors.length > 0) {
-    console.log("errors:");
-    for (const error of errors) console.log(`  ${error}`);
-    process.exitCode = 1;
-    return;
-  }
-
-  console.log("mcps check: ok");
-}
-
-async function checkHooks() {
-  const script = await readHookScript();
-  const errors = [];
-  if (!script) {
-    errors.push(`hooks/${hookScriptName} missing`);
-  } else {
-    if (!/^#!/.test(script.body)) errors.push(`hooks/${hookScriptName}: missing shebang`);
-    if (!/\nexit 0\n?$/.test(script.body)) errors.push(`hooks/${hookScriptName}: must end with "exit 0" so the hook is fail-open`);
-    // A shipped example hook must stay safe: no network, destructive, or
-    // privilege-escalating commands, and no decoded-then-executed payloads.
-    const disallowed = /\b(rm\s+-rf|curl|wget|sudo|eval|base64\s+-d|mkfifo)\b|:\(\)\s*\{/;
-    if (disallowed.test(script.body)) errors.push(`hooks/${hookScriptName}: contains a command not allowed in a safe example hook`);
-  }
-  const emitters = Object.entries(targets)
-    .filter(([, adapter]) => adapter.hooks)
-    .map(([name]) => name)
-    .sort();
-
-  console.log(`hooks: scripts ${script ? 1 : 0}, emitters ${emitters.length} (${emitters.join(", ")})`);
-  if (errors.length > 0) {
-    console.log("errors:");
-    for (const error of errors) console.log(`  ${error}`);
-    process.exitCode = 1;
-    return;
-  }
-
-  console.log("hooks check: ok");
+  return { errors, warnings };
 }
 
 function validateGeneratedTarget(target, outputs) {
@@ -944,7 +956,13 @@ async function build(args) {
 
   for (const item of selected) {
     const adapter = targets[item];
+    const sourceKindsConfig = await readSourceKinds();
     const outputs = await targetOutputs(adapter, commandFiles, { target: item, scope: "user", mode: "build" });
+    const sourceKindErrors = [];
+    for (const output of outputs) {
+      requireKnownSourceKind(output, sourceKindsConfig, sourceKindErrors);
+    }
+    if (sourceKindErrors.length > 0) fail(sourceKindErrors.join("; "));
 
     for (const output of outputs) {
       const targetPath = path.join(root, "dist", item, output.relativeOutput);
@@ -993,6 +1011,7 @@ async function install(args) {
 
 async function installPlan(target, adapter, installRoot, scope, pack, rootSource) {
   const commandFiles = await exportableCommands(pack);
+  const sourceKindsConfig = await readSourceKinds();
   const version = await packageVersion();
   const generatedAt = new Date().toISOString();
   const manifestPath = path.join(installRoot, ".agent-surface", `${target}-manifest.json`);
@@ -1004,7 +1023,12 @@ async function installPlan(target, adapter, installRoot, scope, pack, rootSource
   const nonApplicable = [];
 
   for (const item of outputs) {
-    if (item.scopeClass === "project" && scope === "user") {
+    const sourceKindError = outputSourceKindError(item, sourceKindsConfig);
+    if (sourceKindError) {
+      blocked.push(sourceKindError);
+      continue;
+    }
+    if (!outputAppliesToScope(item, scope, sourceKindsConfig)) {
       nonApplicable.push(item.relativeOutput);
       continue;
     }
@@ -1132,6 +1156,21 @@ async function installPlan(target, adapter, installRoot, scope, pack, rootSource
     nonApplicable: nonApplicable.sort((left, right) => left.localeCompare(right)),
     manifest,
   };
+}
+
+function outputAppliesToScope(output, scope, sourceKindsConfig) {
+  const policy = sourceKindPolicy(sourceKindsConfig, output.sourceKind);
+  if (!policy) return false;
+  return policy.install_scopes.includes(scope);
+}
+
+// Any generated output must declare a source kind and that kind must be
+// defined in the registry. Missing/unknown source kinds are checked in the
+// budget validator and install planner; this helper exists for call sites that
+// do not already validate the output through those paths.
+function requireKnownSourceKind(output, sourceKindsConfig, errors) {
+  const error = outputSourceKindError(output, sourceKindsConfig);
+  if (error) errors.push(error);
 }
 
 function printInstallPlan(plan) {
@@ -2030,6 +2069,8 @@ async function claudeStaticOutputs(commands) {
   const metadata = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
   return [
     {
+      sourceKind: "commands",
+      renderKind: "plugins",
       source: "package.json",
       relativeOutput: path.join(".agent-surface", "claude-plugin", "agent-surface", ".claude-plugin", "plugin.json"),
       content: `${JSON.stringify({
@@ -2040,6 +2081,8 @@ async function claudeStaticOutputs(commands) {
       }, null, 2)}\n`,
     },
     {
+      sourceKind: "commands",
+      renderKind: "plugins",
       source: "README.md",
       relativeOutput: path.join(".agent-surface", "claude-plugin", "agent-surface", "README.md"),
       content: [
@@ -2103,6 +2146,8 @@ async function geminiStaticOutputs(commands) {
       content: await renderInstructionDocument("GEMINI.md - agent-surface global Gemini rules", "Gemini CLI global context"),
     },
     {
+      sourceKind: "commands",
+      renderKind: "plugins",
       source: "package.json",
       relativeOutput: path.join(".gemini", "extensions", "agent-surface", "gemini-extension.json"),
       content: `${JSON.stringify({
@@ -2124,6 +2169,8 @@ async function antigravityCliStaticOutputs(commands) {
   const rules = await readRules();
   return [
     {
+      sourceKind: "commands",
+      renderKind: "plugins",
       source: "package.json",
       relativeOutput: path.join("plugins", "agent-surface", "plugin.json"),
       content: `${JSON.stringify({
@@ -2133,6 +2180,8 @@ async function antigravityCliStaticOutputs(commands) {
       }, null, 2)}\n`,
     },
     {
+      sourceKind: "commands",
+      renderKind: "plugins",
       source: "README.md",
       relativeOutput: path.join("plugins", "agent-surface", "README.md"),
       content: [
@@ -2166,6 +2215,8 @@ async function cursorStaticOutputs() {
 async function copilotStaticOutputs() {
   return [
     {
+      sourceKind: "rules",
+      renderKind: "instructions",
       source: "rules/*.mdc",
       relativeOutput: path.join("instructions", "agent-surface-copilot.instructions.md"),
       content: await renderVsCodeInstructionDocument("agent-surface Copilot global instructions", "copilot"),
@@ -2176,11 +2227,15 @@ async function copilotStaticOutputs() {
 async function vscodeStaticOutputs() {
   return [
     {
+      sourceKind: "rules",
+      renderKind: "instructions",
       source: "rules/*.mdc",
       relativeOutput: path.join("instructions", "agent-surface.instructions.md"),
       content: await renderVsCodeInstructionDocument("agent-surface VS Code instructions", "vscode"),
     },
     {
+      sourceKind: "commands",
+      renderKind: "prompts",
       source: "commands/flow.md",
       relativeOutput: path.join("prompts", "agent-surface.prompt.md"),
       content: await renderVsCodePromptDocument(),
@@ -2419,247 +2474,6 @@ function parseJsonc(text, label) {
   fail(`${label}: invalid JSONC: ${result.error.message}`);
 }
 
-function parseJsoncResult(text) {
-  try {
-    return { ok: true, value: JSON.parse(stripJsonc(text)) };
-  } catch (error) {
-    return { ok: false, error };
-  }
-}
-
-function stripJsonc(text) {
-  return removeJsonTrailingCommas(removeJsoncComments(text));
-}
-
-function removeJsoncComments(text) {
-  let out = "";
-  let inString = false;
-  let quote = "";
-  let escaped = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-
-    if (inString) {
-      out += char;
-      if (escaped) {
-        escaped = false;
-      } else if (char === "\\") {
-        escaped = true;
-      } else if (char === quote) {
-        inString = false;
-        quote = "";
-      }
-      continue;
-    }
-
-    if (char === '"' || char === "'") {
-      inString = true;
-      quote = char;
-      out += char;
-      continue;
-    }
-
-    if (char === "/" && next === "/") {
-      while (index < text.length && text[index] !== "\n") index += 1;
-      out += "\n";
-      continue;
-    }
-
-    if (char === "/" && next === "*") {
-      index += 2;
-      while (index < text.length && !(text[index] === "*" && text[index + 1] === "/")) index += 1;
-      index += 1;
-      continue;
-    }
-
-    out += char;
-  }
-
-  return out;
-}
-
-function removeJsonTrailingCommas(text) {
-  let out = "";
-  let inString = false;
-  let escaped = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-
-    if (inString) {
-      out += char;
-      if (escaped) {
-        escaped = false;
-      } else if (char === "\\") {
-        escaped = true;
-      } else if (char === "\"") {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (char === "\"") {
-      inString = true;
-      out += char;
-      continue;
-    }
-
-    if (char === ",") {
-      let nextIndex = index + 1;
-      while (/\s/.test(text[nextIndex] ?? "")) nextIndex += 1;
-      if (text[nextIndex] === "}" || text[nextIndex] === "]") continue;
-    }
-
-    out += char;
-  }
-
-  return out;
-}
-
-function mergeKiloInstructionJsonc(text, addInstructions, removeInstructions) {
-  const tokens = jsoncTokens(text);
-  const instructionsRange = findJsoncPropertyArray(tokens, "instructions");
-  if (instructionsRange) {
-    return replaceJsoncArrayStrings(text, instructionsRange, addInstructions, removeInstructions);
-  }
-  return insertJsoncRootProperty(text, tokens, "instructions", addInstructions);
-}
-
-function replaceJsoncArrayStrings(text, range, addValues, removeValues) {
-  const values = [
-    ...range.tokens
-      .filter((token) => token.type === "string")
-      .map((token) => token.value)
-      .filter((value) => !removeValues.includes(value)),
-    ...addValues,
-  ];
-  const openLineStart = lineStart(text, range.open.start);
-  const closeLineStart = lineStart(text, range.close.start);
-  if (openLineStart === closeLineStart) {
-    return `${text.slice(0, range.open.end)}${values.map((value) => JSON.stringify(value)).join(", ")}${text.slice(range.close.start)}`;
-  }
-  const closeIndent = text.slice(closeLineStart, range.close.start);
-  const valueIndent = `${closeIndent}  `;
-  const arrayContent = values.map((value) => `${valueIndent}${JSON.stringify(value)}`).join(",\n");
-  const replacement = arrayContent ? `\n${arrayContent}\n${closeIndent}` : "";
-  return `${text.slice(0, range.open.end)}${replacement}${text.slice(range.close.start)}`;
-}
-
-function insertJsoncRootProperty(text, tokens, key, value) {
-  const rootOpen = tokens.find((token) => token.type === "{" && token.depth === 0);
-  const rootClose = tokens.findLast((token) => token.type === "}" && token.depth === 0);
-  if (!rootOpen || !rootClose) return `${JSON.stringify({ [key]: value }, null, 2)}\n`;
-
-  const keyJson = JSON.stringify(key);
-  const valueJson = JSON.stringify(value, null, 2)
-    .split("\n")
-    .map((line, index) => (index === 0 ? line : `  ${line}`))
-    .join("\n");
-  const closeLineStart = lineStart(text, rootClose.start);
-  const closeIndent = text.slice(closeLineStart, rootClose.start);
-  const propIndent = `${closeIndent}  `;
-  const property = `${propIndent}${keyJson}: ${valueJson}\n`;
-  const rootTokens = tokens.filter((token) => token.start > rootOpen.start && token.end <= rootClose.start);
-
-  if (rootTokens.length === 0) {
-    return `${text.slice(0, closeLineStart)}${property}${text.slice(closeLineStart)}`;
-  }
-
-  const lastToken = rootTokens.at(-1);
-  if (lastToken.type === ",") {
-    return `${text.slice(0, closeLineStart)}${property}${text.slice(closeLineStart)}`;
-  }
-
-  return `${text.slice(0, lastToken.end)},${text.slice(lastToken.end, closeLineStart)}${property}${text.slice(closeLineStart)}`;
-}
-
-function findJsoncPropertyArray(tokens, key) {
-  for (let index = 0; index < tokens.length - 2; index += 1) {
-    const keyToken = tokens[index];
-    const colon = tokens[index + 1];
-    const open = tokens[index + 2];
-    if (keyToken.type !== "string" || keyToken.value !== key || keyToken.depth !== 1) continue;
-    if (colon.type !== ":" || open.type !== "[") continue;
-
-    let depth = 0;
-    for (let closeIndex = index + 2; closeIndex < tokens.length; closeIndex += 1) {
-      const token = tokens[closeIndex];
-      if (token.type === "[") depth += 1;
-      if (token.type === "]") depth -= 1;
-      if (depth === 0) {
-        return {
-          open,
-          close: token,
-          tokens: tokens.slice(index + 3, closeIndex),
-        };
-      }
-    }
-  }
-  return null;
-}
-
-function jsoncTokens(text) {
-  const tokens = [];
-  let depth = 0;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-
-    if (char === "/" && next === "/") {
-      while (index < text.length && text[index] !== "\n") index += 1;
-      continue;
-    }
-
-    if (char === "/" && next === "*") {
-      index += 2;
-      while (index < text.length && !(text[index] === "*" && text[index + 1] === "/")) index += 1;
-      index += 1;
-      continue;
-    }
-
-    if (char === "\"") {
-      const start = index;
-      index += 1;
-      while (index < text.length) {
-        if (text[index] === "\\") {
-          index += 2;
-          continue;
-        }
-        if (text[index] === "\"") break;
-        index += 1;
-      }
-      const raw = text.slice(start, index + 1);
-      tokens.push({ type: "string", value: JSON.parse(raw), start, end: index + 1, depth });
-      continue;
-    }
-
-    if (char === "{" || char === "[") {
-      tokens.push({ type: char, start: index, end: index + 1, depth });
-      depth += 1;
-      continue;
-    }
-
-    if (char === "}" || char === "]") {
-      depth -= 1;
-      tokens.push({ type: char, start: index, end: index + 1, depth });
-      continue;
-    }
-
-    if (char === ":" || char === ",") {
-      tokens.push({ type: char, start: index, end: index + 1, depth });
-    }
-  }
-
-  return tokens;
-}
-
-function lineStart(text, index) {
-  return text.lastIndexOf("\n", index - 1) + 1;
-}
-
 async function exportableCommands(pack) {
   if (!isSafeTargetName(pack)) fail(`unsafe command pack: ${pack}`);
   const commands = await readCommands();
@@ -2704,14 +2518,24 @@ async function targetOutputs(adapter, commands, context) {
   const outputs = [];
 
   for (const producer of targetProducers(adapter)) {
-    outputs.push(...(await producer.produce(commands, context)));
+    const produced = await producer.produce(commands, context);
+    outputs.push(...produced.map((output) => ({
+      ...output,
+      producerId: producer.id,
+      sourceKind: output.sourceKind ?? producer.sourceKind,
+    })));
   }
 
-  const seen = new Set();
+  const seen = new Map();
   for (const output of outputs) {
     if (!isSafeRelativePath(output.relativeOutput)) fail(`unsafe generated output path: ${output.relativeOutput}`);
-    if (seen.has(output.relativeOutput)) fail(`duplicate generated output path: ${output.relativeOutput}`);
-    seen.add(output.relativeOutput);
+    const previous = seen.get(output.relativeOutput);
+    if (previous) {
+      fail(
+        `duplicate generated output path: ${output.relativeOutput} (${previous.producerId}:${previous.source} and ${output.producerId}:${output.source})`,
+      );
+    }
+    seen.set(output.relativeOutput, output);
   }
 
   return outputs.sort((left, right) => left.relativeOutput.localeCompare(right.relativeOutput));
@@ -2724,24 +2548,32 @@ async function targetOutputs(adapter, commands, context) {
 function targetProducers(adapter) {
   const producers = [];
   if (adapter.renderCommand || (adapter.additionalCommandOutputs?.length ?? 0) > 0) {
-    producers.push({ id: "commands", produce: (commands, context) => produceCommandOutputs(adapter, commands, context) });
+    producers.push({ id: "commands", sourceKind: "commands", emits: adapter.commandRenders ?? ["commands"], produce: (commands, context) => produceCommandOutputs(adapter, commands, context) });
   }
   if (adapter.staticOutputs) {
-    producers.push({ id: "static", produce: (commands, context) => adapter.staticOutputs(commands, context) });
+    producers.push({ id: "static", sourceKind: "rules", emits: adapter.staticRenders ?? [], produce: (commands, context) => adapter.staticOutputs(commands, context) });
   }
   if (adapter.ignoreFilename) {
-    producers.push({ id: "ignores", produce: () => ignoreOutputs(adapter) });
+    producers.push({ id: "ignores", sourceKind: "ignores", emits: ["ignores"], produce: () => ignoreOutputs(adapter) });
   }
   if (adapter.renderSubagent) {
-    producers.push({ id: "subagents", produce: (commands, context) => produceSubagentOutputs(adapter, context) });
+    producers.push({ id: "subagents", sourceKind: "subagents", emits: ["subagents"], produce: (commands, context) => produceSubagentOutputs(adapter, context) });
   }
   if (adapter.mcpOutput) {
-    producers.push({ id: "mcps", produce: (commands, context) => produceMcpOutputs(adapter, context) });
+    producers.push({ id: "mcps", sourceKind: "mcps", emits: ["mcps"], produce: (commands, context) => produceMcpOutputs(adapter, context) });
   }
   if (adapter.hooks) {
-    producers.push({ id: "hooks", produce: (commands, context) => produceHookOutputs(adapter, context) });
+    producers.push({ id: "hooks", sourceKind: "hooks", emits: ["hooks"], produce: (commands, context) => produceHookOutputs(adapter, context) });
   }
   return producers;
+}
+
+function producerEmitsFor(adapter) {
+  const emits = new Set();
+  for (const producer of targetProducers(adapter)) {
+    for (const token of producer.emits ?? []) emits.add(token);
+  }
+  return emits;
 }
 
 async function produceCommandOutputs(adapter, commands, context) {
@@ -2760,255 +2592,6 @@ async function produceCommandOutputs(adapter, commands, context) {
     }
   }
   return outputs;
-}
-
-let ignoreSourceCache;
-async function readIgnores() {
-  if (ignoreSourceCache !== undefined) return ignoreSourceCache;
-  const file = path.join(root, "ignores", "default.ignore");
-  ignoreSourceCache = (await exists(file)) ? { source: relative(file), body: await readFile(file, "utf8") } : null;
-  return ignoreSourceCache;
-}
-
-// Ignore files are project-root artifacts (.cursorignore/.kilocodeignore/
-// .clineignore). scopeClass "project" tells installPlan to skip them on
-// user-scope installs (which write to the home directory).
-async function ignoreOutputs(adapter) {
-  if (!adapter.ignoreFilename) return [];
-  const ignore = await readIgnores();
-  if (!ignore) return [];
-  return [{
-    source: ignore.source,
-    relativeOutput: adapter.ignoreFilename,
-    content: ignore.body,
-    scopeClass: "project",
-  }];
-}
-
-async function readSubagents() {
-  const subagentFiles = await files("subagents", [".md"]);
-  const subagents = [];
-  for (const file of subagentFiles) {
-    subagents.push(parseSubagent(file, await readFile(file, "utf8")));
-  }
-  return subagents.sort((left, right) => left.name.localeCompare(right.name));
-}
-
-function parseSubagent(file, text) {
-  const source = relative(file);
-  const out = { source, name: path.basename(file, ".md"), description: "", access: "read-only", body: "", errors: [] };
-
-  if (!text.startsWith("---\n")) {
-    out.errors.push(`${source}: frontmatter missing`);
-    out.body = text.trimEnd();
-    return out;
-  }
-
-  const end = text.indexOf("\n---\n", 4);
-  if (end === -1) {
-    out.errors.push(`${source}: frontmatter not closed`);
-    out.body = text.trimEnd();
-    return out;
-  }
-
-  for (const line of text.slice(4, end).split(/\r?\n/)) {
-    const name = line.match(/^name:\s*"?(.*?)"?\s*$/);
-    if (name) { out.name = name[1]; continue; }
-    const description = line.match(/^description:\s*"?(.*?)"?\s*$/);
-    if (description) { out.description = description[1]; continue; }
-    const access = line.match(/^access:\s*"?(.*?)"?\s*$/);
-    if (access) { out.access = access[1]; continue; }
-  }
-  out.body = text.slice(end + 5).replace(/^\n+/, "").trimEnd();
-
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(out.name)) out.errors.push(`${source}: name must be lowercase letters, digits, and hyphens`);
-  if (out.description.trim().length === 0) out.errors.push(`${source}: description is required`);
-  if (!["read-only", "read-write"].includes(out.access)) out.errors.push(`${source}: access must be read-only or read-write`);
-  if (out.body.trim().length === 0) out.errors.push(`${source}: prompt body is required`);
-  return out;
-}
-
-async function produceSubagentOutputs(adapter, context) {
-  if (!adapter.renderSubagent) return [];
-  const subagents = await readSubagents();
-  return subagents.map((subagent) => ({
-    source: subagent.source,
-    relativeOutput: path.join(outputRootFor(adapter.subagentOutputRoot, context), adapter.subagentOutputName(subagent)),
-    content: adapter.renderSubagent(subagent, context),
-  }));
-}
-
-function subagentToolsForAccess(access) {
-  return access === "read-write" ? "Read, Grep, Glob, Edit, Write, Bash" : "Read, Grep, Glob";
-}
-
-function renderClaudeSubagent(subagent) {
-  return [
-    "---",
-    `name: ${subagent.name}`,
-    `description: "${yamlString(subagent.description)}"`,
-    `tools: ${subagentToolsForAccess(subagent.access)}`,
-    "---",
-    "",
-    subagent.body,
-    "",
-  ].join("\n");
-}
-
-function renderCodexSubagent(subagent) {
-  return [
-    `name = "${tomlString(subagent.name.replaceAll("-", "_"))}"`,
-    `description = "${tomlString(subagent.description)}"`,
-    `sandbox_mode = "${subagent.access === "read-write" ? "workspace-write" : "read-only"}"`,
-    `developer_instructions = ${tomlMultilineString(subagent.body)}`,
-    "",
-  ].join("\n");
-}
-
-function renderKiloSubagent(subagent) {
-  const lines = ["---", `description: "${yamlString(subagent.description)}"`, "mode: subagent"];
-  if (subagent.access !== "read-write") lines.push("permission:", "  edit: deny", "  bash: deny");
-  lines.push("---", "", subagent.body, "");
-  return lines.join("\n");
-}
-
-async function readMcps() {
-  const mcpFiles = await files("mcps", [".json"]);
-  const mcps = [];
-  for (const file of mcpFiles) {
-    mcps.push(parseMcp(file, await readFile(file, "utf8")));
-  }
-  return mcps.sort((left, right) => left.name.localeCompare(right.name));
-}
-
-// Sensitive config keys must reference an environment placeholder (${VAR}),
-// never a literal value, so generated MCP config never carries a secret.
-const mcpSensitiveKey = /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH|BEARER|PRIVATE|SESSION|COOKIE)/i;
-const mcpLiteralSecret = /(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{16,}|xox[abpr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{12,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/;
-
-function mcpStringMap(out, source, field, value) {
-  if (value === undefined) return undefined;
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    out.errors.push(`${source}: ${field} must be an object of string values`);
-    return undefined;
-  }
-  for (const [key, raw] of Object.entries(value)) {
-    if (typeof raw !== "string") {
-      out.errors.push(`${source}: ${field}.${key} must be a string`);
-      continue;
-    }
-    const placeholder = /^\$\{[^}]+\}$/.test(raw);
-    if (mcpSensitiveKey.test(key) && !placeholder) {
-      out.errors.push(`${source}: ${field}.${key} must use a \${ENV_VAR} placeholder, not a literal secret`);
-    } else if (!placeholder && mcpLiteralSecret.test(raw)) {
-      out.errors.push(`${source}: ${field}.${key} looks like a literal secret; use a \${ENV_VAR} placeholder`);
-    }
-  }
-  return value;
-}
-
-function parseMcp(file, text) {
-  const source = relative(file);
-  const out = { source, name: path.basename(file, ".json"), description: "", command: null, args: [], env: null, url: null, headers: null, errors: [] };
-
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch (error) {
-    out.errors.push(`${source}: invalid JSON: ${error.message}`);
-    return out;
-  }
-  if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    out.errors.push(`${source}: must be a JSON object`);
-    return out;
-  }
-
-  if (typeof data.name === "string") out.name = data.name;
-  if (typeof data.description === "string") out.description = data.description;
-  if (data.command !== undefined) out.command = data.command;
-  if (data.url !== undefined) out.url = data.url;
-
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(out.name)) out.errors.push(`${source}: name must be lowercase letters, digits, and hyphens`);
-
-  const hasCommand = typeof out.command === "string" && out.command.length > 0;
-  const hasUrl = typeof out.url === "string" && out.url.length > 0;
-  if (hasCommand === hasUrl) out.errors.push(`${source}: define exactly one of "command" (stdio) or "url" (remote)`);
-
-  if (data.args !== undefined) {
-    if (Array.isArray(data.args) && data.args.every((item) => typeof item === "string")) {
-      out.args = data.args;
-    } else {
-      out.errors.push(`${source}: args must be an array of strings`);
-    }
-  }
-  out.env = mcpStringMap(out, source, "env", data.env);
-  out.headers = mcpStringMap(out, source, "headers", data.headers);
-
-  return out;
-}
-
-// MCP config is rendered as a project-scoped file (.cursor/mcp.json, .mcp.json)
-// in the standard mcpServers shape. scopeClass "project" keeps user-scope
-// installs from touching home-directory MCP config, and the installer blocks
-// (never clobbers) an existing unmanaged file, so live servers stay intact.
-async function produceMcpOutputs(adapter, context) {
-  if (!adapter.mcpOutput) return [];
-  const mcps = await readMcps();
-  if (mcps.length === 0) return [];
-  return [{
-    source: relative(path.join(root, "mcps")),
-    relativeOutput: outputRootFor(adapter.mcpOutput, context),
-    content: renderMcpServers(mcps),
-    scopeClass: "project",
-  }];
-}
-
-function mcpServerEntry(mcp) {
-  if (typeof mcp.url === "string" && mcp.url.length > 0) {
-    const entry = { type: "http", url: mcp.url };
-    if (mcp.headers && Object.keys(mcp.headers).length > 0) entry.headers = mcp.headers;
-    return entry;
-  }
-  const entry = { type: "stdio", command: mcp.command };
-  if (mcp.args.length > 0) entry.args = mcp.args;
-  if (mcp.env && Object.keys(mcp.env).length > 0) entry.env = mcp.env;
-  return entry;
-}
-
-function renderMcpServers(mcps) {
-  const mcpServers = {};
-  for (const mcp of mcps) mcpServers[mcp.name] = mcpServerEntry(mcp);
-  return `${JSON.stringify({ mcpServers }, null, 2)}\n`;
-}
-
-// Hooks ship executable behavior, so the canonical example is intentionally
-// fail-open and metadata-only. It is wired via "sh <path>" (no execute bit
-// needed) and emitted with scopeClass "project" so user-scope installs skip it.
-const hookScriptName = "audit-log.sh";
-let hookScriptCache;
-async function readHookScript() {
-  if (hookScriptCache !== undefined) return hookScriptCache;
-  const file = path.join(root, "hooks", hookScriptName);
-  hookScriptCache = (await exists(file)) ? { source: relative(file), body: await readFile(file, "utf8") } : null;
-  return hookScriptCache;
-}
-
-async function produceHookOutputs(adapter) {
-  if (!adapter.hooks) return [];
-  const script = await readHookScript();
-  if (!script) return [];
-  const scriptOutput = path.join(adapter.hooks.scriptDir, hookScriptName);
-  const commandPath = scriptOutput.split(path.sep).join("/");
-  return [
-    { source: script.source, relativeOutput: scriptOutput, content: script.body, scopeClass: "project" },
-    { source: script.source, relativeOutput: adapter.hooks.configOutput, content: renderCursorHooksConfig(adapter.hooks.events, commandPath), scopeClass: "project" },
-  ];
-}
-
-function renderCursorHooksConfig(events, commandPath) {
-  const hooks = {};
-  for (const event of events) hooks[event] = [{ command: `sh ${commandPath} ${event}` }];
-  return `${JSON.stringify({ version: 1, hooks }, null, 2)}\n`;
 }
 
 function commandRelativeOutput(adapter, command, context) {
@@ -3352,10 +2935,6 @@ function globMatches(glob, file) {
   return new RegExp(`^${escaped}$`).test(file);
 }
 
-function approximateTokens(text) {
-  return Math.ceil(text.length / 4);
-}
-
 function firstHeading(text) {
   for (const line of text.split(/\r?\n/)) {
     const match = line.match(/^#\s+(.+?)\s*$/);
@@ -3364,21 +2943,8 @@ function firstHeading(text) {
   return null;
 }
 
-function yamlString(value) {
-  return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replace(/\s+/g, " ").trim();
-}
-
 function yamlBlockString(value) {
   return value.replace(/\s+/g, " ").trim().replaceAll('"', '\\"');
-}
-
-function tomlString(value) {
-  return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replace(/\s+/g, " ").trim();
-}
-
-function tomlMultilineString(value) {
-  if (!value.includes("'''")) return `'''${value}'''`;
-  return JSON.stringify(value);
 }
 
 function sha256(value) {

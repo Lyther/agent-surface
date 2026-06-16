@@ -8,7 +8,7 @@ The authoritative optional-service inventory is `registry/optional-services.json
 
 | Service | Path | Kind | Local wiring |
 | --- | --- | --- | --- |
-| agentmemory | `external/agentmemory` | MCP memory service | Codex, Cursor, Gemini, Claude Code, and OpenCode MCP configs point at `/Users/bytedance/.local/bin/agentmemory-mcp` |
+| agentmemory | `external/agentmemory` | MCP memory service | Codex, Cursor, Gemini, Claude Code, and OpenCode MCP configs point at `~/.local/bin/agentmemory-mcp` |
 | sanyuan-skills | `external/sanyuan-skills` | skill pack | Codex/agent and Claude skill symlinks for all six skills |
 | andrej-karpathy-skills | `external/andrej-karpathy-skills` | skill pack | Codex/agent and Claude skill symlinks for `karpathy-guidelines` |
 | ctf-skills | `external/ctf-skills` | skill pack | Codex/agent and Claude CTF skill symlinks |

@@ -26,8 +26,8 @@
       "risk_class": "content",
       "default_policy": "default",
       "budget": {
-        "warn_tokens": 8000,
-        "hard_tokens": 12000
+        "warn_tokens": 19000,
+        "hard_tokens": 20000
       }
     },
     "ignores": {

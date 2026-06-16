@@ -8,17 +8,17 @@
       "kind": "mcp",
       "optional": true,
       "local_wiring": [
-        "Codex MCP: /Users/bytedance/.codex/config.toml mcp_servers.agentmemory",
-        "Cursor MCP: /Users/bytedance/.cursor/mcp.json mcpServers.agentmemory",
-        "Gemini MCP: /Users/bytedance/.gemini/settings.json mcpServers.agentmemory",
+        "Codex MCP: ~/.codex/config.toml mcp_servers.agentmemory",
+        "Cursor MCP: ~/.cursor/mcp.json mcpServers.agentmemory",
+        "Gemini MCP: ~/.gemini/settings.json mcpServers.agentmemory",
         "Claude Code MCP: claude mcp list shows agentmemory connected",
-        "Cline MCP: /Users/bytedance/.cline/data/settings/cline_mcp_settings.json mcpServers.agentmemory",
-        "Kilo MCP: /Users/bytedance/.config/kilo/kilo.jsonc mcp.agentmemory",
-        "Antigravity MCP: /Users/bytedance/.gemini/antigravity/settings.json mcpServers.agentmemory",
-        "OpenCode MCP: /Users/bytedance/.config/opencode/opencode.json mcp.agentmemory"
+        "Cline MCP: ~/.cline/data/settings/cline_mcp_settings.json mcpServers.agentmemory",
+        "Kilo MCP: ~/.config/kilo/kilo.jsonc mcp.agentmemory",
+        "Antigravity MCP: ~/.gemini/antigravity/settings.json mcpServers.agentmemory",
+        "OpenCode MCP: ~/.config/opencode/opencode.json mcp.agentmemory"
       ],
       "notes": [
-        "Use only the locally patched installed binary at /Users/bytedance/.local/bin/agentmemory-mcp for MCP wiring.",
+        "Use only the locally patched installed binary at ~/.local/bin/agentmemory-mcp for MCP wiring.",
         "The disclosure bundle at /tmp/agentmemory-disclosure-0.9.15 documents vulnerable public 0.9.14 and 0.9.15 artifacts; do not replace the local patched install with npm latest without review.",
         "Keep REST, viewer, and stream ports loopback-only; do not publish private disclosure details."
       ]

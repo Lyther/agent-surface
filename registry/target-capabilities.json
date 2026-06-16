@@ -15,7 +15,7 @@
           "local: build target claude-code renders project .mcp.json from mcps/"
         ],
         "notes": [
-          "agent-surface renders a secret-free project-scoped .mcp.json (mcpServers shape) from mcps/; values must use ${VAR} placeholders, never literal secrets.",
+          "agent-surface renders a secret-free project-scoped .mcp.json (mcpServers shape) from mcps/; values must use ${VAR} placeholders, never literal secrets, and package-manager MCPs must use pinned package specs.",
           "MCP servers can expose private data and tools, so installs never auto-merge user-global Claude MCP config and user-scope installs skip the project .mcp.json; the installer blocks rather than clobbers an existing file.",
           "Optional live servers stay recorded in registry/optional-services.json, not auto-wired."
         ]
@@ -497,7 +497,7 @@
           "local: build target cursor renders project .cursor/mcp.json from mcps/"
         ],
         "notes": [
-          "agent-surface renders a secret-free project-scoped .cursor/mcp.json (mcpServers shape, type stdio) from mcps/; values must use ${env:VAR} placeholders, never literal secrets.",
+          "agent-surface renders a secret-free project-scoped .cursor/mcp.json (mcpServers shape, type stdio) from mcps/; values must use ${env:VAR} placeholders, never literal secrets, and package-manager MCPs must use pinned package specs.",
           "Cursor MCP config may contain secrets and live tool access, so installs never auto-merge the user-global ~/.cursor/mcp.json; the generated file is project-scope only and Cursor's user-scope install skips it."
         ]
       },
