@@ -130,7 +130,7 @@ Command frontmatter can declare `name`, `aliases`, `phase`, `risk`, `packs`, `de
 
 Optional external services live under `external/` as git submodules and are tracked in `registry/optional-services.json`. They are not required for core build/install. `agentmemory` and `pua` are marked optional-caution: use the locally patched `agentmemory-mcp` wiring and keep PUA narrowly enabled because it can increase token use and reduce model performance on normal tasks.
 
-Target MCP and skill support is recorded separately in `registry/target-capabilities.json`. This is intentionally distinct from `registry/targets.json`: the compiler may render commands/rules for a target while MCPs and external `SKILL.md` packs are only local-wired or manual-only. Kilo and legacy Antigravity keep command sources under their workflow surfaces; external skills stay native `SKILL.md` directories where the host supports them.
+Target MCP, skill, and subagent/parallel-runtime support is recorded separately in `registry/target-capabilities.json`. This is intentionally distinct from `registry/targets.json`: the compiler may render commands/rules for a target while MCPs, external `SKILL.md` packs, and runtime fan-out are only local-wired, manual-only, or unsupported. Kilo and legacy Antigravity keep command sources under their workflow surfaces; external skills stay native `SKILL.md` directories where the host supports them.
 
 Google announced on May 19, 2026 that consumer Gemini CLI users should migrate to Antigravity CLI before Gemini CLI stops serving those consumer requests on June 18, 2026. `agent-surface` therefore treats `antigravity-cli` as the current Google CLI target and keeps `gemini-cli` as a legacy transition export.
 
@@ -157,9 +157,9 @@ Cursor-specific `.cursor/.workflow/` files are compatibility artifacts only; can
 
 Start with `/flow` when the right path is unclear. For formal workflow mode, start `workflow-orchestrator`; it is the long-running monitor session that spawns BOSS, worker, reviewer, judger, rescue, QA, and close roles until the run has no remaining work or automation must stop. Use `workflow-doctor` before acting on an existing run, and `workflow-close` to archive metrics and unresolved risks after an accepted or aborted run.
 
-`workflow-boss` should queue the largest coherent batch it can specify safely; `workflow-reviewer` gates the batch across AC compliance, security, docs, dependency hygiene, tests, config, and other QA risks before anything reaches `ship-commit`.
+`workflow-boss` should queue the largest coherent batch it can specify safely and mark parallel groups, isolation, suggested runtime, and subagent suitability when those hints help the orchestrator. `workflow-reviewer` gates the batch across AC compliance, security, docs, dependency hygiene, tests, config, and other QA risks before anything reaches `ship-commit`.
 
-`workflow-orchestrator` chooses the next role, provider, model, and launch shape from the ledger, local availability, cost, speed, context, prior outcomes, and required model independence. It records local `agents.json` state and keeps monitoring until the remaining task queue is finished, closed, quarantined, aborted, or handed to a human. It does not replace BOSS, worker, reviewer, judger, rescue, or close role-file ownership.
+`workflow-orchestrator` chooses the next role, provider, model, runtime, agent/mode, subagent policy, and launch shape from the ledger, local availability, cost, speed, context, prior outcomes, and required model independence. It records local `agents.json` state and keeps monitoring until the remaining task queue is finished, closed, quarantined, aborted, or handed to a human. It does not replace BOSS, worker, reviewer, judger, rescue, or close role-file ownership.
 
 Latency tuning is measurement-first: profile role wall time, handoff gaps, clean-pass rate, rework loops, and judger escalations from local workflow telemetry before changing model tier, batch caps, or QA routing. Workers consume BOSS `context_capsule` first, resolve worker-owned blockers before stopping, and reserve `qa-review` / `qa-sec` for escalation rather than stacking duplicate serial review by default.
 
@@ -178,9 +178,11 @@ Experimental loop shape:
 ```text
 Codex coordinates and verifies the workflow ledger.
 workflow-orchestrator explicitly considers external/headless agents before using only native subagents.
-Approved candidates include Ollama Cloud integrations, Grok Build, Cursor Agent headless, Claude Code headless, Codex exec, OpenCode, Goose, legacy Gemini headless, Antigravity CLI headless once locally verified, and native subagents.
+Approved candidates include Kilo CLI or Kilo IDE Agent Manager, Ollama Cloud integrations, Grok Build, Cursor Agent headless, Claude Code headless, Codex exec, OpenCode, Goose, legacy Gemini headless, Antigravity CLI headless once locally verified, and native subagents.
 Local probes on 2026-06-11 verified Ollama Cloud model entries: kimi-k2.6:cloud, glm-5.1:cloud, deepseek-v4-pro:cloud, minimax-m3:cloud.
 Local Cursor probe verified `cursor agent -p` as the headless command shape, but the account reported no available models. Local `antigravity chat` opened the desktop app and is not a verified headless worker path.
+Local Kilo probe on 2026-06-16 verified `kilo run --help` exposes `--model`, `--agent`, `--format json`, `--dir`, `--variant`, and `--auto`; local `kilo agent list` is currently blocked by invalid user config keys and should not be used for role assignment until fixed.
+For aggressive worker-led runs, assign the runtime explicitly. The currently recorded subagent-capable runtimes are Kilo, Claude Code, and Codex: Kilo uses Task-tool or `@agent-name` subagents, Claude Code can use the Agent tool, agent teams, or dynamic workflows, and Codex can spawn explicit subagents from the parent prompt. Only use these fan-out paths when `registry/target-capabilities.json` marks the runtime subagent-capable and the local probe is green.
 Use worktrees when multiple workers may edit files.
 Keep an independent reviewer or judger provider/model family before `ship-commit`.
 ```
@@ -200,5 +202,5 @@ Use the managed global installs in normal work, then tighten target-specific val
 2. Antigravity CLI: verify plugin discovery, skill discovery, generated rule attachment, and the non-interactive headless launch path once the local CLI exposes plugin install/validate/headless commands.
 3. Gemini CLI legacy export: verify `/commands reload`, extension discovery, `~/.gemini/GEMINI.md` loading, and `gemini -p --output-format json` while the transition target remains supported.
 4. Cline: verify global Workflows and Rules appear in the UI.
-5. Kilo: verify global commands and the `kilo.jsonc` Rules entry attach in the extension or CLI.
+5. Kilo: verify global commands, the `kilo.jsonc` Rules entry, `kilo run` packet launch, and configured subagents attach in the extension or CLI.
 6. Cursor, Copilot, VS Code, OpenCode, and Trae: verify the generated global instruction files are actually attached in live sessions; for Cursor Agent, require `cursor agent models` to report usable account models before assigning workflow roles.

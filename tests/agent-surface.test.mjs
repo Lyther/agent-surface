@@ -87,6 +87,11 @@ assert.equal(flowCommand.targets.kilo, path.join(".config", "kilo", "commands", 
 assert.equal(flowCommand.targets["antigravity-cli"], path.join("plugins", "agent-surface", "skills", "flow.md"));
 assert.equal(flowCommand.targets["gemini-cli"], path.join(".gemini", "commands", "flow", "flow.toml"));
 assert.equal(flowCommand.targets.cursor, path.join(".cursor", "commands", "flow.md"));
+const targetCapabilities = JSON.parse(readFileSync(path.join(root, "registry", "target-capabilities.json"), "utf8"));
+assert.equal(targetCapabilities.targets.kilo.subagents.status, "native");
+assert.equal(targetCapabilities.targets.kilo.mcp.verified_by.some((entry) => entry.includes("https://kilocode.ai/docs")), false);
+assert.equal(targetCapabilities.targets.codex.subagents.status, "native");
+assert.ok(targetCapabilities.targets["claude-code"].subagents.mechanisms.includes("dynamic-workflow"));
 const devFeatureCommand = defaultRegistry.commands.find((command) => command.name === "dev-feature");
 assert.ok(devFeatureCommand);
 assert.equal(devFeatureCommand.risk, "writes");
@@ -255,6 +260,9 @@ assert.match(codexSwarm, /Use real external\/headless agents when they are avail
 assert.match(codexSwarm, /minimax-m3:cloud/);
 assert.match(codexSwarm, /cursor agent -p/);
 assert.match(codexSwarm, /Antigravity desktop/);
+assert.match(codexSwarm, /RUNTIME ASSIGNMENT/);
+assert.match(codexSwarm, /Use Kilo subagents in parallel via the Task tool/);
+assert.match(codexSwarm, /kilo run --dir/);
 const codexWorkflowOrchestrator = readFileSync(
   path.join(root, "dist", "codex", ".agents", "skills", "workflow-orchestrator", "SKILL.md"),
   "utf8",
@@ -263,6 +271,18 @@ assert.match(codexWorkflowOrchestrator, /Do not hide behind native subagents/);
 assert.match(codexWorkflowOrchestrator, /grok -m grok-build/);
 assert.match(codexWorkflowOrchestrator, /Cursor and Grok both expose `agent`-named surfaces/);
 assert.match(codexWorkflowOrchestrator, /antigravity chat --help/);
+assert.match(codexWorkflowOrchestrator, /Kilo CLI: Task-tool or `@agent-name` subagents/);
+assert.match(codexWorkflowOrchestrator, /Claude Code: Agent tool or agent teams/);
+assert.match(codexWorkflowOrchestrator, /Codex: explicitly spawn one subagent per independent point/);
+assert.match(codexWorkflowOrchestrator, /kilo run --dir/);
+const codexWorkflowBoss = readFileSync(
+  path.join(root, "dist", "codex", ".agents", "skills", "workflow-boss", "SKILL.md"),
+  "utf8",
+);
+assert.match(codexWorkflowBoss, /parallel_group/);
+assert.match(codexWorkflowBoss, /subagent_suitable/);
+assert.match(codexWorkflowBoss, /Do not set `parallel_group` or `subagent_suitable=true` on a `serial_required` task/);
+assert.match(codexWorkflowBoss, /Do not set both `parallel_group` and `subagent_suitable=true` on any task/);
 const claudeFlow = readFileSync(path.join(root, "dist", "claude-code", ".claude", "commands", "flow", "flow.md"), "utf8");
 assert.match(claudeFlow, /^## OBJECTIVE/);
 
@@ -518,6 +538,46 @@ assert.deepEqual(appliedRun.rework_task_ids, ["T2"]);
 assert.equal(appliedRun.workflow_next_command, "dev-refactor");
 const workflowDoctor = status(["workflow", "doctor", "--run", "run-fixture-001"], { cwd: workflowDest });
 assert.equal(workflowDoctor.status, 0, `${workflowDoctor.stdout}${workflowDoctor.stderr}`);
+const invalidBoss = JSON.parse(readFileSync(path.join(root, "tests", "fixtures", "workflow", "boss-chore.json"), "utf8"));
+invalidBoss.tasks[0].suggested_runtime = "not-a-runtime";
+writeFileSync(path.join(workflowRunDir, "boss.json"), `${JSON.stringify(invalidBoss, null, 2)}\n`);
+const invalidRuntimeDoctor = status(["workflow", "doctor", "--run", "run-fixture-001"], { cwd: workflowDest });
+assert.notEqual(invalidRuntimeDoctor.status, 0);
+assert.match(`${invalidRuntimeDoctor.stdout}${invalidRuntimeDoctor.stderr}`, /suggested_runtime is not in the workflow runtime taxonomy/);
+invalidBoss.tasks[0].suggested_runtime = "kilo-cli";
+invalidBoss.tasks[0].parallel_group = "G1";
+writeFileSync(path.join(workflowRunDir, "boss.json"), `${JSON.stringify(invalidBoss, null, 2)}\n`);
+const invalidBossDoctor = status(["workflow", "doctor", "--run", "run-fixture-001"], { cwd: workflowDest });
+assert.notEqual(invalidBossDoctor.status, 0);
+assert.match(`${invalidBossDoctor.stdout}${invalidBossDoctor.stderr}`, /serial_required tasks must not set parallel_group/);
+invalidBoss.tasks[0].isolation = "same_worktree_read_only";
+invalidBoss.tasks[0].suggested_runtime = "kilo-cli";
+invalidBoss.tasks[0].subagent_suitable = true;
+writeFileSync(path.join(workflowRunDir, "boss.json"), `${JSON.stringify(invalidBoss, null, 2)}\n`);
+const mixedFanoutDoctor = status(["workflow", "doctor", "--run", "run-fixture-001"], { cwd: workflowDest });
+assert.notEqual(mixedFanoutDoctor.status, 0);
+assert.match(
+  `${mixedFanoutDoctor.stdout}${mixedFanoutDoctor.stderr}`,
+  /parallel_group and subagent_suitable=true are mutually exclusive/,
+);
+invalidBoss.tasks[0].suggested_runtime = "cursor-agent";
+delete invalidBoss.tasks[0].parallel_group;
+writeFileSync(path.join(workflowRunDir, "boss.json"), `${JSON.stringify(invalidBoss, null, 2)}\n`);
+const unsupportedSubagentDoctor = status(["workflow", "doctor", "--run", "run-fixture-001"], { cwd: workflowDest });
+assert.notEqual(unsupportedSubagentDoctor.status, 0);
+assert.match(
+  `${unsupportedSubagentDoctor.stdout}${unsupportedSubagentDoctor.stderr}`,
+  /suggested_runtime cursor-agent is not marked subagent-capable/,
+);
+invalidBoss.tasks[0].suggested_runtime = "grok-build";
+writeFileSync(path.join(workflowRunDir, "boss.json"), `${JSON.stringify(invalidBoss, null, 2)}\n`);
+const unmappedSubagentDoctor = status(["workflow", "doctor", "--run", "run-fixture-001"], { cwd: workflowDest });
+assert.notEqual(unmappedSubagentDoctor.status, 0);
+assert.match(
+  `${unmappedSubagentDoctor.stdout}${unmappedSubagentDoctor.stderr}`,
+  /suggested_runtime grok-build is not tied to a subagent-capable target capability record/,
+);
+rmSync(path.join(workflowRunDir, "boss.json"), { force: true });
 const invalidBlockedWorker = JSON.parse(readFileSync(path.join(root, "tests", "fixtures", "workflow", "worker-blocked-legacy.json"), "utf8"));
 delete invalidBlockedWorker.tasks_processed[0].blocker;
 writeFileSync(path.join(workflowRunDir, "worker.json"), `${JSON.stringify(invalidBlockedWorker, null, 2)}\n`);

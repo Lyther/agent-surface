@@ -16,6 +16,32 @@ const commandPrefixes = new Set(["arch", "boot", "dev", "lint", "ops", "qa", "sh
 const commandPhases = new Set(["observe", "decide", "build", "verify", "review", "arbitrate", "ship", "improve", "bootstrap", "game", "misc"]);
 const commandRisks = new Set(["safe", "writes", "destructive", "security-sensitive", "deception-risk", "deployment"]);
 const commandApprovalClasses = new Set(["network", "filesystem_destructive", "deployment", "database_mutation"]);
+const workflowRuntimeTargets = new Map([
+  ["antigravity-cli", "antigravity-cli"],
+  ["antigravity-desktop", "antigravity"],
+  ["claude-code", "claude-code"],
+  ["cline", "cline"],
+  ["codex", "codex"],
+  ["codex-exec", "codex"],
+  ["cursor-agent", "cursor"],
+  ["gemini-legacy", "gemini-cli"],
+  ["kilo-cli", "kilo"],
+  ["kilo-ide", "kilo"],
+  ["opencode", "opencode"],
+  ["trae", "trae"],
+  ["vscode", "vscode"],
+]);
+const workflowRuntimeNames = new Set([
+  ...workflowRuntimeTargets.keys(),
+  "goose",
+  "grok-build",
+  "current-session",
+  "ollama-api",
+  "ollama-cli",
+  "ollama-cloud",
+  "unspecified",
+]);
+const subagentCapableStatuses = new Set(["native", "native-experimental"]);
 
 const targets = {
   "claude-code": {
@@ -350,7 +376,7 @@ async function check() {
     errors.push("commands/ops-server.md is local/private and must not be imported");
   }
 
-  await checkWorkflowSchemas(errors);
+  await checkWorkflowSchemas(errors, capabilitiesConfig);
   await checkRegistrySchemas(errors);
   checkCommandMetadata(commands, errors);
 
@@ -363,7 +389,7 @@ async function check() {
   console.log("check: ok");
 }
 
-async function checkWorkflowSchemas(errors) {
+async function checkWorkflowSchemas(errors, capabilitiesConfig) {
   const schemas = new Map();
   const ajv = createAjv();
 
@@ -397,7 +423,7 @@ async function checkWorkflowSchemas(errors) {
     }
   }
 
-  await checkWorkflowFixtures(ajv, schemas, errors);
+  await checkWorkflowFixtures(ajv, schemas, errors, capabilitiesConfig);
 }
 
 async function checkRegistrySchemas(errors) {
@@ -428,7 +454,7 @@ async function checkRegistrySchemas(errors) {
   }
 }
 
-async function checkWorkflowFixtures(ajv, schemas, errors) {
+async function checkWorkflowFixtures(ajv, schemas, errors, capabilitiesConfig) {
   for (const fixture of workflowFixtureFiles) {
     const schema = schemas.get(fixture.schema);
     const file = path.join(root, fixture.file);
@@ -450,6 +476,49 @@ async function checkWorkflowFixtures(ajv, schemas, errors) {
     const validate = ajv.getSchema(fixture.schema) ?? ajv.compile(schema);
     if (!validate(data)) {
       errors.push(`${fixture.file}: ${formatAjvErrors(validate.errors)}`);
+    }
+    if (fixture.schema === "workflow.boss.schema.json") {
+      checkBossArtifactCoherence(data, fixture.file, capabilitiesConfig, errors);
+    }
+  }
+}
+
+function checkBossArtifactCoherence(data, source, capabilitiesConfig, errors) {
+  if (!data || !Array.isArray(data.tasks)) return;
+
+  for (const task of data.tasks) {
+    const taskId = typeof task.task_id === "string" ? task.task_id : "<unknown>";
+    const prefix = `${source}: task ${taskId}`;
+
+    if (task.isolation === "serial_required" && typeof task.parallel_group === "string") {
+      errors.push(`${prefix}: serial_required tasks must not set parallel_group`);
+    }
+    if (task.isolation === "serial_required" && task.subagent_suitable === true) {
+      errors.push(`${prefix}: serial_required tasks must not set subagent_suitable=true`);
+    }
+    if (typeof task.parallel_group === "string" && task.subagent_suitable === true) {
+      errors.push(`${prefix}: parallel_group and subagent_suitable=true are mutually exclusive fan-out modes`);
+    }
+
+    const runtime = task.suggested_runtime;
+    if (typeof runtime === "string" && !workflowRuntimeNames.has(runtime)) {
+      errors.push(`${prefix}: suggested_runtime is not in the workflow runtime taxonomy: ${runtime}`);
+    }
+
+    if (task.subagent_suitable !== true) continue;
+    if (typeof runtime !== "string" || runtime === "unspecified") {
+      errors.push(`${prefix}: subagent_suitable=true requires a concrete suggested_runtime`);
+      continue;
+    }
+
+    const targetName = workflowRuntimeTargets.get(runtime);
+    if (!targetName) {
+      errors.push(`${prefix}: suggested_runtime ${runtime} is not tied to a subagent-capable target capability record`);
+      continue;
+    }
+    const subagents = capabilitiesConfig?.targets?.[targetName]?.subagents;
+    if (!subagents || !subagentCapableStatuses.has(subagents.status)) {
+      errors.push(`${prefix}: suggested_runtime ${runtime} is not marked subagent-capable in registry/target-capabilities.json`);
     }
   }
 }
@@ -1198,6 +1267,7 @@ async function workflowDoctor(args) {
   const runDir = workflowRunDir(runId);
   const errors = [];
   const schemas = await workflowSchemaValidators(errors);
+  const capabilitiesConfig = JSON.parse(await readFile(path.join(root, "registry", "target-capabilities.json"), "utf8"));
   const requiredFiles = ["run.json", "events.ndjson"];
 
   for (const file of requiredFiles) {
@@ -1205,8 +1275,12 @@ async function workflowDoctor(args) {
   }
 
   await validateWorkflowJson(path.join(runDir, "run.json"), schemas.get("workflow.run.schema.json"), errors);
+  const bossArtifact = path.join(runDir, "boss.json");
+  if (await exists(bossArtifact)) {
+    const boss = await readWorkflowJson(bossArtifact, schemas.get("workflow.boss.schema.json"), errors);
+    checkBossArtifactCoherence(boss, path.relative(process.cwd(), bossArtifact), capabilitiesConfig, errors);
+  }
   for (const [file, schemaName] of [
-    ["boss.json", "workflow.boss.schema.json"],
     ["worker.json", "workflow.worker.schema.json"],
     ["reviewer.json", "workflow.reviewer.schema.json"],
     ["judger.json", "workflow.judger.schema.json"],

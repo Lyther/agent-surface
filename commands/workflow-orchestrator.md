@@ -17,7 +17,9 @@ Run the long-running workflow monitor without replacing workflow roles, role-fil
 
 The monitor may plan, spawn, observe, and hand off to approved headless role sessions. It is not BOSS, worker, reviewer, judger, rescue, close, or ship. It invokes those commands as managed role sessions, then validates their artifacts and advances by the ledger.
 
-Prefer real managed role sessions over only the current model's native subagent tool. Native subagents are allowed for local fan-out, but they do not provide provider/model independence by themselves. For non-trivial workflow runs, explicitly consider background headless Ollama Cloud integrations, Grok Build, Claude Code, Codex exec, OpenCode, Goose, and other approved local agents before settling on an in-process subagent.
+Prefer real managed role sessions over only the current model's native subagent tool. Native subagents are allowed for local fan-out, but they do not provide provider/model independence by themselves. For non-trivial workflow runs, explicitly consider background headless Ollama Cloud integrations, Kilo CLI or Kilo IDE Agent Manager, Grok Build, Claude Code, Codex exec, OpenCode, Goose, and other approved local agents before settling on an in-process subagent.
+
+Every managed role launch must include an explicit runtime assignment. Do not assume that a worker model knows whether it should use Kilo subagents, headless CLI tools, IDE Agent Manager, or the current model's native subagent tool.
 
 Direct role commands remain valid for manual recovery, debugging, or user-directed single-role work. They are not the normal start point for a monitored workflow run.
 
@@ -69,9 +71,16 @@ Minimum shape:
       "agent_id": "stable monitor-local id",
       "command": "workflow-boss|dev-feature|dev-fix|dev-chore|dev-refactor|workflow-reviewer|workflow-judger|workflow-rescue|workflow-close|qa-trace|qa-review",
       "role_class": "boss|worker|reviewer|judger|rescue|closer|qa",
-      "provider": "codex|claude-code|grok|ollama-codex|ollama-claude|ollama-opencode|opencode|goose|gemini|antigravity-cli|antigravity-desktop|cursor|native-subagent|other",
+      "provider": "codex|claude-code|kilo|grok|ollama-codex|ollama-claude|ollama-opencode|opencode|goose|gemini|antigravity-cli|antigravity-desktop|cursor|current-session|other",
       "model": "provider model id",
-      "launch_shape": "headless_cli|ollama_launch|ollama_api|native_subagent|interactive_supervised|other",
+      "launch_shape": "headless_cli|ide_agent_manager|ollama_launch|ollama_api|native_subagent|interactive_supervised|other",
+      "runtime_assignment": {
+        "runtime": "kilo-cli|kilo-ide|codex-exec|claude-code|grok-build|opencode|goose|gemini-legacy|cursor-agent|antigravity-cli|antigravity-desktop|ollama-cloud|current-session|manual",
+        "agent_or_mode": "code|plan|debug|ask|custom-agent|not_applicable",
+        "subagent_policy": "parallel_allowed|serial_only|disabled",
+        "worktree_policy": "required|preferred|not_needed",
+        "probe_ref": "provider probe evidence ref"
+      },
       "task_ids": [],
       "filescope": [],
       "session_ref": "sub-agent id, process id, tty id, or external session handle",
@@ -114,10 +123,10 @@ Minimum shape:
 
 1. Read the ledger first: `current.json`, `run.json`, `boss.json`, latest downstream role file, patch manifests, and redacted evidence refs.
 2. Choose the next managed role from `run.json.workflow_next_command` and artifact `workflow.next_command`; do not infer the route from mtime, chat history, or provider session state.
-3. Pick a provider/model only after checking local availability, quota, approval state, risk, context size, independence from adjacent roles, and whether the role needs write access.
+3. Pick a provider/model/runtime only after checking local availability, quota, approval state, risk, context size, independence from adjacent roles, whether the role needs write access, and whether the runtime supports the required tool calls.
 4. Prefer approved external/headless launches for meaningful role work. Use native subagents only when they are the best fit or when external providers are unavailable, unapproved, over-budget, privacy-incompatible, or too slow for the role.
-5. Launch the role with a strict prompt containing role command, allowed output file, exact `run_id`, round, task IDs, filescope, parent artifact hashes, allowed checks, and the rule that ledger artifacts are authoritative.
-6. Record the exact redacted launch command, provider, model, launch shape, probe evidence, and selection reason in `agents.json`.
+5. Launch the role with a strict prompt containing role command, allowed output file, exact `run_id`, round, task IDs, filescope, parent artifact hashes, allowed checks, runtime assignment, subagent policy, and the rule that ledger artifacts are authoritative.
+6. Record the exact redacted launch command, provider, model, runtime assignment, launch shape, probe evidence, and selection reason in `agents.json`.
 7. If the agent loses context, exits, or drifts from scope, respawn and rehydrate from role files and evidence refs.
 8. After each role exits, re-read `run.json`, the new role artifact, and `events.ndjson`; then spawn the next role if work remains.
 9. If ledger evidence is missing or inconsistent, stop and hand off to the user or `workflow-rescue`; do not reconstruct state from chat memory.
@@ -125,6 +134,29 @@ Minimum shape:
 ### Parallel worker option
 
 Default workflow execution is serial. Parallel workers are allowed only when BOSS has split tasks into independent FILESCOPEs with no dependency edge, no shared generated outputs, no shared service port or database fixture, and separate patch manifests. Use separate worktrees or equivalent isolation per worker, then route the combined accepted patches through one reviewer batch. Do not parallelize merely to hide a vague spec or shared-hunk risk.
+
+Aggressive worker-led parallelism is allowed when `registry/target-capabilities.json` marks the runtime's `subagents.status` as `native` or `native-experimental`, the local probe is green, and the BOSS task is internally parallel-safe. The orchestrator assigns one worker lead, not a vague swarm. Use a runtime-specific prompt:
+
+```text
+Runtime: <kilo-cli|claude-code|codex|...>.
+Model: exact provider/model id or approved env placeholder.
+Agent/mode: runtime-specific worker mode.
+Subagent policy: parallel_allowed.
+Worktree policy: preferred; required if two subagents may write.
+
+Instruction to worker:
+Use the assigned runtime's verified subagent mechanism for independent subtasks:
+- Kilo CLI: Task-tool or `@agent-name` subagents.
+- Claude Code: Agent tool or agent teams; dynamic workflows only for large repeatable fan-out.
+- Codex: explicitly spawn one subagent per independent point and wait for consolidated results.
+Start 2-4 subagents with disjoint filescope or evidence targets.
+Monitor them, spawn follow-up subagents only for discovered dependent work, and reconcile results before writing worker.json.
+Do not let two subagents edit the same file or generated output unless one is read-only.
+Each subagent must return artifact/evidence refs, changed files, verification status, blockers, and residual risk.
+The worker lead owns final patch isolation, verification, and worker.json.
+```
+
+This pattern reduces cold-start handoff cost without weakening review: reviewer still checks the single worker artifact, patch manifests, evidence refs, and batch invariants.
 
 ## EXIT CONDITIONS
 
@@ -153,6 +185,7 @@ Headless launch patterns are examples. Verify flags locally before use and satis
 ```bash
 env -u NODE_TLS_REJECT_UNAUTHORIZED grok -m grok-build --cwd "$repo" --prompt-file "$prompt_file" --output-format json --max-turns 12
 env -u NODE_TLS_REJECT_UNAUTHORIZED grok -m grok-build agent headless
+kilo run --dir "$repo" --model "$KILO_WORKER_MODEL" --agent code --format json --title "$run_id-$role" < "$prompt_file"
 env -u NODE_TLS_REJECT_UNAUTHORIZED cursor agent -p --workspace "$repo" --model gpt-5 --output-format json --sandbox enabled "$(cat "$prompt_file")"
 claude -p "$(cat "$prompt_file")" --output-format json --model claude-sonnet-4-6 --max-budget-usd 1.00
 codex exec -m gpt-5.4 -C "$repo" -s workspace-write --json "$(cat "$prompt_file")"
@@ -186,13 +219,14 @@ Probe provider availability before each monitored run. Treat display names, lead
 
 | Provider | Compact note |
 | --- | --- |
+| Kilo | CLI headless packet mode is `kilo run`. Use `--dir`, `--model provider/model`, `--agent`, `--format json`, `--variant`, and `--auto` only when authorization allows autonomous approval. Kilo docs describe subagents as isolated sessions invoked by primary agents through the Task tool or `@agent-name`; docs also say dedicated Orchestrator mode is deprecated because full-tool agents now support subagents natively. If `kilo` reports config validation errors, do not assign it workflow roles until fixed. |
 | Cursor | Headless mode is `cursor agent -p ...`; `--output-format json` works only with `--print`. Use `--workspace`, `--model`, `--sandbox enabled`, and `--approve-mcps` only after MCP approval. May need `HTTP_PROXY=http://127.0.0.1:7890` and `HTTPS_PROXY=http://127.0.0.1:7890`. If `cursor agent models` reports no account models, do not assign it workflow roles. |
 | Antigravity CLI | Google migration notes say this is the current terminal platform with async background workflows, plugins, skills, hooks, subagents, and extensions. Verify the current executable and non-interactive flags locally before use; do not assume legacy `gemini` flags apply. |
 | Antigravity desktop | Local `antigravity chat --help` exposes supervised desktop chat modes, not a JSON/print headless mode. Treat `antigravity chat -m agent ...` as interactive-supervised unless a current probe proves a headless output mode. |
 | Gemini | Legacy transition CLI. Requires compatible Node. User reports Node v26 / npm 11.12.1 works; Node v18 can fail. Use `GEMINI_CLI_TRUST_WORKSPACE=true`, `--skip-trust`, `-p/--prompt`, `--output-format json`, and `--approval-mode plan` for bounded headless runs. |
 | Grok | Build model id is `grok-build`; local `grok models` also reports `grok-composer-2.5-fast`. Use with caution and verify local CLI behavior before assigning write-scoped roles. |
-| Claude Code | Headless print mode is `claude -p`. Use `--model`, `--output-format json`, `--max-budget-usd`, `--permission-mode`, `--tools`, `--allowedTools`, `--add-dir`, and `--settings` to constrain role sessions. |
-| Codex | Headless mode is `codex exec`. Use `-C`, `-s read-only\|workspace-write`,`--json`,`--output-schema`,`--oss --local-provider ollama`, or explicit`-m` as appropriate. |
+| Claude Code | Headless print mode is `claude -p`. Use `--model`, `--output-format json`, `--max-budget-usd`, `--permission-mode`, `--tools`, `--allowedTools`, `--add-dir`, and `--settings` to constrain role sessions. Claude Code also has Agent-tool subagents, agent teams, worktrees, and dynamic workflows; use those only when the runtime assignment and capability registry call for worker-led fan-out. |
+| Codex | Headless mode is `codex exec`. Use `-C`, `-s read-only\|workspace-write`,`--json`,`--output-schema`,`--oss --local-provider ollama`, or explicit`-m` as appropriate. Codex subagents require explicit parent prompts to spawn agents and consolidate results. |
 | OpenCode | Headless mode is `opencode run`. Use `--dir`, `-m provider/model`, `--format json`, `--agent`, and avoid `--dangerously-skip-permissions` unless the worktree is externally sandboxed. |
 | Goose | Installed locally in this workspace snapshot; inspect current help before assigning roles because CLI flags may vary by release. |
 | Ollama Cloud | Verify model IDs before use. For thinking-capable models, `--think=false` / API `think:false` disables thinking. `--hidethinking` is the hide-only CLI switch. For non-trivial workflow roles, prefer thinking enabled and hide/drop the trace. Very small `num_predict` budgets can produce thinking but no final answer. |
@@ -333,6 +367,10 @@ env -u NODE_TLS_REJECT_UNAUTHORIZED cursor agent models
 env -u NODE_TLS_REJECT_UNAUTHORIZED cursor agent status
 env -u NODE_TLS_REJECT_UNAUTHORIZED cursor agent --help
 env -u NODE_TLS_REJECT_UNAUTHORIZED cursor agent -p --workspace "$PWD" --output-format json --sandbox enabled "Reply OK only."
+kilo --version
+kilo run --help
+kilo agent list
+kilo models
 env -u NODE_TLS_REJECT_UNAUTHORIZED antigravity --help
 env -u NODE_TLS_REJECT_UNAUTHORIZED antigravity chat --help
 env -u NODE_TLS_REJECT_UNAUTHORIZED PATH=/opt/homebrew/bin:$PATH gemini --help

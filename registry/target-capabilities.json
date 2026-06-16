@@ -27,6 +27,31 @@
         "notes": [
           "External optional skills are symlinked locally; generated command wrappers remain separate Claude command artifacts."
         ]
+      },
+      "subagents": {
+        "status": "native",
+        "mechanisms": [
+          "agent-tool",
+          "agent-team",
+          "dynamic-workflow"
+        ],
+        "launch_shapes": [
+          "claude -p \"<prompt>\" --output-format json ...",
+          "Claude Code subagents through the Agent tool",
+          "Claude Code dynamic workflows for large parallel runs"
+        ],
+        "isolation": "session",
+        "headless_supported": true,
+        "distribution": "manual-only",
+        "verified_by": [
+          "docs: https://code.claude.com/docs/en/workflows",
+          "docs: https://code.claude.com/docs/en/agent-sdk/subagents",
+          "local: workflow-orchestrator probe list includes claude -p headless smoke test"
+        ],
+        "notes": [
+          "Use worker-led subagents for a few focused tasks; use dynamic workflows only when the plan benefits from script-managed fan-out.",
+          "Worktree isolation is an orchestrator pattern for writable independent tasks, not a native Claude Code subagent mechanism."
+        ]
       }
     },
     "codex": {
@@ -55,6 +80,28 @@
         ],
         "notes": [
           "Codex is the canonical generated skill-wrapper target for command sources."
+        ]
+      },
+      "subagents": {
+        "status": "native",
+        "mechanisms": [
+          "native-subagent-tool"
+        ],
+        "launch_shapes": [
+          "Codex prompt: spawn one agent per independent point, wait for all, and summarize",
+          "codex exec -C \"$repo\" -s read-only|workspace-write --json \"<prompt>\" for single role sessions"
+        ],
+        "isolation": "session",
+        "headless_supported": true,
+        "distribution": "generated",
+        "verified_by": [
+          "docs: https://developers.openai.com/codex/subagents",
+          "local: codex exec --help is listed as a workflow-orchestrator probe before role assignment"
+        ],
+        "notes": [
+          "Codex spawns subagents only when explicitly asked; prompts must name the desired fan-out and require consolidation.",
+          "Custom agents can carry model and instruction overrides, but subagents inherit current sandbox and approval controls.",
+          "Worktree fan-out is an orchestrator isolation pattern for separate role sessions, not a Codex subagent mechanism."
         ]
       }
     },
@@ -85,6 +132,25 @@
         ],
         "notes": [
           "Gemini CLI remains generated only for the transition window; Google announced consumer migration to Antigravity CLI by June 18, 2026."
+        ]
+      },
+      "subagents": {
+        "status": "unknown",
+        "mechanisms": [
+          "unknown"
+        ],
+        "launch_shapes": [
+          "gemini -p \"<prompt>\" --output-format json --approval-mode plan"
+        ],
+        "isolation": "process",
+        "headless_supported": true,
+        "distribution": "generated",
+        "verified_by": [
+          "local: legacy Gemini headless probe shape is listed in ops-swarm and workflow-orchestrator"
+        ],
+        "notes": [
+          "Legacy transition target; use only for explicit compatibility testing while migration to Antigravity CLI is in progress.",
+          "headless_supported means legacy single-role CLI launch is available; worker-led subagent fan-out remains unknown."
         ]
       }
     },
@@ -119,6 +185,22 @@
         "notes": [
           "Cline skills are experimental and must be enabled in Cline settings; commands continue to render as workflows."
         ]
+      },
+      "subagents": {
+        "status": "unknown",
+        "mechanisms": [
+          "unknown"
+        ],
+        "launch_shapes": [],
+        "isolation": "unknown",
+        "headless_supported": false,
+        "distribution": "manual-only",
+        "verified_by": [
+          "local: no current Cline headless subagent fan-out probe recorded in this repo"
+        ],
+        "notes": [
+          "Cline workflows are generated, but runtime subagent assignment is not a verified agent-surface capability yet."
+        ]
       }
     },
     "kilo": {
@@ -129,7 +211,7 @@
         ],
         "distribution": "local-wired",
         "verified_by": [
-          "docs: https://kilocode.ai/docs",
+          "docs: https://kilo.ai/docs",
           "local: @kilocode/sdk Config includes mcp local/remote types",
           "local: ~/.config/kilo/kilo.jsonc contains mcp.agentmemory"
         ],
@@ -149,6 +231,28 @@
         ],
         "notes": [
           "Kilo also uses workflows as its command name; generated command sources remain in the commands/workflows path."
+        ]
+      },
+      "subagents": {
+        "status": "native",
+        "mechanisms": [
+          "task-tool",
+          "at-mention"
+        ],
+        "launch_shapes": [
+          "kilo run --dir \"$repo\" --model <provider/model> --agent code --format json \"<prompt>\"",
+          "primary Kilo agent invokes configured subagents through Task tool or @agent-name"
+        ],
+        "isolation": "session",
+        "headless_supported": true,
+        "distribution": "local-wired",
+        "verified_by": [
+          "docs: https://kilo.ai/docs/customize/custom-subagents",
+          "local: kilo run --help exposed --model, --agent, --format, --dir, --variant, and --auto on 2026-06-16"
+        ],
+        "notes": [
+          "Do not assign Kilo packet work when local config validation fails; the 2026-06-16 local probe showed invalid user config keys blocking kilo agent list.",
+          "Configured subagents can use dedicated models and permissions; prompt-level worker assignment must still keep filescope isolation explicit."
         ]
       }
     },
@@ -179,6 +283,24 @@
         "notes": [
           "Antigravity uses workflows as the legacy command name; generated command sources remain under global_workflows for compatibility."
         ]
+      },
+      "subagents": {
+        "status": "unknown",
+        "mechanisms": [
+          "unknown"
+        ],
+        "launch_shapes": [
+          "antigravity chat --help"
+        ],
+        "isolation": "ide-managed",
+        "headless_supported": false,
+        "distribution": "manual-only",
+        "verified_by": [
+          "local: Antigravity desktop chat is interactive_supervised in workflow-orchestrator docs"
+        ],
+        "notes": [
+          "Use as a supervised desktop/runtime surface, not unattended worker-led fan-out, until a headless subagent API is verified."
+        ]
       }
     },
     "antigravity-cli": {
@@ -207,6 +329,22 @@
         ],
         "notes": [
           "Antigravity CLI is the replacement name for the former Gemini CLI surface; generated plugin skills and rules live under the antigravity-cli target."
+        ]
+      },
+      "subagents": {
+        "status": "unknown",
+        "mechanisms": [
+          "unknown"
+        ],
+        "launch_shapes": [],
+        "isolation": "unknown",
+        "headless_supported": false,
+        "distribution": "manual-only",
+        "verified_by": [
+          "docs: https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/"
+        ],
+        "notes": [
+          "Antigravity CLI plugin distribution is tracked, but worker-led subagent fan-out is not verified locally yet."
         ]
       }
     },
@@ -242,6 +380,24 @@
         "notes": [
           "OpenCode also discovers Claude-compatible and agent-compatible skill directories."
         ]
+      },
+      "subagents": {
+        "status": "unknown",
+        "mechanisms": [
+          "unknown"
+        ],
+        "launch_shapes": [
+          "opencode run --help"
+        ],
+        "isolation": "process",
+        "headless_supported": true,
+        "distribution": "local-wired",
+        "verified_by": [
+          "local: opencode run --help is listed as a workflow-orchestrator probe"
+        ],
+        "notes": [
+          "OpenCode can run headless packet roles, but native subagent fan-out is not yet a verified agent-surface capability."
+        ]
       }
     },
     "vscode": {
@@ -271,6 +427,22 @@
         "notes": [
           "VS Code agent plugins can bundle skills, commands, agents, hooks, and MCP servers, but agent-surface currently renders instructions and prompts only."
         ]
+      },
+      "subagents": {
+        "status": "unsupported",
+        "mechanisms": [
+          "none"
+        ],
+        "launch_shapes": [],
+        "isolation": "none",
+        "headless_supported": false,
+        "distribution": "not-applicable",
+        "verified_by": [
+          "local: VS Code target is a distribution surface, not a monitored headless worker runtime"
+        ],
+        "notes": [
+          "Use dedicated CLI runtimes for swarm/workflow execution."
+        ]
       }
     },
     "cursor": {
@@ -299,6 +471,25 @@
         ],
         "notes": [
           "No native SKILL.md surface is recorded here; reusable behaviors are distributed through command/rule surfaces."
+        ]
+      },
+      "subagents": {
+        "status": "unknown",
+        "mechanisms": [
+          "background-agent"
+        ],
+        "launch_shapes": [
+          "cursor agent -p --workspace \"$repo\" --output-format json --sandbox enabled \"<prompt>\""
+        ],
+        "isolation": "process",
+        "headless_supported": true,
+        "distribution": "generated",
+        "verified_by": [
+          "local: cursor agent -p launch shape is recorded in ops-swarm and workflow-orchestrator"
+        ],
+        "notes": [
+          "Cursor headless packet execution is tracked separately from Grok Build despite both using an agent command name.",
+          "Do not assume Cursor background-agent semantics without a current probe."
         ]
       }
     },
@@ -330,6 +521,22 @@
         "notes": [
           "Copilot receives generated instruction files today; plugin skills are recorded as future distribution surface."
         ]
+      },
+      "subagents": {
+        "status": "unknown",
+        "mechanisms": [
+          "background-agent"
+        ],
+        "launch_shapes": [],
+        "isolation": "ide-managed",
+        "headless_supported": false,
+        "distribution": "manual-only",
+        "verified_by": [
+          "docs: https://code.visualstudio.com/docs/copilot/customization/agent-plugins"
+        ],
+        "notes": [
+          "Plugin distribution is recorded; unattended worker-led subagent execution is not a verified agent-surface runtime capability."
+        ]
       }
     },
     "trae": {
@@ -358,6 +565,22 @@
         ],
         "notes": [
           "No native SKILL.md surface is recorded here."
+        ]
+      },
+      "subagents": {
+        "status": "unknown",
+        "mechanisms": [
+          "unknown"
+        ],
+        "launch_shapes": [],
+        "isolation": "unknown",
+        "headless_supported": false,
+        "distribution": "manual-only",
+        "verified_by": [
+          "local: Trae target currently renders command/rule surfaces only"
+        ],
+        "notes": [
+          "Do not assign worker-led subagent fan-out until Trae headless/runtime capabilities are verified."
         ]
       }
     }
