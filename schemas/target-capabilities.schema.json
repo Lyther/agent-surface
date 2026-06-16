@@ -25,6 +25,9 @@
           },
           "subagents": {
             "$ref": "#/$defs/subagentsCapability"
+          },
+          "ignores": {
+            "$ref": "#/$defs/capability"
           }
         },
         "additionalProperties": false

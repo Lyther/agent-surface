@@ -36,7 +36,8 @@
       "install_supported": true,
       "renders": [
         "commands-as-workflows",
-        "rules"
+        "rules",
+        "ignores"
       ]
     },
     "kilo": {
@@ -45,7 +46,8 @@
       "install_supported": true,
       "renders": [
         "commands-as-workflows",
-        "rules"
+        "rules",
+        "ignores"
       ]
     },
     "antigravity": {
@@ -89,7 +91,8 @@
       "install_supported": true,
       "renders": [
         "rules",
-        "commands"
+        "commands",
+        "ignores"
       ]
     },
     "copilot": {

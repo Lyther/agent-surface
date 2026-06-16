@@ -201,6 +201,19 @@
         "notes": [
           "Cline workflows are generated, but runtime subagent assignment is not a verified agent-surface capability yet."
         ]
+      },
+      "ignores": {
+        "status": "native",
+        "locations": [
+          ".clineignore"
+        ],
+        "distribution": "generated",
+        "verified_by": [
+          "docs: https://docs.cline.bot/customization/clineignore"
+        ],
+        "notes": [
+          "Project-root .clineignore (gitignore syntax with negation) controls automatic context loading, not explicit @-mention access. User-scope installs skip it as non-applicable."
+        ]
       }
     },
     "kilo": {
@@ -253,6 +266,19 @@
         "notes": [
           "Do not assign Kilo packet work when local config validation fails; the 2026-06-16 local probe showed invalid user config keys blocking kilo agent list.",
           "Configured subagents can use dedicated models and permissions; prompt-level worker assignment must still keep filescope isolation explicit."
+        ]
+      },
+      "ignores": {
+        "status": "native",
+        "locations": [
+          ".kilocodeignore"
+        ],
+        "distribution": "generated",
+        "verified_by": [
+          "docs: https://kilo.ai/docs/customize/context/kilocodeignore"
+        ],
+        "notes": [
+          "Workspace-root .kilocodeignore (gitignore syntax with negation). Legacy-supported and auto-migrated to kilo.jsonc deny rules. User-scope installs skip it as non-applicable."
         ]
       }
     },
@@ -490,6 +516,19 @@
         "notes": [
           "Cursor headless packet execution is tracked separately from Grok Build despite both using an agent command name.",
           "Do not assume Cursor background-agent semantics without a current probe."
+        ]
+      },
+      "ignores": {
+        "status": "native",
+        "locations": [
+          ".cursorignore"
+        ],
+        "distribution": "generated",
+        "verified_by": [
+          "docs: https://cursor.com/docs/reference/ignore-file"
+        ],
+        "notes": [
+          "Project-root .cursorignore (gitignore syntax) blocks indexing, Agent, Tab, Inline Edit, and @-mention access, but not terminal or MCP tool access; treat it as best-effort. User-scope installs skip it as non-applicable."
         ]
       }
     },

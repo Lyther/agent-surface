@@ -176,7 +176,7 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
-assert.equal(generated.length, 780);
+assert.equal(generated.length, 783);
 assertGeminiTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "flow", "flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "swarm.md"))), true);
@@ -219,9 +219,17 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "copilot",
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "vscode", "instructions", "agent-surface.instructions.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "opencode", ".config", "opencode", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "trae", ".trae", "user_rules.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursorignore"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".kilocodeignore"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cline", ".clineignore"))), true);
+const cursorIgnore = readFileSync(path.join(root, "dist", "cursor", ".cursorignore"), "utf8");
+assert.match(cursorIgnore, /agent-surface canonical AI-tool ignore baseline/);
+const ignoresCheck = run(["check", "ignores"]);
+assert.match(ignoresCheck, /ignores check: ok/);
+assert.match(ignoresCheck, /emitters 3 \(cline, cursor, kilo\)/);
 const generatedCheck = run(["check", "generated"]);
 assert.match(generatedCheck, /claude-code: generated outputs 124 ok/);
-assert.match(generatedCheck, /kilo: generated outputs 73 ok/);
+assert.match(generatedCheck, /kilo: generated outputs 74 ok/);
 assert.match(generatedCheck, /antigravity: generated outputs 61 ok/);
 assert.match(generatedCheck, /antigravity-cli: generated outputs 74 ok/);
 assert.match(generatedCheck, /gemini-cli: generated outputs 186 ok/);
@@ -369,11 +377,12 @@ const liveDest = "/tmp/agent-surface-live";
 rmSync(liveDest, { recursive: true, force: true });
 const liveInstall = run(["install", "--target", "cline", "--dest", liveDest]);
 assert.match(liveInstall, /^installed:$/m);
-assert.match(liveInstall, /wrote: 62/);
+assert.match(liveInstall, /wrote: 63/);
 assert.match(readFileSync(path.join(liveDest, ".clinerules", "workflows", "workflow-boss.md"), "utf8"), /^## OBJECTIVE/);
+assert.match(readFileSync(path.join(liveDest, ".clineignore"), "utf8"), /agent-surface canonical AI-tool ignore baseline/);
 const liveManifest = JSON.parse(readFileSync(path.join(liveDest, ".agent-surface", "cline-manifest.json"), "utf8"));
 assert.equal(liveManifest.pack, "default");
-assert.equal(liveManifest.managed.length, 62);
+assert.equal(liveManifest.managed.length, 63);
 assert.equal(liveManifest.managed[0].managed_by, "agent-surface");
 rmSync(liveDest, { recursive: true, force: true });
 
@@ -677,7 +686,17 @@ assert.match(kiloUserScope.stdout, /\.config\/kilo\/AGENTS\.md <- rules\/\*\.mdc
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/00-precedence-and-safety\.md <- rules\/00-precedence-and-safety\.mdc/);
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/14-lang-shell\.md <- rules\/14-lang-shell\.mdc/);
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/kilo\.jsonc instructions \+= \.\/rules\/00-precedence-and-safety\.md, .*\.\/rules\/14-lang-shell\.md/);
+assert.match(kiloUserScope.stdout, /\.kilocodeignore \(project-scope only\)/);
+assert.doesNotMatch(kiloUserScope.stdout, /\.kilocodeignore <- ignores/);
 rmSync(userScopeHome, { recursive: true, force: true });
+
+const kiloIgnoreDest = "/tmp/agent-surface-kilo-ignore-proj";
+rmSync(kiloIgnoreDest, { recursive: true, force: true });
+mkdirSync(kiloIgnoreDest, { recursive: true });
+const kiloProjectScope = status(["install", "--target", "kilo", "--dest", kiloIgnoreDest, "--scope", "project", "--dry-run"]);
+assert.equal(kiloProjectScope.status, 0, `${kiloProjectScope.stdout}${kiloProjectScope.stderr}`);
+assert.match(kiloProjectScope.stdout, /\.kilocodeignore <- ignores\/default\.ignore/);
+rmSync(kiloIgnoreDest, { recursive: true, force: true });
 
 const invalidKiloDest = "/tmp/agent-surface-kilo-invalid";
 rmSync(invalidKiloDest, { recursive: true, force: true });

@@ -8,6 +8,7 @@ Implemented target paths:
 - user: `~/Documents/Cline/Rules/agent-surface.md`
 - project: `.clinerules/workflows/*.md`
 - project: `.clinerules/agent-surface.md`
+- project: `.clineignore` (rendered from `ignores/default.ignore`; user-scope installs skip it as non-applicable)
 - custom: any reviewed `--dest` path
 
 Cline built-in slash commands are not treated as a custom command-file primitive.

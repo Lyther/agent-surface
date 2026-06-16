@@ -66,18 +66,20 @@ const targets = {
   },
   cline: {
     label: "Cline workflows and rules",
-    renders: ["commands-as-workflows", "rules"],
+    renders: ["commands-as-workflows", "rules", "ignores"],
     commandOutputRoot: clineWorkflowRoot,
     renderCommand: renderClineWorkflow,
     installRoot: installRootCline,
+    ignoreFilename: ".clineignore",
     staticOutputs: clineStaticOutputs,
   },
   kilo: {
     label: "Kilo workflows and instructions",
-    renders: ["commands-as-workflows", "rules"],
+    renders: ["commands-as-workflows", "rules", "ignores"],
     commandOutputRoot: kiloWorkflowRoot,
     renderCommand: renderKiloWorkflow,
     installRoot: installRootKilo,
+    ignoreFilename: ".kilocodeignore",
     staticOutputs: kiloStaticOutputs,
   },
   antigravity: {
@@ -108,10 +110,11 @@ const targets = {
   },
   cursor: {
     label: "Cursor global commands and rules",
-    renders: ["rules", "commands"],
+    renders: ["rules", "commands", "ignores"],
     commandOutputRoot: ".cursor/commands",
     renderCommand: renderCursorCommand,
     installRoot: installRootHomeOnly,
+    ignoreFilename: ".cursorignore",
     staticOutputs: cursorStaticOutputs,
   },
   copilot: {
@@ -237,6 +240,8 @@ async function main() {
       await checkCommands(args.slice(1));
     } else if (args[0] === "generated") {
       await checkGenerated(args.slice(1));
+    } else if (args[0] === "ignores") {
+      await checkIgnores();
     } else {
       await check();
     }
@@ -281,6 +286,7 @@ Usage:
   agent-surface check rules [--scenario <name>]
   agent-surface check commands
   agent-surface check generated [--target <target|all>] [--pack default|all|<pack>]
+  agent-surface check ignores
   agent-surface build --target <target|all> [--pack default|all|<pack>] [--dry-run]
   agent-surface install --target <target> [--pack default|all|<pack>] [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
@@ -302,7 +308,7 @@ async function inventory() {
     hooks: (await files("hooks", [".md", ".json", ".js", ".mjs", ".sh"])).length,
     mcps: (await files("mcps", [".json", ".toml", ".yaml", ".yml"])).length,
     settings: (await files("settings", [".json", ".toml", ".yaml", ".yml"])).length,
-    ignores: (await files("ignores", [".gitignore", ".clineignore", ".md", ".txt"])).length,
+    ignores: (await files("ignores", [".ignore", ".gitignore", ".clineignore", ".md", ".txt"])).length,
     plugins: (await files("plugins", [".json", ".md", ".toml", ".yaml", ".yml"])).length,
     external: (await directDirectories(path.join(root, "external"))).length,
     schemas: (await files("schemas", [".json"])).length,
@@ -707,6 +713,31 @@ async function checkGenerated(args) {
   console.log("generated check: ok");
 }
 
+async function checkIgnores() {
+  const ignore = await readIgnores();
+  const emitters = Object.entries(targets)
+    .filter(([, adapter]) => adapter.ignoreFilename)
+    .map(([name]) => name)
+    .sort();
+  const errors = [];
+
+  if (!ignore) {
+    errors.push("ignores/default.ignore is missing");
+  } else if (ignore.body.trim().length === 0) {
+    errors.push("ignores/default.ignore is empty");
+  }
+
+  console.log(`ignores: source ${ignore ? "ok" : "missing"}, emitters ${emitters.length} (${emitters.join(", ")})`);
+  if (errors.length > 0) {
+    console.log("errors:");
+    for (const error of errors) console.log(`  ${error}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log("ignores check: ok");
+}
+
 function validateGeneratedTarget(target, outputs) {
   const errors = [];
   const byPath = new Map(outputs.map((output) => [output.relativeOutput, output]));
@@ -755,9 +786,11 @@ function validateGeneratedTarget(target, outputs) {
   } else if (target === "cline") {
     requirePath(path.join("Documents", "Cline", "Workflows", "flow.md"));
     requireContains(path.join("Documents", "Cline", "Rules", "agent-surface.md"), /agent-surface Cline global rules/);
+    requireContains(".clineignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "kilo") {
     requirePath(path.join(".config", "kilo", "commands", "flow.md"));
     requireContains(path.join(".config", "kilo", "AGENTS.md"), /agent-surface Kilo rules/);
+    requireContains(".kilocodeignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "antigravity") {
     requireContains(path.join("global_workflows", "flow.md"), /^---\ndescription: "/);
   } else if (target === "antigravity-cli") {
@@ -768,6 +801,7 @@ function validateGeneratedTarget(target, outputs) {
   } else if (target === "cursor") {
     requirePath(path.join(".cursor", "commands", "flow.md"));
     requirePath(path.join(".cursor", "rules", "00-precedence-and-safety.mdc"));
+    requireContains(".cursorignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "copilot") {
     requireContains(path.join("instructions", "agent-surface-copilot.instructions.md"), /^---\ndescription: "agent-surface Copilot global instructions"\napplyTo: "\*\*"/);
   } else if (target === "vscode") {
@@ -857,8 +891,13 @@ async function installPlan(target, adapter, installRoot, scope, pack, rootSource
   const writes = [];
   const managed = [];
   const blocked = [];
+  const nonApplicable = [];
 
   for (const item of outputs) {
+    if (item.scopeClass === "project" && scope === "user") {
+      nonApplicable.push(item.relativeOutput);
+      continue;
+    }
     const output = path.join(installRoot, item.relativeOutput);
     const relativeOutput = path.relative(installRoot, output);
     const hash = sha256(item.content);
@@ -980,6 +1019,7 @@ async function installPlan(target, adapter, installRoot, scope, pack, rootSource
     staleRemovalActions,
     configMerges,
     blocked,
+    nonApplicable: nonApplicable.sort((left, right) => left.localeCompare(right)),
     manifest,
   };
 }
@@ -1019,6 +1059,10 @@ function printInstallPlan(plan) {
         console.log(`  ${item.relativeOutput} instructions unchanged`);
       }
     }
+  }
+  if (plan.nonApplicable && plan.nonApplicable.length > 0) {
+    console.log("non-applicable at this scope:");
+    for (const item of plan.nonApplicable) console.log(`  ${item} (project-scope only)`);
   }
   console.log("blocked:");
   if (plan.blocked.length === 0) {
@@ -2575,6 +2619,9 @@ function targetProducers(adapter) {
   if (adapter.staticOutputs) {
     producers.push({ id: "static", produce: (commands, context) => adapter.staticOutputs(commands, context) });
   }
+  if (adapter.ignoreFilename) {
+    producers.push({ id: "ignores", produce: () => ignoreOutputs(adapter) });
+  }
   return producers;
 }
 
@@ -2594,6 +2641,29 @@ async function produceCommandOutputs(adapter, commands, context) {
     }
   }
   return outputs;
+}
+
+let ignoreSourceCache;
+async function readIgnores() {
+  if (ignoreSourceCache !== undefined) return ignoreSourceCache;
+  const file = path.join(root, "ignores", "default.ignore");
+  ignoreSourceCache = (await exists(file)) ? { source: relative(file), body: await readFile(file, "utf8") } : null;
+  return ignoreSourceCache;
+}
+
+// Ignore files are project-root artifacts (.cursorignore/.kilocodeignore/
+// .clineignore). scopeClass "project" tells installPlan to skip them on
+// user-scope installs (which write to the home directory).
+async function ignoreOutputs(adapter) {
+  if (!adapter.ignoreFilename) return [];
+  const ignore = await readIgnores();
+  if (!ignore) return [];
+  return [{
+    source: ignore.source,
+    relativeOutput: adapter.ignoreFilename,
+    content: ignore.body,
+    scopeClass: "project",
+  }];
 }
 
 function commandRelativeOutput(adapter, command, context) {

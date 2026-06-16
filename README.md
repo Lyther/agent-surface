@@ -2,7 +2,7 @@
 
 Typed source and adapter compiler for coding-agent surfaces.
 
-Current implementation: global command, rule, skill, prompt, and plugin-package compiler for Claude Code, Codex, Antigravity CLI, Cline, Kilo, Antigravity, Cursor, GitHub Copilot, VS Code, OpenCode, and Trae. A legacy Gemini CLI transition export remains available while Google moves users to Antigravity CLI. Planned surfaces still include richer hooks, MCP config, ignores, and first-class subagent bundles.
+Current implementation: global command, rule, skill, prompt, and plugin-package compiler for Claude Code, Codex, Antigravity CLI, Cline, Kilo, Antigravity, Cursor, GitHub Copilot, VS Code, OpenCode, and Trae. A legacy Gemini CLI transition export remains available while Google moves users to Antigravity CLI. Planned surfaces still include richer hooks, MCP config, and first-class subagent bundles.
 
 ## Model
 
@@ -19,7 +19,7 @@ The other source folders are kept deliberately so new agent primitives can be ad
 - `hooks/`
 - `mcps/`
 - `settings/`
-- `ignores/`
+- `ignores/` (active: `ignores/default.ignore` renders as `.cursorignore`, `.kilocodeignore`, `.clineignore`)
 - `plugins/`
 - `external/`
 - `registry/`
@@ -140,14 +140,16 @@ Global target surfaces currently generated:
 - Codex: `~/.agents/skills/<command>/SKILL.md`, per-skill `agents/openai.yaml`, and `~/.codex/AGENTS.md`.
 - Antigravity CLI: `~/.gemini/antigravity-cli/plugins/agent-surface/` with generated plugin skills and rules.
 - Gemini CLI legacy transition export: `~/.gemini/commands/**`, `~/.gemini/GEMINI.md`, and `~/.gemini/extensions/agent-surface/` with bundled extension skills.
-- Cline: `~/Documents/Cline/Workflows/*.md` and `~/Documents/Cline/Rules/agent-surface.md` for user scope; project scope still writes `.clinerules/`.
-- Kilo: `~/.config/kilo/commands/*.md`, `~/.config/kilo/AGENTS.md`, ordered per-rule files under `~/.config/kilo/rules/*.md`, and a safe `kilo.jsonc.instructions` merge for user scope; project scope writes `.kilo/commands/*.md`, root `AGENTS.md`, ordered `.kilo/rules/*.md`, and project `kilo.jsonc`.
+- Cline: `~/Documents/Cline/Workflows/*.md` and `~/Documents/Cline/Rules/agent-surface.md` for user scope; project scope still writes `.clinerules/` and a project-root `.clineignore`.
+- Kilo: `~/.config/kilo/commands/*.md`, `~/.config/kilo/AGENTS.md`, ordered per-rule files under `~/.config/kilo/rules/*.md`, and a safe `kilo.jsonc.instructions` merge for user scope; project scope writes `.kilo/commands/*.md`, root `AGENTS.md`, ordered `.kilo/rules/*.md`, project `kilo.jsonc`, and a project-root `.kilocodeignore`.
 - Antigravity: `~/.gemini/antigravity/global_workflows/*.md` for legacy workflow compatibility.
-- Cursor: `~/.cursor/commands/*.md` and `~/.cursor/rules/*.mdc`.
+- Cursor: `~/.cursor/commands/*.md` and `~/.cursor/rules/*.mdc`; project-scope installs (or `--dest`) also emit a project-root `.cursorignore`.
 - GitHub Copilot: VS Code user-profile `instructions/agent-surface-copilot.instructions.md`.
 - VS Code: user-profile `instructions/agent-surface.instructions.md` and `prompts/agent-surface.prompt.md`.
 - OpenCode: `~/.config/opencode/AGENTS.md`.
 - Trae: `~/.trae/user_rules.md`.
+
+Ignore files (`.cursorignore`, `.kilocodeignore`, `.clineignore`) are project-root artifacts rendered from `ignores/default.ignore`. They appear in `build` output and project-scope installs; user-scope installs report them as non-applicable and skip them. Validate the source with `check ignores`.
 
 ## Workflow Kernel
 
