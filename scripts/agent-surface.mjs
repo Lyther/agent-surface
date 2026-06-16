@@ -46,7 +46,7 @@ const subagentCapableStatuses = new Set(["native", "native-experimental"]);
 const targets = {
   "claude-code": {
     label: "Claude Code commands and plugin package",
-    renders: ["commands", "plugins", "subagents"],
+    renders: ["commands", "plugins", "subagents", "mcps"],
     commandOutputRoot: ".claude/commands",
     renderCommand: renderClaudeCommand,
     installRoot: installRootClaude,
@@ -55,6 +55,7 @@ const targets = {
     subagentOutputRoot: path.join(".claude", "agents"),
     subagentOutputName: (subagent) => `${subagent.name}.md`,
     renderSubagent: renderClaudeSubagent,
+    mcpOutput: ".mcp.json",
     staticOutputs: claudeStaticOutputs,
   },
   codex: {
@@ -119,11 +120,12 @@ const targets = {
   },
   cursor: {
     label: "Cursor global commands and rules",
-    renders: ["rules", "commands", "ignores"],
+    renders: ["rules", "commands", "ignores", "mcps"],
     commandOutputRoot: ".cursor/commands",
     renderCommand: renderCursorCommand,
     installRoot: installRootHomeOnly,
     ignoreFilename: ".cursorignore",
+    mcpOutput: path.join(".cursor", "mcp.json"),
     staticOutputs: cursorStaticOutputs,
   },
   copilot: {
@@ -253,6 +255,8 @@ async function main() {
       await checkIgnores();
     } else if (args[0] === "subagents") {
       await checkSubagents();
+    } else if (args[0] === "mcps") {
+      await checkMcps();
     } else {
       await check();
     }
@@ -299,6 +303,7 @@ Usage:
   agent-surface check generated [--target <target|all>] [--pack default|all|<pack>]
   agent-surface check ignores
   agent-surface check subagents
+  agent-surface check mcps
   agent-surface build --target <target|all> [--pack default|all|<pack>] [--dry-run]
   agent-surface install --target <target> [--pack default|all|<pack>] [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
@@ -773,6 +778,29 @@ async function checkSubagents() {
   console.log("subagents check: ok");
 }
 
+async function checkMcps() {
+  const mcps = await readMcps();
+  const errors = mcps.flatMap((mcp) => mcp.errors);
+  const names = mcps.map((mcp) => mcp.name);
+  for (const dup of new Set(names.filter((name, index) => names.indexOf(name) !== index))) {
+    errors.push(`duplicate mcp server name: ${dup}`);
+  }
+  const emitters = Object.entries(targets)
+    .filter(([, adapter]) => adapter.mcpOutput)
+    .map(([name]) => name)
+    .sort();
+
+  console.log(`mcps: sources ${mcps.length}, emitters ${emitters.length} (${emitters.join(", ")})`);
+  if (errors.length > 0) {
+    console.log("errors:");
+    for (const error of errors) console.log(`  ${error}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log("mcps check: ok");
+}
+
 function validateGeneratedTarget(target, outputs) {
   const errors = [];
   const byPath = new Map(outputs.map((output) => [output.relativeOutput, output]));
@@ -806,6 +834,8 @@ function validateGeneratedTarget(target, outputs) {
     if (plugin && plugin.name !== "agent-surface") errors.push("Claude plugin name must be agent-surface");
     requirePath(path.join(".agent-surface", "claude-plugin", "agent-surface", "commands", "flow", "flow.md"));
     requireContains(path.join(".claude", "agents", "code-reviewer.md"), /^---\nname: code-reviewer\n/);
+    const claudeMcp = requireJson(".mcp.json");
+    if (claudeMcp && !claudeMcp.mcpServers?.["sequential-thinking"]) errors.push(".mcp.json missing sequential-thinking server");
   } else if (target === "codex") {
     requireContains(path.join(".agents", "skills", "flow", "SKILL.md"), /^---\nname: flow\n/);
     requireContains(path.join(".agents", "skills", "flow", "agents", "openai.yaml"), /allow_implicit_invocation: false/);
@@ -840,6 +870,8 @@ function validateGeneratedTarget(target, outputs) {
     requirePath(path.join(".cursor", "commands", "flow.md"));
     requirePath(path.join(".cursor", "rules", "00-precedence-and-safety.mdc"));
     requireContains(".cursorignore", /agent-surface canonical AI-tool ignore baseline/);
+    const cursorMcp = requireJson(path.join(".cursor", "mcp.json"));
+    if (cursorMcp && !cursorMcp.mcpServers?.["sequential-thinking"]) errors.push(".cursor/mcp.json missing sequential-thinking server");
   } else if (target === "copilot") {
     requireContains(path.join("instructions", "agent-surface-copilot.instructions.md"), /^---\ndescription: "agent-surface Copilot global instructions"\napplyTo: "\*\*"/);
   } else if (target === "vscode") {
@@ -2663,6 +2695,9 @@ function targetProducers(adapter) {
   if (adapter.renderSubagent) {
     producers.push({ id: "subagents", produce: (commands, context) => produceSubagentOutputs(adapter, context) });
   }
+  if (adapter.mcpOutput) {
+    producers.push({ id: "mcps", produce: (commands, context) => produceMcpOutputs(adapter, context) });
+  }
   return producers;
 }
 
@@ -2792,6 +2827,115 @@ function renderKiloSubagent(subagent) {
   if (subagent.access !== "read-write") lines.push("permission:", "  edit: deny", "  bash: deny");
   lines.push("---", "", subagent.body, "");
   return lines.join("\n");
+}
+
+async function readMcps() {
+  const mcpFiles = await files("mcps", [".json"]);
+  const mcps = [];
+  for (const file of mcpFiles) {
+    mcps.push(parseMcp(file, await readFile(file, "utf8")));
+  }
+  return mcps.sort((left, right) => left.name.localeCompare(right.name));
+}
+
+// Sensitive config keys must reference an environment placeholder (${VAR}),
+// never a literal value, so generated MCP config never carries a secret.
+const mcpSensitiveKey = /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH|BEARER|PRIVATE|SESSION|COOKIE)/i;
+const mcpLiteralSecret = /(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{16,}|xox[abpr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{12,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/;
+
+function mcpStringMap(out, source, field, value) {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    out.errors.push(`${source}: ${field} must be an object of string values`);
+    return undefined;
+  }
+  for (const [key, raw] of Object.entries(value)) {
+    if (typeof raw !== "string") {
+      out.errors.push(`${source}: ${field}.${key} must be a string`);
+      continue;
+    }
+    const placeholder = /^\$\{[^}]+\}$/.test(raw);
+    if (mcpSensitiveKey.test(key) && !placeholder) {
+      out.errors.push(`${source}: ${field}.${key} must use a \${ENV_VAR} placeholder, not a literal secret`);
+    } else if (!placeholder && mcpLiteralSecret.test(raw)) {
+      out.errors.push(`${source}: ${field}.${key} looks like a literal secret; use a \${ENV_VAR} placeholder`);
+    }
+  }
+  return value;
+}
+
+function parseMcp(file, text) {
+  const source = relative(file);
+  const out = { source, name: path.basename(file, ".json"), description: "", command: null, args: [], env: null, url: null, headers: null, errors: [] };
+
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (error) {
+    out.errors.push(`${source}: invalid JSON: ${error.message}`);
+    return out;
+  }
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    out.errors.push(`${source}: must be a JSON object`);
+    return out;
+  }
+
+  if (typeof data.name === "string") out.name = data.name;
+  if (typeof data.description === "string") out.description = data.description;
+  if (data.command !== undefined) out.command = data.command;
+  if (data.url !== undefined) out.url = data.url;
+
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(out.name)) out.errors.push(`${source}: name must be lowercase letters, digits, and hyphens`);
+
+  const hasCommand = typeof out.command === "string" && out.command.length > 0;
+  const hasUrl = typeof out.url === "string" && out.url.length > 0;
+  if (hasCommand === hasUrl) out.errors.push(`${source}: define exactly one of "command" (stdio) or "url" (remote)`);
+
+  if (data.args !== undefined) {
+    if (Array.isArray(data.args) && data.args.every((item) => typeof item === "string")) {
+      out.args = data.args;
+    } else {
+      out.errors.push(`${source}: args must be an array of strings`);
+    }
+  }
+  out.env = mcpStringMap(out, source, "env", data.env);
+  out.headers = mcpStringMap(out, source, "headers", data.headers);
+
+  return out;
+}
+
+// MCP config is rendered as a project-scoped file (.cursor/mcp.json, .mcp.json)
+// in the standard mcpServers shape. scopeClass "project" keeps user-scope
+// installs from touching home-directory MCP config, and the installer blocks
+// (never clobbers) an existing unmanaged file, so live servers stay intact.
+async function produceMcpOutputs(adapter, context) {
+  if (!adapter.mcpOutput) return [];
+  const mcps = await readMcps();
+  if (mcps.length === 0) return [];
+  return [{
+    source: relative(path.join(root, "mcps")),
+    relativeOutput: outputRootFor(adapter.mcpOutput, context),
+    content: renderMcpServers(mcps),
+    scopeClass: "project",
+  }];
+}
+
+function mcpServerEntry(mcp) {
+  if (typeof mcp.url === "string" && mcp.url.length > 0) {
+    const entry = { type: "http", url: mcp.url };
+    if (mcp.headers && Object.keys(mcp.headers).length > 0) entry.headers = mcp.headers;
+    return entry;
+  }
+  const entry = { type: "stdio", command: mcp.command };
+  if (mcp.args.length > 0) entry.args = mcp.args;
+  if (mcp.env && Object.keys(mcp.env).length > 0) entry.env = mcp.env;
+  return entry;
+}
+
+function renderMcpServers(mcps) {
+  const mcpServers = {};
+  for (const mcp of mcps) mcpServers[mcp.name] = mcpServerEntry(mcp);
+  return `${JSON.stringify({ mcpServers }, null, 2)}\n`;
 }
 
 function commandRelativeOutput(adapter, command, context) {

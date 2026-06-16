@@ -180,7 +180,7 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
-assert.equal(generated.length, 789);
+assert.equal(generated.length, 791);
 assertGeminiTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "flow", "flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "swarm.md"))), true);
@@ -241,8 +241,18 @@ assert.match(claudeReviewer, /^tools: Read, Grep, Glob$/m);
 const subagentsCheck = run(["check", "subagents"]);
 assert.match(subagentsCheck, /subagents check: ok/);
 assert.match(subagentsCheck, /sources 2, emitters 3 \(claude-code, codex, kilo\)/);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "mcp.json"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".mcp.json"))), true);
+const cursorMcp = JSON.parse(readFileSync(path.join(root, "dist", "cursor", ".cursor", "mcp.json"), "utf8"));
+assert.equal(cursorMcp.mcpServers["sequential-thinking"].command, "npx");
+assert.equal(cursorMcp.mcpServers["sequential-thinking"].type, "stdio");
+const claudeMcp = JSON.parse(readFileSync(path.join(root, "dist", "claude-code", ".mcp.json"), "utf8"));
+assert.equal(claudeMcp.mcpServers["sequential-thinking"].command, "npx");
+const mcpsCheck = run(["check", "mcps"]);
+assert.match(mcpsCheck, /mcps check: ok/);
+assert.match(mcpsCheck, /sources 1, emitters 2 \(claude-code, cursor\)/);
 const generatedCheck = run(["check", "generated"]);
-assert.match(generatedCheck, /claude-code: generated outputs 126 ok/);
+assert.match(generatedCheck, /claude-code: generated outputs 127 ok/);
 assert.match(generatedCheck, /kilo: generated outputs 76 ok/);
 assert.match(generatedCheck, /antigravity: generated outputs 61 ok/);
 assert.match(generatedCheck, /antigravity-cli: generated outputs 74 ok/);
@@ -403,11 +413,12 @@ rmSync(liveDest, { recursive: true, force: true });
 const claudeLiveDest = "/tmp/agent-surface-claude-live";
 rmSync(claudeLiveDest, { recursive: true, force: true });
 const claudeLiveInstall = run(["install", "--target", "claude-code", "--dest", claudeLiveDest]);
-assert.match(claudeLiveInstall, /wrote: 126/);
+assert.match(claudeLiveInstall, /wrote: 127/);
 assert.match(readFileSync(path.join(claudeLiveDest, ".claude", "commands", "workflow", "boss.md"), "utf8"), /^## OBJECTIVE/);
 assert.match(readFileSync(path.join(claudeLiveDest, ".claude", "agents", "code-reviewer.md"), "utf8"), /^---\nname: code-reviewer\n/);
+assert.match(readFileSync(path.join(claudeLiveDest, ".mcp.json"), "utf8"), /"sequential-thinking"/);
 const claudeLiveManifest = JSON.parse(readFileSync(path.join(claudeLiveDest, ".agent-surface", "claude-code-manifest.json"), "utf8"));
-assert.equal(claudeLiveManifest.managed.length, 126);
+assert.equal(claudeLiveManifest.managed.length, 127);
 rmSync(claudeLiveDest, { recursive: true, force: true });
 
 const codexLiveDest = "/tmp/agent-surface-codex-live";
@@ -704,6 +715,11 @@ assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/14-lang-shell\.md <- 
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/kilo\.jsonc instructions \+= \.\/rules\/00-precedence-and-safety\.md, .*\.\/rules\/14-lang-shell\.md/);
 assert.match(kiloUserScope.stdout, /\.kilocodeignore \(project-scope only\)/);
 assert.doesNotMatch(kiloUserScope.stdout, /\.kilocodeignore <- ignores/);
+
+const claudeUserScope = status(["install", "--target", "claude-code", "--scope", "user", "--dry-run"], { env: userScopeEnv });
+assert.equal(claudeUserScope.status, 0, `${claudeUserScope.stdout}${claudeUserScope.stderr}`);
+assert.match(claudeUserScope.stdout, /\.mcp\.json \(project-scope only\)/);
+assert.doesNotMatch(claudeUserScope.stdout, /\.mcp\.json <- /);
 rmSync(userScopeHome, { recursive: true, force: true });
 
 const kiloIgnoreDest = "/tmp/agent-surface-kilo-ignore-proj";

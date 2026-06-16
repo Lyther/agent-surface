@@ -5,14 +5,19 @@
         "status": "native",
         "locations": [
           "claude mcp add/list/get",
-          "~/.claude.json"
+          "~/.claude.json",
+          ".mcp.json"
         ],
-        "distribution": "local-wired",
+        "distribution": "generated",
         "verified_by": [
-          "local: claude mcp list shows agentmemory connected"
+          "docs: https://code.claude.com/docs/en/mcp",
+          "local: claude mcp list shows agentmemory connected",
+          "local: build target claude-code renders project .mcp.json from mcps/"
         ],
         "notes": [
-          "MCP servers can expose private data and tools; agent-surface records optional services but does not auto-merge Claude MCP config during install."
+          "agent-surface renders a secret-free project-scoped .mcp.json (mcpServers shape) from mcps/; values must use ${VAR} placeholders, never literal secrets.",
+          "MCP servers can expose private data and tools, so installs never auto-merge user-global Claude MCP config and user-scope installs skip the project .mcp.json; the installer blocks rather than clobbers an existing file.",
+          "Optional live servers stay recorded in registry/optional-services.json, not auto-wired."
         ]
       },
       "skills": {
@@ -482,14 +487,18 @@
       "mcp": {
         "status": "native",
         "locations": [
-          "~/.cursor/mcp.json mcpServers"
+          "~/.cursor/mcp.json mcpServers",
+          ".cursor/mcp.json mcpServers"
         ],
-        "distribution": "local-wired",
+        "distribution": "generated",
         "verified_by": [
-          "local: ~/.cursor/mcp.json contains mcpServers.agentmemory"
+          "docs: https://cursor.com/docs/context/mcp",
+          "local: ~/.cursor/mcp.json contains mcpServers.agentmemory",
+          "local: build target cursor renders project .cursor/mcp.json from mcps/"
         ],
         "notes": [
-          "Cursor MCP config may contain secrets and live tool access, so installs do not merge it automatically."
+          "agent-surface renders a secret-free project-scoped .cursor/mcp.json (mcpServers shape, type stdio) from mcps/; values must use ${env:VAR} placeholders, never literal secrets.",
+          "Cursor MCP config may contain secrets and live tool access, so installs never auto-merge the user-global ~/.cursor/mcp.json; the generated file is project-scope only and Cursor's user-scope install skips it."
         ]
       },
       "skills": {

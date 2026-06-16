@@ -7,7 +7,8 @@
       "renders": [
         "commands",
         "plugins",
-        "subagents"
+        "subagents",
+        "mcps"
       ]
     },
     "codex": {
@@ -95,7 +96,8 @@
       "renders": [
         "rules",
         "commands",
-        "ignores"
+        "ignores",
+        "mcps"
       ]
     },
     "copilot": {
