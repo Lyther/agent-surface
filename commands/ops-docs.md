@@ -1,10 +1,6 @@
 ---
 name: ops-docs
 phase: improve
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Manage project documentation lifecycle, freshness, and hygiene."
 ---
 ## OBJECTIVE

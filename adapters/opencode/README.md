@@ -6,7 +6,7 @@ Implemented target path:
 
 - `~/.config/opencode/AGENTS.md`
 
-Native MCP and skill support is tracked in `registry/target-capabilities.json`. Local user wiring currently includes `agentmemory` in `~/.config/opencode/opencode.json` and optional external `SKILL.md` packs in `~/.config/opencode/skills/`.
+Native MCP and skill support is not currently generated; local user wiring for optional services belongs in the host config.
 
 Locally observed CLI primitives remain future generated-surface work:
 

@@ -1,10 +1,6 @@
 ---
 name: stellaris-translate
 phase: game
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Manage Stellaris localisation files with strict encoding discipline."
 ---
 ## OBJECTIVE

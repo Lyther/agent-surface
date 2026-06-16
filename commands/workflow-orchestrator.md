@@ -1,12 +1,6 @@
 ---
 name: workflow-orchestrator
 phase: arbitrate
-risk: writes
-default_export: true
-packs:
-  - default
-approval_classes:
-  - network
 description: "Run the long-running workflow monitor and role handoffs."
 ---
 ## OBJECTIVE
@@ -135,7 +129,7 @@ Minimum shape:
 
 Default workflow execution is serial. Parallel workers are allowed only when BOSS has split tasks into independent FILESCOPEs with no dependency edge, no shared generated outputs, no shared service port or database fixture, and separate patch manifests. Use separate worktrees or equivalent isolation per worker, then route the combined accepted patches through one reviewer batch. Do not parallelize merely to hide a vague spec or shared-hunk risk.
 
-Aggressive worker-led parallelism is allowed when `registry/target-capabilities.json` marks the runtime's `subagents.status` as `native` or `native-experimental`, the local probe is green, and the BOSS task is internally parallel-safe. The orchestrator assigns one worker lead, not a vague swarm. Use a runtime-specific prompt:
+Aggressive worker-led parallelism is allowed when the target runtime has verified subagent support, the local probe is green, and the BOSS task is internally parallel-safe. The orchestrator assigns one worker lead, not a vague swarm. Use a runtime-specific prompt:
 
 ```text
 Runtime: <kilo-cli|claude-code|codex|...>.

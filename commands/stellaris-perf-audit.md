@@ -1,10 +1,6 @@
 ---
 name: stellaris-perf-audit
 phase: game
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Audit Stellaris mod performance without sacrificing clarity or AI behavior."
 ---
 ## OBJECTIVE

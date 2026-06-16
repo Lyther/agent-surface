@@ -1,10 +1,6 @@
 ---
 name: boot-workflow
 phase: observe
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Show workflow diagrams on demand without embedding them in rule files."
 ---
 ## OBJECTIVE

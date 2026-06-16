@@ -1,10 +1,6 @@
 ---
 name: qa-review
 phase: review
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Find blocking issues before bad code lands."
 ---
 ## OBJECTIVE

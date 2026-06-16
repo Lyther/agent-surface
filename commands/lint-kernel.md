@@ -1,10 +1,6 @@
 ---
 name: lint-kernel
 phase: verify
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Apply Linux kernel patch and C review discipline."
 ---
 ## §0 META: YOU WILL BE AUDITED

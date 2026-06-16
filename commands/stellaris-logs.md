@@ -1,10 +1,6 @@
 ---
 name: stellaris-logs
 phase: game
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Turn Stellaris logs into deterministic fixes."
 ---
 ## OBJECTIVE

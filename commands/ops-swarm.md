@@ -1,13 +1,8 @@
 ---
 name: ops-swarm
 phase: observe
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Coordinate a bounded evidence-led multi-agent investigation."
 aliases:
-  - swarm
 ---
 
 ## OBJECTIVE
@@ -116,7 +111,7 @@ Runtime assignment fields:
 }
 ```
 
-Before assigning worker-led subagents, check `registry/target-capabilities.json` for the target's `subagents.status`, mechanisms, headless support, and probe notes. Do not ask a runtime to fan out subagents when that registry entry is `unsupported` or `unknown`, unless the packet is specifically a probe to update the registry.
+Before assigning worker-led subagents, verify the target's subagent mechanism and headless support locally. Do not ask a runtime to fan out subagents when the capability is unverified, unless the packet is specifically a probe to confirm the mechanism.
 
 Use runtime-specific prompt variants instead of a generic "use subagents" instruction:
 

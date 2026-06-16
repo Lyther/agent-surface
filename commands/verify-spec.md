@@ -1,10 +1,6 @@
 ---
 name: verify-spec
 phase: verify
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Turn the definition of done into executable checks."
 ---
 ## OBJECTIVE

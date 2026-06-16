@@ -13,6 +13,6 @@ Implemented target paths:
 
 Cline built-in slash commands are not treated as a custom command-file primitive.
 
-Native MCP support is tracked in `registry/target-capabilities.json`. Local user wiring currently includes `agentmemory` in `~/.cline/data/settings/cline_mcp_settings.json` with approval lists empty by default.
+Native MCP support is not currently generated; local user wiring for optional services belongs in the host config.
 
 Native skills are experimental in Cline. Optional external `SKILL.md` packs are mirrored locally into `~/.cline/skills/`; generated command sources continue to render as workflows.

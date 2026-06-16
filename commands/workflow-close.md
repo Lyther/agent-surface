@@ -1,10 +1,6 @@
 ---
 name: workflow-close
 phase: arbitrate
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Close an accepted or aborted workflow run while preserving history."
 ---
 ## OBJECTIVE

@@ -2,254 +2,133 @@
 
 Typed source and adapter compiler for coding-agent surfaces.
 
-Current implementation: global command, rule, skill, subagent, ignore, MCP-config, Cursor hook, prompt, and generated plugin-package output compiler for Claude Code, Codex, Antigravity CLI, Cline, Kilo, Antigravity, Cursor, GitHub Copilot, VS Code, OpenCode, and Trae. A legacy Gemini CLI transition export remains available while Google moves users to Antigravity CLI. Planned surfaces still include settings, source-driven plugin bundles, and broader hook coverage (Claude Code hooks land in a shared settings file and need a safe merge first).
+Write commands, rules, and ignore files once in the repo source tree, then render them into the native formats used by Claude Code, Codex, Cursor, Cline, Kilo, Antigravity, and other agent hosts.
 
-## Model
+## What it does
 
-`commands/` is the canonical home for user-invoked reusable procedures. Target adapters may render the same source as Claude commands, Antigravity CLI plugin skills, legacy Gemini commands and extensions, Cline workflows, Antigravity workflows, Cursor commands, Codex skills, Claude plugin commands, or another native primitive.
+- **Source primitive compiler**: `commands/`, `rules/`, and `ignores/` are rendered per target by explicit producers.
+- **Target adapter outputs**: each target receives the files it natively understands (commands, workflows, skills, instructions, plugins, rules, or ignore files).
+- **Sync-aware install**: dry-run previews, project-only gating for project-scoped artifacts, manifest tracking, and backups.
 
-Default exports quarantine high-risk local-only commands such as `boot-facade` and `ops-nuke` through command metadata; they remain source artifacts and can be rendered only through explicit packs.
+## Supported targets
 
-`rules/` contains always-on or scoped behavior policy.
+Implemented:
 
-The other source folders are kept deliberately so new agent primitives can be added without reshaping the project:
-
-- `skills/`
-- `subagents/` (active: example agents render to Claude Code, Codex, and Kilo subagent files)
-- `hooks/` (active but narrow: `hooks/audit-log.sh` renders as a project-scoped Cursor `.cursor/hooks.json` + script)
-- `mcps/` (active: `mcps/*.json` render as project-scoped `.cursor/mcp.json` and `.mcp.json`)
-- `settings/`
-- `ignores/` (active: `ignores/default.ignore` renders as `.cursorignore`, `.kilocodeignore`, `.clineignore`)
-- `plugins/`
-- `external/`
-- `registry/`
-- `schemas/`
-
-## Current Scope
-
-In scope:
-
-- Antigravity
-- Antigravity CLI
 - Claude Code
-- Cline
 - Codex
 - Cursor
-- Gemini CLI legacy transition export
-- GitHub Copilot
+- Cline
 - Kilo
+- Antigravity CLI
+- Antigravity (legacy workflows)
+- GitHub Copilot
+- VS Code
 - OpenCode
 - Trae
-- VS Code
+- Gemini CLI (legacy transition export)
 
-Planned but not yet implemented:
+Planned: Droid, Goose, Grok Build, Pi, Pool, VSCodium, Windsurf, Zed.
 
-- Droid
-- Goose
-- Grok Build
-- Pi
-- Pool
-- VSCodium
-- Windsurf
-- Zed
+Out of scope: Roo Code (EoL), Xcode.
 
-Will never be implemented:
+## Project layout
 
-- Roo Code: will be EoL'd at May 15, 2026
-- Xcode: please don't torture me
-
-## Quick Start
-
-```bash
-npm run inventory
-npm run check
-npm run test
-npm run doctor
-npm run build -- --target all
+```text
+commands/          User-invoked reusable procedures
+rules/             Always-on or scoped behavior policy
+subagents/         Reserved for future agent definitions
+mcps/              Reserved for future MCP server definitions
+ignores/           Project ignore files (.cursorignore, .kilocodeignore, .clineignore)
+registry/          Target and source-kind policy
+schemas/           JSON schemas for registry and workflow artifacts
+scripts/           CLI compiler and helper modules
+tests/             Integration tests
+adapters/          Per-target READMEs and context
+external/          Optional git-submodule skill/service packs
 ```
 
-Use dry-run before live installs:
-
-```bash
-node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
-node scripts/agent-surface.mjs install --target codex --scope user --dry-run
-node scripts/agent-surface.mjs install --target antigravity-cli --scope user --dry-run
-node scripts/agent-surface.mjs install --target cline --scope user --dry-run
-node scripts/agent-surface.mjs install --target kilo --scope user --dry-run
-node scripts/agent-surface.mjs install --target antigravity --scope user --dry-run
-node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
-node scripts/agent-surface.mjs install --target vscode --scope user --dry-run
-node scripts/agent-surface.mjs install --target copilot --scope user --dry-run
-node scripts/agent-surface.mjs install --target opencode --scope user --dry-run
-node scripts/agent-surface.mjs install --target trae --scope user --dry-run
-node scripts/agent-surface.mjs install --target gemini-cli --scope user --dry-run # legacy transition target
-```
-
-`install` prints the files it will write, stale managed files it will remove, blocked paths, and the manifest path that tracks generated files. Live writes require explicit `--dest` or `--allow-scope-root` after reviewing the dry run. Existing unmanaged files block the install. Managed files changed since the last manifest block the install. Overwrites and stale managed removals are backed up under `.agent-surface/backups/`.
-
-## Upgrading From Earlier Installs
-
-Older `agent-surface` installs were mostly command/rule distributions. The current version is producer-aware: commands, rules, subagents, ignores, MCP configs, hooks, prompts, instructions, and generated plugin packages are emitted by explicit target producers, and `registry/source-kinds.json` decides each primitive's load mode, install scope, risk class, and token budget.
-
-What changes in day-to-day use:
-
-- Run the full check set before distributing: `npm run check`, `npm run check:commands`, `npm run check:generated`, `npm run check:rules`, and `npm test`.
-- Review `install --dry-run` output more carefully. It now lists non-applicable project-only artifacts such as ignores, MCP configs, and hooks when you install to user scope.
-- Use project-scope installs, or an explicit `--dest`, when you want project artifacts such as `.cursorignore`, `.kilocodeignore`, `.clineignore`, `.cursor/mcp.json`, `.mcp.json`, or `.cursor/hooks.json`.
-- Treat generated MCP configs as inert review artifacts until the host imports/enables them. MCP sources must be secret-free and package-manager launches must use exact pinned specs.
-- For subagents, use `access: read-only` by default. Use `read-write-shell` only when the agent genuinely needs shell access; `read-write` can edit/write where the target supports it but does not grant Bash.
-- For Google surfaces, use `antigravity-cli` for the current CLI target. Keep `gemini-cli` only as the legacy transition export.
-
-Recommended upgrade flow:
+## Quick start
 
 ```bash
 npm ci
-npm run check
-npm run check:commands
-npm run check:generated
-npm run check:rules
-npm test
-
-node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
-node scripts/agent-surface.mjs install --target codex --scope user --dry-run
-node scripts/agent-surface.mjs install --target antigravity-cli --scope user --dry-run
-node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
-
-# After reviewing dry-run output:
-node scripts/agent-surface.mjs install --target <target> --scope user --allow-scope-root
+npm run inventory   # Show source counts
+npm run check       # Validate source, registry, and generated outputs
+npm test            # Run integration tests
+npm run build -- --target all
 ```
 
-For project artifacts, review a project dry-run first and then install to that project root:
+Dry-run an install before writing anything live:
+
+```bash
+node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
+node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
+```
+
+Project-scope artifacts such as ignore files must be installed with `--dest`:
 
 ```bash
 node scripts/agent-surface.mjs install --target cursor --dest /path/to/project --dry-run
 node scripts/agent-surface.mjs install --target cursor --dest /path/to/project
 ```
 
-## CLI Reference
-
-Common checks:
+## Checks
 
 ```bash
-npm run check
-npm run check:commands
-npm run check:generated
-npm run check:rules
-npm test
+npm run check              # Full validation
+npm run check:commands     # Command metadata and references
+npm run check:generated    # Generated output correctness
+npm run check:rules        # Rule scenario budgets
+npm test                   # Integration tests
+npm run doctor             # Project health summary
 ```
 
-Registry and pack inspection:
+## CLI essentials
+
+Registry and phase inspection:
 
 ```bash
 node scripts/agent-surface.mjs commands --json
 node scripts/agent-surface.mjs commands --phase ship --json
-node scripts/agent-surface.mjs commands --risk writes --json
-node scripts/agent-surface.mjs commands --pack all --json
 ```
 
-Pack-specific rendering:
+Build a target:
 
 ```bash
-node scripts/agent-surface.mjs build --target antigravity-cli --pack all --dry-run
-node scripts/agent-surface.mjs build --target cline --pack destructive --dry-run
+node scripts/agent-surface.mjs build --target antigravity-cli --dry-run
+node scripts/agent-surface.mjs build --target cline --dry-run
 ```
 
-Workflow evidence helpers:
+## Install behavior
 
-```bash
-node scripts/agent-surface.mjs run --task T1 --class build_test --timeout 120000 --out .agent-surface/workflows/<run_id>/rounds/round-001/evidence/T1 -- npm test
-node scripts/agent-surface.mjs workflow patch begin --run <run_id> --round 1 --task T1 --file src/example.ts
-node scripts/agent-surface.mjs workflow patch end --run <run_id> --round 1 --task T1
-node scripts/agent-surface.mjs workflow patch verify --run <run_id> --round 1 --task T1
-```
+- Install is sync-oriented: existing files are overwritten by default.
+- Project-only artifacts (`ignores/`) are skipped on user-scope installs; use `--dest` to install them into a project.
+- Manifests track generated files so stale outputs can be removed on the next install.
+- Backups are written to `.agent-surface/backups/` before overwrite or removal.
 
-`run` requires explicit approval for `network`, `filesystem_destructive`, `deployment`, and `database_mutation` command classes through `--approved <class>` or `AGENT_SURFACE_APPROVED_CLASSES`.
+## Source-kind policy
 
-Command frontmatter can declare `name`, `aliases`, `phase`, `risk`, `packs`, `default_export`, `approval_classes`, and `description`. `commands --json` emits the resolved registry with target paths and marks metadata as `frontmatter` or `inferred`. `commands --phase` and `commands --risk` filter that registry for routers such as `/flow`. `check commands` validates metadata and command-like references. `build` and `install` use `--pack default` unless told otherwise. `--pack all` renders every command source; named packs render the default set plus commands explicitly assigned to that pack.
+`registry/source-kinds.json` records each active primitive's `load_mode`, `install_scopes`, and `source_dir`. `check` validates the registry, and `install` uses source-kind install scopes instead of per-output special cases.
 
-Source-kind policy lives in `registry/source-kinds.json`. It records each active primitive's load mode, install scope, risk class, default policy, and generated-artifact token budget. `check` validates the registry, `targetProducers()` declares each producer's emitted render tokens and source kind, `check generated` enforces hard token caps by load mode, and `install` uses source-kind install scopes instead of per-output special cases. Render surface labels such as `plugins`, `instructions`, and `prompts` are render tokens, not source kinds. The first active project-only kinds are `ignores`, `mcps`, and `hooks`; user-scope installs report those artifacts as non-applicable and skip them.
+## Upgrade notes
 
-Optional external services live under `external/` as git submodules and are tracked in `registry/optional-services.json`. They are not required for core build/install. `agentmemory` and `pua` are marked optional-caution: use the locally patched `agentmemory-mcp` wiring and keep PUA narrowly enabled because it can increase token use and reduce model performance on normal tasks.
+- Use `antigravity-cli` as the current Google CLI target. `gemini-cli` is kept only as a legacy transition export.
 
-Target MCP, skill, and subagent/parallel-runtime support is recorded separately in `registry/target-capabilities.json`. This is intentionally distinct from `registry/targets.json`: the compiler may render commands/rules for a target while MCPs, external `SKILL.md` packs, and runtime fan-out are only local-wired, manual-only, or unsupported. Kilo and legacy Antigravity keep command sources under their workflow surfaces; external skills stay native `SKILL.md` directories where the host supports them.
+## Workflow kernel (optional)
 
-Google announced on May 19, 2026 that consumer Gemini CLI users should migrate to Antigravity CLI before Gemini CLI stops serving those consumer requests on June 18, 2026. `agent-surface` therefore treats `antigravity-cli` as the current Google CLI target and keeps `gemini-cli` as a legacy transition export.
+Multi-role workflow state lives under `.agent-surface/workflows/<run_id>/`.
 
-Global target surfaces currently generated:
+- `workflow-orchestrator` — long-running monitor that routes BOSS, worker, reviewer, judger, rescue, QA, and close roles.
+- `workflow-boss` — plans the next coherent batch.
+- `workflow-reviewer` — gates acceptance before `ship-commit`.
+- `workflow-doctor` — validates run state before acting on it.
+- `workflow-close` — archives metrics and unresolved risks.
 
-- Claude Code: `~/.claude/commands/**` plus a packaged Claude plugin directory at `~/.agent-surface/claude-plugin/agent-surface/`. Example subagents render to `~/.claude/agents/*.md`.
-- Codex: `~/.agents/skills/<command>/SKILL.md`, per-skill `agents/openai.yaml`, and `~/.codex/AGENTS.md`. Example subagents render to `~/.codex/agents/*.toml`.
-- Antigravity CLI: `~/.gemini/antigravity-cli/plugins/agent-surface/` with generated plugin skills and rules.
-- Gemini CLI legacy transition export: `~/.gemini/commands/**`, `~/.gemini/GEMINI.md`, and `~/.gemini/extensions/agent-surface/` with bundled extension skills.
-- Cline: `~/Documents/Cline/Workflows/*.md` and `~/Documents/Cline/Rules/agent-surface.md` for user scope; project scope still writes `.clinerules/` and a project-root `.clineignore`.
-- Kilo: `~/.config/kilo/commands/*.md`, `~/.config/kilo/AGENTS.md`, ordered per-rule files under `~/.config/kilo/rules/*.md`, and a safe `kilo.jsonc.instructions` merge for user scope; project scope writes `.kilo/commands/*.md`, root `AGENTS.md`, ordered `.kilo/rules/*.md`, project `kilo.jsonc`, and a project-root `.kilocodeignore`. Example subagents render to `~/.config/kilo/agents/*.md` (user) and `.kilo/agents/*.md` (project).
-- Antigravity: `~/.gemini/antigravity/global_workflows/*.md` for legacy workflow compatibility.
-- Cursor: `~/.cursor/commands/*.md` and `~/.cursor/rules/*.mdc`; project-scope installs (or `--dest`) also emit a project-root `.cursorignore` and `.cursor/mcp.json`.
-- GitHub Copilot: VS Code user-profile `instructions/agent-surface-copilot.instructions.md`.
-- VS Code: user-profile `instructions/agent-surface.instructions.md` and `prompts/agent-surface.prompt.md`.
-- OpenCode: `~/.config/opencode/AGENTS.md`.
-- Trae: `~/.trae/user_rules.md`.
+Use `agent-surface run` and `agent-surface workflow patch begin/end/verify` to capture evidence mechanically.
 
-Ignore files (`.cursorignore`, `.kilocodeignore`, `.clineignore`) are project-root artifacts rendered from `ignores/default.ignore`. They appear in `build` output and project-scope installs; user-scope installs report them as non-applicable and skip them. Validate the source with `check ignores`.
+## Adapter READMEs
 
-Subagent definitions in `subagents/*.md` (frontmatter `name`, `description`, `access`) render per target: Claude Code `.claude/agents/<name>.md`, Codex `.codex/agents/<name>.toml`, and Kilo `.kilo/agents/<name>.md` (project) / `~/.config/kilo/agents/<name>.md` (user). `access` is a source-level hint, not a cross-host permission guarantee: each target renderer maps it to the closest available tool, sandbox, or permission mechanism. `access: read-only` maps to a read-only tool/sandbox/permission set per target; `read-write-shell` is the explicit shell-capable tier. `check subagents` derives per-source risk from `access` so read-only examples remain content risk even though the source kind supports executable tiers. `model` is left to inherit. The shipped examples are generic agents, not promoted workflow roles.
+Per-target details live in `adapters/<target>/README.md`.
 
-MCP servers in `mcps/*.json` (`name`, `runtime`, `command`+`args` or `url`, optional `env`/`headers`, plus runtime trust metadata) render to the standard `mcpServers` shape as project-scoped `.cursor/mcp.json` and `.mcp.json`. They are project-root artifacts: `build` and project-scope installs write them, user-scope installs skip them, and the installer blocks rather than clobbers an existing file, so live user MCP config is never auto-merged. The source must be secret-free; sensitive values must use `${ENV_VAR}` placeholders, which `check mcps` enforces across command, args, URL, env, and headers. `check mcps` also enforces a cheap source-size cap on the MCP JSON file; this is a file-size guard, not semantic runtime-context analysis. Package-manager launched MCPs (`npx`, `uvx`) must declare `package_manager`, `network_bootstrap`, `version_pinned`, and include an exact pinned package spec. They remain manual network-bootstrap tools, not offline-safe vendored binaries. Generated MCP config is inert until the user reviews and enables/imports it in the host. The shipped example is the no-secret sequential-thinking server pinned to `@modelcontextprotocol/server-sequential-thinking@2025.12.18`.
+## License
 
-Hooks currently ship one Cursor-only example from `hooks/audit-log.sh` into a project-scoped Cursor `.cursor/hooks.json` (version 1) plus the script under `.cursor/hooks/`. The example is observe-only (`afterFileEdit`, `afterShellExecution`, `stop`), invoked as `sh .cursor/hooks/audit-log.sh <event>` so no execute bit is needed. It is fail-open and metadata-only: it logs just a timestamp and the event name, never file or command content, and always exits 0, so it can neither block the agent nor leak secrets. Like ignores, the artifacts are project-scope only (user-scope installs skip them; install blocks rather than clobbers). `check hooks` enforces the shipped script's fail-open contract and an allow-list for the small set of commands the audit-log example needs. Generic hook discovery and Claude-style hooks are deferred until their host-specific merge and trust models are proven.
-
-## Workflow Kernel
-
-Canonical workflow state lives under `.agent-surface/workflows/<run_id>/`.
-
-Cursor-specific `.cursor/.workflow/` files are compatibility artifacts only; canonical `.agent-surface` state wins when they disagree.
-
-Start with `/flow` when the right path is unclear. For formal workflow mode, start `workflow-orchestrator`; it is the long-running monitor session that spawns BOSS, worker, reviewer, judger, rescue, QA, and close roles until the run has no remaining work or automation must stop. Use `workflow-doctor` before acting on an existing run, and `workflow-close` to archive metrics and unresolved risks after an accepted or aborted run.
-
-`workflow-boss` should queue the largest coherent batch it can specify safely and mark parallel groups, isolation, suggested runtime, and subagent suitability when those hints help the orchestrator. `workflow-reviewer` gates the batch across AC compliance, security, docs, dependency hygiene, tests, config, and other QA risks before anything reaches `ship-commit`.
-
-`workflow-orchestrator` chooses the next role, provider, model, runtime, agent/mode, subagent policy, and launch shape from the ledger, local availability, cost, speed, context, prior outcomes, and required model independence. It records local `agents.json` state and keeps monitoring until the remaining task queue is finished, closed, quarantined, aborted, or handed to a human. It does not replace BOSS, worker, reviewer, judger, rescue, or close role-file ownership.
-
-Latency tuning is measurement-first: profile role wall time, handoff gaps, clean-pass rate, rework loops, and judger escalations from local workflow telemetry before changing model tier, batch caps, or QA routing. Workers consume BOSS `context_capsule` first, resolve worker-owned blockers before stopping, and reserve `qa-review` / `qa-sec` for escalation rather than stacking duplicate serial review by default.
-
-For Ollama thinking models, workflow roles should hide or drop the reasoning trace, not disable thinking. Use explicit thinking for non-trivial worker/reviewer roles and never persist the `thinking` field in workflow artifacts. Grok Build JSON output may include `thought`; treat it the same way.
-
-Workflow-aware workers currently include `dev-feature`, `dev-fix`, `dev-chore`, and `dev-refactor`.
-
-Use `agent-surface run` for workflow verification commands so stdout, stderr, hashes, timing, exit code, cwd, and git tree are captured as evidence by tooling instead of by model self-report.
-
-Use `agent-surface workflow patch begin/end/verify` around each task so `patch_ref`, `patch_hash`, `pre_tree_hash`, `post_tree_hash`, changed files, and clean-apply proof are captured mechanically.
-
-`workflow doctor` validates workflow role artifacts, event hash chains, and patch manifests, including patch refs and patch content hashes.
-
-Experimental loop shape:
-
-```text
-Codex coordinates and verifies the workflow ledger.
-workflow-orchestrator explicitly considers external/headless agents before using only native subagents.
-Approved candidates include Kilo CLI or Kilo IDE Agent Manager, Ollama Cloud integrations, Grok Build, Cursor Agent headless, Claude Code headless, Codex exec, OpenCode, Goose, legacy Gemini headless, Antigravity CLI headless once locally verified, and native subagents.
-Local probes on 2026-06-11 verified Ollama Cloud model entries: kimi-k2.6:cloud, glm-5.1:cloud, deepseek-v4-pro:cloud, minimax-m3:cloud.
-Local Cursor probe verified `cursor agent -p` as the headless command shape, but the account reported no available models. Local `antigravity chat` opened the desktop app and is not a verified headless worker path.
-Local Kilo probe on 2026-06-16 verified `kilo run --help` exposes `--model`, `--agent`, `--format json`, `--dir`, `--variant`, and `--auto`; local `kilo agent list` is currently blocked by invalid user config keys and should not be used for role assignment until fixed.
-For aggressive worker-led runs, assign the runtime explicitly. The currently recorded subagent-capable runtimes are Kilo, Claude Code, and Codex: Kilo uses Task-tool or `@agent-name` subagents, Claude Code can use the Agent tool, agent teams, or dynamic workflows, and Codex can spawn explicit subagents from the parent prompt. Only use these fan-out paths when `registry/target-capabilities.json` marks the runtime subagent-capable and the local probe is green.
-Use worktrees when multiple workers may edit files.
-Keep an independent reviewer or judger provider/model family before `ship-commit`.
-```
-
-GitHub install smoke path:
-
-```bash
-npx github:Lyther/agent-surface check
-npx github:Lyther/agent-surface inventory
-```
-
-## Next Milestone
-
-Use the managed global installs in normal work, then tighten target-specific validation where the host exposes a verifier:
-
-1. Claude Code: test standalone commands and the generated plugin with `claude --plugin-dir`.
-2. Antigravity CLI: verify plugin discovery, skill discovery, generated rule attachment, and the non-interactive headless launch path once the local CLI exposes plugin install/validate/headless commands.
-3. Gemini CLI legacy export: verify `/commands reload`, extension discovery, `~/.gemini/GEMINI.md` loading, and `gemini -p --output-format json` while the transition target remains supported.
-4. Cline: verify global Workflows and Rules appear in the UI.
-5. Kilo: verify global commands, the `kilo.jsonc` Rules entry, `kilo run` packet launch, and configured subagents attach in the extension or CLI.
-6. Cursor, Copilot, VS Code, OpenCode, and Trae: verify the generated global instruction files are actually attached in live sessions; for Cursor Agent, require `cursor agent models` to report usable account models before assigning workflow roles.
+MIT

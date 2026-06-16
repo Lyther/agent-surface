@@ -1,10 +1,6 @@
 ---
 name: dev-fix
 phase: build
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Apply the minimal effective patch that restores functionality."
 ---
 ## OBJECTIVE

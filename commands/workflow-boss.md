@@ -1,10 +1,6 @@
 ---
 name: workflow-boss
 phase: arbitrate
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Decompose related tasks into an implementable spec without writing code."
 ---
 ## OBJECTIVE
@@ -142,7 +138,7 @@ For each task, include runtime and parallelism hints when they are useful:
 
 Use `separate_worktree` whenever two writable tasks can overlap in time. Use `serial_required` for shared generated outputs, migrations, shared service ports, database fixtures, lockfiles, or any FILESCOPE that cannot be cleanly isolated. Do not set `parallel_group` or `subagent_suitable=true` on a `serial_required` task. Do not set both `parallel_group` and `subagent_suitable=true` on any task; they are alternate fan-out modes.
 
-When the user asks for aggressive parallelism, produce larger independent groups instead of a long serial dependency chain. If a task is internally parallelizable, mark `subagent_suitable=true` and suggest a runtime that `registry/target-capabilities.json` marks subagent-capable. The orchestrator then chooses either separate worker sessions for `parallel_group` tasks or one worker lead for `subagent_suitable` work; avoid applying both forms of fan-out to the same writable filescope unless the isolation plan is explicit.
+When the user asks for aggressive parallelism, produce larger independent groups instead of a long serial dependency chain. If a task is internally parallelizable, mark `subagent_suitable=true` and suggest a runtime with verified subagent support. The orchestrator then chooses either separate worker sessions for `parallel_group` tasks or one worker lead for `subagent_suitable` work; avoid applying both forms of fan-out to the same writable filescope unless the isolation plan is explicit.
 
 ### Phase 8: Workflow handoff
 

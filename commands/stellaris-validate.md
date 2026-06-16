@@ -1,10 +1,6 @@
 ---
 name: stellaris-validate
 phase: game
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Catch Stellaris mod failures before launch."
 ---
 ## OBJECTIVE

@@ -1,10 +1,6 @@
 ---
 name: lint-shell
 phase: verify
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Apply strict shell-script engineering rules before code is accepted."
 ---
 ## §0 META: YOU WILL BE AUDITED

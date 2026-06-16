@@ -1,10 +1,6 @@
 ---
 name: boot-new
 phase: observe
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Bootstrap a new project from a user vision into a working structure."
 ---
 ## OBJECTIVE

@@ -1,10 +1,6 @@
 ---
 name: workflow-reviewer
 phase: arbitrate
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Review batched implementation output against the BOSS spec and evidence."
 ---
 ## OBJECTIVE

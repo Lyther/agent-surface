@@ -1,10 +1,6 @@
 ---
 name: stellaris-design
 phase: game
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Design deterministic implementation paths for Stellaris mods."
 ---
 ## OBJECTIVE

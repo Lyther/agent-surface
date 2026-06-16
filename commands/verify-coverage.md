@@ -1,10 +1,6 @@
 ---
 name: verify-coverage
 phase: verify
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Identify logic gaps, unreachable code, and untested failure paths."
 ---
 ## OBJECTIVE

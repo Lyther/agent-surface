@@ -15,10 +15,7 @@
           "source_dir",
           "load_mode",
           "scope",
-          "install_scopes",
-          "risk_class",
-          "default_policy",
-          "budget"
+          "install_scopes"
         ],
         "properties": {
           "source_dir": {
@@ -31,8 +28,7 @@
               "catalog",
               "on_demand",
               "isolated_session",
-              "external_tool",
-              "triggered_hook"
+              "external_tool"
             ]
           },
           "scope": {
@@ -52,50 +48,10 @@
                 "project"
               ]
             }
-          },
-          "risk_class": {
-            "enum": [
-              "content",
-              "context_filter",
-              "config",
-              "external_tool",
-              "executable"
-            ]
-          },
-          "default_policy": {
-            "enum": [
-              "default",
-              "manual",
-              "explicit_pack",
-              "never_install_live"
-            ]
-          },
-          "budget": {
-            "$ref": "#/$defs/budget"
           }
         },
         "additionalProperties": false
       }
-    }
-  },
-  "$defs": {
-    "budget": {
-      "type": "object",
-      "required": [
-        "warn_tokens",
-        "hard_tokens"
-      ],
-      "properties": {
-        "warn_tokens": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "hard_tokens": {
-          "type": "integer",
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false
     }
   },
   "additionalProperties": false

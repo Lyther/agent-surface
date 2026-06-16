@@ -1,10 +1,6 @@
 ---
-name: flow
+name: ops-flow
 phase: decide
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Route a task to the lightest safe agent-surface path."
 ---
 
@@ -12,12 +8,12 @@ description: "Route a task to the lightest safe agent-surface path."
 
 Route an incoming task to the lightest agent-surface path that can handle it safely.
 
-`flow` is a router, not an implementer. It decides whether the next step should be direct work, workflow mode, audit, parallel exploration, or shipping.
+`ops-flow` is a router, not an implementer. It decides whether the next step should be direct work, workflow mode, audit, parallel exploration, or shipping.
 
 ## SYNTAX
 
 ```text
-/flow [goal] [--risk low|medium|high|critical|auto] [--mode direct|workflow|audit|parallel|ship|auto] [--autonomy low|normal|high]
+/ops-flow [goal] [--risk low|medium|high|critical|auto] [--mode direct|workflow|audit|parallel|ship|auto] [--autonomy low|normal|high]
 ```
 
 Defaults:
@@ -38,7 +34,7 @@ When running inside `agent-surface`, load the current registry first:
 node scripts/agent-surface.mjs commands --json
 ```
 
-Use registry `phase`, `risk`, `packs`, `approval_classes`, `default_export`, and `metadata_source` as the source of truth for available commands. The lifecycle map below is a human fallback, not authority.
+Use registry `phase`, `description`, `targets`, and `lazy_body` as the source of truth for available commands. The lifecycle map below is a human fallback, not authority.
 
 ```text
 direct:

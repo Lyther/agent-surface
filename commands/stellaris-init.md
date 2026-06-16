@@ -1,10 +1,6 @@
 ---
 name: stellaris-init
 phase: game
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Initialize a source-to-distribution Stellaris modding environment."
 ---
 ## OBJECTIVE

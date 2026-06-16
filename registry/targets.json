@@ -5,10 +5,7 @@
       "build_supported": true,
       "install_supported": true,
       "renders": [
-        "commands",
-        "plugins",
-        "subagents",
-        "mcps"
+        "commands"
       ]
     },
     "codex": {
@@ -17,8 +14,7 @@
       "install_supported": true,
       "renders": [
         "skills",
-        "rules",
-        "subagents"
+        "rules"
       ]
     },
     "gemini-cli": {
@@ -28,9 +24,7 @@
       "renders": [
         "legacy-transition",
         "commands",
-        "rules",
-        "plugins",
-        "skills"
+        "rules"
       ]
     },
     "cline": {
@@ -50,8 +44,7 @@
       "renders": [
         "commands-as-workflows",
         "rules",
-        "ignores",
-        "subagents"
+        "ignores"
       ]
     },
     "antigravity": {
@@ -96,9 +89,7 @@
       "renders": [
         "rules",
         "commands",
-        "ignores",
-        "mcps",
-        "hooks"
+        "ignores"
       ]
     },
     "copilot": {

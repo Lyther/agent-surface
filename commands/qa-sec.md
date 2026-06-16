@@ -1,13 +1,6 @@
 ---
 name: qa-sec
 phase: review
-risk: security-sensitive
-default_export: true
-packs:
-  - default
-  - security
-approval_classes:
-  - network
 description: "Review security evidence and produce advisory findings."
 ---
 

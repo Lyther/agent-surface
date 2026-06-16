@@ -1,12 +1,6 @@
 ---
 name: boot-facade
 phase: bootstrap
-risk: deception-risk
-default_export: false
-packs:
-  - bootstrap
-  - synthetic
-  - quarantined
 description: "Generate labeled synthetic enterprise fixtures."
 ---
 

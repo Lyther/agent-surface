@@ -1,10 +1,6 @@
 ---
 name: ops-monitor
 phase: improve
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Stream, filter, and analyze live system behavior."
 ---
 ## OBJECTIVE

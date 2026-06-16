@@ -1,10 +1,6 @@
 ---
 name: qa-measure
 phase: review
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Collect hard performance and resource measurements."
 ---
 ## OBJECTIVE

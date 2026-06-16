@@ -1,10 +1,6 @@
 ---
 name: arch-diagram
 phase: decide
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Generate architecture diagrams that make system structure clear."
 ---
 ## OBJECTIVE

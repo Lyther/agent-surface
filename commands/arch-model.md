@@ -1,10 +1,6 @@
 ---
 name: arch-model
 phase: decide
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Define aligned database schemas and domain types."
 ---
 ## OBJECTIVE

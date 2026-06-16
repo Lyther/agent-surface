@@ -13,67 +13,24 @@ import { fileURLToPath } from "node:url";
 import { approximateTokens, tomlMultilineString, tomlString, yamlString } from "./agent-surface/format.mjs";
 import { mergeKiloInstructionJsonc, parseJsoncResult } from "./agent-surface/jsonc.mjs";
 import {
-  checkHooks,
   checkIgnores,
-  checkMcps,
-  checkSubagents,
   ignoreOutputs,
-  produceHookOutputs,
-  produceMcpOutputs,
-  produceSubagentOutputs,
-  renderClaudeSubagent,
-  renderCodexSubagent,
-  renderKiloSubagent,
 } from "./agent-surface/source-primitives.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const commandMetadataFields = new Set(["name", "aliases", "phase", "risk", "packs", "default_export", "approval_classes", "description"]);
+const commandMetadataFields = new Set(["name", "aliases", "phase", "description"]);
 const commandPrefixes = new Set(["arch", "boot", "dev", "lint", "ops", "qa", "ship", "stellaris", "verify", "workflow"]);
 const commandPhases = new Set(["observe", "decide", "build", "verify", "review", "arbitrate", "ship", "improve", "bootstrap", "game", "misc"]);
-const commandRisks = new Set(["safe", "writes", "destructive", "security-sensitive", "deception-risk", "deployment"]);
-const commandApprovalClasses = new Set(["network", "filesystem_destructive", "deployment", "database_mutation"]);
-const workflowRuntimeTargets = new Map([
-  ["antigravity-cli", "antigravity-cli"],
-  ["antigravity-desktop", "antigravity"],
-  ["claude-code", "claude-code"],
-  ["cline", "cline"],
-  ["codex", "codex"],
-  ["codex-exec", "codex"],
-  ["cursor-agent", "cursor"],
-  ["gemini-legacy", "gemini-cli"],
-  ["kilo-cli", "kilo"],
-  ["kilo-ide", "kilo"],
-  ["opencode", "opencode"],
-  ["trae", "trae"],
-  ["vscode", "vscode"],
-]);
-const workflowRuntimeNames = new Set([
-  ...workflowRuntimeTargets.keys(),
-  "goose",
-  "grok-build",
-  "current-session",
-  "ollama-api",
-  "ollama-cli",
-  "ollama-cloud",
-  "unspecified",
-]);
-const subagentCapableStatuses = new Set(["native", "native-experimental"]);
+
 
 const targets = {
   "claude-code": {
-    label: "Claude Code commands and plugin package",
-    commandRenders: ["commands", "plugins"],
-    staticRenders: ["plugins"],
+    label: "Claude Code commands",
+    commandRenders: ["commands"],
     commandOutputRoot: ".claude/commands",
     renderCommand: renderClaudeCommand,
     installRoot: installRootClaude,
     commandOutputName: groupedMarkdownCommandOutputName,
-    additionalCommandOutputs: [claudePluginCommandOutput],
-    subagentOutputRoot: path.join(".claude", "agents"),
-    subagentOutputName: (subagent) => `${subagent.name}.md`,
-    renderSubagent: renderClaudeSubagent,
-    mcpOutput: ".mcp.json",
-    staticOutputs: claudeStaticOutputs,
   },
   codex: {
     label: "Codex skills and global instructions",
@@ -84,9 +41,6 @@ const targets = {
     installRoot: installRootCodex,
     commandOutputName: codexSkillOutputName,
     additionalCommandOutputs: [codexOpenAiAgentOutput],
-    subagentOutputRoot: path.join(".codex", "agents"),
-    subagentOutputName: (subagent) => `${subagent.name.replaceAll("-", "_")}.toml`,
-    renderSubagent: renderCodexSubagent,
     staticOutputs: codexStaticOutputs,
   },
   cline: {
@@ -107,9 +61,6 @@ const targets = {
     renderCommand: renderKiloWorkflow,
     installRoot: installRootKilo,
     ignoreFilename: ".kilocodeignore",
-    subagentOutputRoot: kiloAgentRoot,
-    subagentOutputName: (subagent) => `${subagent.name}.md`,
-    renderSubagent: renderKiloSubagent,
     staticOutputs: kiloStaticOutputs,
   },
   antigravity: {
@@ -130,14 +81,13 @@ const targets = {
     staticOutputs: antigravityCliStaticOutputs,
   },
   "gemini-cli": {
-    label: "Gemini CLI legacy commands, context, and extension package",
-    commandRenders: ["legacy-transition", "commands", "plugins", "skills"],
-    staticRenders: ["plugins", "rules"],
+    label: "Gemini CLI legacy commands and context",
+    commandRenders: ["legacy-transition", "commands"],
+    staticRenders: ["rules"],
     commandOutputRoot: ".gemini/commands",
     renderCommand: renderGeminiCommand,
     installRoot: installRootGemini,
     commandOutputName: geminiCommandOutputName,
-    additionalCommandOutputs: [geminiExtensionCommandOutput, geminiExtensionSkillOutput],
     staticOutputs: geminiStaticOutputs,
   },
   cursor: {
@@ -148,12 +98,6 @@ const targets = {
     renderCommand: renderCursorCommand,
     installRoot: installRootHomeOnly,
     ignoreFilename: ".cursorignore",
-    mcpOutput: path.join(".cursor", "mcp.json"),
-    hooks: {
-      configOutput: path.join(".cursor", "hooks.json"),
-      scriptDir: path.join(".cursor", "hooks"),
-      events: ["afterFileEdit", "afterShellExecution", "stop"],
-    },
     staticOutputs: cursorStaticOutputs,
   },
   copilot: {
@@ -237,7 +181,6 @@ const registrySchemaFiles = [
   { schema: "artifacts.schema.json", file: "registry/artifacts.json" },
   { schema: "source-kinds.schema.json", file: "registry/source-kinds.json" },
   { schema: "optional-services.schema.json", file: "registry/optional-services.json" },
-  { schema: "target-capabilities.schema.json", file: "registry/target-capabilities.json" },
 ];
 
 const workflowFixtureFiles = [
@@ -282,12 +225,6 @@ async function main() {
       await checkGenerated(args.slice(1));
     } else if (args[0] === "ignores") {
       await checkIgnores(targets);
-    } else if (args[0] === "subagents") {
-      await checkSubagents(targets);
-    } else if (args[0] === "mcps") {
-      await checkMcps(targets);
-    } else if (args[0] === "hooks") {
-      await checkHooks(targets);
     } else {
       await check();
     }
@@ -327,17 +264,14 @@ function printHelp() {
 
 Usage:
   agent-surface inventory
-  agent-surface commands [--pack default|all|<pack>] [--phase <phase>] [--risk <risk>] [--json]
+  agent-surface commands [--phase <phase>] [--json]
   agent-surface check
   agent-surface check rules [--scenario <name>]
   agent-surface check commands
-  agent-surface check generated [--target <target|all>] [--pack default|all|<pack>]
+  agent-surface check generated [--target <target|all>]
   agent-surface check ignores
-  agent-surface check subagents
-  agent-surface check mcps
-  agent-surface check hooks
-  agent-surface build --target <target|all> [--pack default|all|<pack>] [--dry-run]
-  agent-surface install --target <target> [--pack default|all|<pack>] [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
+  agent-surface build --target <target|all> [--dry-run]
+  agent-surface install --target <target> [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
   agent-surface workflow doctor --run <run_id>
   agent-surface workflow apply --role <role> --run <run_id> --artifact <path>
@@ -354,7 +288,6 @@ async function inventory() {
     commands: (await files("commands", [".md"])).length,
     skills: (await files("skills", [".md"])).length,
     subagents: (await files("subagents", [".md"])).length,
-    hooks: (await files("hooks", [".md", ".json", ".js", ".mjs", ".sh"])).length,
     mcps: (await files("mcps", [".json", ".toml", ".yaml", ".yml"])).length,
     settings: (await files("settings", [".json", ".toml", ".yaml", ".yml"])).length,
     ignores: (await files("ignores", [".ignore", ".gitignore", ".clineignore", ".md", ".txt"])).length,
@@ -375,7 +308,6 @@ async function check() {
   const ruleFiles = await files("rules", [".md", ".mdc"]);
   const targetsConfig = JSON.parse(await readFile(path.join(root, "registry", "targets.json"), "utf8"));
   const artifactsConfig = JSON.parse(await readFile(path.join(root, "registry", "artifacts.json"), "utf8"));
-  const capabilitiesConfig = JSON.parse(await readFile(path.join(root, "registry", "target-capabilities.json"), "utf8"));
   const sourceKindsConfig = await readSourceKinds();
   const banned = new Set(targetsConfig.out_of_scope);
 
@@ -410,9 +342,6 @@ async function check() {
     if (!(await exists(path.join(root, "adapters", name)))) {
       errors.push(`registry target missing adapter directory: ${name}`);
     }
-    if (!Object.hasOwn(capabilitiesConfig.targets, name)) {
-      errors.push(`registry target missing capability record: ${name}`);
-    }
     const implemented = Object.hasOwn(targets, name);
     if (targetsConfig.in_scope[name].build_supported && !implemented) {
       errors.push(`registry target marks build_supported without CLI adapter: ${name}`);
@@ -441,25 +370,13 @@ async function check() {
     }
   }
 
-  for (const name of Object.keys(capabilitiesConfig.targets)) {
-    if (!Object.hasOwn(targetsConfig.in_scope, name)) {
-      errors.push(`capability target missing from registry: ${name}`);
-    }
-  }
-
-  for (const sourceType of artifactsConfig.source_types) {
-    if (!(await exists(path.join(root, sourceType)))) {
-      errors.push(`source type directory missing: ${sourceType}`);
-    }
-  }
-
-  checkSourceKinds(sourceKindsConfig, artifactsConfig, capabilitiesConfig, errors);
+  checkSourceKinds(sourceKindsConfig, artifactsConfig, errors);
 
   if (await exists(path.join(root, "commands", "ops-server.md"))) {
     errors.push("commands/ops-server.md is local/private and must not be imported");
   }
 
-  await checkWorkflowSchemas(errors, capabilitiesConfig);
+  await checkWorkflowSchemas(errors);
   await checkRegistrySchemas(errors);
   checkCommandMetadata(commands, errors);
 
@@ -491,7 +408,8 @@ function outputSourceKindError(output, sourceKindsConfig) {
   return null;
 }
 
-function checkSourceKinds(sourceKindsConfig, artifactsConfig, capabilitiesConfig, errors) {
+function checkSourceKinds(sourceKindsConfig, artifactsConfig, errors) {
+  const sourceKinds = new Set(Object.keys(sourceKindsConfig.source_kinds));
   for (const [name, policy] of Object.entries(sourceKindsConfig.source_kinds)) {
     if (!artifactsConfig.source_types.includes(policy.source_dir)) {
       errors.push(`source kind ${name} points at source_dir missing from registry/artifacts.json: ${policy.source_dir}`);
@@ -499,12 +417,11 @@ function checkSourceKinds(sourceKindsConfig, artifactsConfig, capabilitiesConfig
     if (!Array.isArray(policy.install_scopes) || policy.install_scopes.length === 0) {
       errors.push(`source kind ${name} must declare at least one install scope`);
     }
-    if (policy.budget.hard_tokens > 0 && policy.budget.warn_tokens > policy.budget.hard_tokens) {
-      errors.push(`source kind ${name} budget warn_tokens exceeds hard_tokens`);
+    if (policy.scope === "project" && policy.install_scopes.includes("user")) {
+      errors.push(`source kind ${name} is project scope but declares user install scope`);
     }
   }
 
-  const sourceKinds = new Set(Object.keys(sourceKindsConfig.source_kinds));
   for (const [targetName, adapter] of Object.entries(targets)) {
     for (const producer of targetProducers(adapter)) {
       if (!producer.sourceKind) {
@@ -514,16 +431,9 @@ function checkSourceKinds(sourceKindsConfig, artifactsConfig, capabilitiesConfig
       }
     }
   }
-  for (const [targetName, capabilities] of Object.entries(capabilitiesConfig.targets ?? {})) {
-    for (const [dimension, capability] of Object.entries(capabilities)) {
-      if (capability?.distribution === "generated" && ["ignores", "subagents", "mcps", "hooks"].includes(dimension) && !sourceKinds.has(dimension)) {
-        errors.push(`target ${targetName} generated capability ${dimension} has no source kind policy`);
-      }
-    }
-  }
 }
 
-async function checkWorkflowSchemas(errors, capabilitiesConfig) {
+async function checkWorkflowSchemas(errors) {
   const schemas = new Map();
   const ajv = createAjv();
 
@@ -557,7 +467,7 @@ async function checkWorkflowSchemas(errors, capabilitiesConfig) {
     }
   }
 
-  await checkWorkflowFixtures(ajv, schemas, errors, capabilitiesConfig);
+  await checkWorkflowFixtures(ajv, schemas, errors);
 }
 
 async function checkRegistrySchemas(errors) {
@@ -588,7 +498,7 @@ async function checkRegistrySchemas(errors) {
   }
 }
 
-async function checkWorkflowFixtures(ajv, schemas, errors, capabilitiesConfig) {
+async function checkWorkflowFixtures(ajv, schemas, errors) {
   for (const fixture of workflowFixtureFiles) {
     const schema = schemas.get(fixture.schema);
     const file = path.join(root, fixture.file);
@@ -612,12 +522,12 @@ async function checkWorkflowFixtures(ajv, schemas, errors, capabilitiesConfig) {
       errors.push(`${fixture.file}: ${formatAjvErrors(validate.errors)}`);
     }
     if (fixture.schema === "workflow.boss.schema.json") {
-      checkBossArtifactCoherence(data, fixture.file, capabilitiesConfig, errors);
+      checkBossArtifactCoherence(data, fixture.file, errors);
     }
   }
 }
 
-function checkBossArtifactCoherence(data, source, capabilitiesConfig, errors) {
+function checkBossArtifactCoherence(data, source, errors) {
   if (!data || !Array.isArray(data.tasks)) return;
 
   for (const task of data.tasks) {
@@ -642,20 +552,32 @@ function checkBossArtifactCoherence(data, source, capabilitiesConfig, errors) {
     if (task.subagent_suitable !== true) continue;
     if (typeof runtime !== "string" || runtime === "unspecified") {
       errors.push(`${prefix}: subagent_suitable=true requires a concrete suggested_runtime`);
-      continue;
-    }
-
-    const targetName = workflowRuntimeTargets.get(runtime);
-    if (!targetName) {
-      errors.push(`${prefix}: suggested_runtime ${runtime} is not tied to a subagent-capable target capability record`);
-      continue;
-    }
-    const subagents = capabilitiesConfig?.targets?.[targetName]?.subagents;
-    if (!subagents || !subagentCapableStatuses.has(subagents.status)) {
-      errors.push(`${prefix}: suggested_runtime ${runtime} is not marked subagent-capable in registry/target-capabilities.json`);
     }
   }
 }
+
+const workflowRuntimeNames = new Set([
+  "antigravity-cli",
+  "antigravity-desktop",
+  "claude-code",
+  "cline",
+  "codex",
+  "codex-exec",
+  "cursor-agent",
+  "gemini-legacy",
+  "kilo-cli",
+  "kilo-ide",
+  "opencode",
+  "trae",
+  "vscode",
+  "goose",
+  "grok-build",
+  "current-session",
+  "ollama-api",
+  "ollama-cli",
+  "ollama-cloud",
+  "unspecified",
+]);
 
 function createAjv() {
   const ajv = new Ajv2020({ allErrors: true, strict: false });
@@ -731,28 +653,24 @@ async function checkRules(args) {
 }
 
 async function commandsList(args) {
-  const pack = argValue(args, "--pack") ?? "default";
   const phase = argValue(args, "--phase");
-  const risk = argValue(args, "--risk");
   const asJson = args.includes("--json");
   if (phase && !commandPhases.has(phase)) fail(`unsupported command phase: ${phase}`);
-  if (risk && !commandRisks.has(risk)) fail(`unsupported command risk: ${risk}`);
 
-  let commands = await exportableCommands(pack);
+  let commands = await exportableCommands();
   if (phase) commands = commands.filter((command) => command.metadata.phase === phase);
-  if (risk) commands = commands.filter((command) => command.metadata.risk === risk);
 
-  const registry = commandRegistry(commands, { pack, phase, risk });
+  const registry = commandRegistry(commands, { phase });
 
   if (asJson) {
     console.log(JSON.stringify(registry, null, 2));
     return;
   }
 
-  console.log(`commands: ${registry.count} (pack: ${pack}${phase ? ` phase: ${phase}` : ""}${risk ? ` risk: ${risk}` : ""})`);
+  console.log(`commands: ${registry.count}${phase ? ` (phase: ${phase})` : ""}`);
   for (const command of registry.commands) {
     const aliases = command.aliases.length > 0 ? ` aliases=${command.aliases.join(",")}` : "";
-    console.log(`${command.name} phase=${command.phase} risk=${command.risk} source=${command.source}${aliases}`);
+    console.log(`${command.name} phase=${command.phase} source=${command.source}${aliases}`);
   }
 }
 
@@ -769,7 +687,6 @@ async function checkCommands(_args) {
   console.log(`  explicit_metadata: ${commands.filter((command) => command.hasFrontmatter).length}`);
   console.log(`  metadata: ${metadataErrors.length > 0 ? "failed" : "ok"}`);
   console.log(`  references: ${referenceErrors.length > 0 ? "failed" : "ok"}`);
-  console.log(`  packs: ${[...commandPacks(commands)].sort().join(", ")}`);
 
   const errors = [
     ...metadataErrors.map((error) => `metadata: ${error}`),
@@ -788,12 +705,10 @@ async function checkCommands(_args) {
 
 async function checkGenerated(args) {
   const target = argValue(args, "--target") ?? "all";
-  const pack = argValue(args, "--pack") ?? "default";
   const selected = target === "all" ? Object.keys(targets) : [target];
-  const commandFiles = await exportableCommands(pack);
+  const commandFiles = await exportableCommands();
   const sourceKindsConfig = await readSourceKinds();
   const errors = [];
-  const warnings = [];
 
   for (const item of selected) {
     if (!isSafeTargetName(item)) fail(`unsafe generated target: ${item}`);
@@ -804,16 +719,9 @@ async function checkGenerated(args) {
     const adapter = targets[item];
     const outputs = await targetOutputs(adapter, commandFiles, { target: item, scope: "user", mode: "check" });
     const targetErrors = validateGeneratedTarget(item, outputs);
-    const budgetFindings = validateOutputBudgets(item, outputs, sourceKindsConfig);
     console.log(`${item}: generated outputs ${outputs.length} ${targetErrors.length > 0 ? "failed" : "ok"}`);
     errors.push(...targetErrors.map((error) => `${item}: ${error}`));
-    errors.push(...budgetFindings.errors);
-    warnings.push(...budgetFindings.warnings);
-  }
-
-  if (warnings.length > 0) {
-    console.log("warnings:");
-    for (const warning of warnings) console.log(`  ${warning}`);
+    errors.push(...validateGeneratedSourceKinds(item, outputs, sourceKindsConfig));
   }
 
   if (errors.length > 0) {
@@ -826,28 +734,15 @@ async function checkGenerated(args) {
   console.log("generated check: ok");
 }
 
-function validateOutputBudgets(target, outputs, sourceKindsConfig) {
+function validateGeneratedSourceKinds(target, outputs, sourceKindsConfig) {
   const errors = [];
-  const warnings = [];
   for (const output of outputs) {
     const sourceKindError = outputSourceKindError(output, sourceKindsConfig);
     if (sourceKindError) {
       errors.push(`${target}: ${sourceKindError}`);
-      continue;
-    }
-    const policy = sourceKindPolicy(sourceKindsConfig, output.sourceKind);
-    const hard = policy.budget.hard_tokens;
-    const warn = policy.budget.warn_tokens;
-    if (hard === 0 && warn === 0) continue;
-    const tokens = approximateTokens(output.content);
-    const label = `${target}: ${output.relativeOutput} (${output.sourceKind}) approx ${tokens} tokens`;
-    if (hard > 0 && tokens > hard) {
-      errors.push(`${label} exceeds hard cap ${hard}`);
-    } else if (warn > 0 && tokens > warn) {
-      warnings.push(`${label} exceeds warning cap ${warn}`);
     }
   }
-  return { errors, warnings };
+  return errors;
 }
 
 function validateGeneratedTarget(target, outputs) {
@@ -878,52 +773,35 @@ function validateGeneratedTarget(target, outputs) {
   if (outputs.length === 0) errors.push("no outputs generated");
 
   if (target === "claude-code") {
-    requirePath(path.join(".claude", "commands", "flow", "flow.md"));
-    const plugin = requireJson(path.join(".agent-surface", "claude-plugin", "agent-surface", ".claude-plugin", "plugin.json"));
-    if (plugin && plugin.name !== "agent-surface") errors.push("Claude plugin name must be agent-surface");
-    requirePath(path.join(".agent-surface", "claude-plugin", "agent-surface", "commands", "flow", "flow.md"));
-    requireContains(path.join(".claude", "agents", "code-reviewer.md"), /^---\nname: code-reviewer\n/);
-    const claudeMcp = requireJson(".mcp.json");
-    if (claudeMcp && !claudeMcp.mcpServers?.["sequential-thinking"]) errors.push(".mcp.json missing sequential-thinking server");
+    requirePath(path.join(".claude", "commands", "ops", "flow.md"));
   } else if (target === "codex") {
-    requireContains(path.join(".agents", "skills", "flow", "SKILL.md"), /^---\nname: flow\n/);
-    requireContains(path.join(".agents", "skills", "flow", "agents", "openai.yaml"), /allow_implicit_invocation: false/);
+    requireContains(path.join(".agents", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
+    requireContains(path.join(".agents", "skills", "ops-flow", "agents", "openai.yaml"), /allow_implicit_invocation: false/);
     requireContains(path.join(".codex", "AGENTS.md"), /agent-surface global Codex rules/);
-    requireContains(path.join(".codex", "agents", "code_reviewer.toml"), /developer_instructions = /);
   } else if (target === "gemini-cli") {
-    const extension = requireJson(path.join(".gemini", "extensions", "agent-surface", "gemini-extension.json"));
-    if (extension && extension.contextFileName !== "GEMINI.md") errors.push("Gemini extension contextFileName must be GEMINI.md");
     requireContains(path.join(".gemini", "GEMINI.md"), /agent-surface global Gemini rules/);
-    requirePath(path.join(".gemini", "extensions", "agent-surface", "commands", "flow", "flow.toml"));
-    requireContains(path.join(".gemini", "extensions", "agent-surface", "skills", "flow", "SKILL.md"), /^---\nname: flow\n/);
     for (const output of outputs.filter((item) => item.relativeOutput.endsWith(".toml"))) {
       if (!/^description = ".+"\n\nprompt = /s.test(output.content)) errors.push(`${output.relativeOutput} is not a Gemini command TOML shape`);
     }
   } else if (target === "cline") {
-    requirePath(path.join("Documents", "Cline", "Workflows", "flow.md"));
+    requirePath(path.join("Documents", "Cline", "Workflows", "ops-flow.md"));
     requireContains(path.join("Documents", "Cline", "Rules", "agent-surface.md"), /agent-surface Cline global rules/);
     requireContains(".clineignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "kilo") {
-    requirePath(path.join(".config", "kilo", "commands", "flow.md"));
+    requirePath(path.join(".config", "kilo", "commands", "ops-flow.md"));
     requireContains(path.join(".config", "kilo", "AGENTS.md"), /agent-surface Kilo rules/);
     requireContains(".kilocodeignore", /agent-surface canonical AI-tool ignore baseline/);
-    requireContains(path.join(".config", "kilo", "agents", "code-reviewer.md"), /^---\ndescription: ".*"\nmode: subagent\n/);
   } else if (target === "antigravity") {
-    requireContains(path.join("global_workflows", "flow.md"), /^---\ndescription: "/);
+    requireContains(path.join("global_workflows", "ops-flow.md"), /^---\ndescription: "/);
   } else if (target === "antigravity-cli") {
     const plugin = requireJson(path.join("plugins", "agent-surface", "plugin.json"));
     if (plugin && plugin.name !== "agent-surface") errors.push("Antigravity plugin name must be agent-surface");
-    requireContains(path.join("plugins", "agent-surface", "skills", "flow.md"), /^---\nname: flow\n/);
+    requireContains(path.join("plugins", "agent-surface", "skills", "ops-flow.md"), /^---\nname: ops-flow\n/);
     requirePath(path.join("plugins", "agent-surface", "rules", "00-precedence-and-safety.md"));
   } else if (target === "cursor") {
-    requirePath(path.join(".cursor", "commands", "flow.md"));
+    requirePath(path.join(".cursor", "commands", "ops-flow.md"));
     requirePath(path.join(".cursor", "rules", "00-precedence-and-safety.mdc"));
     requireContains(".cursorignore", /agent-surface canonical AI-tool ignore baseline/);
-    const cursorMcp = requireJson(path.join(".cursor", "mcp.json"));
-    if (cursorMcp && !cursorMcp.mcpServers?.["sequential-thinking"]) errors.push(".cursor/mcp.json missing sequential-thinking server");
-    requireContains(path.join(".cursor", "hooks", "audit-log.sh"), /\nexit 0\n?$/);
-    const cursorHooks = requireJson(path.join(".cursor", "hooks.json"));
-    if (cursorHooks && !Array.isArray(cursorHooks.hooks?.afterFileEdit)) errors.push(".cursor/hooks.json missing afterFileEdit hook");
   } else if (target === "copilot") {
     requireContains(path.join("instructions", "agent-surface-copilot.instructions.md"), /^---\ndescription: "agent-surface Copilot global instructions"\napplyTo: "\*\*"/);
   } else if (target === "vscode") {
@@ -940,10 +818,9 @@ function validateGeneratedTarget(target, outputs) {
 
 async function build(args) {
   const target = argValue(args, "--target") ?? "all";
-  const pack = argValue(args, "--pack") ?? "default";
   const dryRun = args.includes("--dry-run");
   const selected = target === "all" ? Object.keys(targets) : [target];
-  const commandFiles = await exportableCommands(pack);
+  const commandFiles = await exportableCommands();
 
   for (const item of selected) {
     if (!isSafeTargetName(item)) fail(`unsafe build target: ${item}`);
@@ -975,13 +852,12 @@ async function build(args) {
       await writeFile(targetPath, output.content);
     }
 
-    console.log(`${item}: ${outputs.length} outputs rendered (pack: ${pack})${dryRun ? " (dry-run)" : ""}`);
+    console.log(`${item}: ${outputs.length} outputs rendered${dryRun ? " (dry-run)" : ""}`);
   }
 }
 
 async function install(args) {
   const target = requiredArgValue(args, "--target");
-  const pack = argValue(args, "--pack") ?? "default";
   const scope = argValue(args, "--scope") ?? "project";
   const dryRun = args.includes("--dry-run");
   const allowScopeRoot = args.includes("--allow-scope-root");
@@ -996,7 +872,7 @@ async function install(args) {
 
   const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
   if (installRoot === path.parse(installRoot).root) fail("install root cannot be filesystem root");
-  const plan = await installPlan(target, adapter, installRoot, scope, pack, dest ? "explicit --dest" : "scope-derived root");
+  const plan = await installPlan(target, adapter, installRoot, scope, dest ? "explicit --dest" : "scope-derived root");
 
   printInstallPlan(plan);
   if (plan.blocked.length > 0) {
@@ -1009,8 +885,8 @@ async function install(args) {
   }
 }
 
-async function installPlan(target, adapter, installRoot, scope, pack, rootSource) {
-  const commandFiles = await exportableCommands(pack);
+async function installPlan(target, adapter, installRoot, scope, rootSource) {
+  const commandFiles = await exportableCommands();
   const sourceKindsConfig = await readSourceKinds();
   const version = await packageVersion();
   const generatedAt = new Date().toISOString();
@@ -1043,8 +919,6 @@ async function installPlan(target, adapter, installRoot, scope, pack, rootSource
     writes.push({ source: item.source, output, relativeOutput, content: item.content, sha256: hash });
     managed.push({
       target,
-      pack,
-      scope,
       source: item.source,
       output: relativeOutput,
       sha256: hash,
@@ -1073,19 +947,6 @@ async function installPlan(target, adapter, installRoot, scope, pack, rootSource
     const currentHash = sha256(current);
     if (currentHash === item.sha256) {
       item.action = "skip";
-      continue;
-    }
-
-    const previous = previousManaged.get(item.relativeOutput);
-    if (!previous) {
-      blocked.push(`unmanaged existing file: ${item.relativeOutput}`);
-      item.action = "blocked";
-      continue;
-    }
-
-    if (!previous.sha256 || previous.sha256 !== currentHash) {
-      blocked.push(`managed file changed since manifest: ${item.relativeOutput}`);
-      item.action = "blocked";
       continue;
     }
 
@@ -1122,19 +983,11 @@ async function installPlan(target, adapter, installRoot, scope, pack, rootSource
       continue;
     }
 
-    const currentHash = sha256(current);
-    if (!item.sha256 || item.sha256 !== currentHash) {
-      blocked.push(`stale managed file changed since manifest: ${item.output}`);
-      staleRemovalActions.push({ output, relativeOutput: item.output, action: "blocked" });
-      continue;
-    }
-
     staleRemovalActions.push({ output, relativeOutput: item.output, action: "remove" });
   }
 
   const manifest = {
     target,
-    pack,
     scope,
     generated_at: generatedAt,
     managed,
@@ -1142,7 +995,6 @@ async function installPlan(target, adapter, installRoot, scope, pack, rootSource
 
   return {
     target,
-    pack,
     scope,
     rootSource,
     installRoot,
@@ -1165,9 +1017,9 @@ function outputAppliesToScope(output, scope, sourceKindsConfig) {
 }
 
 // Any generated output must declare a source kind and that kind must be
-// defined in the registry. Missing/unknown source kinds are checked in the
-// budget validator and install planner; this helper exists for call sites that
-// do not already validate the output through those paths.
+// defined in the registry. Missing/unknown source kinds are checked in generated
+// validation and install planning; this helper exists for call sites that do not
+// already validate the output through those paths.
 function requireKnownSourceKind(output, sourceKindsConfig, errors) {
   const error = outputSourceKindError(output, sourceKindsConfig);
   if (error) errors.push(error);
@@ -1175,7 +1027,6 @@ function requireKnownSourceKind(output, sourceKindsConfig, errors) {
 
 function printInstallPlan(plan) {
   console.log(`target: ${plan.target}`);
-  console.log(`pack: ${plan.pack}`);
   console.log(`scope: ${plan.scope}`);
   console.log(`root source: ${plan.rootSource}`);
   console.log(`root: ${plan.installRoot}`);
@@ -1485,7 +1336,6 @@ async function workflowDoctor(args) {
   const runDir = workflowRunDir(runId);
   const errors = [];
   const schemas = await workflowSchemaValidators(errors);
-  const capabilitiesConfig = JSON.parse(await readFile(path.join(root, "registry", "target-capabilities.json"), "utf8"));
   const requiredFiles = ["run.json", "events.ndjson"];
 
   for (const file of requiredFiles) {
@@ -1496,7 +1346,7 @@ async function workflowDoctor(args) {
   const bossArtifact = path.join(runDir, "boss.json");
   if (await exists(bossArtifact)) {
     const boss = await readWorkflowJson(bossArtifact, schemas.get("workflow.boss.schema.json"), errors);
-    checkBossArtifactCoherence(boss, path.relative(process.cwd(), bossArtifact), capabilitiesConfig, errors);
+    checkBossArtifactCoherence(boss, path.relative(process.cwd(), bossArtifact), errors);
   }
   for (const [file, schemaName] of [
     ["worker.json", "workflow.worker.schema.json"],
@@ -2008,14 +1858,6 @@ async function renderGeminiCommand(source) {
   return `description = "${description}"\n\nprompt = ${prompt}\n`;
 }
 
-async function claudePluginCommandOutput(source) {
-  return {
-    source: source.relativePath,
-    relativeOutput: path.join(".agent-surface", "claude-plugin", "agent-surface", "commands", groupedMarkdownCommandOutputName(source)),
-    content: await renderClaudeCommand(source),
-  };
-}
-
 async function codexOpenAiAgentOutput(source) {
   const description = yamlBlockString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   return {
@@ -2033,26 +1875,6 @@ async function codexOpenAiAgentOutput(source) {
   };
 }
 
-async function geminiExtensionCommandOutput(source) {
-  return {
-    source: source.relativePath,
-    relativeOutput: path.join(".gemini", "extensions", "agent-surface", "commands", geminiCommandOutputName(source)),
-    content: await renderGeminiCommand(source),
-  };
-}
-
-async function geminiExtensionSkillOutput(source) {
-  return {
-    source: source.relativePath,
-    relativeOutput: path.join(".gemini", "extensions", "agent-surface", "skills", source.name, "SKILL.md"),
-    content: renderSkillMarkdown(source, {
-      invocationPrefix: "/",
-      generatedFor: "Gemini CLI extension skill",
-      hostInstruction: "Invoke this skill from Gemini CLI by name after the agent-surface extension is loaded.",
-    }),
-  };
-}
-
 function antigravityCliSkillOutputName(source) {
   return `${source.name}.md`;
 }
@@ -2063,42 +1885,6 @@ async function renderAntigravityCliSkill(source) {
     generatedFor: "Antigravity CLI plugin skill",
     hostInstruction: "Invoke this skill from Antigravity CLI after the agent-surface plugin is installed.",
   });
-}
-
-async function claudeStaticOutputs(commands) {
-  const metadata = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
-  return [
-    {
-      sourceKind: "commands",
-      renderKind: "plugins",
-      source: "package.json",
-      relativeOutput: path.join(".agent-surface", "claude-plugin", "agent-surface", ".claude-plugin", "plugin.json"),
-      content: `${JSON.stringify({
-        name: "agent-surface",
-        description: "Portable agent-surface command pack generated from Lyther/agent-surface.",
-        version: metadata.version,
-        author: { name: "Lyther" },
-      }, null, 2)}\n`,
-    },
-    {
-      sourceKind: "commands",
-      renderKind: "plugins",
-      source: "README.md",
-      relativeOutput: path.join(".agent-surface", "claude-plugin", "agent-surface", "README.md"),
-      content: [
-        "# agent-surface Claude Code plugin",
-        "",
-        "Generated plugin package. Load for local testing with:",
-        "",
-        "```bash",
-        "claude --plugin-dir ~/.agent-surface/claude-plugin/agent-surface",
-        "```",
-        "",
-        `Packaged commands: ${commands.length}`,
-        "",
-      ].join("\n"),
-    },
-  ];
 }
 
 async function codexStaticOutputs() {
@@ -2137,29 +1923,12 @@ async function kiloStaticOutputs(_commands, context) {
   ];
 }
 
-async function geminiStaticOutputs(commands) {
-  const metadata = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+async function geminiStaticOutputs() {
   return [
     {
       source: "rules/*.mdc",
       relativeOutput: path.join(".gemini", "GEMINI.md"),
       content: await renderInstructionDocument("GEMINI.md - agent-surface global Gemini rules", "Gemini CLI global context"),
-    },
-    {
-      sourceKind: "commands",
-      renderKind: "plugins",
-      source: "package.json",
-      relativeOutput: path.join(".gemini", "extensions", "agent-surface", "gemini-extension.json"),
-      content: `${JSON.stringify({
-        name: "agent-surface",
-        version: metadata.version,
-        contextFileName: "GEMINI.md",
-      }, null, 2)}\n`,
-    },
-    {
-      source: "rules/*.mdc",
-      relativeOutput: path.join(".gemini", "extensions", "agent-surface", "GEMINI.md"),
-      content: await renderInstructionDocument("agent-surface Gemini extension context", `Gemini extension commands: ${commands.length}`),
     },
   ];
 }
@@ -2236,7 +2005,7 @@ async function vscodeStaticOutputs() {
     {
       sourceKind: "commands",
       renderKind: "prompts",
-      source: "commands/flow.md",
+      source: "commands/ops-flow.md",
       relativeOutput: path.join("prompts", "agent-surface.prompt.md"),
       content: await renderVsCodePromptDocument(),
     },
@@ -2313,7 +2082,7 @@ async function renderVsCodeInstructionDocument(title, target) {
 }
 
 async function renderVsCodePromptDocument() {
-  const flow = (await readCommands()).find((command) => command.name === "flow");
+  const flow = (await readCommands()).find((command) => command.name === "ops-flow");
   return [
     "---",
     'description: "Route a task to the lightest safe agent-surface path"',
@@ -2389,10 +2158,6 @@ function parseCommand(file, text) {
     name,
     aliases: [],
     phase: commandPhaseFromName(name),
-    risk: commandRiskFromName(name),
-    packs: ["default"],
-    default_export: true,
-    approval_classes: commandApprovalClassesFromName(name),
     description: null,
   };
   const frontmatterErrors = [];
@@ -2413,9 +2178,6 @@ function parseCommand(file, text) {
 
   metadata.name ??= name;
   metadata.aliases ??= [];
-  metadata.packs ??= metadata.default_export === false ? [] : ["default"];
-  metadata.approval_classes ??= [];
-  metadata.default_export ??= true;
 
   return {
     file,
@@ -2474,21 +2236,16 @@ function parseJsonc(text, label) {
   fail(`${label}: invalid JSONC: ${result.error.message}`);
 }
 
-async function exportableCommands(pack) {
-  if (!isSafeTargetName(pack)) fail(`unsafe command pack: ${pack}`);
+async function exportableCommands() {
   const commands = await readCommands();
   const errors = [];
   checkCommandMetadata(commands, errors);
   if (errors.length > 0) fail(`command metadata invalid:\n${errors.join("\n")}`);
-  const packs = commandPacks(commands);
-  if (!packs.has(pack)) fail(`unknown command pack: ${pack}`);
-  return commands.filter((command) => commandInPack(command, pack));
+  return commands;
 }
 
-function commandRegistry(commands, filters) {
+function commandRegistry(commands) {
   return {
-    pack: filters.pack,
-    filters,
     count: commands.length,
     commands: commands.map(commandRegistryEntry),
   };
@@ -2500,12 +2257,13 @@ function commandRegistryEntry(command) {
     source: command.relativePath,
     aliases: command.metadata.aliases,
     phase: command.metadata.phase,
-    risk: command.metadata.risk,
-    packs: command.metadata.packs,
-    default_export: command.metadata.default_export,
-    approval_classes: command.metadata.approval_classes,
     description: command.metadata.description,
     metadata_source: command.hasFrontmatter ? "frontmatter" : "inferred",
+    lazy_body: {
+      type: "file",
+      path: command.relativePath,
+      frontmatter_stripped: true,
+    },
     targets: Object.fromEntries(
       Object.entries(targets)
         .filter(([, adapter]) => adapter.renderCommand)
@@ -2556,15 +2314,6 @@ function targetProducers(adapter) {
   if (adapter.ignoreFilename) {
     producers.push({ id: "ignores", sourceKind: "ignores", emits: ["ignores"], produce: () => ignoreOutputs(adapter) });
   }
-  if (adapter.renderSubagent) {
-    producers.push({ id: "subagents", sourceKind: "subagents", emits: ["subagents"], produce: (commands, context) => produceSubagentOutputs(adapter, context) });
-  }
-  if (adapter.mcpOutput) {
-    producers.push({ id: "mcps", sourceKind: "mcps", emits: ["mcps"], produce: (commands, context) => produceMcpOutputs(adapter, context) });
-  }
-  if (adapter.hooks) {
-    producers.push({ id: "hooks", sourceKind: "hooks", emits: ["hooks"], produce: (commands, context) => produceHookOutputs(adapter, context) });
-  }
   return producers;
 }
 
@@ -2602,20 +2351,6 @@ function outputRootFor(value, context) {
   return typeof value === "function" ? value(context) : value;
 }
 
-function commandInPack(command, pack) {
-  if (pack === "all") return true;
-  if (pack === "default") return command.metadata.default_export !== false;
-  return command.metadata.default_export !== false || command.metadata.packs.includes(pack);
-}
-
-function commandPacks(commands) {
-  const packs = new Set(["default", "all"]);
-  for (const command of commands) {
-    for (const pack of command.metadata.packs) packs.add(pack);
-  }
-  return packs;
-}
-
 function checkCommandMetadata(commands, errors) {
   const names = new Set();
   for (const command of commands) {
@@ -2631,27 +2366,11 @@ function checkCommandMetadata(commands, errors) {
     if (!isSafeTargetName(command.metadata.name)) errors.push(`${command.relativePath}: unsafe metadata name`);
     if (!Array.isArray(command.metadata.aliases)) errors.push(`${command.relativePath}: aliases must be an array`);
     if (!commandPhases.has(command.metadata.phase)) errors.push(`${command.relativePath}: unsupported phase: ${command.metadata.phase}`);
-    if (!commandRisks.has(command.metadata.risk)) errors.push(`${command.relativePath}: unsupported risk: ${command.metadata.risk}`);
-    if (typeof command.metadata.default_export !== "boolean") errors.push(`${command.relativePath}: default_export must be boolean`);
     if (command.metadata.description !== null && typeof command.metadata.description !== "string") {
       errors.push(`${command.relativePath}: description must be a string`);
     }
-    if (!Array.isArray(command.metadata.packs)) errors.push(`${command.relativePath}: packs must be an array`);
-    if (!Array.isArray(command.metadata.approval_classes)) errors.push(`${command.relativePath}: approval_classes must be an array`);
-    for (const pack of command.metadata.packs ?? []) {
-      if (!isSafeTargetName(pack)) errors.push(`${command.relativePath}: unsafe pack name: ${pack}`);
-    }
     for (const alias of command.metadata.aliases ?? []) {
       if (!isSafeTargetName(alias)) errors.push(`${command.relativePath}: unsafe alias: ${alias}`);
-    }
-    for (const approvalClass of command.metadata.approval_classes ?? []) {
-      if (!commandApprovalClasses.has(approvalClass)) errors.push(`${command.relativePath}: unsupported approval class: ${approvalClass}`);
-    }
-    if (command.metadata.default_export === false && command.metadata.packs.includes("default")) {
-      errors.push(`${command.relativePath}: default_export false cannot include default pack`);
-    }
-    if (command.metadata.default_export === false && command.metadata.packs.length === 0) {
-      errors.push(`${command.relativePath}: quarantined command must declare at least one non-default pack`);
     }
   }
 }
@@ -2731,39 +2450,6 @@ function commandPhaseFromName(name) {
     workflow: "arbitrate",
   };
   return map[prefix] ?? "misc";
-}
-
-function commandRiskFromName(name) {
-  if (name === "boot-facade") return "deception-risk";
-  if (name === "ops-nuke") return "destructive";
-  if (name === "ship-deploy" || name === "ship-release") return "deployment";
-  if (name === "ops-deps" || name === "qa-sec" || name === "qa-trace") return "security-sensitive";
-  if (name === "workflow-doctor") return "safe";
-  if (
-    name.startsWith("dev-") ||
-    name.startsWith("workflow-") ||
-    [
-      "boot-new",
-      "ops-docs",
-      "ops-learn",
-      "ship-artifact",
-      "ship-cicd",
-      "ship-commit",
-      "stellaris-implement",
-      "stellaris-init",
-      "stellaris-ui",
-      "stellaris-uplink",
-      "workflow-orchestrator",
-    ].includes(name)
-  ) {
-    return "writes";
-  }
-  return "safe";
-}
-
-function commandApprovalClassesFromName(name) {
-  if (name === "workflow-orchestrator") return ["network"];
-  return [];
 }
 
 async function directories(base) {

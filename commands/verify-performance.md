@@ -1,10 +1,6 @@
 ---
 name: verify-performance
 phase: verify
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Identify bottlenecks, leaks, and concurrency risks before production."
 ---
 ## OBJECTIVE
