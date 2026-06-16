@@ -65,6 +65,21 @@ rmSync(path.join(root, "dist"), { recursive: true, force: true });
 assert.equal(run(["check"]).trim(), "check: ok");
 assert.match(run(["check", "commands"]), /commands check: ok/);
 
+// renders validation: registry must not claim a surface token the adapter does not emit
+const targetsRegistryPath = path.join(root, "registry", "targets.json");
+const targetsRegistryOriginal = readFileSync(targetsRegistryPath, "utf8");
+try {
+  const mutatedTargets = JSON.parse(targetsRegistryOriginal);
+  mutatedTargets.in_scope.codex.renders.push("bogus-token");
+  writeFileSync(targetsRegistryPath, `${JSON.stringify(mutatedTargets, null, 2)}\n`);
+  const bogusRenders = status(["check"]);
+  assert.equal(bogusRenders.status, 1);
+  assert.match(bogusRenders.stderr, /renders token not emitted by adapter: bogus-token/);
+} finally {
+  writeFileSync(targetsRegistryPath, targetsRegistryOriginal);
+}
+assert.equal(run(["check"]).trim(), "check: ok");
+
 const inventory = run(["inventory"]);
 assert.match(inventory, /^rules: 11$/m);
 assert.match(inventory, /^commands: 63$/m);

@@ -15,8 +15,7 @@
       "install_supported": true,
       "renders": [
         "skills",
-        "rules",
-        "subagents"
+        "rules"
       ]
     },
     "gemini-cli": {

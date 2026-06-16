@@ -46,6 +46,7 @@ const subagentCapableStatuses = new Set(["native", "native-experimental"]);
 const targets = {
   "claude-code": {
     label: "Claude Code commands and plugin package",
+    renders: ["commands", "plugins"],
     commandOutputRoot: ".claude/commands",
     renderCommand: renderClaudeCommand,
     installRoot: installRootClaude,
@@ -55,6 +56,7 @@ const targets = {
   },
   codex: {
     label: "Codex skills and global instructions",
+    renders: ["skills", "rules"],
     commandOutputRoot: ".agents/skills",
     renderCommand: renderCodexSkill,
     installRoot: installRootCodex,
@@ -64,6 +66,7 @@ const targets = {
   },
   cline: {
     label: "Cline workflows and rules",
+    renders: ["commands-as-workflows", "rules"],
     commandOutputRoot: clineWorkflowRoot,
     renderCommand: renderClineWorkflow,
     installRoot: installRootCline,
@@ -71,6 +74,7 @@ const targets = {
   },
   kilo: {
     label: "Kilo workflows and instructions",
+    renders: ["commands-as-workflows", "rules"],
     commandOutputRoot: kiloWorkflowRoot,
     renderCommand: renderKiloWorkflow,
     installRoot: installRootKilo,
@@ -78,12 +82,14 @@ const targets = {
   },
   antigravity: {
     label: "Antigravity workflows",
+    renders: ["commands-as-workflows"],
     commandOutputRoot: "global_workflows",
     renderCommand: renderAntigravityWorkflow,
     installRoot: installRootAntigravity,
   },
   "antigravity-cli": {
     label: "Antigravity CLI plugin",
+    renders: ["plugins", "skills", "rules"],
     commandOutputRoot: path.join("plugins", "agent-surface", "skills"),
     commandOutputName: antigravityCliSkillOutputName,
     renderCommand: renderAntigravityCliSkill,
@@ -92,6 +98,7 @@ const targets = {
   },
   "gemini-cli": {
     label: "Gemini CLI legacy commands, context, and extension package",
+    renders: ["legacy-transition", "commands", "rules", "plugins", "skills"],
     commandOutputRoot: ".gemini/commands",
     renderCommand: renderGeminiCommand,
     installRoot: installRootGemini,
@@ -101,6 +108,7 @@ const targets = {
   },
   cursor: {
     label: "Cursor global commands and rules",
+    renders: ["rules", "commands"],
     commandOutputRoot: ".cursor/commands",
     renderCommand: renderCursorCommand,
     installRoot: installRootHomeOnly,
@@ -108,21 +116,25 @@ const targets = {
   },
   copilot: {
     label: "GitHub Copilot global instructions",
+    renders: ["instructions"],
     installRoot: installRootVsCode,
     staticOutputs: copilotStaticOutputs,
   },
   vscode: {
     label: "VS Code user prompt and instruction files",
+    renders: ["instructions", "prompts"],
     installRoot: installRootVsCode,
     staticOutputs: vscodeStaticOutputs,
   },
   opencode: {
     label: "OpenCode global instructions",
+    renders: ["rules"],
     installRoot: installRootHomeOnly,
     staticOutputs: opencodeStaticOutputs,
   },
   trae: {
     label: "Trae global user rules",
+    renders: ["rules"],
     installRoot: installRootHomeOnly,
     staticOutputs: traeStaticOutputs,
   },
@@ -351,6 +363,19 @@ async function check() {
     }
     if (targetsConfig.in_scope[name].install_supported && !implemented) {
       errors.push(`registry target marks install_supported without CLI adapter: ${name}`);
+    }
+    if (implemented) {
+      // renders records emitted target surface classes (not one-to-one source
+      // directories). A token is honest only when the adapter actually emits it;
+      // source-directory-backed tokens stay unclaimed until their producer ships.
+      const declared = new Set(targets[name].renders ?? []);
+      const registered = targetsConfig.in_scope[name].renders ?? [];
+      for (const token of registered) {
+        if (!declared.has(token)) errors.push(`registry target ${name} declares renders token not emitted by adapter: ${token}`);
+      }
+      for (const token of declared) {
+        if (!registered.includes(token)) errors.push(`adapter ${name} emits renders token not declared in registry: ${token}`);
+      }
     }
   }
 
@@ -2524,6 +2549,37 @@ function commandRegistryEntry(command) {
 async function targetOutputs(adapter, commands, context) {
   const outputs = [];
 
+  for (const producer of targetProducers(adapter)) {
+    outputs.push(...(await producer.produce(commands, context)));
+  }
+
+  const seen = new Set();
+  for (const output of outputs) {
+    if (!isSafeRelativePath(output.relativeOutput)) fail(`unsafe generated output path: ${output.relativeOutput}`);
+    if (seen.has(output.relativeOutput)) fail(`duplicate generated output path: ${output.relativeOutput}`);
+    seen.add(output.relativeOutput);
+  }
+
+  return outputs.sort((left, right) => left.relativeOutput.localeCompare(right.relativeOutput));
+}
+
+// Each adapter renders through an ordered list of producers. `commands` covers
+// per-command outputs plus any additionalCommandOutputs; `static` is the opaque
+// non-command bucket (rules, instructions, prompts, plugin packages, context
+// docs). New source primitives append their own producer here in later phases.
+function targetProducers(adapter) {
+  const producers = [];
+  if (adapter.renderCommand || (adapter.additionalCommandOutputs?.length ?? 0) > 0) {
+    producers.push({ id: "commands", produce: (commands, context) => produceCommandOutputs(adapter, commands, context) });
+  }
+  if (adapter.staticOutputs) {
+    producers.push({ id: "static", produce: (commands, context) => adapter.staticOutputs(commands, context) });
+  }
+  return producers;
+}
+
+async function produceCommandOutputs(adapter, commands, context) {
+  const outputs = [];
   for (const command of commands) {
     if (adapter.renderCommand) {
       outputs.push({
@@ -2537,19 +2593,7 @@ async function targetOutputs(adapter, commands, context) {
       outputs.push(await buildOutput(command, context));
     }
   }
-
-  if (adapter.staticOutputs) {
-    outputs.push(...(await adapter.staticOutputs(commands, context)));
-  }
-
-  const seen = new Set();
-  for (const output of outputs) {
-    if (!isSafeRelativePath(output.relativeOutput)) fail(`unsafe generated output path: ${output.relativeOutput}`);
-    if (seen.has(output.relativeOutput)) fail(`duplicate generated output path: ${output.relativeOutput}`);
-    seen.add(output.relativeOutput);
-  }
-
-  return outputs.sort((left, right) => left.relativeOutput.localeCompare(right.relativeOutput));
+  return outputs;
 }
 
 function commandRelativeOutput(adapter, command, context) {
