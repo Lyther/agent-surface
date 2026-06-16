@@ -87,6 +87,45 @@ node scripts/agent-surface.mjs install --target gemini-cli --scope user --dry-ru
 
 `install` prints the files it will write, stale managed files it will remove, blocked paths, and the manifest path that tracks generated files. Live writes require explicit `--dest` or `--allow-scope-root` after reviewing the dry run. Existing unmanaged files block the install. Managed files changed since the last manifest block the install. Overwrites and stale managed removals are backed up under `.agent-surface/backups/`.
 
+## Upgrading From Earlier Installs
+
+Older `agent-surface` installs were mostly command/rule distributions. The current version is producer-aware: commands, rules, subagents, ignores, MCP configs, hooks, prompts, instructions, and generated plugin packages are emitted by explicit target producers, and `registry/source-kinds.json` decides each primitive's load mode, install scope, risk class, and token budget.
+
+What changes in day-to-day use:
+
+- Run the full check set before distributing: `npm run check`, `npm run check:commands`, `npm run check:generated`, `npm run check:rules`, and `npm test`.
+- Review `install --dry-run` output more carefully. It now lists non-applicable project-only artifacts such as ignores, MCP configs, and hooks when you install to user scope.
+- Use project-scope installs, or an explicit `--dest`, when you want project artifacts such as `.cursorignore`, `.kilocodeignore`, `.clineignore`, `.cursor/mcp.json`, `.mcp.json`, or `.cursor/hooks.json`.
+- Treat generated MCP configs as inert review artifacts until the host imports/enables them. MCP sources must be secret-free and package-manager launches must use exact pinned specs.
+- For subagents, use `access: read-only` by default. Use `read-write-shell` only when the agent genuinely needs shell access; `read-write` can edit/write where the target supports it but does not grant Bash.
+- For Google surfaces, use `antigravity-cli` for the current CLI target. Keep `gemini-cli` only as the legacy transition export.
+
+Recommended upgrade flow:
+
+```bash
+npm ci
+npm run check
+npm run check:commands
+npm run check:generated
+npm run check:rules
+npm test
+
+node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
+node scripts/agent-surface.mjs install --target codex --scope user --dry-run
+node scripts/agent-surface.mjs install --target antigravity-cli --scope user --dry-run
+node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
+
+# After reviewing dry-run output:
+node scripts/agent-surface.mjs install --target <target> --scope user --allow-scope-root
+```
+
+For project artifacts, review a project dry-run first and then install to that project root:
+
+```bash
+node scripts/agent-surface.mjs install --target cursor --dest /path/to/project --dry-run
+node scripts/agent-surface.mjs install --target cursor --dest /path/to/project
+```
+
 ## CLI Reference
 
 Common checks:
