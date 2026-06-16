@@ -46,22 +46,28 @@ const subagentCapableStatuses = new Set(["native", "native-experimental"]);
 const targets = {
   "claude-code": {
     label: "Claude Code commands and plugin package",
-    renders: ["commands", "plugins"],
+    renders: ["commands", "plugins", "subagents"],
     commandOutputRoot: ".claude/commands",
     renderCommand: renderClaudeCommand,
     installRoot: installRootClaude,
     commandOutputName: groupedMarkdownCommandOutputName,
     additionalCommandOutputs: [claudePluginCommandOutput],
+    subagentOutputRoot: path.join(".claude", "agents"),
+    subagentOutputName: (subagent) => `${subagent.name}.md`,
+    renderSubagent: renderClaudeSubagent,
     staticOutputs: claudeStaticOutputs,
   },
   codex: {
     label: "Codex skills and global instructions",
-    renders: ["skills", "rules"],
+    renders: ["skills", "rules", "subagents"],
     commandOutputRoot: ".agents/skills",
     renderCommand: renderCodexSkill,
     installRoot: installRootCodex,
     commandOutputName: codexSkillOutputName,
     additionalCommandOutputs: [codexOpenAiAgentOutput],
+    subagentOutputRoot: path.join(".codex", "agents"),
+    subagentOutputName: (subagent) => `${subagent.name.replaceAll("-", "_")}.toml`,
+    renderSubagent: renderCodexSubagent,
     staticOutputs: codexStaticOutputs,
   },
   cline: {
@@ -75,11 +81,14 @@ const targets = {
   },
   kilo: {
     label: "Kilo workflows and instructions",
-    renders: ["commands-as-workflows", "rules", "ignores"],
+    renders: ["commands-as-workflows", "rules", "ignores", "subagents"],
     commandOutputRoot: kiloWorkflowRoot,
     renderCommand: renderKiloWorkflow,
     installRoot: installRootKilo,
     ignoreFilename: ".kilocodeignore",
+    subagentOutputRoot: kiloAgentRoot,
+    subagentOutputName: (subagent) => `${subagent.name}.md`,
+    renderSubagent: renderKiloSubagent,
     staticOutputs: kiloStaticOutputs,
   },
   antigravity: {
@@ -242,6 +251,8 @@ async function main() {
       await checkGenerated(args.slice(1));
     } else if (args[0] === "ignores") {
       await checkIgnores();
+    } else if (args[0] === "subagents") {
+      await checkSubagents();
     } else {
       await check();
     }
@@ -287,6 +298,7 @@ Usage:
   agent-surface check commands
   agent-surface check generated [--target <target|all>] [--pack default|all|<pack>]
   agent-surface check ignores
+  agent-surface check subagents
   agent-surface build --target <target|all> [--pack default|all|<pack>] [--dry-run]
   agent-surface install --target <target> [--pack default|all|<pack>] [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
@@ -738,6 +750,29 @@ async function checkIgnores() {
   console.log("ignores check: ok");
 }
 
+async function checkSubagents() {
+  const subagents = await readSubagents();
+  const errors = subagents.flatMap((subagent) => subagent.errors);
+  const names = subagents.map((subagent) => subagent.name);
+  for (const dup of new Set(names.filter((name, index) => names.indexOf(name) !== index))) {
+    errors.push(`duplicate subagent name: ${dup}`);
+  }
+  const emitters = Object.entries(targets)
+    .filter(([, adapter]) => adapter.renderSubagent)
+    .map(([name]) => name)
+    .sort();
+
+  console.log(`subagents: sources ${subagents.length}, emitters ${emitters.length} (${emitters.join(", ")})`);
+  if (errors.length > 0) {
+    console.log("errors:");
+    for (const error of errors) console.log(`  ${error}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log("subagents check: ok");
+}
+
 function validateGeneratedTarget(target, outputs) {
   const errors = [];
   const byPath = new Map(outputs.map((output) => [output.relativeOutput, output]));
@@ -770,10 +805,12 @@ function validateGeneratedTarget(target, outputs) {
     const plugin = requireJson(path.join(".agent-surface", "claude-plugin", "agent-surface", ".claude-plugin", "plugin.json"));
     if (plugin && plugin.name !== "agent-surface") errors.push("Claude plugin name must be agent-surface");
     requirePath(path.join(".agent-surface", "claude-plugin", "agent-surface", "commands", "flow", "flow.md"));
+    requireContains(path.join(".claude", "agents", "code-reviewer.md"), /^---\nname: code-reviewer\n/);
   } else if (target === "codex") {
     requireContains(path.join(".agents", "skills", "flow", "SKILL.md"), /^---\nname: flow\n/);
     requireContains(path.join(".agents", "skills", "flow", "agents", "openai.yaml"), /allow_implicit_invocation: false/);
     requireContains(path.join(".codex", "AGENTS.md"), /agent-surface global Codex rules/);
+    requireContains(path.join(".codex", "agents", "code_reviewer.toml"), /developer_instructions = /);
   } else if (target === "gemini-cli") {
     const extension = requireJson(path.join(".gemini", "extensions", "agent-surface", "gemini-extension.json"));
     if (extension && extension.contextFileName !== "GEMINI.md") errors.push("Gemini extension contextFileName must be GEMINI.md");
@@ -791,6 +828,7 @@ function validateGeneratedTarget(target, outputs) {
     requirePath(path.join(".config", "kilo", "commands", "flow.md"));
     requireContains(path.join(".config", "kilo", "AGENTS.md"), /agent-surface Kilo rules/);
     requireContains(".kilocodeignore", /agent-surface canonical AI-tool ignore baseline/);
+    requireContains(path.join(".config", "kilo", "agents", "code-reviewer.md"), /^---\ndescription: ".*"\nmode: subagent\n/);
   } else if (target === "antigravity") {
     requireContains(path.join("global_workflows", "flow.md"), /^---\ndescription: "/);
   } else if (target === "antigravity-cli") {
@@ -2622,6 +2660,9 @@ function targetProducers(adapter) {
   if (adapter.ignoreFilename) {
     producers.push({ id: "ignores", produce: () => ignoreOutputs(adapter) });
   }
+  if (adapter.renderSubagent) {
+    producers.push({ id: "subagents", produce: (commands, context) => produceSubagentOutputs(adapter, context) });
+  }
   return producers;
 }
 
@@ -2664,6 +2705,93 @@ async function ignoreOutputs(adapter) {
     content: ignore.body,
     scopeClass: "project",
   }];
+}
+
+async function readSubagents() {
+  const subagentFiles = await files("subagents", [".md"]);
+  const subagents = [];
+  for (const file of subagentFiles) {
+    subagents.push(parseSubagent(file, await readFile(file, "utf8")));
+  }
+  return subagents.sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function parseSubagent(file, text) {
+  const source = relative(file);
+  const out = { source, name: path.basename(file, ".md"), description: "", access: "read-only", body: "", errors: [] };
+
+  if (!text.startsWith("---\n")) {
+    out.errors.push(`${source}: frontmatter missing`);
+    out.body = text.trimEnd();
+    return out;
+  }
+
+  const end = text.indexOf("\n---\n", 4);
+  if (end === -1) {
+    out.errors.push(`${source}: frontmatter not closed`);
+    out.body = text.trimEnd();
+    return out;
+  }
+
+  for (const line of text.slice(4, end).split(/\r?\n/)) {
+    const name = line.match(/^name:\s*"?(.*?)"?\s*$/);
+    if (name) { out.name = name[1]; continue; }
+    const description = line.match(/^description:\s*"?(.*?)"?\s*$/);
+    if (description) { out.description = description[1]; continue; }
+    const access = line.match(/^access:\s*"?(.*?)"?\s*$/);
+    if (access) { out.access = access[1]; continue; }
+  }
+  out.body = text.slice(end + 5).replace(/^\n+/, "").trimEnd();
+
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(out.name)) out.errors.push(`${source}: name must be lowercase letters, digits, and hyphens`);
+  if (out.description.trim().length === 0) out.errors.push(`${source}: description is required`);
+  if (!["read-only", "read-write"].includes(out.access)) out.errors.push(`${source}: access must be read-only or read-write`);
+  if (out.body.trim().length === 0) out.errors.push(`${source}: prompt body is required`);
+  return out;
+}
+
+async function produceSubagentOutputs(adapter, context) {
+  if (!adapter.renderSubagent) return [];
+  const subagents = await readSubagents();
+  return subagents.map((subagent) => ({
+    source: subagent.source,
+    relativeOutput: path.join(outputRootFor(adapter.subagentOutputRoot, context), adapter.subagentOutputName(subagent)),
+    content: adapter.renderSubagent(subagent, context),
+  }));
+}
+
+function subagentToolsForAccess(access) {
+  return access === "read-write" ? "Read, Grep, Glob, Edit, Write, Bash" : "Read, Grep, Glob";
+}
+
+function renderClaudeSubagent(subagent) {
+  return [
+    "---",
+    `name: ${subagent.name}`,
+    `description: "${yamlString(subagent.description)}"`,
+    `tools: ${subagentToolsForAccess(subagent.access)}`,
+    "---",
+    "",
+    subagent.body,
+    "",
+  ].join("\n");
+}
+
+function renderCodexSubagent(subagent) {
+  return [
+    `name = "${tomlString(subagent.name.replaceAll("-", "_"))}"`,
+    `description = "${tomlString(subagent.description)}"`,
+    `sandbox_mode = "${subagent.access === "read-write" ? "workspace-write" : "read-only"}"`,
+    `developer_instructions = ${tomlMultilineString(subagent.body)}`,
+    "",
+  ].join("\n");
+}
+
+function renderKiloSubagent(subagent) {
+  const lines = ["---", `description: "${yamlString(subagent.description)}"`, "mode: subagent"];
+  if (subagent.access !== "read-write") lines.push("permission:", "  edit: deny", "  bash: deny");
+  lines.push("---", "", subagent.body, "");
+  return lines.join("\n");
 }
 
 function commandRelativeOutput(adapter, command, context) {
@@ -3205,6 +3333,10 @@ function kiloInstructionPath(context) {
 
 function kiloRuleRoot(context) {
   return context.scope === "user" ? path.join(".config", "kilo", "rules") : path.join(".kilo", "rules");
+}
+
+function kiloAgentRoot(context) {
+  return context.scope === "user" ? path.join(".config", "kilo", "agents") : path.join(".kilo", "agents");
 }
 
 async function kiloRuleInstructionPaths(scope) {

@@ -42,15 +42,18 @@
         ],
         "isolation": "session",
         "headless_supported": true,
-        "distribution": "manual-only",
+        "distribution": "generated",
         "verified_by": [
           "docs: https://code.claude.com/docs/en/workflows",
           "docs: https://code.claude.com/docs/en/agent-sdk/subagents",
+          "docs: https://code.claude.com/docs/en/sub-agents",
+          "local: build target claude-code renders example subagents as .claude/agents/*.md",
           "local: workflow-orchestrator probe list includes claude -p headless smoke test"
         ],
         "notes": [
           "Use worker-led subagents for a few focused tasks; use dynamic workflows only when the plan benefits from script-managed fan-out.",
-          "Worktree isolation is an orchestrator pattern for writable independent tasks, not a native Claude Code subagent mechanism."
+          "Worktree isolation is an orchestrator pattern for writable independent tasks, not a native Claude Code subagent mechanism.",
+          "agent-surface generates example subagent definitions (.claude/agents/<name>.md, md frontmatter); runtime fan-out remains an orchestrator concern."
         ]
       }
     },
@@ -96,12 +99,14 @@
         "distribution": "generated",
         "verified_by": [
           "docs: https://developers.openai.com/codex/subagents",
+          "local: build target codex renders example subagents as .codex/agents/*.toml",
           "local: codex exec --help is listed as a workflow-orchestrator probe before role assignment"
         ],
         "notes": [
           "Codex spawns subagents only when explicitly asked; prompts must name the desired fan-out and require consolidation.",
           "Custom agents can carry model and instruction overrides, but subagents inherit current sandbox and approval controls.",
-          "Worktree fan-out is an orchestrator isolation pattern for separate role sessions, not a Codex subagent mechanism."
+          "Worktree fan-out is an orchestrator isolation pattern for separate role sessions, not a Codex subagent mechanism.",
+          "agent-surface generates example subagent definitions (.codex/agents/<name>.toml with required name, description, developer_instructions)."
         ]
       }
     },
@@ -258,14 +263,16 @@
         ],
         "isolation": "session",
         "headless_supported": true,
-        "distribution": "local-wired",
+        "distribution": "generated",
         "verified_by": [
           "docs: https://kilo.ai/docs/customize/custom-subagents",
+          "local: build target kilo renders example subagents as .kilo/agents/*.md (project) and .config/kilo/agents/*.md (user)",
           "local: kilo run --help exposed --model, --agent, --format, --dir, --variant, and --auto on 2026-06-16"
         ],
         "notes": [
           "Do not assign Kilo packet work when local config validation fails; the 2026-06-16 local probe showed invalid user config keys blocking kilo agent list.",
-          "Configured subagents can use dedicated models and permissions; prompt-level worker assignment must still keep filescope isolation explicit."
+          "Configured subagents can use dedicated models and permissions; prompt-level worker assignment must still keep filescope isolation explicit.",
+          "agent-surface generates example subagent definitions with mode: subagent; Kilo also reads .kilo/agent/*.md and global ~/.config/kilo/agents/*.md."
         ]
       },
       "ignores": {

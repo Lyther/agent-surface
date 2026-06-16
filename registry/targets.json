@@ -6,7 +6,8 @@
       "install_supported": true,
       "renders": [
         "commands",
-        "plugins"
+        "plugins",
+        "subagents"
       ]
     },
     "codex": {
@@ -15,7 +16,8 @@
       "install_supported": true,
       "renders": [
         "skills",
-        "rules"
+        "rules",
+        "subagents"
       ]
     },
     "gemini-cli": {
@@ -47,7 +49,8 @@
       "renders": [
         "commands-as-workflows",
         "rules",
-        "ignores"
+        "ignores",
+        "subagents"
       ]
     },
     "antigravity": {

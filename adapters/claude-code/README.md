@@ -7,6 +7,7 @@ Implemented target paths:
 - user: `~/.claude/commands/<group>/<name>.md`
 - project: `.claude/commands/<group>/<name>.md`
 - user package: `~/.agent-surface/claude-plugin/agent-surface/`
+- subagents: `~/.claude/agents/<name>.md` (user) / `.claude/agents/<name>.md` (project), rendered from `subagents/*.md` with YAML frontmatter (`name`, `description`, `tools`; `model` inherits). These are standalone agent files, not plugin-shipped agents.
 
 The plugin package follows the Claude Code plugin directory layout:
 

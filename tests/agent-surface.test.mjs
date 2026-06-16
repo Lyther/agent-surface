@@ -36,7 +36,7 @@ function files(dir) {
   return out;
 }
 
-function assertGeminiTomlParses() {
+function assertTomlParses(dir) {
   const script = `
 import pathlib
 import sys
@@ -50,10 +50,14 @@ for p in pathlib.Path(sys.argv[1]).rglob("*.toml"):
 if bad:
     raise SystemExit("\\n".join(bad))
 `;
-  execFileSync("python3", ["-c", script, path.join(root, "dist", "gemini-cli", ".gemini", "commands")], {
+  execFileSync("python3", ["-c", script, dir], {
     cwd: root,
     encoding: "utf8",
   });
+}
+
+function assertGeminiTomlParses() {
+  assertTomlParses(path.join(root, "dist", "gemini-cli", ".gemini", "commands"));
 }
 
 function sha256(value) {
@@ -176,7 +180,7 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
-assert.equal(generated.length, 783);
+assert.equal(generated.length, 789);
 assertGeminiTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "flow", "flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "swarm.md"))), true);
@@ -227,9 +231,19 @@ assert.match(cursorIgnore, /agent-surface canonical AI-tool ignore baseline/);
 const ignoresCheck = run(["check", "ignores"]);
 assert.match(ignoresCheck, /ignores check: ok/);
 assert.match(ignoresCheck, /emitters 3 \(cline, cursor, kilo\)/);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "agents", "code-reviewer.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "agents", "code_reviewer.toml"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "agents", "explorer.md"))), true);
+assertTomlParses(path.join(root, "dist", "codex", ".codex", "agents"));
+const claudeReviewer = readFileSync(path.join(root, "dist", "claude-code", ".claude", "agents", "code-reviewer.md"), "utf8");
+assert.match(claudeReviewer, /^---\nname: code-reviewer\n/);
+assert.match(claudeReviewer, /^tools: Read, Grep, Glob$/m);
+const subagentsCheck = run(["check", "subagents"]);
+assert.match(subagentsCheck, /subagents check: ok/);
+assert.match(subagentsCheck, /sources 2, emitters 3 \(claude-code, codex, kilo\)/);
 const generatedCheck = run(["check", "generated"]);
-assert.match(generatedCheck, /claude-code: generated outputs 124 ok/);
-assert.match(generatedCheck, /kilo: generated outputs 74 ok/);
+assert.match(generatedCheck, /claude-code: generated outputs 126 ok/);
+assert.match(generatedCheck, /kilo: generated outputs 76 ok/);
 assert.match(generatedCheck, /antigravity: generated outputs 61 ok/);
 assert.match(generatedCheck, /antigravity-cli: generated outputs 74 ok/);
 assert.match(generatedCheck, /gemini-cli: generated outputs 186 ok/);
@@ -389,19 +403,21 @@ rmSync(liveDest, { recursive: true, force: true });
 const claudeLiveDest = "/tmp/agent-surface-claude-live";
 rmSync(claudeLiveDest, { recursive: true, force: true });
 const claudeLiveInstall = run(["install", "--target", "claude-code", "--dest", claudeLiveDest]);
-assert.match(claudeLiveInstall, /wrote: 124/);
+assert.match(claudeLiveInstall, /wrote: 126/);
 assert.match(readFileSync(path.join(claudeLiveDest, ".claude", "commands", "workflow", "boss.md"), "utf8"), /^## OBJECTIVE/);
+assert.match(readFileSync(path.join(claudeLiveDest, ".claude", "agents", "code-reviewer.md"), "utf8"), /^---\nname: code-reviewer\n/);
 const claudeLiveManifest = JSON.parse(readFileSync(path.join(claudeLiveDest, ".agent-surface", "claude-code-manifest.json"), "utf8"));
-assert.equal(claudeLiveManifest.managed.length, 124);
+assert.equal(claudeLiveManifest.managed.length, 126);
 rmSync(claudeLiveDest, { recursive: true, force: true });
 
 const codexLiveDest = "/tmp/agent-surface-codex-live";
 rmSync(codexLiveDest, { recursive: true, force: true });
 const codexLiveInstall = run(["install", "--target", "codex", "--dest", codexLiveDest]);
-assert.match(codexLiveInstall, /wrote: 123/);
+assert.match(codexLiveInstall, /wrote: 125/);
 assert.match(readFileSync(path.join(codexLiveDest, ".agents", "skills", "workflow-boss", "SKILL.md"), "utf8"), /^---\nname: workflow-boss\n/);
+assert.match(readFileSync(path.join(codexLiveDest, ".codex", "agents", "code_reviewer.toml"), "utf8"), /^name = "code_reviewer"$/m);
 const codexLiveManifest = JSON.parse(readFileSync(path.join(codexLiveDest, ".agent-surface", "codex-manifest.json"), "utf8"));
-assert.equal(codexLiveManifest.managed.length, 123);
+assert.equal(codexLiveManifest.managed.length, 125);
 rmSync(codexLiveDest, { recursive: true, force: true });
 
 const unmanagedDest = "/tmp/agent-surface-unmanaged";

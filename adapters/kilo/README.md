@@ -13,6 +13,7 @@ Implemented target paths:
 - project: `.kilo/rules/*.md`
 - project merge: `kilo.jsonc` `instructions += ".kilo/rules/<rule>.md"` in source order
 - project: `.kilocodeignore` (rendered from `ignores/default.ignore`; user-scope installs skip it as non-applicable)
+- subagents: `~/.config/kilo/agents/<name>.md` (user) / `.kilo/agents/<name>.md` (project), rendered from `subagents/*.md` with `mode: subagent` and a `permission` block derived from the source `access`
 - custom: any reviewed `--dest` path
 
 Kilo workflows are Markdown slash commands. Kilo automatically loads `AGENTS.md`, but the extension Rules UI is backed by the `instructions` array in `kilo.jsonc`, so the installer merges an explicit ordered list of generated rule files and preserves existing config keys. Older generated `agent-surface.md` rule entries are removed from `instructions` during migration because the matching managed file is removed as stale output.

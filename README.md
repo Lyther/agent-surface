@@ -2,7 +2,7 @@
 
 Typed source and adapter compiler for coding-agent surfaces.
 
-Current implementation: global command, rule, skill, prompt, and plugin-package compiler for Claude Code, Codex, Antigravity CLI, Cline, Kilo, Antigravity, Cursor, GitHub Copilot, VS Code, OpenCode, and Trae. A legacy Gemini CLI transition export remains available while Google moves users to Antigravity CLI. Planned surfaces still include richer hooks, MCP config, and first-class subagent bundles.
+Current implementation: global command, rule, skill, subagent, ignore, prompt, and plugin-package compiler for Claude Code, Codex, Antigravity CLI, Cline, Kilo, Antigravity, Cursor, GitHub Copilot, VS Code, OpenCode, and Trae. A legacy Gemini CLI transition export remains available while Google moves users to Antigravity CLI. Planned surfaces still include richer hooks, MCP config, and plugin bundles.
 
 ## Model
 
@@ -15,7 +15,7 @@ Default exports quarantine high-risk local-only commands such as `boot-facade` a
 The other source folders are kept deliberately so new agent primitives can be added without reshaping the project:
 
 - `skills/`
-- `subagents/`
+- `subagents/` (active: example agents render to Claude Code, Codex, and Kilo subagent files)
 - `hooks/`
 - `mcps/`
 - `settings/`
@@ -136,12 +136,12 @@ Google announced on May 19, 2026 that consumer Gemini CLI users should migrate t
 
 Global target surfaces currently generated:
 
-- Claude Code: `~/.claude/commands/**` plus a packaged Claude plugin directory at `~/.agent-surface/claude-plugin/agent-surface/`.
-- Codex: `~/.agents/skills/<command>/SKILL.md`, per-skill `agents/openai.yaml`, and `~/.codex/AGENTS.md`.
+- Claude Code: `~/.claude/commands/**` plus a packaged Claude plugin directory at `~/.agent-surface/claude-plugin/agent-surface/`. Example subagents render to `~/.claude/agents/*.md`.
+- Codex: `~/.agents/skills/<command>/SKILL.md`, per-skill `agents/openai.yaml`, and `~/.codex/AGENTS.md`. Example subagents render to `~/.codex/agents/*.toml`.
 - Antigravity CLI: `~/.gemini/antigravity-cli/plugins/agent-surface/` with generated plugin skills and rules.
 - Gemini CLI legacy transition export: `~/.gemini/commands/**`, `~/.gemini/GEMINI.md`, and `~/.gemini/extensions/agent-surface/` with bundled extension skills.
 - Cline: `~/Documents/Cline/Workflows/*.md` and `~/Documents/Cline/Rules/agent-surface.md` for user scope; project scope still writes `.clinerules/` and a project-root `.clineignore`.
-- Kilo: `~/.config/kilo/commands/*.md`, `~/.config/kilo/AGENTS.md`, ordered per-rule files under `~/.config/kilo/rules/*.md`, and a safe `kilo.jsonc.instructions` merge for user scope; project scope writes `.kilo/commands/*.md`, root `AGENTS.md`, ordered `.kilo/rules/*.md`, project `kilo.jsonc`, and a project-root `.kilocodeignore`.
+- Kilo: `~/.config/kilo/commands/*.md`, `~/.config/kilo/AGENTS.md`, ordered per-rule files under `~/.config/kilo/rules/*.md`, and a safe `kilo.jsonc.instructions` merge for user scope; project scope writes `.kilo/commands/*.md`, root `AGENTS.md`, ordered `.kilo/rules/*.md`, project `kilo.jsonc`, and a project-root `.kilocodeignore`. Example subagents render to `~/.config/kilo/agents/*.md` (user) and `.kilo/agents/*.md` (project).
 - Antigravity: `~/.gemini/antigravity/global_workflows/*.md` for legacy workflow compatibility.
 - Cursor: `~/.cursor/commands/*.md` and `~/.cursor/rules/*.mdc`; project-scope installs (or `--dest`) also emit a project-root `.cursorignore`.
 - GitHub Copilot: VS Code user-profile `instructions/agent-surface-copilot.instructions.md`.
@@ -150,6 +150,8 @@ Global target surfaces currently generated:
 - Trae: `~/.trae/user_rules.md`.
 
 Ignore files (`.cursorignore`, `.kilocodeignore`, `.clineignore`) are project-root artifacts rendered from `ignores/default.ignore`. They appear in `build` output and project-scope installs; user-scope installs report them as non-applicable and skip them. Validate the source with `check ignores`.
+
+Subagent definitions in `subagents/*.md` (frontmatter `name`, `description`, `access`) render per target: Claude Code `.claude/agents/<name>.md`, Codex `.codex/agents/<name>.toml`, and Kilo `.kilo/agents/<name>.md` (project) / `~/.config/kilo/agents/<name>.md` (user). `access: read-only` maps to a read-only tool/sandbox/permission set per target; `model` is left to inherit. The shipped examples are generic agents, not promoted workflow roles. Validate the source with `check subagents`.
 
 ## Workflow Kernel
 
