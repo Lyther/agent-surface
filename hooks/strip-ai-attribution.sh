@@ -76,8 +76,8 @@ main() {
         sub is_ai_ad_line {
             my ($line) = @_;
             return 1 if $line =~ /^\s*Co-authored-by:\s*.*<\s*(?:cursoragent\@cursor\.com|noreply\@anthropic\.com)\s*>\s*$/i;
-            return 1 if $line =~ /^\s*(?:🤖\s*)?Generated(?:[ -]|\s)+(?:by|with)\s+.*(?:Claude(?:\s+Code)?|Cursor(?:\s+Agent)?|Codex|ChatGPT|OpenAI|Anthropic|Gemini|Copilot|Windsurf|Aider|Devin|Replit\s+Agent|Qodo|Tabnine|Amazon\s+Q|CodeWhisperer|Sourcegraph\s+Cody|Cline|Roo\s+Code|OpenCode|Kilo\s+Code|Trae|Continue\.dev|Codeium|Augment\s+Code|Zed\s+AI)/i;
-            return 1 if $line =~ /^\s*(?:Generated-by|Generated-with):\s+.*(?:Claude(?:\s+Code)?|Cursor(?:\s+Agent)?|Codex|ChatGPT|OpenAI|Anthropic|Gemini|Copilot|Windsurf|Aider|Devin|Replit\s+Agent|Qodo|Tabnine|Amazon\s+Q|CodeWhisperer|Sourcegraph\s+Cody|Cline|Roo\s+Code|OpenCode|Kilo\s+Code|Trae|Continue\.dev|Codeium|Augment\s+Code|Zed\s+AI)/i;
+            return 1 if $line =~ /^\s*(?:🤖\s*)?Generated(?:[ -]|\s)+(?:by|with)\s+.*(?:Claude\s+Code|Cursor(?:\s+Agent)?)/i;
+            return 1 if $line =~ /^\s*(?:Generated-by|Generated-with):\s+.*(?:Claude\s+Code|Cursor(?:\s+Agent)?)/i;
             return 0;
         }
     ' "$msg_file" "$tmp_file" "$removed_file"

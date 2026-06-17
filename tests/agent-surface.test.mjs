@@ -96,6 +96,23 @@ function assertStripAiAttributionHook() {
     assert.doesNotMatch(cleaned, /Generated with/);
     assert.doesNotMatch(cleaned, /Generated-by/);
 
+    const unrelatedPath = path.join(tmpDir, "UNRELATED_EDITMSG");
+    const unrelated = [
+      "docs: preserve unrelated vendor notes",
+      "",
+      "Generated with Codex during a benchmark note.",
+      "Generated-by: Gemini CLI",
+      "Co-authored-by: OpenAI User <human.openai@example.com>",
+      "",
+    ].join("\n");
+    writeFileSync(unrelatedPath, unrelated);
+    const unrelatedCheck = spawnSync(stripAiAttributionHook, ["--check", unrelatedPath], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.equal(unrelatedCheck.status, 0, unrelatedCheck.stderr);
+    assert.equal(readFileSync(unrelatedPath, "utf8"), unrelated);
+
     writeFileSync(messagePath, original);
     const check = spawnSync(stripAiAttributionHook, ["--check", messagePath], {
       cwd: root,
