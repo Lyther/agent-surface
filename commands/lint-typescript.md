@@ -14,7 +14,7 @@ TypeScript exists to prevent JavaScript's chaos. If your code requires `any`, `@
 ## PROCEDURE
 
 1. **Identify scope**: Determine which `.ts`/`.tsx` files were touched or are under review.
-2. **Apply language rules**: The full TypeScript policy is in `.cursor/rules/13-lang-typescript.mdc`. It loads automatically for `.ts`/`.tsx` files. Audit against every section.
+2. **Apply language rules**: The full TypeScript policy is in `rules/13-lang-typescript.mdc` in agent-surface source and may be rendered to the current host. Audit against every section.
 3. **Run toolchain gates**:
 
 ```bash

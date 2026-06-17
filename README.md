@@ -123,6 +123,11 @@ Multi-role workflow state lives under `.agent-surface/workflows/<run_id>/`.
 - `workflow-doctor` — validates run state before acting on it.
 - `workflow-close` — archives metrics and unresolved risks.
 
+Maintenance commands:
+
+- `ops-doctor` — health check for source, registry, generated surfaces, and local manifests.
+- `ops-clean` — evidence-driven repository hygiene for docs, scripts, assets, naming, structure, generated debris, and stale maintenance residue.
+
 Use `agent-surface run` and `agent-surface workflow patch begin/end/verify` to capture evidence mechanically.
 
 ## Adapter READMEs

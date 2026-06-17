@@ -15,7 +15,7 @@ Keep ASCII workflow diagrams out of rule files (prompt token budget), but still 
 User invokes command (e.g., "dev-refactor", "arch-roadmap")
     ↓
 1. In context?     → EXECUTE
-2. On disk?        → READ ~/.cursor/commands/<prefix>-<name>.md → EXECUTE
+2. On disk?        → READ the matching generated command for the current host, or source `commands/<name>.md` in agent-surface → EXECUTE
 3. Unknown?        → ASK user. DO NOT HALLUCINATE A PROCESS.
 ```
 

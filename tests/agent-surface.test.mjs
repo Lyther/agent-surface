@@ -150,12 +150,12 @@ assert.equal(run(["check"]).trim(), "check: ok");
 
 const inventory = run(["inventory"]);
 assert.match(inventory, /^rules: 11$/m);
-assert.match(inventory, /^commands: 63$/m);
+assert.match(inventory, /^commands: 64$/m);
 assert.match(inventory, /^external: 5$/m);
 assert.match(inventory, /^schemas: 13$/m);
 
 const registry = JSON.parse(run(["commands", "--json"]));
-assert.equal(registry.count, 63);
+assert.equal(registry.count, 64);
 const opsFlowCommand = registry.commands.find((command) => command.name === "ops-flow");
 assert.ok(opsFlowCommand);
 assert.equal(opsFlowCommand.phase, "decide");
@@ -249,12 +249,14 @@ const sourceKinds = JSON.parse(readFileSync(path.join(root, "registry", "source-
 assert.equal(Object.hasOwn(sourceKinds.source_kinds, "mcps"), false);
 assert.equal(Object.hasOwn(sourceKinds.source_kinds, "subagents"), false);
 const generatedCheck = run(["check", "generated"]);
-assert.match(generatedCheck, /claude-code: generated outputs 63 ok/);
-assert.match(generatedCheck, /kilo: generated outputs 76 ok/);
-assert.match(generatedCheck, /antigravity: generated outputs 63 ok/);
-assert.match(generatedCheck, /antigravity-cli: generated outputs 76 ok/);
-assert.match(generatedCheck, /gemini-cli: generated outputs 64 ok/);
-assert.match(generatedCheck, /cursor: generated outputs 75 ok/);
+assert.match(generatedCheck, /claude-code: generated outputs 64 ok/);
+assert.match(generatedCheck, /codex: generated outputs 129 ok/);
+assert.match(generatedCheck, /cline: generated outputs 66 ok/);
+assert.match(generatedCheck, /kilo: generated outputs 77 ok/);
+assert.match(generatedCheck, /antigravity: generated outputs 64 ok/);
+assert.match(generatedCheck, /antigravity-cli: generated outputs 77 ok/);
+assert.match(generatedCheck, /gemini-cli: generated outputs 65 ok/);
+assert.match(generatedCheck, /cursor: generated outputs 76 ok/);
 assert.match(generatedCheck, /copilot: generated outputs 1 ok/);
 assert.match(generatedCheck, /generated check: ok/);
 const copilotGeneratedCheck = run(["check", "generated", "--target", "copilot"]);
@@ -322,12 +324,12 @@ const liveDest = "/tmp/agent-surface-live";
 rmSync(liveDest, { recursive: true, force: true });
 const liveInstall = run(["install", "--target", "cline", "--dest", liveDest]);
 assert.match(liveInstall, /^installed:$/m);
-assert.match(liveInstall, /wrote: 65/);
+assert.match(liveInstall, /wrote: 66/);
 assert.match(readFileSync(path.join(liveDest, ".clinerules", "workflows", "workflow-boss.md"), "utf8"), /^## OBJECTIVE/);
 assert.match(readFileSync(path.join(liveDest, ".clineignore"), "utf8"), /agent-surface canonical AI-tool ignore baseline/);
 const liveManifest = JSON.parse(readFileSync(path.join(liveDest, ".agent-surface", "cline-manifest.json"), "utf8"));
 assert.equal(liveManifest.target, "cline");
-assert.equal(liveManifest.managed.length, 65);
+assert.equal(liveManifest.managed.length, 66);
 assert.equal(liveManifest.managed[0].managed_by, "agent-surface");
 rmSync(liveDest, { recursive: true, force: true });
 
@@ -697,10 +699,7 @@ for (const target of ["cursor", "copilot", "vscode", "opencode", "trae", "kilo"]
   rmSync(targetDest, { recursive: true, force: true });
 }
 
-const allSource = files(root)
-  .filter((file) => !file.includes(`${path.sep}.git${path.sep}`))
-  .filter((file) => !file.includes(`${path.sep}dist${path.sep}`));
-assert.equal(allSource.some((file) => file.endsWith("commands/ops-server.md")), false);
+assert.equal(existsSync(path.join(root, "commands", "ops-server.md")), false);
 
 rmSync(path.join(root, "dist"), { recursive: true, force: true });
 

@@ -94,10 +94,10 @@ This command creates the **context infrastructure** that enables smooth vibe cod
     - Output valid JSONC only.
 4. **Agentic Rules (`.cursor/rules/` scaffolding)**:
     - **MANDATORY**: Scaffold `.cursor/rules/` in the target project with `.mdc` files.
-    - **Source**: Copy templates from `~/.cursor/commands/.cursor/rules/*.mdc` as starting points.
+    - **Source**: Copy or adapt templates from the active agent-surface `rules/*.mdc` policy sources when the target project needs local rule overlays.
     - **Cross-tool**: Generate `AGENTS.md` at project root for local cross-tool compatibility (gitignored).
-    - **Gemini/Antigravity**: `ln -sf ~/.cursor/commands/.geminirules ./.agent/rules/gemini-rules.md` as a local-only overlay (gitignored).
-    - **Legacy**: If the project needs `.cursorrules` for older tooling, generate it from `.cursor/rules/` via `sync-commands.sh` and keep it gitignored.
+    - **Gemini/Antigravity**: create local-only generated instruction overlays from the active agent-surface rules when the host needs them; keep those overlays gitignored.
+    - **Legacy**: If the project needs `.cursorrules` for older tooling, generate it from the project-local `.cursor/rules/` overlay with the project's own script and keep it gitignored.
     - **Git Scope**: Treat all of these as local project overlays only. They belong in `.gitignore`, not in the remote repository.
 
 ### Phase 4: Entrypoint Standardization
@@ -114,7 +114,7 @@ This command creates the **context infrastructure** that enables smooth vibe cod
 - **IF Go**:
   - Ensure `go.mod` exists; run `go mod init <module-path>` if missing.
   - **MANDATORY formatters**: `gofumpt` (stricter superset of gofmt) + `goimports` (import hygiene). Plain `gofmt` alone is insufficient.
-  - **MANDATORY linter**: `golangci-lint` configured from the full §5.3 recipe in `.cursor/rules/12-lang-go.mdc` — not the 6-linter minimum. The recipe enables `gosec`, `exhaustive`, `errorlint`, `gocritic`, `revive`, `unparam`, `bodyclose`, `contextcheck`, `nilerr`, `usestdlibvars`, `prealloc`, `dupl`, `goconst`, `unused`, plus complexity/cyclop/funlen/gocognit gates. Copy the config verbatim into the project's `.golangci.yml`.
+  - **MANDATORY linter**: `golangci-lint` configured from the full §5.3 recipe in the active Go policy (`rules/12-lang-go.mdc` in agent-surface source, or the rendered host equivalent) — not the 6-linter minimum. The recipe enables `gosec`, `exhaustive`, `errorlint`, `gocritic`, `revive`, `unparam`, `bodyclose`, `contextcheck`, `nilerr`, `usestdlibvars`, `prealloc`, `dupl`, `goconst`, `unused`, plus complexity/cyclop/funlen/gocognit gates. Copy the config verbatim into the project's `.golangci.yml`.
   - **MANDATORY security scanner**: `govulncheck` in CI, blocking on known-vuln dependencies.
   - **Pin**: record `go` toolchain line in `go.mod`; pin the golangci-lint CI action and linter version explicitly using the current v2-compatible action for new projects. Prefer the repo's existing pinned version when present.
   - **Excludes**: add `issues.exclude-dirs` for vendored fixtures (`tests/fixtures/`) so linter doesn't run on non-code YAML.
@@ -136,12 +136,12 @@ This command creates the **context infrastructure** that enables smooth vibe cod
     - **Mandatory Hooks**: `trailing-whitespace`, `end-of-file-fixer`, `check-yaml`.
     - **Language Hooks**: `ruff` (Python), `fmt` (Rust), `prettier` (Web).
     - **Go hooks**: `gofumpt`, `goimports`, `go-mod-tidy`, `go-vet`, `golangci-lint`. Use the **active fork** `TekWizely/pre-commit-golang` — the older `dnephin/pre-commit-golang` is archived (upstream abandoned ~2023) and MUST NOT be used for new projects. If the active fork's hook set is insufficient, prefer a `local` hook that calls `make lint` directly rather than pulling in an archived dep.
-    - **Commit message policy**: generate a local `commit-msg` hook that runs `scripts/check-commit-message.sh` and rejects AI attribution, AI co-author trailers, generated-by/generated-with signatures, vendor/tool advertising phrases, and AI-agent names anywhere in commit messages. The blocklist must include at least: `Cursor`, `cursoragent@cursor.com`, `Claude`, `Codex`, `ChatGPT`, `OpenAI`, `Anthropic`, `Gemini`, `Copilot`, `Windsurf`, `Aider`, `Devin`, `Replit Agent`, `Qodo`, `Tabnine`, `Amazon Q`, `CodeWhisperer`, `Sourcegraph Cody`, `Cline`, `Roo Code`, `OpenCode`, `Kilo Code`, `Trae`, `Continue.dev`, `Codeium`, `Augment Code`, and `Zed AI`. The hook must fail closed with a clear error; it must not rewrite the message silently.
-    - **Commit range policy**: generate `scripts/check-commit-range.sh` for CI/pre-push use. It must inspect every commit in a provided rev-list range and reject the same forbidden AI attribution, advertising, and agent-name patterns. This protects against `git commit --no-verify`, injected `git commit --trailer`, and local hook drift. Commit history is not an advertising surface for tool vendors.
+    - **Commit message policy**: if Cursor or Claude Code injects attribution without the author's intent, generate a local hook that removes only those Cursor/Claude Code advertising trailers or signatures. Do not strip unrelated human co-authors or unrelated vendor names.
+    - **Commit range policy**: if the project needs CI enforcement, generate a range checker that rejects the same Cursor/Claude Code attribution patterns. This protects against local hook drift without turning commit history checks into a broad vendor-name blocklist.
 3. **Scaffold Project Rules**:
-    - Copy `.cursor/rules/*.mdc` templates into the project's `.cursor/rules/`.
+    - Copy or adapt policy templates from active agent-surface rules into the project's local rule overlay when needed.
     - Generate `AGENTS.md` at project root for local cross-tool compatibility.
-    - Symlink `.geminirules` for Gemini as a local-only overlay: `ln -sf ~/.cursor/commands/.geminirules ./.agent/rules/gemini-rules.md`
+    - Generate Gemini/Antigravity local-only overlays from the active policy sources when needed.
     - Keep all agentic rule files ignored and unstaged. They are for local assistant context, not remote source control.
 4. **Customize if Needed**: Add project-specific rules in `.cursor/rules/` or `.agent/rules/` directories.
 

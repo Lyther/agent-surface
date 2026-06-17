@@ -14,7 +14,7 @@ Go's simplicity is NOT an excuse for sloppy code. The language makes correctness
 ## PROCEDURE
 
 1. **Identify scope**: Determine which `.go` files were touched or are under review.
-2. **Apply language rules**: The full Go policy is in `.cursor/rules/12-lang-go.mdc`. It loads automatically for `.go` files. Audit against every section.
+2. **Apply language rules**: The full Go policy is in `rules/12-lang-go.mdc` in agent-surface source and may be rendered to the current host. Audit against every section.
 3. **Run toolchain gates** (in order — each must be green before the next):
 
 ```bash
