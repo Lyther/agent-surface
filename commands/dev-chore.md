@@ -1,10 +1,6 @@
 ---
 name: dev-chore
 phase: build
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Perform bounded maintenance such as config, formatting, generated metadata, and cleanup."
 ---
 ## OBJECTIVE

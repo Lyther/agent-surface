@@ -1,10 +1,6 @@
 ---
 name: boot-repro
 phase: observe
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Create a reproducible environment and command path for a project."
 ---
 ## INPUT HANDLING (The Pipe)

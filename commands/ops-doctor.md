@@ -1,129 +1,217 @@
 ---
 name: ops-doctor
 phase: improve
-risk: safe
-default_export: true
-packs:
-  - default
-description: "Run a health check on the local command repository."
+description: "Run a health check on the agent-surface repository and local generated surfaces."
 ---
+
 ## OBJECTIVE
 
-Run a health check on the `~/.cursor/commands` repo itself.
-Find broken references, token budget violations, rules drift, stale exports, and cross-IDE sync integrity.
+Diagnose whether `agent-surface` is internally consistent and whether the local generated surfaces match the current compiler model.
+
+This is a read-only health check. It reports drift; it does not edit files, install surfaces, prune branches, or repair docs.
+
+## SYNTAX
+
+```text
+/ops-doctor [target] [--scope repo|local|all] [--depth quick|standard|full] [--ci]
+```
+
+## PARAMETERS
+
+| Parameter | Default | Description |
+|---|---:|---|
+| `[target]` | `.` | Repository root or subdirectory. |
+| `--scope` | `all` | `repo` checks source/registry/compiler state; `local` checks installed user surfaces; `all` runs both. |
+| `--depth` | `standard` | `quick` runs cheap probes; `standard` includes generated checks and install dry-runs; `full` also runs tests and full build. |
+| `--ci` | off | Machine-readable mode. Exit non-zero for errors. |
 
 ## PROTOCOL
 
-### Check 1: Workflow map reachability
+### Check 1: Repository Baseline
 
-- Parse `boot-workflow.md` for all `[prefix-name]` nodes (bracketed text).
-- Resolve each node to `prefix-name.md` at the commands root. Must be an exact match.
-- Report: unreachable nodes (file missing) and orphan commands (file exists but not in any map).
+Run:
 
-### Check 2: Token budget (oversized files)
+```bash
+pwd
+git status --short --branch
+node scripts/agent-surface.mjs inventory
+node scripts/agent-surface.mjs doctor
+```
 
-- Flag any `.md` command file over 400 lines.
-- Flag any `.cursor/rules/*.mdc` file over 500 lines.
-- Report: file path + line count.
+Report:
 
-### Check 3: Rules source-of-truth
+- current branch and dirty state
+- source counts for `commands`, `rules`, `ignores`, `external`, and `schemas`
+- local tool availability reported by `doctor`
 
-- Verify `.cursor/rules/*.mdc` files exist and each has valid `---` frontmatter with `alwaysApply` or `globs`.
-- Run `scripts/sync-commands.sh` and confirm generated `.cursorrules`, `.geminirules`, `AGENTS.md`, `GEMINI.md`, and repo `.gemini/commands/**/*.toml` exports are present.
-- Diff generated `.cursorrules` against concatenated `.cursor/rules/0[0-9]-*.mdc` (frontmatter stripped). Report drift.
+Dirty worktree is not automatically an error. It is an error only when the requested health claim depends on a clean tree.
 
-### Check 4: Broken internal references
+### Check 2: Source and Registry Integrity
 
-- Grep all `*.md` files, `.cursorrules`, `.geminirules`, `AGENTS.md`, and `.cursor/rules/*.mdc` for backtick-quoted command names.
-- Verify each referenced command file exists at the root.
-- Check for old-style folder refs (`[0-9]{2}-[A-Z]+/`) — should be zero.
-- Report: broken refs with file and line number.
+Run:
 
-### Check 5: Stale version pins
+```bash
+npm run check
+npm run check:commands
+```
 
-- Scan all files for version strings: `Python 3.x`, `Node x`, `Postgres x`, `node:x`, `python:x`.
-- Flag any version older than current stable.
-- Report: file, line, current pin, suggested update.
+Report:
 
-### Check 6: Domain module structure
+- command count and metadata status
+- broken command references
+- registry/schema validation errors
+- source-kind drift
+- adapter/registry render-token drift
 
-- For `stellaris-` prefixed commands: verify `.stellarisrules` exists.
-- Report: domain modules missing rules files.
+### Check 3: Generated Surface Integrity
 
-### Check 7: Cross-IDE sync integrity
+Run:
 
-- Verify `~/.codex/AGENTS.md` exists and is non-empty.
-- Verify `~/.agents/skills/` contains one exported skill per syncable root command plus generated compatibility aliases, each with `SKILL.md` and `agents/openai.yaml`.
-- Verify `GEMINI.md` exists and is non-empty.
-- Verify `.gemini/commands/` has `.toml` files matching exported command count (syncable root commands plus generated compatibility aliases).
-- Verify `~/.gemini/GEMINI.md` exists and is non-empty.
-- Verify `~/.gemini/commands/` has `.toml` files matching exported command count (syncable root commands plus generated compatibility aliases).
-- Verify `~/.gemini/antigravity-cli/plugins/agent-surface/` has generated plugin metadata, skills, and rules for Antigravity CLI.
-- Verify `~/.gemini/antigravity/global_workflows/` has `.md` files matching exported command count (syncable root commands plus generated compatibility aliases).
-- Verify `~/.claude/CLAUDE.md` exists and `~/.claude/commands/` has `.md` files matching exported command count (syncable root commands plus generated compatibility aliases).
-- Verify compatibility aliases declared in command metadata resolve to real command sources.
-- Report: missing or stale targets.
+```bash
+npm run check:generated
+```
 
-### Check 8: AGENTS.md learned sections
+Report one line per target:
 
-- Verify `AGENTS.md` contains `## Learned User Preferences` and `## Learned Workspace Facts` sections.
-- Verify neither section exceeds 12 bullets.
-- Report: missing sections or bullet overflow.
+- generated output count
+- failed target validations
+- missing native carrier files
+- unexpected duplicate output paths
+
+Expected current target families:
+
+- native command/workflow targets: `claude-code`, `cline`, `kilo`, `antigravity`, `gemini-cli`, `cursor`
+- skill/plugin target: `codex`, `antigravity-cli`
+- instruction/rules targets: `copilot`, `vscode`, `opencode`, `trae`
+
+Do not expect removed primitive producers (`mcps`, `subagents`, generated hooks) unless the compiler has reintroduced them.
+
+### Check 4: Rule Budget
+
+Run:
+
+```bash
+npm run check:rules
+```
+
+Report:
+
+- hard failures
+- soft budget warnings
+- scenarios over target but under hard limit
+
+Soft warnings are not failures unless `--ci` policy says otherwise.
+
+### Check 5: Install Plan Dry-Runs
+
+For `--depth standard|full`, dry-run representative user installs:
+
+```bash
+node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
+node scripts/agent-surface.mjs install --target codex --scope user --dry-run
+node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
+node scripts/agent-surface.mjs install --target kilo --scope user --dry-run
+node scripts/agent-surface.mjs install --target antigravity-cli --scope user --dry-run
+```
+
+For project-only ignore surfaces, dry-run with an explicit project destination:
+
+```bash
+node scripts/agent-surface.mjs install --target cursor --dest /tmp/agent-surface-doctor-project --dry-run
+node scripts/agent-surface.mjs install --target kilo --dest /tmp/agent-surface-doctor-project --dry-run
+node scripts/agent-surface.mjs install --target cline --dest /tmp/agent-surface-doctor-project --dry-run
+```
+
+Report:
+
+- blocked writes
+- stale managed removals
+- missing manifests
+- project-only artifacts skipped on user-scope installs
+
+Dry-run only. Never add `--allow-scope-root` from `ops-doctor`.
+
+### Check 6: Local Distribution Drift
+
+For `--scope local|all`, inspect installed manifests without editing them:
+
+| Target | User manifest |
+|---|---|
+| `claude-code` | `~/.agent-surface/claude-code-manifest.json` |
+| `codex` | `~/.agent-surface/codex-manifest.json` |
+| `cursor` | `~/.agent-surface/cursor-manifest.json` |
+| `kilo` | `~/.agent-surface/kilo-manifest.json` |
+| `antigravity` | `~/.gemini/antigravity/.agent-surface/antigravity-manifest.json` |
+| `antigravity-cli` | `~/.gemini/antigravity-cli/.agent-surface/antigravity-cli-manifest.json` |
+| `vscode` / `copilot` | VS Code user config `.agent-surface/*-manifest.json` |
+
+For each manifest:
+
+- verify JSON parses
+- verify `target` matches the manifest name
+- verify managed paths still exist
+- report manifest age if it predates the latest source commit
+
+Missing local manifests are warnings unless the user claims that target is installed.
+
+### Check 7: Full Verification
+
+For `--depth full`, run:
+
+```bash
+npm test
+npm run build -- --target all
+git diff --check
+npm pack --dry-run --json
+```
+
+Run these sequentially. `npm test` and `build` both touch `dist/`; do not run them in parallel.
 
 ## OUTPUT FORMAT
 
 ```text
-DOCTOR REPORT — ~/.cursor/commands
+DOCTOR REPORT — agent-surface
 
-[CHECK 1] Workflow reachability
-  All N nodes resolve
-  OR
-  MISSING: missing-command (referenced in workflow map)
-  ORPHAN: ai-tap-gardener (not in any workflow map)
+Scope: repo|local|all
+Depth: quick|standard|full
 
-[CHECK 2] Token budget
-  All files under limits
-  OR
-  lint-shell.md: 399 lines (approaching 400 limit)
+[CHECK 1] Repository baseline
+  branch: docs/headless-provider-routing
+  worktree: clean|dirty
+  inventory: commands=N rules=N ignores=N external=N schemas=N
 
-[CHECK 3] Rules source-of-truth
-  11 .mdc files, all valid frontmatter
-  Generated exports match source
-  OR
-  DRIFT: .cursorrules differs from .cursor/rules/ source
+[CHECK 2] Source and registry integrity
+  check: passed|failed
+  commands: passed|failed
 
-[CHECK 4] Broken refs
-  No broken internal references
-  OR
-  BROKEN: dev-feature.md:18 references `missing-command` — file does not exist
+[CHECK 3] Generated surfaces
+  claude-code: N outputs ok
+  codex: N outputs ok
+  ...
 
-[CHECK 5] Version pins
-  No stale pins
-  OR
-  STALE: boot-repro.md:44 — python:3.12 (current stable: 3.13)
+[CHECK 4] Rule budget
+  hard failures: N
+  warnings: N
 
-[CHECK 6] Domain modules
-  stellaris: .stellarisrules exists
+[CHECK 5] Install dry-runs
+  claude-code: ok|blocked
+  cursor project ignore surface: ok|blocked
 
-[CHECK 7] Cross-IDE sync
-  codex: AGENTS.md OK, exported skills count matches source + aliases
-  gemini: repo GEMINI.md OK, repo .gemini commands count matches source + aliases, ~/.gemini/GEMINI.md OK, global toml count matches
-  antigravity: exported workflow count matches source + aliases
-  claude: CLAUDE.md OK, exported command count matches source + aliases
-  OR
-  MISSING: ~/.codex/AGENTS.md does not exist
-  MISSING: ~/.agents/skills does not contain synced Codex skills
-  MISSING: .gemini/commands does not contain synced Gemini workspace commands
+[CHECK 6] Local distribution drift
+  codex: manifest present, managed paths ok
+  antigravity-cli: missing manifest (warning)
 
-[CHECK 8] AGENTS.md learned sections
-  Learned User Preferences: 12 bullets
-  Learned Workspace Facts: 10 bullets
-  OR
-  MISSING: ## Learned Workspace Facts section not found
+[CHECK 7] Full verification
+  npm test: passed|failed|not run
+  build all: passed|failed|not run
+
+Summary: N errors, M warnings
 ```
 
 ## EXECUTION RULES
 
-1. Read-only. Do not fix issues, only report them.
-2. Run all checks in a single pass.
-3. Exit with a summary count: `N errors, M warnings`.
+1. Read-only. Do not fix issues, install surfaces, delete files, or prune branches.
+2. Prefer repo scripts over ad hoc validators.
+3. Record failed probes separately from missing evidence.
+4. Report soft rule-budget warnings as warnings, not failures.
+5. If `--ci` is set, return non-zero only for errors, not ordinary local-install warnings.

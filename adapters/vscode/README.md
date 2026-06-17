@@ -15,4 +15,4 @@ These paths are relative to the VS Code user data directory:
 
 Settings, keybindings, extension recommendations, and MCP config are not merged automatically.
 
-VS Code and Copilot have native MCP support through `mcp.json` and `chat.mcp.*` settings, and preview agent plugins can bundle skills. These are tracked in `registry/target-capabilities.json`, but remain manual-only because VS Code trust and organization policy can gate activation.
+VS Code and Copilot have native MCP support through `mcp.json` and `chat.mcp.*` settings, and preview agent plugins can bundle skills. These remain manual-only because VS Code trust and organization policy can gate activation.

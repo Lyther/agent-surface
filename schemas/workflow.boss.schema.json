@@ -105,6 +105,24 @@
               "$ref": "#/$defs/safeId"
             }
           },
+          "parallel_group": {
+            "$ref": "#/$defs/safeId"
+          },
+          "isolation": {
+            "type": "string",
+            "enum": [
+              "same_worktree_read_only",
+              "separate_worktree",
+              "serial_required"
+            ]
+          },
+          "suggested_runtime": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,80}$"
+          },
+          "subagent_suitable": {
+            "type": "boolean"
+          },
           "ac": {
             "type": "array",
             "minItems": 1,
@@ -152,7 +170,8 @@
           "$ref": "#/$defs/safeId"
         },
         "round_id": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "route": {
           "enum": [

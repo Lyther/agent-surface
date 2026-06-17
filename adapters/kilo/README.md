@@ -12,10 +12,11 @@ Implemented target paths:
 - project: `AGENTS.md`
 - project: `.kilo/rules/*.md`
 - project merge: `kilo.jsonc` `instructions += ".kilo/rules/<rule>.md"` in source order
+- project: `.kilocodeignore` (rendered from `ignores/default.ignore`; user-scope installs skip it as non-applicable)
 - custom: any reviewed `--dest` path
 
 Kilo workflows are Markdown slash commands. Kilo automatically loads `AGENTS.md`, but the extension Rules UI is backed by the `instructions` array in `kilo.jsonc`, so the installer merges an explicit ordered list of generated rule files and preserves existing config keys. Older generated `agent-surface.md` rule entries are removed from `instructions` during migration because the matching managed file is removed as stale output.
 
-Native MCP and skill support is tracked in `registry/target-capabilities.json`. Local user wiring currently includes `agentmemory` in `~/.config/kilo/kilo.jsonc` and optional external `SKILL.md` packs in `~/.kilocode/skills/`.
+Native MCP, subagent, and skill support is not currently generated; local user wiring for optional services belongs in the host config. Kilo workflows are the target name for command sources; native skills remain separate `SKILL.md` directories.
 
-This adapter does not mutate providers or broad tool permissions. Kilo workflows are the target name for command sources; native skills remain separate `SKILL.md` directories.
+Runtime/model/subagent assignment is intentionally prompt-level or user-configured. `agent-surface` should not add provider-specific model keys to `kilo.jsonc` unless Kilo's current schema accepts them. For monitored workflow runs, prefer explicit launch prompts such as `kilo run --dir <repo> --model <provider/model> --agent code --format json` and instruct the Kilo worker to use Task-tool subagents only when the BOSS filescope marks the work as parallel-safe.

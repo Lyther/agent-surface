@@ -1,10 +1,6 @@
 ---
 name: lint-rust
 phase: verify
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Apply strict Rust engineering rules before code is accepted."
 ---
 ## §0 META: YOU WILL BE AUDITED
@@ -18,7 +14,7 @@ Every claim you make must be verifiable. Every design decision must be justified
 ## PROCEDURE
 
 1. **Identify scope**: Determine which `.rs` files were touched or are under review.
-2. **Apply language rules**: The full Rust policy is in `.cursor/rules/11-lang-rust.mdc`. It loads automatically for `.rs` files. Audit against every section.
+2. **Apply language rules**: The full Rust policy is in `rules/11-lang-rust.mdc` in agent-surface source and may be rendered to the current host. Audit against every section.
 3. **Run toolchain gates**:
 
 ```bash

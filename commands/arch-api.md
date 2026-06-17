@@ -1,10 +1,6 @@
 ---
 name: arch-api
 phase: decide
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Define API boundaries, contracts, and compatibility constraints."
 ---
 ## OBJECTIVE

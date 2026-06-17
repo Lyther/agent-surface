@@ -1,10 +1,6 @@
 ---
 name: arch-roadmap
 phase: decide
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Filter broad architecture goals into sequenced engineering decisions."
 ---
 ## OBJECTIVE

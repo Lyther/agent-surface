@@ -11,6 +11,9 @@
         "registry/artifacts.json"
       ],
       "depends_on": [],
+      "isolation": "serial_required",
+      "suggested_runtime": "kilo-cli",
+      "subagent_suitable": false,
       "ac": [
         "Registry metadata remains valid and checkable."
       ],

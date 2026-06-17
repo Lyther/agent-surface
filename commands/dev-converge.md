@@ -1,10 +1,6 @@
 ---
 name: dev-converge
 phase: build
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Compare competing implementations and keep the strongest verifiable result."
 ---
 ## OBJECTIVE

@@ -1,14 +1,6 @@
 ---
 name: ops-nuke
 phase: improve
-risk: destructive
-default_export: false
-packs:
-  - destructive
-  - maintenance
-  - quarantined
-approval_classes:
-  - filesystem_destructive
 description: "Plan repository cleanup with explicit deletion approval."
 ---
 

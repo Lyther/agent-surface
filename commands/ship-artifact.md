@@ -1,10 +1,6 @@
 ---
 name: ship-artifact
 phase: ship
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Package immutable release artifacts with provenance evidence."
 ---
 ## OBJECTIVE

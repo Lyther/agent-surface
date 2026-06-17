@@ -1,10 +1,6 @@
 ---
 name: ops-report
 phase: improve
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Produce an evidence-backed project report for engineering, research, executive, or full-audience discussion."
 ---
 ## OBJECTIVE

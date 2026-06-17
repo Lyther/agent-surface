@@ -1,10 +1,6 @@
 ---
 name: workflow-boss
 phase: arbitrate
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Decompose related tasks into an implementable spec without writing code."
 ---
 ## OBJECTIVE
@@ -27,6 +23,7 @@ If essential repo context is missing, run `boot-context` first.
 - **Single-task runs are still legal** — a queue of one uses the same v3 ledger shape.
 - **Maximize coherent batching.** Assign as many related tasks as can be specified safely in one round, constrained by shared FILESCOPE, route, dependency chain, risk, context budget, and verification cost.
 - **Don't over-batch.** Group tasks that share FILESCOPE, contract, or test surface. Don't queue unrelated chores or mixed-risk work into one BOSS — that defeats reviewer focus.
+- **Expose parallelism explicitly.** When tasks are independent, mark that they can run in parallel and name the required isolation. Do not rely on downstream agents to infer safe fan-out.
 - **Use workflow only when it earns its overhead.** Direct small edits do not need six roles. Use this path for medium/high-risk, multi-step, cross-file, security-sensitive, or ambiguity-heavy work.
 - **The run ledger is the source of truth.** `run.json` plus `events.ndjson` records state transitions; role files are artifacts, not state authority.
 
@@ -83,6 +80,7 @@ Build a list of 1 to N tasks. Each task is independently reviewable, verifiable,
 
 - Sort tasks by dependency. Use `depends_on: [task_id, …]` when a task requires the output of an earlier one.
 - Prefer a full useful queue over a tiny handoff. If more related tasks fit the same route, FILESCOPE, and verification surface, include them instead of leaving obvious follow-up tasks for a later BOSS round.
+- Assign as much independent work as possible in the first round when it can be isolated by filescope, test surface, or worktree. This is how the orchestrator can launch parallel workers or a worker lead can launch runtime-native subagents without re-reading the repo for each small task.
 - Prefer one concern, one testable behavior, one reversible patch per task. Estimate by filescope size, dependency count, and verify cost, not line count.
 - Split the run instead of batching when tasks require different worker routes, unrelated filescopes, incompatible risk levels, or separate human approvals.
 - Each task gets its own `plan` (3–8 steps), `ac`, and `verify` commands.
@@ -126,6 +124,21 @@ Define when the worker should stop the round:
 - `drift_check_every`: re-read BOSS spec after this many completed tasks (default: 5). Catches scope drift before it metastasizes.
 - `timeout_budget_ms`: max elapsed runner time for a round before handoff.
 - Context pressure counters: files opened, total bytes read, commands run, verify cycles, log bytes, failed attempts, elapsed time, and model-reported context usage when available.
+
+### Phase 7a: Runtime and parallelism hints
+
+BOSS does not choose a final provider, but it should provide enough structure for `workflow-orchestrator` to assign one.
+
+For each task, include runtime and parallelism hints when they are useful:
+
+- `parallel_group`: orchestrator-level parallelism. Tasks with the same group and no dependency edges may be launched as separate managed worker sessions.
+- `isolation`: `same_worktree_read_only`, `separate_worktree`, or `serial_required`.
+- `suggested_runtime`: optional hint from the workflow runtime taxonomy, such as `kilo-cli`, `kilo-ide`, `codex-exec`, `claude-code`, `cursor-agent`, `grok-build`, `goose`, `ollama-cloud`, `opencode`, `antigravity-cli`, `antigravity-desktop`, `current-session`, or `unspecified`.
+- `subagent_suitable`: worker-led parallelism. Set true only when a single worker lead can safely delegate this task's internal subtasks to runtime-native subagents with isolated context.
+
+Use `separate_worktree` whenever two writable tasks can overlap in time. Use `serial_required` for shared generated outputs, migrations, shared service ports, database fixtures, lockfiles, or any FILESCOPE that cannot be cleanly isolated. Do not set `parallel_group` or `subagent_suitable=true` on a `serial_required` task. Do not set both `parallel_group` and `subagent_suitable=true` on any task; they are alternate fan-out modes.
+
+When the user asks for aggressive parallelism, produce larger independent groups instead of a long serial dependency chain. If a task is internally parallelizable, mark `subagent_suitable=true` and suggest a runtime with verified subagent support. The orchestrator then chooses either separate worker sessions for `parallel_group` tasks or one worker lead for `subagent_suitable` work; avoid applying both forms of fan-out to the same writable filescope unless the isolation plan is explicit.
 
 ### Phase 8: Workflow handoff
 
@@ -178,6 +191,10 @@ Use this shape (v3):
         "forbidden": []
       },
       "depends_on": [],
+      "parallel_group": "G1",
+      "isolation": "same_worktree_read_only|separate_worktree|serial_required",
+      "suggested_runtime": "kilo-cli|kilo-ide|codex-exec|claude-code|cursor-agent|grok-build|goose|ollama-cloud|opencode|antigravity-cli|antigravity-desktop|current-session|unspecified",
+      "subagent_suitable": true,
       "patch_required": true,
       "plan": [
         {

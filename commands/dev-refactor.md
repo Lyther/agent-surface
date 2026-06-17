@@ -1,10 +1,6 @@
 ---
 name: dev-refactor
 phase: build
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Reduce complexity while preserving behavior exactly."
 ---
 ## OBJECTIVE

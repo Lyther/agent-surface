@@ -1,10 +1,6 @@
 ---
 name: ops-deps
 phase: improve
-risk: security-sensitive
-default_export: true
-packs:
-  - default
 description: "Audit and refresh dependency health and supply-chain state."
 ---
 ## OBJECTIVE

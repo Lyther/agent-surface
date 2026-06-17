@@ -1,10 +1,6 @@
 ---
 name: stellaris-implement
 phase: game
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Translate Stellaris mod designs into defensive Paradox Script."
 ---
 ## OBJECTIVE

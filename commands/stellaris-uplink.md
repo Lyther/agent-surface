@@ -1,10 +1,6 @@
 ---
 name: stellaris-uplink
 phase: game
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Ingest and cross-reference Stellaris reference data."
 ---
 ## OBJECTIVE

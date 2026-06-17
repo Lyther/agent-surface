@@ -1,10 +1,6 @@
 ---
 name: verify-prove
 phase: verify
-risk: safe
-default_export: true
-packs:
-  - default
 description: "Prove source, artifact, bundle, and live behavior still match."
 ---
 ## OBJECTIVE

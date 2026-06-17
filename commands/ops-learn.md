@@ -1,10 +1,6 @@
 ---
 name: ops-learn
 phase: improve
-risk: writes
-default_export: true
-packs:
-  - default
 description: "Extract durable patterns and persist them to the right memory sink."
 ---
 ## OBJECTIVE
@@ -72,7 +68,7 @@ debug (fix) → LEARN (classify) → lessons / AGENTS (persist)
     - Deduplicate semantically similar bullets.
     - Keep each learned section to at most 12 bullets.
     - Preserve generated rule content above the learned sections.
-    - Do not move durable facts into `.cursor/rules/*.mdc`; those files remain rule source, not learned memory.
+    - Do not move durable facts into `rules/*.mdc`; those files remain policy source, not learned memory.
 3. **For Plugin State**:
     - Do **NOT** edit `.cursor/hooks/state/continual-learning.json` or `.cursor/hooks/state/continual-learning-index.json`.
     - The continual-learning plugin owns transcript mining and index refresh.
@@ -80,7 +76,7 @@ debug (fix) → LEARN (classify) → lessons / AGENTS (persist)
     - Tactical: `- [TS] Don't use 'any' in map functions; it kills inference.`
     - Tactical: `- [Docker] Always pin base images to SHA, not tags.`
     - Durable preference: `- Prefer exact, verifiable file counts in plans — do not estimate.`
-    - Durable workspace fact: `- .cursor/rules/*.mdc is the authoritative rule source in this repo.`
+    - Durable workspace fact: `- rules/*.mdc is the authoritative policy source in this repo.`
 
 ### Phase 3: Coordination with Continual Learning
 

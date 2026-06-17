@@ -1,0 +1,30 @@
+{
+  "source_kinds": {
+    "commands": {
+      "source_dir": "commands",
+      "load_mode": "on_demand",
+      "scope": "both",
+      "install_scopes": [
+        "user",
+        "project"
+      ]
+    },
+    "rules": {
+      "source_dir": "rules",
+      "load_mode": "always_on",
+      "scope": "both",
+      "install_scopes": [
+        "user",
+        "project"
+      ]
+    },
+    "ignores": {
+      "source_dir": "ignores",
+      "load_mode": "external_tool",
+      "scope": "project",
+      "install_scopes": [
+        "project"
+      ]
+    }
+  }
+}

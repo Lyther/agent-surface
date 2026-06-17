@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "agent-surface source kinds",
+  "type": "object",
+  "required": [
+    "source_kinds"
+  ],
+  "properties": {
+    "source_kinds": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "source_dir",
+          "load_mode",
+          "scope",
+          "install_scopes"
+        ],
+        "properties": {
+          "source_dir": {
+            "type": "string",
+            "minLength": 1
+          },
+          "load_mode": {
+            "enum": [
+              "always_on",
+              "catalog",
+              "on_demand",
+              "isolated_session",
+              "external_tool"
+            ]
+          },
+          "scope": {
+            "enum": [
+              "user",
+              "project",
+              "both"
+            ]
+          },
+          "install_scopes": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "user",
+                "project"
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
