@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -52,7 +52,7 @@ async function readIgnores() {
 
 async function exists(file) {
   try {
-    await readFile(file, "utf8");
+    await stat(file);
     return true;
   } catch (error) {
     if (error.code === "ENOENT") return false;

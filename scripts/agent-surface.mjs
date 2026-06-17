@@ -273,12 +273,12 @@ Usage:
   agent-surface build --target <target|all> [--dry-run]
   agent-surface install --target <target> [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
+  agent-surface doctor
   agent-surface workflow doctor --run <run_id>
   agent-surface workflow apply --role <role> --run <run_id> --artifact <path>
   agent-surface workflow patch begin --run <run_id> --round <n> --task <id> --file <path> [--file <path>...]
   agent-surface workflow patch end --run <run_id> --round <n> --task <id>
   agent-surface workflow patch verify --run <run_id> --round <n> --task <id>
-  agent-surface doctor
 `);
 }
 
@@ -819,13 +819,14 @@ function validateGeneratedTarget(target, outputs) {
 async function build(args) {
   const target = argValue(args, "--target") ?? "all";
   const dryRun = args.includes("--dry-run");
+
+  if (target !== "all") {
+    if (!isSafeTargetName(target)) fail(`unsafe build target: ${target}`);
+    if (!Object.hasOwn(targets, target)) fail(`unsupported build target: ${target}`);
+  }
+
   const selected = target === "all" ? Object.keys(targets) : [target];
   const commandFiles = await exportableCommands();
-
-  for (const item of selected) {
-    if (!isSafeTargetName(item)) fail(`unsafe build target: ${item}`);
-    if (!Object.hasOwn(targets, item)) fail(`unsupported build target: ${item}`);
-  }
 
   if (!dryRun) {
     await rm(path.join(root, "dist", target === "all" ? "" : target), { recursive: true, force: true });
@@ -1501,7 +1502,7 @@ async function workflowApply(args) {
     timestamp: new Date().toISOString(),
     summary: `Applied ${role} state update.`,
   });
-  await writeFile(path.join(process.cwd(), ".agent-surface", "workflows", "current.json"), `${JSON.stringify({
+  await writeFile(path.join(path.dirname(runDir), "current.json"), `${JSON.stringify({
     schema_version: "workflow.current.v1",
     run_id: runData.status === "active" ? runId : null,
     workflow_dir: runData.status === "active" ? path.relative(process.cwd(), runDir) : null,

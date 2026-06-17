@@ -170,7 +170,8 @@
           "$ref": "#/$defs/safeId"
         },
         "round_id": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "route": {
           "enum": [
