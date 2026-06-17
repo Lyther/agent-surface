@@ -1,13 +1,14 @@
-# Antigravity CLI adapter
+# Google CLI extension adapter
 
-Render `commands/*.md` as Antigravity CLI plugin skills and package shared rules into the plugin.
+Render `commands/*.md` as Gemini/Antigravity-transition extension skills, package shared rules as extension context, and include normalized subagents.
 
 Default user install target:
 
-- `~/.gemini/antigravity-cli/plugins/agent-surface/plugin.json`
-- `~/.gemini/antigravity-cli/plugins/agent-surface/skills/*.md`
-- `~/.gemini/antigravity-cli/plugins/agent-surface/rules/*.md`
+- `~/.gemini/extensions/agent-surface/gemini-extension.json`
+- `~/.gemini/extensions/agent-surface/GEMINI.md`
+- `~/.gemini/extensions/agent-surface/skills/<name>/SKILL.md`
+- `~/.gemini/extensions/agent-surface/agents/<name>.md`
 
-Google announced that consumer Gemini CLI users should migrate to Antigravity CLI by June 18, 2026. This target owns the latest replacement surface; the `gemini-cli` target is retained only as a legacy transition export.
+Google announced that consumer Gemini CLI users should migrate to Antigravity CLI by June 18, 2026. The locally verified command surface is Gemini CLI 0.46.0, whose extension reference loads extensions from `~/.gemini/extensions/<name>` with a `gemini-extension.json` manifest and optional `skills/`, `agents/`, hooks, commands, MCP, policies, and context.
 
-The local `agy` binary observed during this migration still exposes a desktop-style CLI, so plugin install/validate should remain behind dry-run review until the local Antigravity CLI package manager is available.
+The local `antigravity` binary still exposes desktop-style `chat` behavior. Treat it as interactive-supervised. Validate this generated extension with `gemini extensions validate <path>` before relying on it in live Google CLI sessions.

@@ -151,8 +151,9 @@ assert.equal(run(["check"]).trim(), "check: ok");
 const inventory = run(["inventory"]);
 assert.match(inventory, /^rules: 11$/m);
 assert.match(inventory, /^commands: 64$/m);
+assert.match(inventory, /^subagents: 6$/m);
 assert.match(inventory, /^external: 5$/m);
-assert.match(inventory, /^schemas: 13$/m);
+assert.match(inventory, /^schemas: 14$/m);
 
 const registry = JSON.parse(run(["commands", "--json"]));
 assert.equal(registry.count, 64);
@@ -170,7 +171,7 @@ assert.equal(opsFlowCommand.targets["claude-code"], path.join(".claude", "comman
 assert.equal(opsFlowCommand.targets.codex, path.join(".agents", "skills", "ops-flow", "SKILL.md"));
 assert.equal(opsFlowCommand.targets.cline, path.join("Documents", "Cline", "Workflows", "ops-flow.md"));
 assert.equal(opsFlowCommand.targets.kilo, path.join(".config", "kilo", "commands", "ops-flow.md"));
-assert.equal(opsFlowCommand.targets["antigravity-cli"], path.join("plugins", "agent-surface", "skills", "ops-flow.md"));
+assert.equal(opsFlowCommand.targets["antigravity-cli"], path.join("extensions", "agent-surface", "skills", "ops-flow", "SKILL.md"));
 assert.equal(opsFlowCommand.targets["gemini-cli"], path.join(".gemini", "commands", "ops", "flow.toml"));
 assert.equal(opsFlowCommand.targets.cursor, path.join(".cursor", "commands", "ops-flow.md"));
 
@@ -200,12 +201,13 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
-assert.ok(generated.length >= 610);
+assert.ok(generated.length >= 611);
 assertGeminiTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "swarm.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "workflow", "orchestrator.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "boot", "facade.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "agents", "boss.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "ops-flow", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "ops-swarm", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "workflow-orchestrator", "SKILL.md"))), true);
@@ -216,18 +218,22 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cl
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "ops", "swarm.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "ops", "nuke.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "GEMINI.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "agents", "boss.md"))), true);
 assert.equal(generated.some((file) => file.includes(`${path.sep}.gemini${path.sep}extensions${path.sep}agent-surface${path.sep}`)), false);
 assert.equal(generated.some((file) => file.includes(`${path.sep}.agent-surface${path.sep}claude-plugin${path.sep}`)), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cline", "Documents", "Cline", "Rules", "agent-surface.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "commands", "ops-flow.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "agents", "boss.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "rules", "00-precedence-and-safety.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "rules", "14-lang-shell.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity", "global_workflows", "ops-flow.md"))), true);
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "plugins", "agent-surface", "plugin.json"))), true);
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "plugins", "agent-surface", "skills", "ops-flow.md"))), true);
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "plugins", "agent-surface", "rules", "00-precedence-and-safety.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "extensions", "agent-surface", "gemini-extension.json"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "extensions", "agent-surface", "skills", "ops-flow", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "extensions", "agent-surface", "agents", "boss.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "extensions", "agent-surface", "GEMINI.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "rules", "00-precedence-and-safety.mdc"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "agents", "boss.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "copilot", "instructions", "agent-surface-copilot.instructions.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "vscode", "instructions", "agent-surface.instructions.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "opencode", ".config", "opencode", "AGENTS.md"))), true);
@@ -240,27 +246,74 @@ assert.match(cursorIgnore, /agent-surface canonical AI-tool ignore baseline/);
 const ignoresCheck = run(["check", "ignores"]);
 assert.match(ignoresCheck, /ignores check: ok/);
 assert.match(ignoresCheck, /emitters 3 \(cline, cursor, kilo\)/);
-assert.equal(generated.some((file) => file.includes(`${path.sep}.claude${path.sep}agents${path.sep}`)), false);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "agents", "worker.md"))), true);
 assert.equal(generated.some((file) => file.includes(`${path.sep}.codex${path.sep}agents${path.sep}`)), false);
-assert.equal(generated.some((file) => file.includes(`${path.sep}.config${path.sep}kilo${path.sep}agents${path.sep}`)), false);
+assert.equal(generated.some((file) => file.includes(`${path.sep}.config${path.sep}kilo${path.sep}agents${path.sep}`)), true);
+
+// subagent access -> per-target capability metadata: read-only must not carry write/shell tools.
+const geminiBossAgent = readFileSync(path.join(root, "dist", "gemini-cli", ".gemini", "agents", "boss.md"), "utf8");
+assert.match(geminiBossAgent, /^tools:$/m);
+assert.match(geminiBossAgent, /^ {2}- read_file$/m);
+assert.equal(/^ {2}- write_file$/m.test(geminiBossAgent), false);
+assert.equal(/^ {2}- replace$/m.test(geminiBossAgent), false);
+assert.equal(/^ {2}- run_shell_command$/m.test(geminiBossAgent), false);
+const geminiWorkerAgent = readFileSync(path.join(root, "dist", "gemini-cli", ".gemini", "agents", "worker.md"), "utf8");
+assert.match(geminiWorkerAgent, /^ {2}- run_shell_command$/m);
+const antigravityBossAgent = readFileSync(path.join(root, "dist", "antigravity-cli", "extensions", "agent-surface", "agents", "boss.md"), "utf8");
+assert.match(antigravityBossAgent, /^tools:$/m);
+assert.equal(/^ {2}- run_shell_command$/m.test(antigravityBossAgent), false);
+const antigravityWorkerAgent = readFileSync(path.join(root, "dist", "antigravity-cli", "extensions", "agent-surface", "agents", "worker.md"), "utf8");
+assert.match(antigravityWorkerAgent, /^ {2}- run_shell_command$/m);
+const claudeBossAgent = readFileSync(path.join(root, "dist", "claude-code", ".claude", "agents", "boss.md"), "utf8");
+assert.match(claudeBossAgent, /^tools: Read, Glob, Grep$/m);
+assert.equal(claudeBossAgent.includes("LSP"), false);
+assert.equal(claudeBossAgent.includes("disallowedTools"), false);
+const claudeWorkerAgent = readFileSync(path.join(root, "dist", "claude-code", ".claude", "agents", "worker.md"), "utf8");
+assert.match(claudeWorkerAgent, /^tools: Read, Glob, Grep, Edit, Write, Bash$/m);
+const kiloBossAgent = readFileSync(path.join(root, "dist", "kilo", ".config", "kilo", "agents", "boss.md"), "utf8");
+assert.match(kiloBossAgent, /bash: deny/);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "mcp.json"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".mcp.json"))), false);
 const sourceKinds = JSON.parse(readFileSync(path.join(root, "registry", "source-kinds.json"), "utf8"));
 assert.equal(Object.hasOwn(sourceKinds.source_kinds, "mcps"), false);
-assert.equal(Object.hasOwn(sourceKinds.source_kinds, "subagents"), false);
+assert.equal(Object.hasOwn(sourceKinds.source_kinds, "subagents"), true);
 const generatedCheck = run(["check", "generated"]);
-assert.match(generatedCheck, /claude-code: generated outputs 64 ok/);
+assert.match(generatedCheck, /claude-code: generated outputs 70 ok/);
 assert.match(generatedCheck, /codex: generated outputs 129 ok/);
 assert.match(generatedCheck, /cline: generated outputs 66 ok/);
-assert.match(generatedCheck, /kilo: generated outputs 77 ok/);
+assert.match(generatedCheck, /kilo: generated outputs 83 ok/);
 assert.match(generatedCheck, /antigravity: generated outputs 64 ok/);
-assert.match(generatedCheck, /antigravity-cli: generated outputs 77 ok/);
-assert.match(generatedCheck, /gemini-cli: generated outputs 65 ok/);
-assert.match(generatedCheck, /cursor: generated outputs 76 ok/);
+assert.match(generatedCheck, /antigravity-cli: generated outputs 73 ok/);
+assert.match(generatedCheck, /gemini-cli: generated outputs 71 ok/);
+assert.match(generatedCheck, /cursor: generated outputs 82 ok/);
 assert.match(generatedCheck, /copilot: generated outputs 1 ok/);
 assert.match(generatedCheck, /generated check: ok/);
 const copilotGeneratedCheck = run(["check", "generated", "--target", "copilot"]);
 assert.match(copilotGeneratedCheck, /copilot: generated outputs 1 ok/);
+
+const subagentsCheck = run(["check", "subagents"]);
+assert.match(subagentsCheck, /subagents check: ok/);
+const subagentSourcePath = path.join(root, "subagents", "boss.md");
+const subagentSourceOriginal = readFileSync(subagentSourcePath, "utf8");
+try {
+  writeFileSync(subagentSourcePath, subagentSourceOriginal.replace(/description:.*\n/, ""));
+  const invalidSubagent = status(["check", "subagents"]);
+  assert.equal(invalidSubagent.status, 1);
+  assert.match(`${invalidSubagent.stdout}${invalidSubagent.stderr}`, /missing required field description/);
+} finally {
+  writeFileSync(subagentSourcePath, subagentSourceOriginal);
+}
+
+// Cursor cannot express read-write without shell; that tier must be refused, not silently granted shell.
+try {
+  writeFileSync(subagentSourcePath, subagentSourceOriginal.replace("access: read-only", "access: read-write"));
+  const cursorRefusal = status(["build", "--target", "cursor"]);
+  assert.notEqual(cursorRefusal.status, 0);
+  assert.match(`${cursorRefusal.stdout}${cursorRefusal.stderr}`, /not representable/);
+} finally {
+  writeFileSync(subagentSourcePath, subagentSourceOriginal);
+}
+run(["build", "--target", "all"]);
 
 const clinePlan = run(["install", "--target", "cline", "--dest", "/tmp/agent-surface-cline", "--dry-run"]);
 assert.match(clinePlan, /^target: cline$/m);
@@ -276,6 +329,7 @@ assert.match(kiloPlan, /\.kilo\/commands\/workflow-boss\.md <- commands\/workflo
 assert.match(kiloPlan, /AGENTS\.md <- rules\/\*\.mdc/);
 assert.match(kiloPlan, /\.kilo\/rules\/00-precedence-and-safety\.md <- rules\/00-precedence-and-safety\.mdc/);
 assert.match(kiloPlan, /\.kilo\/rules\/14-lang-shell\.md <- rules\/14-lang-shell\.mdc/);
+assert.match(kiloPlan, /\.kilo\/agents\/boss\.md <- subagents\/boss\.md/);
 assert.match(kiloPlan, /kilo\.jsonc instructions \+= \.kilo\/rules\/00-precedence-and-safety\.md, .*\.kilo\/rules\/14-lang-shell\.md/);
 assert.match(kiloPlan, /\.agent-surface\/kilo-manifest\.json/);
 
@@ -283,16 +337,25 @@ const geminiPlan = run(["install", "--target", "gemini-cli", "--dest", "/tmp/age
 assert.match(geminiPlan, /^target: gemini-cli$/m);
 assert.match(geminiPlan, /\.gemini\/commands\/workflow\/boss\.toml <- commands\/workflow-boss\.md/);
 assert.match(geminiPlan, /\.gemini\/GEMINI\.md <- rules\/\*\.mdc/);
+assert.match(geminiPlan, /\.gemini\/agents\/boss\.md <- subagents\/boss\.md/);
 
 const antigravityCliPlan = run(["install", "--target", "antigravity-cli", "--dest", "/tmp/agent-surface-antigravity-cli", "--dry-run"]);
 assert.match(antigravityCliPlan, /^target: antigravity-cli$/m);
-assert.match(antigravityCliPlan, /plugins\/agent-surface\/skills\/workflow-boss\.md <- commands\/workflow-boss\.md/);
-assert.match(antigravityCliPlan, /plugins\/agent-surface\/rules\/00-precedence-and-safety\.md <- rules\/00-precedence-and-safety\.mdc/);
+assert.match(antigravityCliPlan, /extensions\/agent-surface\/gemini-extension\.json <- package\.json/);
+assert.match(antigravityCliPlan, /extensions\/agent-surface\/skills\/workflow-boss\/SKILL\.md <- commands\/workflow-boss\.md/);
+assert.match(antigravityCliPlan, /extensions\/agent-surface\/agents\/boss\.md <- subagents\/boss\.md/);
+assert.match(antigravityCliPlan, /extensions\/agent-surface\/GEMINI\.md <- rules\/\*\.mdc/);
 
 const claudePlan = run(["install", "--target", "claude-code", "--dest", "/tmp/agent-surface-claude", "--dry-run"]);
 assert.match(claudePlan, /^target: claude-code$/m);
 assert.match(claudePlan, /\.claude\/commands\/workflow\/boss\.md <- commands\/workflow-boss\.md/);
+assert.match(claudePlan, /\.claude\/agents\/boss\.md <- subagents\/boss\.md/);
 assert.doesNotMatch(claudePlan, /\.agent-surface\/claude-plugin/);
+
+const cursorPlan = run(["install", "--target", "cursor", "--dest", "/tmp/agent-surface-cursor", "--dry-run"]);
+assert.match(cursorPlan, /^target: cursor$/m);
+assert.match(cursorPlan, /\.cursor\/commands\/workflow-boss\.md <- commands\/workflow-boss\.md/);
+assert.match(cursorPlan, /\.cursor\/agents\/boss\.md <- subagents\/boss\.md/);
 
 const codexPlan = run(["install", "--target", "codex", "--dest", "/tmp/agent-surface-codex", "--dry-run"]);
 assert.match(codexPlan, /^target: codex$/m);
@@ -594,6 +657,7 @@ assert.match(kiloUserScope.stdout, /\.config\/kilo\/commands\/workflow-boss\.md 
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/AGENTS\.md <- rules\/\*\.mdc/);
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/00-precedence-and-safety\.md <- rules\/00-precedence-and-safety\.mdc/);
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/14-lang-shell\.md <- rules\/14-lang-shell\.mdc/);
+assert.match(kiloUserScope.stdout, /\.config\/kilo\/agents\/boss\.md <- subagents\/boss\.md/);
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/kilo\.jsonc instructions \+= \.\/rules\/00-precedence-and-safety\.md, .*\.\/rules\/14-lang-shell\.md/);
 assert.match(kiloUserScope.stdout, /\.kilocodeignore \(project-scope only\)/);
 assert.doesNotMatch(kiloUserScope.stdout, /\.kilocodeignore <- ignores/);
@@ -601,6 +665,7 @@ assert.doesNotMatch(kiloUserScope.stdout, /\.kilocodeignore <- ignores/);
 const claudeUserScope = status(["install", "--target", "claude-code", "--scope", "user", "--dry-run"], { env: userScopeEnv });
 assert.equal(claudeUserScope.status, 0, `${claudeUserScope.stdout}${claudeUserScope.stderr}`);
 assert.doesNotMatch(claudeUserScope.stdout, /\.mcp\.json/);
+assert.match(claudeUserScope.stdout, /\.claude\/agents\/boss\.md <- subagents\/boss\.md/);
 rmSync(userScopeHome, { recursive: true, force: true });
 
 const kiloIgnoreDest = "/tmp/agent-surface-kilo-ignore-proj";

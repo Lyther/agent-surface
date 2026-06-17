@@ -2,12 +2,12 @@
 
 Typed source and adapter compiler for coding-agent surfaces.
 
-Write commands, rules, and ignore files once in the repo source tree, then render them into the native formats used by Claude Code, Codex, Cursor, Cline, Kilo, Antigravity, and other agent hosts.
+Write commands, rules, subagents, and ignore files once in the repo source tree, then render them into the native formats used by Claude Code, Codex, Cursor, Cline, Kilo, Antigravity, and other agent hosts.
 
 ## What it does
 
-- **Source primitive compiler**: `commands/`, `rules/`, and `ignores/` are rendered per target by explicit producers.
-- **Target adapter outputs**: each target receives the files it natively understands (commands, workflows, skills, instructions, plugins, rules, or ignore files).
+- **Source primitive compiler**: `commands/`, `rules/`, `subagents/`, and `ignores/` are rendered per target by explicit producers.
+- **Target adapter outputs**: each target receives the files it natively understands (commands, workflows, skills, instructions, plugins, rules, subagents, or ignore files).
 - **Sync-aware install**: dry-run previews, project-only gating for project-scoped artifacts, manifest tracking, and backups.
 
 ## Supported targets
@@ -21,11 +21,11 @@ Implemented:
 - Kilo
 - Antigravity CLI
 - Antigravity (legacy workflows)
+- Gemini CLI
 - GitHub Copilot
 - VS Code
 - OpenCode
 - Trae
-- Gemini CLI (legacy transition export)
 
 Planned: Droid, Goose, Grok Build, Pi, Pool, VSCodium, Windsurf, Zed.
 
@@ -36,7 +36,7 @@ Out of scope: Roo Code (EoL), Xcode.
 ```text
 commands/          User-invoked reusable procedures
 rules/             Always-on or scoped behavior policy
-subagents/         Reserved for future agent definitions
+subagents/         Normalized subagent definitions
 mcps/              Reserved for future MCP server definitions
 ignores/           Project ignore files (.cursorignore, .kilocodeignore, .clineignore)
 registry/          Target and source-kind policy
@@ -109,9 +109,23 @@ node scripts/agent-surface.mjs build --target cline --dry-run
 
 `registry/source-kinds.json` records each active primitive's `load_mode`, `install_scopes`, and `source_dir`. `check` validates the registry, and `install` uses source-kind install scopes instead of per-output special cases.
 
+## Subagents
+
+`subagents/` contains the first workflow-oriented subagent batch: `boss`, `researcher`, `analyzer`, `adversary`, `reviewer`, and `worker`. They emit to:
+
+- Claude Code: `.claude/agents/<name>.md`
+- Cursor: `.cursor/agents/<name>.md`
+- Kilo user installs: `~/.config/kilo/agents/<name>.md`
+- Kilo project installs: `.kilo/agents/<name>.md`
+- Gemini CLI: `.gemini/agents/<name>.md`
+- Google CLI extension target: `~/.gemini/extensions/agent-surface/agents/<name>.md`
+
+Cursor runtime launches must use the full `cursor agent ...` command shape; do not treat a bare `agent` command as Cursor because Grok Build also uses an `agent`-named surface. Desktop Antigravity remains a supervised UI surface; the current file-based Google CLI extension output is validated through Gemini CLI.
+
 ## Upgrade notes
 
-- Use `antigravity-cli` as the current Google CLI target. `gemini-cli` is kept only as a legacy transition export.
+- `gemini-cli` emits native `.gemini` commands, context, and agents.
+- `antigravity-cli` is kept as the Google CLI extension target for the Gemini/Antigravity transition and emits `~/.gemini/extensions/agent-surface`.
 
 ## Workflow kernel (optional)
 

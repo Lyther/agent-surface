@@ -5,7 +5,8 @@
       "build_supported": true,
       "install_supported": true,
       "renders": [
-        "commands"
+        "commands",
+        "subagents"
       ]
     },
     "codex": {
@@ -22,8 +23,8 @@
       "build_supported": true,
       "install_supported": true,
       "renders": [
-        "legacy-transition",
         "commands",
+        "subagents",
         "rules"
       ]
     },
@@ -44,6 +45,7 @@
       "renders": [
         "commands-as-workflows",
         "rules",
+        "subagents",
         "ignores"
       ]
     },
@@ -62,6 +64,7 @@
       "renders": [
         "plugins",
         "skills",
+        "subagents",
         "rules"
       ]
     },
@@ -89,6 +92,7 @@
       "renders": [
         "rules",
         "commands",
+        "subagents",
         "ignores"
       ]
     },

@@ -14,7 +14,10 @@ import { approximateTokens, tomlMultilineString, tomlString, yamlString } from "
 import { mergeKiloInstructionJsonc, parseJsoncResult } from "./agent-surface/jsonc.mjs";
 import {
   checkIgnores,
+  checkSubagents,
   ignoreOutputs,
+  subagentOutputs,
+  subagentValidationErrors,
 } from "./agent-surface/source-primitives.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -25,10 +28,14 @@ const commandPhases = new Set(["observe", "decide", "build", "verify", "review",
 
 const targets = {
   "claude-code": {
-    label: "Claude Code commands",
+    label: "Claude Code commands and subagents",
     commandRenders: ["commands"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "claude-code",
+    subagentOutputRoot: ".claude/agents",
     commandOutputRoot: ".claude/commands",
     renderCommand: renderClaudeCommand,
+    renderSubagent: renderClaudeSubagent,
     installRoot: installRootClaude,
     commandOutputName: groupedMarkdownCommandOutputName,
   },
@@ -54,11 +61,15 @@ const targets = {
     staticOutputs: clineStaticOutputs,
   },
   kilo: {
-    label: "Kilo workflows and instructions",
+    label: "Kilo workflows, instructions, and subagents",
     commandRenders: ["commands-as-workflows"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "kilo",
+    subagentOutputRoot: kiloAgentRoot,
     staticRenders: ["rules"],
     commandOutputRoot: kiloWorkflowRoot,
     renderCommand: renderKiloWorkflow,
+    renderSubagent: renderKiloSubagent,
     installRoot: installRootKilo,
     ignoreFilename: ".kilocodeignore",
     staticOutputs: kiloStaticOutputs,
@@ -71,31 +82,43 @@ const targets = {
     installRoot: installRootAntigravity,
   },
   "antigravity-cli": {
-    label: "Antigravity CLI plugin",
+    label: "Google CLI extension",
     commandRenders: ["skills"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "antigravity-cli",
+    subagentOutputRoot: path.join("extensions", "agent-surface", "agents"),
     staticRenders: ["plugins", "rules"],
-    commandOutputRoot: path.join("plugins", "agent-surface", "skills"),
+    commandOutputRoot: path.join("extensions", "agent-surface", "skills"),
     commandOutputName: antigravityCliSkillOutputName,
     renderCommand: renderAntigravityCliSkill,
+    renderSubagent: renderGeminiSubagent,
     installRoot: installRootAntigravityCli,
     staticOutputs: antigravityCliStaticOutputs,
   },
   "gemini-cli": {
-    label: "Gemini CLI legacy commands and context",
-    commandRenders: ["legacy-transition", "commands"],
+    label: "Gemini CLI commands, context, and subagents",
+    commandRenders: ["commands"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "gemini-cli",
+    subagentOutputRoot: path.join(".gemini", "agents"),
     staticRenders: ["rules"],
     commandOutputRoot: ".gemini/commands",
     renderCommand: renderGeminiCommand,
+    renderSubagent: renderGeminiSubagent,
     installRoot: installRootGemini,
     commandOutputName: geminiCommandOutputName,
     staticOutputs: geminiStaticOutputs,
   },
   cursor: {
-    label: "Cursor global commands and rules",
+    label: "Cursor global commands, rules, and subagents",
     commandRenders: ["commands"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "cursor",
+    subagentOutputRoot: ".cursor/agents",
     staticRenders: ["rules"],
     commandOutputRoot: ".cursor/commands",
     renderCommand: renderCursorCommand,
+    renderSubagent: renderCursorSubagent,
     installRoot: installRootHomeOnly,
     ignoreFilename: ".cursorignore",
     staticOutputs: cursorStaticOutputs,
@@ -225,6 +248,8 @@ async function main() {
       await checkGenerated(args.slice(1));
     } else if (args[0] === "ignores") {
       await checkIgnores(targets);
+    } else if (args[0] === "subagents") {
+      await checkSubagents();
     } else {
       await check();
     }
@@ -270,6 +295,7 @@ Usage:
   agent-surface check commands
   agent-surface check generated [--target <target|all>]
   agent-surface check ignores
+  agent-surface check subagents
   agent-surface build --target <target|all> [--dry-run]
   agent-surface install --target <target> [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
@@ -378,6 +404,7 @@ async function check() {
 
   await checkWorkflowSchemas(errors);
   await checkRegistrySchemas(errors);
+  errors.push(...await subagentValidationErrors());
   checkCommandMetadata(commands, errors);
 
   if (errors.length > 0) {
@@ -564,7 +591,7 @@ const workflowRuntimeNames = new Set([
   "codex",
   "codex-exec",
   "cursor-agent",
-  "gemini-legacy",
+  "gemini-cli",
   "kilo-cli",
   "kilo-ide",
   "opencode",
@@ -780,6 +807,7 @@ function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".codex", "AGENTS.md"), /agent-surface global Codex rules/);
   } else if (target === "gemini-cli") {
     requireContains(path.join(".gemini", "GEMINI.md"), /agent-surface global Gemini rules/);
+    requireContains(path.join(".gemini", "agents", "boss.md"), /^---\nname: boss\n/);
     for (const output of outputs.filter((item) => item.relativeOutput.endsWith(".toml"))) {
       if (!/^description = ".+"\n\nprompt = /s.test(output.content)) errors.push(`${output.relativeOutput} is not a Gemini command TOML shape`);
     }
@@ -789,17 +817,20 @@ function validateGeneratedTarget(target, outputs) {
     requireContains(".clineignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "kilo") {
     requirePath(path.join(".config", "kilo", "commands", "ops-flow.md"));
+    requireContains(path.join(".config", "kilo", "agents", "boss.md"), /^---\ndescription: "/);
     requireContains(path.join(".config", "kilo", "AGENTS.md"), /agent-surface Kilo rules/);
     requireContains(".kilocodeignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "antigravity") {
     requireContains(path.join("global_workflows", "ops-flow.md"), /^---\ndescription: "/);
   } else if (target === "antigravity-cli") {
-    const plugin = requireJson(path.join("plugins", "agent-surface", "plugin.json"));
-    if (plugin && plugin.name !== "agent-surface") errors.push("Antigravity plugin name must be agent-surface");
-    requireContains(path.join("plugins", "agent-surface", "skills", "ops-flow.md"), /^---\nname: ops-flow\n/);
-    requirePath(path.join("plugins", "agent-surface", "rules", "00-precedence-and-safety.md"));
+    const plugin = requireJson(path.join("extensions", "agent-surface", "gemini-extension.json"));
+    if (plugin && plugin.name !== "agent-surface") errors.push("Google CLI extension name must be agent-surface");
+    requireContains(path.join("extensions", "agent-surface", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
+    requireContains(path.join("extensions", "agent-surface", "agents", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join("extensions", "agent-surface", "GEMINI.md"), /agent-surface Google CLI extension rules/);
   } else if (target === "cursor") {
     requirePath(path.join(".cursor", "commands", "ops-flow.md"));
+    requireContains(path.join(".cursor", "agents", "boss.md"), /^---\nname: boss\n/);
     requirePath(path.join(".cursor", "rules", "00-precedence-and-safety.mdc"));
     requireContains(".cursorignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "copilot") {
@@ -1803,6 +1834,105 @@ async function renderClaudeCommand(source) {
   return source.body;
 }
 
+function renderClaudeSubagent(source) {
+  const mapped = claudeSubagentAccess(source.metadata.access);
+  return [
+    "---",
+    `name: ${source.metadata.name}`,
+    `description: "${yamlString(source.metadata.description)}"`,
+    `tools: ${mapped.tools}`,
+    `model: ${source.metadata.model}`,
+    `maxTurns: ${mapped.maxTurns}`,
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  ].join("\n");
+}
+
+function renderKiloSubagent(source) {
+  const mapped = kiloSubagentAccess(source.metadata.access);
+  const lines = [
+    "---",
+    `description: "${yamlString(source.metadata.description)}"`,
+    "mode: subagent",
+  ];
+  if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
+  lines.push(
+    "permission:",
+    `  edit: ${mapped.edit}`,
+    `  bash: ${mapped.bash}`,
+    `steps: ${mapped.steps}`,
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  );
+  return lines.join("\n");
+}
+
+function renderCursorSubagent(source) {
+  return [
+    "---",
+    `name: ${source.metadata.name}`,
+    `description: "${yamlString(source.metadata.description)}"`,
+    `model: ${source.metadata.model}`,
+    `readonly: ${cursorSubagentReadonly(source.metadata.access)}`,
+    "is_background: false",
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  ].join("\n");
+}
+
+function cursorSubagentReadonly(access) {
+  if (access === "read-only") return true;
+  if (access === "read-write-shell") return false;
+  // Cursor `readonly` is binary: it blocks edits and state-changing shell together,
+  // so it cannot express read-write without shell. Refuse rather than silently grant shell.
+  fail(`cursor subagent access ${access} is not representable; use read-only or read-write-shell`);
+}
+
+function renderGeminiSubagent(source) {
+  const tools = geminiSubagentAccess(source.metadata.access);
+  return [
+    "---",
+    `name: ${source.metadata.name}`,
+    `description: "${yamlString(source.metadata.description)}"`,
+    `model: ${source.metadata.model}`,
+    "tools:",
+    ...tools.map((tool) => `  - ${tool}`),
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  ].join("\n");
+}
+
+function claudeSubagentAccess(access) {
+  if (access === "read-only") return { tools: "Read, Glob, Grep", maxTurns: 20 };
+  if (access === "read-write") return { tools: "Read, Glob, Grep, Edit, Write", maxTurns: 30 };
+  if (access === "read-write-shell") return { tools: "Read, Glob, Grep, Edit, Write, Bash", maxTurns: 40 };
+  fail(`unsupported subagent access: ${access}`);
+}
+
+function kiloSubagentAccess(access) {
+  if (access === "read-only") return { edit: "deny", bash: "deny", steps: 20 };
+  if (access === "read-write") return { edit: "ask", bash: "deny", steps: 30 };
+  if (access === "read-write-shell") return { edit: "ask", bash: "ask", steps: 40 };
+  fail(`unsupported subagent access: ${access}`);
+}
+
+function geminiSubagentAccess(access) {
+  const readOnly = ["glob", "grep_search", "list_directory", "read_file", "read_many_files"];
+  if (access === "read-only") return readOnly;
+  const readWrite = [...readOnly, "replace", "write_file"];
+  if (access === "read-write") return readWrite;
+  if (access === "read-write-shell") return [...readWrite, "run_shell_command"];
+  fail(`unsupported subagent access: ${access}`);
+}
+
 async function renderCursorCommand(source) {
   return source.body;
 }
@@ -1877,14 +2007,14 @@ async function codexOpenAiAgentOutput(source) {
 }
 
 function antigravityCliSkillOutputName(source) {
-  return `${source.name}.md`;
+  return path.join(source.name, "SKILL.md");
 }
 
 async function renderAntigravityCliSkill(source) {
   return renderSkillMarkdown(source, {
     invocationPrefix: "/",
-    generatedFor: "Antigravity CLI plugin skill",
-    hostInstruction: "Invoke this skill from Antigravity CLI after the agent-surface plugin is installed.",
+    generatedFor: "Google CLI extension skill",
+    hostInstruction: "Activate this skill from Gemini or Antigravity CLI after the agent-surface extension is installed.",
   });
 }
 
@@ -1936,40 +2066,41 @@ async function geminiStaticOutputs() {
 
 async function antigravityCliStaticOutputs(commands) {
   const metadata = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
-  const rules = await readRules();
   return [
     {
       sourceKind: "commands",
       renderKind: "plugins",
       source: "package.json",
-      relativeOutput: path.join("plugins", "agent-surface", "plugin.json"),
+      relativeOutput: path.join("extensions", "agent-surface", "gemini-extension.json"),
       content: `${JSON.stringify({
         name: "agent-surface",
         version: metadata.version,
-        description: "Portable agent-surface command, skill, and rule pack generated from Lyther/agent-surface.",
+        description: "Portable agent-surface command, skill, subagent, and rule pack generated from Lyther/agent-surface.",
+        contextFileName: "GEMINI.md",
       }, null, 2)}\n`,
     },
     {
       sourceKind: "commands",
       renderKind: "plugins",
       source: "README.md",
-      relativeOutput: path.join("plugins", "agent-surface", "README.md"),
+      relativeOutput: path.join("extensions", "agent-surface", "README.md"),
       content: [
-        "# agent-surface Antigravity CLI plugin",
+        "# agent-surface Google CLI extension",
         "",
-        "Generated plugin package for Antigravity CLI.",
+        "Generated extension package for Gemini CLI and the Google CLI transition surface.",
         "",
-        "Use the Antigravity CLI plugin manager when available, or link this directory into the Antigravity CLI plugin root for local testing.",
+        "Install or link this directory with `gemini extensions install` or `gemini extensions link`.",
         "",
         `Packaged skills: ${commands.length}`,
         "",
       ].join("\n"),
     },
-    ...rules.map((rule) => ({
-      source: rule.file,
-      relativeOutput: path.join("plugins", "agent-surface", "rules", `${path.basename(rule.file, ".mdc")}.md`),
-      content: renderAntigravityRuleDocument(rule),
-    })),
+    {
+      source: "rules/*.mdc",
+      renderKind: "rules",
+      relativeOutput: path.join("extensions", "agent-surface", "GEMINI.md"),
+      content: await renderInstructionDocument("GEMINI.md - agent-surface Google CLI extension rules", "Gemini CLI extension context"),
+    },
   ];
 }
 
@@ -2054,17 +2185,6 @@ function renderKiloRuleDocument(rule) {
     `# ${path.basename(rule.file, ".mdc")}`,
     "",
     `> Kilo custom rule. Generated by agent-surface from \`${rule.file}\`.`,
-    "",
-    stripFrontmatter(rule.text).trim(),
-    "",
-  ].join("\n");
-}
-
-function renderAntigravityRuleDocument(rule) {
-  return [
-    `# ${path.basename(rule.file, ".mdc")}`,
-    "",
-    `> Antigravity CLI plugin rule. Generated by agent-surface from \`${rule.file}\`.`,
     "",
     stripFrontmatter(rule.text).trim(),
     "",
@@ -2311,6 +2431,9 @@ function targetProducers(adapter) {
   }
   if (adapter.staticOutputs) {
     producers.push({ id: "static", sourceKind: "rules", emits: adapter.staticRenders ?? [], produce: (commands, context) => adapter.staticOutputs(commands, context) });
+  }
+  if (adapter.subagentOutputRoot && adapter.renderSubagent) {
+    producers.push({ id: "subagents", sourceKind: "subagents", emits: adapter.subagentRenders ?? ["subagents"], produce: (commands, context) => subagentOutputs(adapter, context) });
   }
   if (adapter.ignoreFilename) {
     producers.push({ id: "ignores", sourceKind: "ignores", emits: ["ignores"], produce: () => ignoreOutputs(adapter) });
@@ -2759,7 +2882,7 @@ function installRootAntigravity(scope) {
 
 function installRootAntigravityCli(scope) {
   if (scope !== "user") fail("antigravity-cli install supports --scope user only unless --dest is supplied");
-  return path.join(os.homedir(), ".gemini", "antigravity-cli");
+  return path.join(os.homedir(), ".gemini");
 }
 
 function installRootVsCode(scope) {
