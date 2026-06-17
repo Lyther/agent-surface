@@ -31,6 +31,8 @@ A picture is worth a thousand lines of code.
 | **ER** | Database schema | `erDiagram` |
 | **State** | State machines, workflows | `stateDiagram-v2` |
 
+For UI diagrams, label the intent explicitly: `Admin Console (React + Arco/Semi)`, `Product UI (Leptos/Reflex)`, or `Existing UI (<repo stack>)`.
+
 ### Phase 2: Scope the Diagram
 
 **One concept per diagram. Don't cram everything.**
@@ -47,7 +49,7 @@ A picture is worth a thousand lines of code.
 ```mermaid
 flowchart TB
     subgraph Client
-        UI[React App]
+        UI[UI App]
     end
 
     subgraph API
@@ -69,7 +71,45 @@ flowchart TB
     Core --> Cache
 ```
 
-**Example: UI Target Matrix (Overview)**
+**Example: Admin Console UI (React + Arco/Semi)**
+
+```mermaid
+flowchart TB
+    subgraph Console["Admin Console"]
+        Layout[Layout + Sider + Breadcrumb]
+        List[List Page: Filters + Table + Pagination]
+        Detail[Detail Drawer: Metadata + Tabs + Timeline]
+        Action[Action Modal: Confirm + Pending + Result]
+    end
+
+    subgraph State["Frontend State"]
+        URL[URL Query: filters, sort, page]
+        Server[Server State: list/detail/action result]
+        Local[Local State: drawer/modal/form drafts]
+    end
+
+    subgraph API["Backend/API"]
+        ListAPI[List Endpoint]
+        DetailAPI[Detail Endpoint]
+        ActionAPI[Action Endpoint]
+    end
+
+    Layout --> List
+    List --> Detail
+    List --> Action
+    List --> URL
+    List --> Server
+    Detail --> Server
+    Action --> Server
+    Action --> Local
+    Server --> ListAPI
+    Server --> DetailAPI
+    Server --> ActionAPI
+```
+
+Use this shape for internal ops/review/monitoring consoles. Add `VChart` or `VTable` nodes only when the feature is genuinely dashboard-heavy or high-density analytical-table work.
+
+**Example: Product UI Target Matrix (Leptos/Reflex)**
 
 ```mermaid
 flowchart TB

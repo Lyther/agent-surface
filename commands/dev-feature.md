@@ -205,20 +205,40 @@ Do not emit a blocker until you have attempted the safe discovery or repair avai
 
 Apply this when the task touches UI, components, or async user-facing state:
 
+0. **UI Intent Gate**:
+    - `existing`: If the repo already has a frontend stack, preserve it. Read `package.json`, route files, component directories, theme config, and test setup before adding patterns or libraries.
+    - `product`: For new product UI in this project family, prefer the repo default (`Leptos` or `Reflex`) unless the user or project policy says otherwise.
+    - `admin-tool`: For internal ops/review/monitoring consoles, prefer the repo's existing React stack; for greenfield admin tools, use React with Arco or Semi. Use Modern.js/Rsbuild/Rspack only when the repo already uses it or the user explicitly wants a ByteDance-style React scaffold.
+    - `synthetic`: Synthetic enterprise fixtures belong to fixture commands, not real product UI work.
+    - `game-mod`: Game/mod UI belongs to domain commands, not web frontend work.
 1. **Boundary Discipline**:
     - Fetch through API/resource boundaries. Never pull DB drivers or backend-only logic into the view layer.
     - Reuse shared data shapes from `arch-model` or equivalent.
 2. **State Topology**:
-    - Local state: UI transients
-    - Server state: async data/resources
-    - Global state: app-wide context only when genuinely shared
+    - URL state: filters, pagination, sort, tabs, selected IDs, and shareable view state.
+    - Local state: input drafts, open/closed drawers, focused row, and other UI transients.
+    - Server state: async data/resources; use the repo's data-fetching layer, loader/action pattern, or server-state cache instead of copying server data into global UI state.
+    - Global state: app-wide context only when genuinely shared; do not add Redux/Zustand/MobX merely to move table filters around.
+    - If the repo already uses TanStack Table, TanStack Query, route loaders, or another table/server-state pattern, follow that pattern; do not introduce a parallel table or fetch stack.
 3. **Interaction Quality**:
     - Handle loading, error, empty, and success states
     - Keep touch targets usable and keyboard/focus behavior intact
     - Preserve accessibility and responsiveness, not just happy-path rendering
-4. **Observability Hooks**:
+4. **Admin Console Recipe**:
+    - Use three page shapes unless the product requires more:
+      - List: filter bar, table, pagination, status `Tag`/`Badge`, batch actions.
+      - Detail: drawer or side panel with metadata, evidence links, tabs, and timeline/logs.
+      - Action: confirmation modal or form with explicit state transitions (`pending` -> `running` -> `done`/`failed`).
+    - With Arco/Semi, map layout to existing library primitives: `Layout`/`Sider`, `Breadcrumb`, `Form`, `Table`, `Pagination`, `Drawer`/`Modal`, `Descriptions`, `Tabs`, `Tag`, `Badge`.
+    - Use VisActor (`VChart`/`VTable`) only for chart-heavy dashboards, high-density analytical tables, or visualization work that exceeds the component library's ordinary table/chart primitives.
+    - Do not make marketing landing pages, decorative heroes, custom design systems, or animation-heavy screens for internal tools.
+5. **Data Contract First**:
+    - Define table columns, filter params, detail fields, and action payloads from typed API contracts or schemas.
+    - If no contract exists, create the smallest local type/schema that matches observed backend data and mark unknown fields explicitly.
+    - Do not invent columns or action verbs that the backend cannot provide.
+6. **Observability Hooks**:
     - Add stable selectors like `data-component` / `data-testid` when they materially improve debugging or testing
-5. **Composition**:
+7. **Composition**:
     - Prefer small components with clear boundaries over giant UI files or prop explosions
 
 ### Phase 4: Implementation
