@@ -65,6 +65,10 @@ function assertGeminiTomlParses() {
   assertTomlParses(path.join(root, "dist", "gemini-cli", ".gemini", "commands"));
 }
 
+function assertCodexAgentTomlParses() {
+  assertTomlParses(path.join(root, "dist", "codex", ".codex", "agents"));
+}
+
 function assertStripAiAttributionHook() {
   const tmpDir = mkdtempSync("/tmp/agent-surface-strip-ai-");
   try {
@@ -153,7 +157,7 @@ assert.match(inventory, /^rules: 6$/m);
 assert.match(inventory, /^commands: 64$/m);
 assert.match(inventory, /^subagents: 6$/m);
 assert.match(inventory, /^external: 5$/m);
-assert.match(inventory, /^schemas: 14$/m);
+assert.match(inventory, /^schemas: 15$/m);
 
 const registry = JSON.parse(run(["commands", "--json"]));
 assert.equal(registry.count, 64);
@@ -169,12 +173,13 @@ assert.deepEqual(opsFlowCommand.lazy_body, {
 assert.equal(Object.hasOwn(opsFlowCommand, "body"), false);
 assert.equal(opsFlowCommand.targets["claude-code"], path.join(".claude", "commands", "ops", "flow.md"));
 assert.equal(opsFlowCommand.targets.codex, path.join(".agents", "skills", "ops-flow", "SKILL.md"));
-assert.equal(opsFlowCommand.targets.cline, path.join("Documents", "Cline", "Workflows", "ops-flow.md"));
+assert.equal(opsFlowCommand.targets.cline, path.join(".cline", "data", "workflows", "ops-flow.md"));
 assert.equal(opsFlowCommand.targets.kilo, path.join(".config", "kilo", "commands", "ops-flow.md"));
 assert.equal(opsFlowCommand.targets["antigravity-cli"], path.join("extensions", "agent-surface", "skills", "ops-flow", "SKILL.md"));
 assert.equal(opsFlowCommand.targets["gemini-cli"], path.join(".gemini", "commands", "ops", "flow.toml"));
 assert.equal(opsFlowCommand.targets.cursor, path.join(".cursor", "commands", "ops-flow.md"));
 assert.equal(opsFlowCommand.targets.droid, path.join(".factory", "commands", "ops-flow.md"));
+assert.equal(opsFlowCommand.targets.opencode, path.join(".config", "opencode", "commands", "ops-flow.md"));
 
 const shipCommands = JSON.parse(run(["commands", "--phase", "ship", "--json"]));
 assert.equal(shipCommands.commands.every((command) => command.phase === "ship"), true);
@@ -204,6 +209,7 @@ run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
 assert.ok(generated.length >= 860);
 assertGeminiTomlParses();
+assertCodexAgentTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "swarm.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "workflow", "orchestrator.md"))), true);
@@ -214,6 +220,7 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", "
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "workflow-orchestrator", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "ops-flow", "agents", "openai.yaml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "AGENTS.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "agents", "boss.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "workflow", "boss.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "boot", "facade.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "ops", "swarm.toml"))), true);
@@ -222,7 +229,7 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cl
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "agents", "boss.md"))), true);
 assert.equal(generated.some((file) => file.includes(`${path.sep}.gemini${path.sep}extensions${path.sep}agent-surface${path.sep}`)), false);
 assert.equal(generated.some((file) => file.includes(`${path.sep}.agent-surface${path.sep}claude-plugin${path.sep}`)), false);
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cline", "Documents", "Cline", "Rules", "agent-surface.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cline", ".cline", "rules", "agent-surface.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "commands", "ops-flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "agents", "boss.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "AGENTS.md"))), true);
@@ -244,6 +251,8 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "droid", "
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "copilot", "instructions", "agent-surface-copilot.instructions.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "vscode", "instructions", "agent-surface.instructions.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "opencode", ".config", "opencode", "AGENTS.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "opencode", ".config", "opencode", "commands", "ops-flow.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "opencode", ".config", "opencode", "agents", "boss.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "trae", ".trae", "user_rules.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursorignore"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".kilocodeignore"))), true);
@@ -254,7 +263,7 @@ const ignoresCheck = run(["check", "ignores"]);
 assert.match(ignoresCheck, /ignores check: ok/);
 assert.match(ignoresCheck, /emitters 3 \(cline, cursor, kilo\)/);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "agents", "worker.md"))), true);
-assert.equal(generated.some((file) => file.includes(`${path.sep}.codex${path.sep}agents${path.sep}`)), false);
+assert.equal(generated.some((file) => file.includes(`${path.sep}.codex${path.sep}agents${path.sep}`)), true);
 assert.equal(generated.some((file) => file.includes(`${path.sep}.config${path.sep}kilo${path.sep}agents${path.sep}`)), true);
 
 // subagent access -> per-target capability metadata: read-only must not carry write/shell tools.
@@ -277,8 +286,18 @@ assert.equal(claudeBossAgent.includes("LSP"), false);
 assert.equal(claudeBossAgent.includes("disallowedTools"), false);
 const claudeWorkerAgent = readFileSync(path.join(root, "dist", "claude-code", ".claude", "agents", "worker.md"), "utf8");
 assert.match(claudeWorkerAgent, /^tools: Read, Glob, Grep, Edit, Write, Bash$/m);
+const codexBossAgent = readFileSync(path.join(root, "dist", "codex", ".codex", "agents", "boss.toml"), "utf8");
+assert.match(codexBossAgent, /^sandbox_mode = "read-only"$/m);
+const codexWorkerAgent = readFileSync(path.join(root, "dist", "codex", ".codex", "agents", "worker.toml"), "utf8");
+assert.match(codexWorkerAgent, /^sandbox_mode = "workspace-write"$/m);
 const kiloBossAgent = readFileSync(path.join(root, "dist", "kilo", ".config", "kilo", "agents", "boss.md"), "utf8");
 assert.match(kiloBossAgent, /bash: deny/);
+const opencodeBossAgent = readFileSync(path.join(root, "dist", "opencode", ".config", "opencode", "agents", "boss.md"), "utf8");
+assert.match(opencodeBossAgent, /edit: deny/);
+assert.match(opencodeBossAgent, /bash: deny/);
+const opencodeWorkerAgent = readFileSync(path.join(root, "dist", "opencode", ".config", "opencode", "agents", "worker.md"), "utf8");
+assert.match(opencodeWorkerAgent, /edit: ask/);
+assert.match(opencodeWorkerAgent, /bash: ask/);
 const droidBossAgent = readFileSync(path.join(root, "dist", "droid", ".factory", "droids", "boss.md"), "utf8");
 assert.match(droidBossAgent, /^tools:$/m);
 assert.match(droidBossAgent, /^ {2}- Read$/m);
@@ -297,7 +316,7 @@ assert.equal(Object.hasOwn(sourceKinds.source_kinds, "subagents"), true);
 assert.equal(Object.hasOwn(sourceKinds.source_kinds, "external"), true);
 const generatedCheck = run(["check", "generated"]);
 assert.match(generatedCheck, /claude-code: generated outputs 70 ok/);
-assert.match(generatedCheck, /codex: generated outputs 129 ok/);
+assert.match(generatedCheck, /codex: generated outputs 135 ok/);
 assert.match(generatedCheck, /cline: generated outputs 66 ok/);
 assert.match(generatedCheck, /kilo: generated outputs 78 ok/);
 assert.match(generatedCheck, /antigravity: generated outputs 64 ok/);
@@ -306,6 +325,7 @@ assert.match(generatedCheck, /gemini-cli: generated outputs 71 ok/);
 assert.match(generatedCheck, /cursor: generated outputs 77 ok/);
 assert.match(generatedCheck, /droid: generated outputs 249 ok/);
 assert.match(generatedCheck, /copilot: generated outputs 1 ok/);
+assert.match(generatedCheck, /opencode: generated outputs 71 ok/);
 assert.match(generatedCheck, /generated check: ok/);
 const copilotGeneratedCheck = run(["check", "generated", "--target", "copilot"]);
 assert.match(copilotGeneratedCheck, /copilot: generated outputs 1 ok/);
@@ -398,7 +418,14 @@ assert.match(droidUserPlan, /\.factory\/skills\/pua\/SKILL\.md <- external\/pua\
 const codexPlan = run(["install", "--target", "codex", "--dest", "/tmp/agent-surface-codex", "--dry-run"]);
 assert.match(codexPlan, /^target: codex$/m);
 assert.match(codexPlan, /\.agents\/skills\/workflow-boss\/SKILL\.md <- commands\/workflow-boss\.md/);
+assert.match(codexPlan, /\.codex\/agents\/boss\.toml <- subagents\/boss\.md/);
 assert.match(codexPlan, /\.codex\/AGENTS\.md <- rules\/\*\.mdc/);
+
+const opencodePlan = run(["install", "--target", "opencode", "--dest", "/tmp/agent-surface-opencode", "--dry-run"]);
+assert.match(opencodePlan, /^target: opencode$/m);
+assert.match(opencodePlan, /\.opencode\/commands\/workflow-boss\.md <- commands\/workflow-boss\.md/);
+assert.match(opencodePlan, /\.opencode\/agents\/boss\.md <- subagents\/boss\.md/);
+assert.match(opencodePlan, /AGENTS\.md <- rules\/\*\.mdc/);
 
 const staleDest = "/tmp/agent-surface-stale";
 rmSync(staleDest, { recursive: true, force: true });
@@ -687,7 +714,7 @@ mkdirSync(userScopeHome, { recursive: true });
 const userScopeEnv = { ...process.env, HOME: userScopeHome };
 const clineUserScope = status(["install", "--target", "cline", "--scope", "user", "--dry-run"], { env: userScopeEnv });
 assert.equal(clineUserScope.status, 0, `${clineUserScope.stdout}${clineUserScope.stderr}`);
-assert.match(clineUserScope.stdout, /Documents\/Cline\/Workflows\/workflow-boss\.md <- commands\/workflow-boss\.md/);
+assert.match(clineUserScope.stdout, /\.cline\/data\/workflows\/workflow-boss\.md <- commands\/workflow-boss\.md/);
 
 const kiloUserScope = status(["install", "--target", "kilo", "--scope", "user", "--dry-run"], { env: userScopeEnv });
 assert.equal(kiloUserScope.status, 0, `${kiloUserScope.stdout}${kiloUserScope.stderr}`);

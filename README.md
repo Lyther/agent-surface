@@ -41,7 +41,7 @@ rules/             Always-on or scoped behavior policy
 subagents/         Normalized subagent definitions
 mcps/              Reserved for future MCP server definitions
 ignores/           Project ignore files (.cursorignore, .kilocodeignore, .clineignore)
-registry/          Target and source-kind policy
+registry/          Target, capability, and source-kind policy
 schemas/           JSON schemas for registry and workflow artifacts
 scripts/           CLI compiler and helper modules
 tests/             Integration tests
@@ -113,16 +113,21 @@ node scripts/agent-surface.mjs build --target cline --dry-run
 
 `registry/source-kinds.json` records each active primitive's `load_mode`, `install_scopes`, and `source_dir`. `check` validates the registry, and `install` uses source-kind install scopes instead of per-output special cases.
 
+`registry/target-capabilities.json` records the researched native surfaces for each implemented target and the generated render tokens that are intentionally active. `check` fails if that capability registry drifts from `registry/targets.json`.
+
 ## Subagents
 
 `subagents/` contains the first workflow-oriented subagent batch: `boss`, `researcher`, `analyzer`, `adversary`, `reviewer`, and `worker`. They emit to:
 
 - Claude Code: `.claude/agents/<name>.md`
+- Codex: `.codex/agents/<name>.toml`
 - Cursor: `.cursor/agents/<name>.md`
 - Kilo user installs: `~/.config/kilo/agents/<name>.md`
 - Kilo project installs: `.kilo/agents/<name>.md`
 - Gemini CLI: `.gemini/agents/<name>.md`
 - Google CLI extension target: `~/.gemini/extensions/agent-surface/agents/<name>.md`
+- OpenCode user installs: `~/.config/opencode/agents/<name>.md`
+- OpenCode project installs: `.opencode/agents/<name>.md`
 
 Cursor runtime launches must use the full `cursor agent ...` command shape; do not treat a bare `agent` command as Cursor because Grok Build also uses an `agent`-named surface. Desktop Antigravity remains a supervised UI surface; the current file-based Google CLI extension output is validated through Gemini CLI.
 

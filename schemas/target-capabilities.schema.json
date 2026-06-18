@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "agent-surface target capability registry",
+  "type": "object",
+  "required": [
+    "reviewed_at",
+    "targets"
+  ],
+  "properties": {
+    "reviewed_at": {
+      "type": "string",
+      "format": "date"
+    },
+    "targets": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "summary",
+          "generated_render_tokens",
+          "evidence",
+          "surfaces"
+        ],
+        "properties": {
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "generated_render_tokens": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "label",
+                "url"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "surfaces": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {
+              "enum": [
+                "commands",
+                "commands-as-workflows",
+                "rules",
+                "instructions",
+                "prompts",
+                "subagents",
+                "skills",
+                "mcp",
+                "settings",
+                "ignores",
+                "plugins",
+                "external"
+              ]
+            },
+            "additionalProperties": {
+              "type": "object",
+              "required": [
+                "support",
+                "generation",
+                "scope",
+                "paths",
+                "notes"
+              ],
+              "properties": {
+                "support": {
+                  "enum": [
+                    "native",
+                    "compatible",
+                    "manual-only",
+                    "unsupported",
+                    "unknown"
+                  ]
+                },
+                "generation": {
+                  "enum": [
+                    "generated",
+                    "manual",
+                    "not-generated",
+                    "not-applicable"
+                  ]
+                },
+                "scope": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "enum": [
+                      "user",
+                      "project",
+                      "repository",
+                      "global"
+                    ]
+                  }
+                },
+                "paths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

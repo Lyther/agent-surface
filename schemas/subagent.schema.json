@@ -33,15 +33,20 @@
       "type": "object",
       "required": [
         "claude-code",
+        "codex",
         "cursor",
         "droid",
         "kilo",
         "gemini-cli",
         "antigravity-cli",
-        "antigravity"
+        "antigravity",
+        "opencode"
       ],
       "properties": {
         "claude-code": {
+          "type": "boolean"
+        },
+        "codex": {
           "type": "boolean"
         },
         "cursor": {
@@ -60,6 +65,9 @@
           "type": "boolean"
         },
         "antigravity": {
+          "type": "boolean"
+        },
+        "opencode": {
           "type": "boolean"
         }
       },

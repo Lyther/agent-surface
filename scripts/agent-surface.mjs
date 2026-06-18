@@ -40,11 +40,16 @@ const targets = {
     commandOutputName: groupedMarkdownCommandOutputName,
   },
   codex: {
-    label: "Codex skills and global instructions",
+    label: "Codex skills, custom agents, and global instructions",
     commandRenders: ["skills"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "codex",
+    subagentOutputRoot: path.join(".codex", "agents"),
+    subagentOutputExtension: ".toml",
     staticRenders: ["rules"],
     commandOutputRoot: ".agents/skills",
     renderCommand: renderCodexSkill,
+    renderSubagent: renderCodexSubagent,
     installRoot: installRootCodex,
     commandOutputName: codexSkillOutputName,
     additionalCommandOutputs: [codexOpenAiAgentOutput],
@@ -149,9 +154,16 @@ const targets = {
     staticOutputs: vscodeStaticOutputs,
   },
   opencode: {
-    label: "OpenCode global instructions",
+    label: "OpenCode commands, agents, and global instructions",
+    commandRenders: ["commands"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "opencode",
+    subagentOutputRoot: opencodeAgentRoot,
+    commandOutputRoot: opencodeCommandRoot,
+    renderCommand: renderOpenCodeCommand,
+    renderSubagent: renderOpenCodeSubagent,
     staticRenders: ["rules"],
-    installRoot: installRootHomeOnly,
+    installRoot: installRootOpencode,
     staticOutputs: opencodeStaticOutputs,
   },
   trae: {
@@ -214,6 +226,7 @@ const workflowSchemaFiles = [
 
 const registrySchemaFiles = [
   { schema: "targets.schema.json", file: "registry/targets.json" },
+  { schema: "target-capabilities.schema.json", file: "registry/target-capabilities.json" },
   { schema: "artifacts.schema.json", file: "registry/artifacts.json" },
   { schema: "source-kinds.schema.json", file: "registry/source-kinds.json" },
   { schema: "optional-services.schema.json", file: "registry/optional-services.json" },
@@ -417,6 +430,7 @@ async function check() {
 
   await checkWorkflowSchemas(errors);
   await checkRegistrySchemas(errors);
+  await checkTargetCapabilities(targetsConfig, errors);
   errors.push(...await subagentValidationErrors());
   checkCommandMetadata(commands, errors);
 
@@ -534,6 +548,37 @@ async function checkRegistrySchemas(errors) {
     const validate = ajv.compile(schema);
     if (!validate(data)) {
       errors.push(`${fixture.file}: ${formatAjvErrors(validate.errors)}`);
+    }
+  }
+}
+
+async function checkTargetCapabilities(targetsConfig, errors) {
+  let capabilities;
+  try {
+    capabilities = JSON.parse(await readFile(path.join(root, "registry", "target-capabilities.json"), "utf8"));
+  } catch (error) {
+    errors.push(`target capabilities registry is not valid JSON: ${error.message}`);
+    return;
+  }
+
+  const implementedTargets = Object.keys(targetsConfig.in_scope).sort();
+  const capabilityTargets = Object.keys(capabilities.targets ?? {}).sort();
+  for (const name of implementedTargets) {
+    if (!capabilityTargets.includes(name)) errors.push(`target capabilities missing implemented target: ${name}`);
+  }
+  for (const name of capabilityTargets) {
+    if (!implementedTargets.includes(name)) errors.push(`target capabilities include unknown target: ${name}`);
+  }
+
+  for (const name of implementedTargets) {
+    const targetCapability = capabilities.targets?.[name];
+    if (!targetCapability) continue;
+    const registryTokens = [...(targetsConfig.in_scope[name].renders ?? [])].sort();
+    const capabilityTokens = [...(targetCapability.generated_render_tokens ?? [])].sort();
+    if (registryTokens.join("\0") !== capabilityTokens.join("\0")) {
+      errors.push(
+        `target capabilities generated_render_tokens drift for ${name}: expected ${registryTokens.join(", ")}, got ${capabilityTokens.join(", ")}`,
+      );
     }
   }
 }
@@ -817,6 +862,7 @@ function validateGeneratedTarget(target, outputs) {
   } else if (target === "codex") {
     requireContains(path.join(".agents", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".agents", "skills", "ops-flow", "agents", "openai.yaml"), /allow_implicit_invocation: false/);
+    requireContains(path.join(".codex", "agents", "boss.toml"), /^name = "boss"\n/);
     requireContains(path.join(".codex", "AGENTS.md"), /agent-surface global Codex rules/);
   } else if (target === "gemini-cli") {
     requireContains(path.join(".gemini", "GEMINI.md"), /agent-surface global Gemini rules/);
@@ -825,8 +871,8 @@ function validateGeneratedTarget(target, outputs) {
       if (!/^description = ".+"\n\nprompt = /s.test(output.content)) errors.push(`${output.relativeOutput} is not a Gemini command TOML shape`);
     }
   } else if (target === "cline") {
-    requirePath(path.join("Documents", "Cline", "Workflows", "ops-flow.md"));
-    requireContains(path.join("Documents", "Cline", "Rules", "agent-surface.md"), /agent-surface Cline global rules/);
+    requirePath(path.join(".cline", "data", "workflows", "ops-flow.md"));
+    requireContains(path.join(".cline", "rules", "agent-surface.md"), /agent-surface Cline global rules/);
     requireContains(".clineignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "kilo") {
     requirePath(path.join(".config", "kilo", "commands", "ops-flow.md"));
@@ -864,6 +910,8 @@ function validateGeneratedTarget(target, outputs) {
     requireContains(path.join("prompts", "agent-surface.prompt.md"), /^---\ndescription: "Route a task to the lightest safe agent-surface path"/);
   } else if (target === "opencode") {
     requireContains(path.join(".config", "opencode", "AGENTS.md"), /agent-surface global OpenCode rules/);
+    requirePath(path.join(".config", "opencode", "commands", "ops-flow.md"));
+    requireContains(path.join(".config", "opencode", "agents", "boss.md"), /^---\ndescription: "/);
   } else if (target === "trae") {
     requireContains(path.join(".trae", "user_rules.md"), /agent-surface Trae user rules/);
   }
@@ -1951,10 +1999,51 @@ function renderDroidSubagent(source) {
   ].join("\n");
 }
 
+function renderCodexSubagent(source) {
+  const lines = [
+    `name = "${tomlString(source.metadata.name)}"`,
+    `description = "${tomlString(source.metadata.description)}"`,
+    `sandbox_mode = "${codexSubagentSandboxMode(source.metadata.access)}"`,
+  ];
+  if (source.metadata.model !== "inherit") lines.push(`model = "${tomlString(source.metadata.model)}"`);
+  lines.push(
+    "",
+    `developer_instructions = ${tomlMultilineString(source.body.trim())}`,
+    "",
+  );
+  return lines.join("\n");
+}
+
+function renderOpenCodeSubagent(source) {
+  const mapped = opencodeSubagentAccess(source.metadata.access);
+  const lines = [
+    "---",
+    `description: "${yamlString(source.metadata.description)}"`,
+    "mode: subagent",
+  ];
+  if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
+  lines.push(
+    "permission:",
+    `  edit: ${mapped.edit}`,
+    `  bash: ${mapped.bash}`,
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  );
+  return lines.join("\n");
+}
+
 function claudeSubagentAccess(access) {
   if (access === "read-only") return { tools: "Read, Glob, Grep", maxTurns: 20 };
   if (access === "read-write") return { tools: "Read, Glob, Grep, Edit, Write", maxTurns: 30 };
   if (access === "read-write-shell") return { tools: "Read, Glob, Grep, Edit, Write, Bash", maxTurns: 40 };
+  fail(`unsupported subagent access: ${access}`);
+}
+
+function codexSubagentSandboxMode(access) {
+  if (access === "read-only") return "read-only";
+  if (access === "read-write" || access === "read-write-shell") return "workspace-write";
   fail(`unsupported subagent access: ${access}`);
 }
 
@@ -1983,11 +2072,22 @@ function droidSubagentAccess(access) {
   fail(`unsupported subagent access: ${access}`);
 }
 
+function opencodeSubagentAccess(access) {
+  if (access === "read-only") return { edit: "deny", bash: "deny" };
+  if (access === "read-write") return { edit: "ask", bash: "deny" };
+  if (access === "read-write-shell") return { edit: "ask", bash: "ask" };
+  fail(`unsupported subagent access: ${access}`);
+}
+
 async function renderCursorCommand(source) {
   return source.body;
 }
 
 async function renderDroidCommand(source) {
+  return source.body;
+}
+
+async function renderOpenCodeCommand(source) {
   return source.body;
 }
 
@@ -2283,11 +2383,11 @@ async function vscodeStaticOutputs() {
   ];
 }
 
-async function opencodeStaticOutputs() {
+async function opencodeStaticOutputs(_commands, context) {
   return [
     {
       source: "rules/*.mdc",
-      relativeOutput: path.join(".config", "opencode", "AGENTS.md"),
+      relativeOutput: opencodeInstructionPath(context),
       content: await renderInstructionDocument("AGENTS.md - agent-surface global OpenCode rules", "OpenCode global instructions"),
     },
   ];
@@ -3006,6 +3106,10 @@ function installRootCodex(scope) {
   return os.homedir();
 }
 
+function installRootOpencode(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
 function installRootCline(scope) {
   return scope === "user" ? os.homedir() : process.cwd();
 }
@@ -3052,11 +3156,11 @@ async function kiloConfigStatus() {
 }
 
 function clineWorkflowRoot(context) {
-  return context.scope === "user" ? path.join("Documents", "Cline", "Workflows") : path.join(".clinerules", "workflows");
+  return context.scope === "user" ? path.join(".cline", "data", "workflows") : path.join(".clinerules", "workflows");
 }
 
 function clineRuleRoot(context) {
-  return context.scope === "user" ? path.join("Documents", "Cline", "Rules") : ".clinerules";
+  return context.scope === "user" ? path.join(".cline", "rules") : ".clinerules";
 }
 
 function kiloWorkflowRoot(context) {
@@ -3073,6 +3177,18 @@ function kiloRuleRoot(context) {
 
 function kiloAgentRoot(context) {
   return context.scope === "user" ? path.join(".config", "kilo", "agents") : path.join(".kilo", "agents");
+}
+
+function opencodeCommandRoot(context) {
+  return context.scope === "user" ? path.join(".config", "opencode", "commands") : path.join(".opencode", "commands");
+}
+
+function opencodeAgentRoot(context) {
+  return context.scope === "user" ? path.join(".config", "opencode", "agents") : path.join(".opencode", "agents");
+}
+
+function opencodeInstructionPath(context) {
+  return context.scope === "user" ? path.join(".config", "opencode", "AGENTS.md") : "AGENTS.md";
 }
 
 async function kiloRuleInstructionPaths(scope) {

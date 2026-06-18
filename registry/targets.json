@@ -15,6 +15,7 @@
       "install_supported": true,
       "renders": [
         "skills",
+        "subagents",
         "rules"
       ]
     },
@@ -73,6 +74,8 @@
       "build_supported": true,
       "install_supported": true,
       "renders": [
+        "commands",
+        "subagents",
         "rules"
       ]
     },
