@@ -11,7 +11,7 @@ let ignoreSourceCache;
 let subagentSourceCache;
 let subagentSchemaValidator;
 
-const subagentTargets = ["claude-code", "codex", "cursor", "droid", "kilo", "gemini-cli", "antigravity-cli", "antigravity", "opencode"];
+const subagentTargets = ["claude-code", "codex", "deepagents", "cursor", "droid", "kilo", "gemini-cli", "antigravity-cli", "antigravity", "opencode"];
 const subagentAccessValues = new Set(["read-only", "read-write", "read-write-shell"]);
 const subagentNamePattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
@@ -85,9 +85,10 @@ export async function subagentOutputs(adapter, context = {}) {
   for (const subagent of subagents) {
     if (subagent.metadata.targets?.[adapter.subagentTarget] !== true) continue;
     const extension = adapter.subagentOutputExtension ?? ".md";
+    const outputName = adapter.subagentOutputName ? adapter.subagentOutputName(subagent, context) : `${subagent.metadata.name}${extension}`;
     outputs.push({
       source: subagent.relativePath,
-      relativeOutput: path.join(resolveOutputRoot(adapter.subagentOutputRoot, context), `${subagent.metadata.name}${extension}`),
+      relativeOutput: path.join(resolveOutputRoot(adapter.subagentOutputRoot, context), outputName),
       content: adapter.renderSubagent(subagent),
     });
   }

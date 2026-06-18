@@ -173,6 +173,7 @@ assert.deepEqual(opsFlowCommand.lazy_body, {
 assert.equal(Object.hasOwn(opsFlowCommand, "body"), false);
 assert.equal(opsFlowCommand.targets["claude-code"], path.join(".claude", "commands", "ops", "flow.md"));
 assert.equal(opsFlowCommand.targets.codex, path.join(".agents", "skills", "ops-flow", "SKILL.md"));
+assert.equal(opsFlowCommand.targets.deepagents, path.join(".deepagents", "agent", "skills", "ops-flow", "SKILL.md"));
 assert.equal(opsFlowCommand.targets.cline, path.join(".cline", "data", "workflows", "ops-flow.md"));
 assert.equal(opsFlowCommand.targets.kilo, path.join(".config", "kilo", "commands", "ops-flow.md"));
 assert.equal(opsFlowCommand.targets["antigravity-cli"], path.join("extensions", "agent-surface", "skills", "ops-flow", "SKILL.md"));
@@ -221,6 +222,10 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", "
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "ops-flow", "agents", "openai.yaml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "agents", "boss.toml"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagents", ".deepagents", "agent", "skills", "ops-flow", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagents", ".deepagents", "agent", "AGENTS.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagents", ".deepagents", "agent", "agents", "worker", "AGENTS.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagents", ".deepagents", "agent", "agents", "boss", "AGENTS.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "workflow", "boss.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "boot", "facade.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "ops", "swarm.toml"))), true);
@@ -290,6 +295,10 @@ const codexBossAgent = readFileSync(path.join(root, "dist", "codex", ".codex", "
 assert.match(codexBossAgent, /^sandbox_mode = "read-only"$/m);
 const codexWorkerAgent = readFileSync(path.join(root, "dist", "codex", ".codex", "agents", "worker.toml"), "utf8");
 assert.match(codexWorkerAgent, /^sandbox_mode = "workspace-write"$/m);
+const deepagentsSkill = readFileSync(path.join(root, "dist", "deepagents", ".deepagents", "agent", "skills", "ops-flow", "SKILL.md"), "utf8");
+assert.match(deepagentsSkill, /Deep Agents discovers this skill/);
+const deepagentsWorkerAgent = readFileSync(path.join(root, "dist", "deepagents", ".deepagents", "agent", "agents", "worker", "AGENTS.md"), "utf8");
+assert.match(deepagentsWorkerAgent, /^name: worker$/m);
 const kiloBossAgent = readFileSync(path.join(root, "dist", "kilo", ".config", "kilo", "agents", "boss.md"), "utf8");
 assert.match(kiloBossAgent, /bash: deny/);
 const opencodeBossAgent = readFileSync(path.join(root, "dist", "opencode", ".config", "opencode", "agents", "boss.md"), "utf8");
@@ -317,6 +326,7 @@ assert.equal(Object.hasOwn(sourceKinds.source_kinds, "external"), true);
 const generatedCheck = run(["check", "generated"]);
 assert.match(generatedCheck, /claude-code: generated outputs 70 ok/);
 assert.match(generatedCheck, /codex: generated outputs 135 ok/);
+assert.match(generatedCheck, /deepagents: generated outputs 66 ok/);
 assert.match(generatedCheck, /cline: generated outputs 66 ok/);
 assert.match(generatedCheck, /kilo: generated outputs 78 ok/);
 assert.match(generatedCheck, /antigravity: generated outputs 64 ok/);
@@ -349,6 +359,9 @@ try {
   const cursorRefusal = status(["build", "--target", "cursor"]);
   assert.notEqual(cursorRefusal.status, 0);
   assert.match(`${cursorRefusal.stdout}${cursorRefusal.stderr}`, /not representable/);
+  const codexRefusal = status(["build", "--target", "codex"]);
+  assert.notEqual(codexRefusal.status, 0);
+  assert.match(`${codexRefusal.stdout}${codexRefusal.stderr}`, /not representable/);
 } finally {
   writeFileSync(subagentSourcePath, subagentSourceOriginal);
 }
@@ -420,6 +433,63 @@ assert.match(codexPlan, /^target: codex$/m);
 assert.match(codexPlan, /\.agents\/skills\/workflow-boss\/SKILL\.md <- commands\/workflow-boss\.md/);
 assert.match(codexPlan, /\.codex\/agents\/boss\.toml <- subagents\/boss\.md/);
 assert.match(codexPlan, /\.codex\/AGENTS\.md <- rules\/\*\.mdc/);
+
+const deepagentsPlan = run(["install", "--target", "deepagents", "--dest", "/tmp/agent-surface-deepagents", "--dry-run"]);
+assert.match(deepagentsPlan, /^target: deepagents$/m);
+assert.match(deepagentsPlan, /\.deepagents\/skills\/workflow-boss\/SKILL\.md <- commands\/workflow-boss\.md/);
+assert.match(deepagentsPlan, /\.deepagents\/AGENTS\.md <- rules\/\*\.mdc/);
+assert.match(deepagentsPlan, /\.deepagents\/agents\/worker\/AGENTS\.md <- subagents\/worker\.md/);
+assert.doesNotMatch(deepagentsPlan, /\.deepagents\/\.mcp\.json/);
+
+const deepagentsMcpPlan = run([
+  "install",
+  "--runtime",
+  "deepagents",
+  "--category",
+  "mcps",
+  "--service",
+  "agentmemory",
+  "--dest",
+  "/tmp/agent-surface-deepagents-mcp",
+  "--dry-run",
+]);
+assert.match(deepagentsMcpPlan, /^target: deepagents$/m);
+assert.match(deepagentsMcpPlan, /^categories: mcps$/m);
+assert.match(deepagentsMcpPlan, /^services: agentmemory$/m);
+assert.match(deepagentsMcpPlan, /\.deepagents\/\.mcp\.json <- registry\/optional-services\.json/);
+assert.doesNotMatch(deepagentsMcpPlan, /workflow-boss\/SKILL\.md/);
+
+const multiRuntimeRulesPlan = run([
+  "install",
+  "--runtime",
+  "codex,kilo",
+  "--category",
+  "rules",
+  "--dest",
+  "/tmp/agent-surface-multi-rules",
+  "--dry-run",
+]);
+assert.match(multiRuntimeRulesPlan, /^target: codex$/m);
+assert.match(multiRuntimeRulesPlan, /^target: kilo$/m);
+assert.match(multiRuntimeRulesPlan, /^categories: rules$/m);
+assert.match(multiRuntimeRulesPlan, /\.codex\/AGENTS\.md <- rules\/\*\.mdc/);
+assert.match(multiRuntimeRulesPlan, /AGENTS\.md <- rules\/\*\.mdc/);
+assert.match(multiRuntimeRulesPlan, /kilo\.jsonc instructions \+= \.kilo\/rules\/00-core\.md/);
+assert.doesNotMatch(multiRuntimeRulesPlan, /\.agents\/skills\/workflow-boss\/SKILL\.md/);
+assert.doesNotMatch(multiRuntimeRulesPlan, /\.kilo\/agents\/boss\.md/);
+
+const conflictingMultiRuntimePlan = status([
+  "install",
+  "--runtime",
+  "droid,opencode",
+  "--category",
+  "rules",
+  "--dest",
+  "/tmp/agent-surface-conflicting-rules",
+  "--dry-run",
+]);
+assert.notEqual(conflictingMultiRuntimePlan.status, 0);
+assert.match(`${conflictingMultiRuntimePlan.stdout}${conflictingMultiRuntimePlan.stderr}`, /output AGENTS\.md also planned by/);
 
 const opencodePlan = run(["install", "--target", "opencode", "--dest", "/tmp/agent-surface-opencode", "--dry-run"]);
 assert.match(opencodePlan, /^target: opencode$/m);
@@ -797,7 +867,7 @@ assert.deepEqual(inlineKiloConfig.instructions, [
 ]);
 rmSync(inlineKiloDest, { recursive: true, force: true });
 
-for (const target of ["cursor", "copilot", "vscode", "opencode", "trae", "kilo", "droid"]) {
+for (const target of ["cursor", "copilot", "vscode", "opencode", "trae", "kilo", "droid", "deepagents"]) {
   const targetDest = `/tmp/agent-surface-${target}-live`;
   rmSync(targetDest, { recursive: true, force: true });
   const install = run(["install", "--target", target, "--dest", targetDest]);

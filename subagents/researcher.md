@@ -6,6 +6,7 @@ model: inherit
 targets:
   claude-code: true
   codex: true
+  deepagents: false
   cursor: true
   droid: true
   kilo: true

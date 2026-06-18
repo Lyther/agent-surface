@@ -7,6 +7,14 @@
       "commit": "68fddd418e1bbcc41d32a1c61b7a78d91eb7c4dc",
       "kind": "mcp",
       "optional": true,
+      "mcp": {
+        "server": {
+          "type": "stdio",
+          "command": "~/.local/bin/agentmemory-mcp",
+          "args": []
+        },
+        "validation_hint": "Run the target runtime's MCP status command or inspect the generated .mcp.json-compatible config."
+      },
       "local_wiring": [
         "Codex MCP: ~/.codex/config.toml mcp_servers.agentmemory",
         "Cursor MCP: ~/.cursor/mcp.json mcpServers.agentmemory",

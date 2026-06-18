@@ -55,6 +55,25 @@ const targets = {
     additionalCommandOutputs: [codexOpenAiAgentOutput],
     staticOutputs: codexStaticOutputs,
   },
+  deepagents: {
+    label: "Deep Agents Code skills, instructions, subagents, and MCP",
+    commandRenders: ["skills"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "deepagents",
+    subagentOutputRoot: deepagentsAgentRoot,
+    subagentOutputName: deepagentsSubagentOutputName,
+    staticRenders: ["rules"],
+    commandOutputRoot: deepagentsSkillRoot,
+    renderCommand: renderDeepAgentsSkill,
+    renderSubagent: renderDeepAgentsSubagent,
+    installRoot: installRootDeepagents,
+    commandOutputName: codexSkillOutputName,
+    staticOutputs: deepagentsStaticOutputs,
+    mcpConfig: {
+      relativeOutput: deepagentsMcpPath,
+      defaultEnabled: false,
+    },
+  },
   cline: {
     label: "Cline workflows and rules",
     commandRenders: ["commands-as-workflows"],
@@ -140,6 +159,10 @@ const targets = {
     renderSubagent: renderDroidSubagent,
     installRoot: installRootDroid,
     staticOutputs: droidStaticOutputs,
+    mcpConfig: {
+      relativeOutput: () => path.join(".factory", "mcp.json"),
+      defaultEnabled: true,
+    },
   },
   copilot: {
     label: "GitHub Copilot global instructions",
@@ -323,7 +346,7 @@ Usage:
   agent-surface check ignores
   agent-surface check subagents
   agent-surface build --target <target|all> [--dry-run]
-  agent-surface install --target <target> [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
+  agent-surface install --target <target>[,<target>...] [--runtime <runtime>[,<runtime>...]] [--category <category>[,<category>...]] [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
   agent-surface doctor
   agent-surface workflow doctor --run <run_id>
@@ -448,6 +471,13 @@ async function readSourceKinds() {
   if (sourceKindsCache !== undefined) return sourceKindsCache;
   sourceKindsCache = JSON.parse(await readFile(path.join(root, "registry", "source-kinds.json"), "utf8"));
   return sourceKindsCache;
+}
+
+let optionalServicesCache;
+async function readOptionalServices() {
+  if (optionalServicesCache !== undefined) return optionalServicesCache;
+  optionalServicesCache = JSON.parse(await readFile(path.join(root, "registry", "optional-services.json"), "utf8"));
+  return optionalServicesCache;
 }
 
 function sourceKindPolicy(sourceKindsConfig, sourceKind) {
@@ -864,6 +894,13 @@ function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".agents", "skills", "ops-flow", "agents", "openai.yaml"), /allow_implicit_invocation: false/);
     requireContains(path.join(".codex", "agents", "boss.toml"), /^name = "boss"\n/);
     requireContains(path.join(".codex", "AGENTS.md"), /agent-surface global Codex rules/);
+  } else if (target === "deepagents") {
+    requireContains(path.join(".deepagents", "agent", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
+    requireContains(path.join(".deepagents", "agent", "AGENTS.md"), /agent-surface Deep Agents Code rules/);
+    requireContains(path.join(".deepagents", "agent", "agents", "worker", "AGENTS.md"), /^---\nname: worker\n/);
+    if (byPath.has(path.join(".deepagents", "agent", "agents", "boss", "AGENTS.md"))) {
+      errors.push("Deep Agents must not emit read-only subagents as unrestricted AGENTS.md subagents");
+    }
   } else if (target === "gemini-cli") {
     requireContains(path.join(".gemini", "GEMINI.md"), /agent-surface global Gemini rules/);
     requireContains(path.join(".gemini", "agents", "boss.md"), /^---\nname: boss\n/);
@@ -961,42 +998,137 @@ async function build(args) {
 }
 
 async function install(args) {
-  const target = requiredArgValue(args, "--target");
+  const selectedTargets = selectedInstallTargets(args);
   const scope = argValue(args, "--scope") ?? "project";
   const dryRun = args.includes("--dry-run");
   const allowScopeRoot = args.includes("--allow-scope-root");
   const dest = argValue(args, "--dest");
-  const adapter = targets[target];
+  const categoryFilter = installCategoryFilter(args);
+  const optionalServices = optionalServiceFilter(args);
+  const agentName = argValue(args, "--agent") ?? "agent";
 
-  if (!adapter) fail(`unsupported install target: ${target}`);
   if (!["project", "user"].includes(scope)) fail(`unsupported install scope: ${scope}`);
+  if (!isSafeTargetName(agentName)) fail(`unsafe --agent: ${agentName}`);
+  if (optionalServices && !categoryFilter?.has("mcps")) {
+    fail("--service currently applies only to --category mcps");
+  }
   if (!dryRun && !dest && !allowScopeRoot) {
     fail("live install requires explicit --dest or --allow-scope-root after reviewing --dry-run");
   }
 
-  const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
-  if (installRoot === path.parse(installRoot).root) fail("install root cannot be filesystem root");
-  const plan = await installPlan(target, adapter, installRoot, scope, dest ? "explicit --dest" : "scope-derived root");
+  const plans = [];
+  for (const target of selectedTargets) {
+    const adapter = targets[target];
+    if (!adapter) fail(`unsupported install target: ${target}`);
+    const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
+    if (installRoot === path.parse(installRoot).root) fail("install root cannot be filesystem root");
+    plans.push(await installPlan(target, adapter, installRoot, scope, dest ? "explicit --dest" : "scope-derived root", {
+      agentName,
+      categoryFilter,
+      optionalServices,
+    }));
+  }
+  addCrossPlanInstallConflicts(plans);
 
-  printInstallPlan(plan);
-  if (plan.blocked.length > 0) {
+  const blocked = plans.flatMap((plan) => plan.blocked.map((item) => `${plan.target}: ${item}`));
+  for (const plan of plans) {
+    printInstallPlan(plan);
+  }
+  if (blocked.length > 0) {
     process.exitCode = 1;
     return;
   }
 
   if (!dryRun) {
-    await applyInstallPlan(plan);
+    for (const plan of plans) {
+      await applyInstallPlan(plan);
+    }
   }
 }
 
-async function installPlan(target, adapter, installRoot, scope, rootSource) {
+function addCrossPlanInstallConflicts(plans) {
+  const planned = new Map();
+  for (const plan of plans) {
+    const outputs = [
+      ...plan.writes.map((item) => ({ output: item.output, relativeOutput: item.relativeOutput })),
+      ...plan.configMerges.map((item) => ({ output: item.output, relativeOutput: item.relativeOutput })),
+    ];
+    for (const item of outputs) {
+      const previous = planned.get(item.output);
+      if (!previous) {
+        planned.set(item.output, { target: plan.target, plan, relativeOutput: item.relativeOutput });
+        continue;
+      }
+      plan.blocked.push(`output ${item.relativeOutput} also planned by ${previous.target}`);
+      previous.plan.blocked.push(`output ${previous.relativeOutput} also planned by ${plan.target}`);
+    }
+  }
+}
+
+function selectedInstallTargets(args) {
+  const values = splitArgValues([...argValues(args, "--target"), ...argValues(args, "--runtime")]);
+  if (values.length === 0) fail("missing required --target or --runtime");
+  if (values.includes("all")) return Object.keys(targets);
+  const selected = uniqueStrings(values);
+  for (const target of selected) {
+    if (!isSafeTargetName(target)) fail(`unsafe install target: ${target}`);
+    if (!Object.hasOwn(targets, target)) fail(`unsupported install target: ${target}`);
+  }
+  return selected;
+}
+
+function installCategoryFilter(args) {
+  const values = splitArgValues([...argValues(args, "--category"), ...argValues(args, "--categories")]);
+  if (values.length === 0 || values.includes("all")) return null;
+  const known = new Set([
+    "commands",
+    "commands-as-workflows",
+    "skills",
+    "rules",
+    "instructions",
+    "prompts",
+    "subagents",
+    "ignores",
+    "plugins",
+    "external",
+    "mcps",
+  ]);
+  const selected = new Set(values);
+  for (const value of selected) {
+    if (!known.has(value)) fail(`unsupported install category: ${value}`);
+  }
+  return selected;
+}
+
+function optionalServiceFilter(args) {
+  const values = splitArgValues(argValues(args, "--service"));
+  return values.length > 0 ? new Set(values) : null;
+}
+
+function splitArgValues(values) {
+  return values
+    .flatMap((value) => value.split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+async function installPlan(target, adapter, installRoot, scope, rootSource, options = {}) {
+  const categoryFilter = options.categoryFilter ?? null;
+  const optionalServices = options.optionalServices ?? null;
   const commandFiles = await exportableCommands();
   const sourceKindsConfig = await readSourceKinds();
   const version = await packageVersion();
   const generatedAt = new Date().toISOString();
   const manifestPath = path.join(installRoot, ".agent-surface", `${target}-manifest.json`);
   const previousManifest = await readJsonIfExists(manifestPath);
-  const outputs = await targetOutputs(adapter, commandFiles, { target, scope, mode: "install" });
+  const outputs = (await targetOutputs(adapter, commandFiles, {
+    target,
+    scope,
+    mode: "install",
+    agentName: options.agentName ?? "agent",
+    categoryFilter,
+    optionalServices,
+  })).filter((output) => outputAppliesToCategory(output, categoryFilter));
   const writes = [];
   const managed = [];
   const blocked = [];
@@ -1057,8 +1189,9 @@ async function installPlan(target, adapter, installRoot, scope, rootSource) {
     item.action = "overwrite";
   }
 
+  const partialInstall = categoryFilter !== null || optionalServices !== null;
   const liveOutputs = new Set(managed.map((item) => item.output));
-  const staleManaged = Array.isArray(previousManifest?.managed)
+  const staleManaged = !partialInstall && Array.isArray(previousManifest?.managed)
     ? previousManifest.managed
       .filter((item) => item?.managed_by === "agent-surface")
       .filter((item) => item?.target === target)
@@ -1068,7 +1201,9 @@ async function installPlan(target, adapter, installRoot, scope, rootSource) {
     : [];
   const staleRemovals = staleManaged.map((item) => item.output);
   const staleRemovalActions = [];
-  const configMerges = target === "kilo" ? [await prepareKiloConfigMerge(await kiloConfigMerge(installRoot, scope))] : [];
+  const configMerges = target === "kilo" && (!categoryFilter || categoryFilter.has("rules"))
+    ? [await prepareKiloConfigMerge(await kiloConfigMerge(installRoot, scope))]
+    : [];
 
   for (const item of configMerges) {
     if (item.action === "blocked") blocked.push(item.error);
@@ -1090,11 +1225,23 @@ async function installPlan(target, adapter, installRoot, scope, rootSource) {
     staleRemovalActions.push({ output, relativeOutput: item.output, action: "remove" });
   }
 
+  if (categoryFilter && writes.length === 0 && configMerges.length === 0 && nonApplicable.length === 0) {
+    blocked.push(`no installable outputs for categories: ${[...categoryFilter].sort().join(", ")}`);
+  }
+
+  const retainedManaged = partialInstall && Array.isArray(previousManifest?.managed)
+    ? previousManifest.managed
+      .filter((item) => item?.managed_by === "agent-surface")
+      .filter((item) => item?.target === target)
+      .filter((item) => typeof item.output === "string")
+      .filter((item) => !liveOutputs.has(item.output))
+    : [];
+  const manifestManaged = [...retainedManaged, ...managed].sort((left, right) => left.output.localeCompare(right.output));
   const manifest = {
     target,
     scope,
     generated_at: generatedAt,
-    managed,
+    managed: manifestManaged,
   };
 
   return {
@@ -1104,6 +1251,8 @@ async function installPlan(target, adapter, installRoot, scope, rootSource) {
     installRoot,
     manifestPath,
     generatedAt,
+    categories: categoryFilter ? [...categoryFilter].sort() : null,
+    services: optionalServices ? [...optionalServices].sort() : null,
     writes,
     staleRemovals,
     staleRemovalActions,
@@ -1120,6 +1269,11 @@ function outputAppliesToScope(output, scope, sourceKindsConfig) {
   return policy.install_scopes.includes(scope);
 }
 
+function outputAppliesToCategory(output, categoryFilter) {
+  if (!categoryFilter) return true;
+  return categoryFilter.has(output.renderKind) || categoryFilter.has(output.sourceKind);
+}
+
 // Any generated output must declare a source kind and that kind must be
 // defined in the registry. Missing/unknown source kinds are checked in generated
 // validation and install planning; this helper exists for call sites that do not
@@ -1132,6 +1286,8 @@ function requireKnownSourceKind(output, sourceKindsConfig, errors) {
 function printInstallPlan(plan) {
   console.log(`target: ${plan.target}`);
   console.log(`scope: ${plan.scope}`);
+  if (plan.categories) console.log(`categories: ${plan.categories.join(", ")}`);
+  if (plan.services) console.log(`services: ${plan.services.join(", ")}`);
   console.log(`root source: ${plan.rootSource}`);
   console.log(`root: ${plan.installRoot}`);
   console.log("planned writes:");
@@ -2014,6 +2170,22 @@ function renderCodexSubagent(source) {
   return lines.join("\n");
 }
 
+function renderDeepAgentsSubagent(source) {
+  const lines = [
+    "---",
+    `name: ${source.metadata.name}`,
+    `description: "${yamlString(source.metadata.description)}"`,
+  ];
+  if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
+  lines.push(
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  );
+  return lines.join("\n");
+}
+
 function renderOpenCodeSubagent(source) {
   const mapped = opencodeSubagentAccess(source.metadata.access);
   const lines = [
@@ -2043,7 +2215,10 @@ function claudeSubagentAccess(access) {
 
 function codexSubagentSandboxMode(access) {
   if (access === "read-only") return "read-only";
-  if (access === "read-write" || access === "read-write-shell") return "workspace-write";
+  if (access === "read-write-shell") return "workspace-write";
+  // Codex sandbox modes do not separate file writes from shell execution.
+  // Refuse the intermediate tier instead of silently granting command access.
+  if (access === "read-write") fail("codex subagent access read-write is not representable; use read-only or read-write-shell");
   fail(`unsupported subagent access: ${access}`);
 }
 
@@ -2099,8 +2274,16 @@ async function renderCodexSkill(source) {
   });
 }
 
+async function renderDeepAgentsSkill(source) {
+  return renderSkillMarkdown(source, {
+    invocationPrefix: null,
+    generatedFor: "Deep Agents Code",
+    hostInstruction: "Deep Agents discovers this skill from its frontmatter and reads it when the task matches the description.",
+  });
+}
+
 function renderSkillMarkdown(source, options = {}) {
-  const invocationPrefix = options.invocationPrefix ?? "$";
+  const invocationPrefix = Object.hasOwn(options, "invocationPrefix") ? options.invocationPrefix : "$";
   const generatedFor = options.generatedFor ?? "agent-surface skill";
   const description = yamlString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   const hostInstruction = options.hostInstruction ?? `Invoke \`${invocationPrefix}${source.name}\` when this skill is needed.`;
@@ -2112,7 +2295,7 @@ function renderSkillMarkdown(source, options = {}) {
     "",
     `# ${source.name}`,
     "",
-    `Use explicit invocation: \`${invocationPrefix}${source.name}\`.`,
+    invocationPrefix === null ? "Use this skill when its description matches the task." : `Use explicit invocation: \`${invocationPrefix}${source.name}\`.`,
     `This skill is generated by agent-surface from \`${source.relativePath}\` for ${generatedFor}.`,
     hostInstruction,
     "",
@@ -2176,8 +2359,20 @@ async function codexStaticOutputs() {
   return [
     {
       source: "rules/*.mdc",
+      renderKind: "rules",
       relativeOutput: path.join(".codex", "AGENTS.md"),
       content: await renderInstructionDocument("AGENTS.md - agent-surface global Codex rules", "Codex global instructions"),
+    },
+  ];
+}
+
+async function deepagentsStaticOutputs(_commands, context) {
+  return [
+    {
+      source: "rules/*.mdc",
+      renderKind: "rules",
+      relativeOutput: deepagentsInstructionPath(context),
+      content: await renderInstructionDocument("AGENTS.md - agent-surface Deep Agents Code rules", "Deep Agents Code instructions"),
     },
   ];
 }
@@ -2271,10 +2466,10 @@ async function droidStaticOutputs(_commands, context) {
   return [
     {
       source: "rules/*.mdc",
+      renderKind: "rules",
       relativeOutput: droidInstructionPath(context),
       content: await renderInstructionDocument("AGENTS.md - agent-surface Droid rules", "Droid instructions"),
     },
-    droidAgentmemoryMcpOutput(),
     ...(await droidExternalSkillOutputs()),
   ];
 }
@@ -2283,21 +2478,44 @@ function droidInstructionPath(context) {
   return context.scope === "user" ? path.join(".factory", "AGENTS.md") : "AGENTS.md";
 }
 
-function droidAgentmemoryMcpOutput() {
-  return {
+async function optionalMcpOutputs(adapter, context) {
+  if (!adapter.mcpConfig.defaultEnabled && !context.categoryFilter?.has("mcps")) return [];
+
+  const registry = await readOptionalServices();
+  const entries = Object.entries(registry.services)
+    .filter(([, service]) => service.kind === "mcp")
+    .filter(([id]) => !context.optionalServices || context.optionalServices.has(id));
+  if (context.optionalServices) {
+    const known = new Set(entries.map(([id]) => id));
+    for (const id of context.optionalServices) {
+      if (!known.has(id)) fail(`missing optional MCP service: ${id}`);
+    }
+  }
+  if (entries.length === 0) return [];
+
+  const mcpServers = {};
+  for (const [id, service] of entries.sort(([left], [right]) => left.localeCompare(right))) {
+    mcpServers[id] = optionalServiceMcpServer(service);
+  }
+
+  return [{
     sourceKind: "external",
-    renderKind: "external",
+    renderKind: "mcps",
     source: "registry/optional-services.json",
-    relativeOutput: path.join(".factory", "mcp.json"),
-    content: `${JSON.stringify({
-      mcpServers: {
-        agentmemory: {
-          type: "stdio",
-          command: "~/.local/bin/agentmemory-mcp",
-          args: [],
-        },
-      },
-    }, null, 2)}\n`,
+    relativeOutput: outputRootFor(adapter.mcpConfig.relativeOutput, context),
+    content: `${JSON.stringify({ mcpServers }, null, 2)}\n`,
+  }];
+}
+
+function optionalServiceMcpServer(service) {
+  const server = service.mcp?.server;
+  if (!server || typeof server !== "object" || Array.isArray(server)) {
+    fail(`optional service ${service.path} is missing an MCP server contract`);
+  }
+  return {
+    type: server.type,
+    command: server.command,
+    args: server.args ?? [],
   };
 }
 
@@ -2641,6 +2859,7 @@ async function targetOutputs(adapter, commands, context) {
       ...output,
       producerId: producer.id,
       sourceKind: output.sourceKind ?? producer.sourceKind,
+      renderKind: output.renderKind ?? producerDefaultRenderKind(producer),
     })));
   }
 
@@ -2677,6 +2896,9 @@ function targetProducers(adapter) {
   if (adapter.ignoreFilename) {
     producers.push({ id: "ignores", sourceKind: "ignores", emits: ["ignores"], produce: () => ignoreOutputs(adapter) });
   }
+  if (adapter.mcpConfig) {
+    producers.push({ id: "mcps", sourceKind: "external", emits: ["mcps"], produce: (_commands, context) => optionalMcpOutputs(adapter, context) });
+  }
   return producers;
 }
 
@@ -2686,6 +2908,10 @@ function producerEmitsFor(adapter) {
     for (const token of producer.emits ?? []) emits.add(token);
   }
   return emits;
+}
+
+function producerDefaultRenderKind(producer) {
+  return producer.emits?.length === 1 ? producer.emits[0] : producer.id;
 }
 
 async function produceCommandOutputs(adapter, commands, context) {
@@ -3106,6 +3332,10 @@ function installRootCodex(scope) {
   return os.homedir();
 }
 
+function installRootDeepagents(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
 function installRootOpencode(scope) {
   return scope === "user" ? os.homedir() : process.cwd();
 }
@@ -3157,6 +3387,32 @@ async function kiloConfigStatus() {
 
 function clineWorkflowRoot(context) {
   return context.scope === "user" ? path.join(".cline", "data", "workflows") : path.join(".clinerules", "workflows");
+}
+
+function deepagentsSkillRoot(context) {
+  return context.scope === "user"
+    ? path.join(".deepagents", context.agentName ?? "agent", "skills")
+    : path.join(".deepagents", "skills");
+}
+
+function deepagentsInstructionPath(context) {
+  return context.scope === "user"
+    ? path.join(".deepagents", context.agentName ?? "agent", "AGENTS.md")
+    : path.join(".deepagents", "AGENTS.md");
+}
+
+function deepagentsAgentRoot(context) {
+  return context.scope === "user"
+    ? path.join(".deepagents", context.agentName ?? "agent", "agents")
+    : path.join(".deepagents", "agents");
+}
+
+function deepagentsSubagentOutputName(source) {
+  return path.join(source.metadata.name, "AGENTS.md");
+}
+
+function deepagentsMcpPath() {
+  return path.join(".deepagents", ".mcp.json");
 }
 
 function clineRuleRoot(context) {

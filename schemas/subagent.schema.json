@@ -34,6 +34,7 @@
       "required": [
         "claude-code",
         "codex",
+        "deepagents",
         "cursor",
         "droid",
         "kilo",
@@ -47,6 +48,9 @@
           "type": "boolean"
         },
         "codex": {
+          "type": "boolean"
+        },
+        "deepagents": {
           "type": "boolean"
         },
         "cursor": {

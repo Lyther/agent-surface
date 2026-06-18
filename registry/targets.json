@@ -19,6 +19,17 @@
         "rules"
       ]
     },
+    "deepagents": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "skills",
+        "rules",
+        "subagents",
+        "mcps"
+      ]
+    },
     "gemini-cli": {
       "status": "implemented",
       "build_supported": true,
@@ -107,6 +118,7 @@
         "commands",
         "rules",
         "subagents",
+        "mcps",
         "external"
       ]
     },

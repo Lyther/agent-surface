@@ -2,12 +2,12 @@
 
 Typed source and adapter compiler for coding-agent surfaces.
 
-Write commands, rules, subagents, external packs, and ignore files once in the repo source tree, then render them into the native formats used by Claude Code, Codex, Cursor, Droid, Cline, Kilo, Antigravity, and other agent hosts.
+Write commands, rules, subagents, external packs, and ignore files once in the repo source tree, then render them into the native formats used by Claude Code, Codex, Deep Agents Code, Cursor, Droid, Cline, Kilo, Antigravity, and other agent hosts.
 
 ## What it does
 
 - **Source primitive compiler**: `commands/`, `rules/`, `subagents/`, external packs, and `ignores/` are rendered per target by explicit producers.
-- **Target adapter outputs**: each target receives the files it natively understands (commands, workflows, skills, instructions, plugins, rules, subagents, or ignore files).
+- **Target adapter outputs**: each target receives the files it natively understands (commands, workflows, skills, instructions, plugins, rules, subagents, MCP config, or ignore files).
 - **Optional external wiring**: selected upstream packs in `external/` can be rendered into native target surfaces instead of remaining inert submodules.
 - **Sync-aware install**: dry-run previews, project-only gating for project-scoped artifacts, manifest tracking, and backups.
 
@@ -17,6 +17,7 @@ Implemented:
 
 - Claude Code
 - Codex
+- Deep Agents Code
 - Cursor
 - Droid
 - Cline
@@ -64,6 +65,7 @@ Dry-run an install before writing anything live:
 ```bash
 node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
 node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
+node scripts/agent-surface.mjs install --target deepagents --scope user --dry-run
 node scripts/agent-surface.mjs install --target droid --scope user --dry-run
 ```
 
@@ -101,11 +103,23 @@ node scripts/agent-surface.mjs build --target antigravity-cli --dry-run
 node scripts/agent-surface.mjs build --target cline --dry-run
 ```
 
+Install selected runtimes and categories:
+
+```bash
+node scripts/agent-surface.mjs install --runtime codex,kilo --category rules --dest /path/to/project --dry-run
+node scripts/agent-surface.mjs install --runtime deepagents --category skills --category subagents --dest /path/to/project --dry-run
+node scripts/agent-surface.mjs install --runtime deepagents --category mcps --service agentmemory --dest /path/to/project --dry-run
+```
+
 ## Install behavior
 
 - Install is sync-oriented: existing files are overwritten by default.
+- `--target` and `--runtime` accept repeated or comma-separated runtime IDs.
+- `--category` accepts repeated or comma-separated output categories such as `skills`, `rules`, `subagents`, `commands`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, and `ignores`.
+- `--service <id>` narrows `--category mcps` to a specific optional MCP service from `registry/optional-services.json`.
 - Project-only artifacts (`ignores/`) are skipped on user-scope installs; use `--dest` to install them into a project.
 - Droid user installs write `.factory/commands/`, `.factory/droids/`, `.factory/skills/`, `.factory/mcp.json`, and `.factory/AGENTS.md`; project installs write project `AGENTS.md` plus project `.factory/` assets.
+- Deep Agents user installs write `~/.deepagents/<agent>/`; project installs write `.deepagents/`. Use `--agent <name>` to select a non-default user agent directory.
 - Manifests track generated files so stale outputs can be removed on the next install.
 - Backups are written to `.agent-surface/backups/` before overwrite or removal.
 
@@ -121,6 +135,7 @@ node scripts/agent-surface.mjs build --target cline --dry-run
 
 - Claude Code: `.claude/agents/<name>.md`
 - Codex: `.codex/agents/<name>.toml`
+- Deep Agents Code: `.deepagents/agents/worker/AGENTS.md` for the worker profile; read-only roles are not emitted because Deep Agents Code files cannot represent per-subagent tool restrictions.
 - Cursor: `.cursor/agents/<name>.md`
 - Kilo user installs: `~/.config/kilo/agents/<name>.md`
 - Kilo project installs: `.kilo/agents/<name>.md`

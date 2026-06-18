@@ -1,5 +1,5 @@
 {
-  "reviewed_at": "2026-06-18",
+  "reviewed_at": "2026-06-19",
   "targets": {
     "claude-code": {
       "summary": "Claude Code supports native slash commands, subagents, MCP, and skills; agent-surface generates commands and subagents and leaves MCP/skills manual to avoid duplicated command surfaces and secret-bearing config edits.",
@@ -143,6 +143,83 @@
             ".codex/config.toml"
           ],
           "notes": "MCP server entries can expose tools and secrets, so agent-surface does not auto-merge them."
+        }
+      }
+    },
+    "deepagents": {
+      "summary": "Deep Agents Code supports skills, instruction files, custom subagents, and MCP config; agent-surface generates skills, instructions, the representable worker subagent, and optional registry-backed MCP config.",
+      "generated_render_tokens": [
+        "skills",
+        "rules",
+        "subagents",
+        "mcps"
+      ],
+      "evidence": [
+        {
+          "label": "Deep Agents Code overview",
+          "url": "https://docs.langchain.com/oss/python/deepagents/code/overview"
+        },
+        {
+          "label": "Deep Agents Code data locations",
+          "url": "https://docs.langchain.com/oss/python/deepagents/code/data-locations"
+        },
+        {
+          "label": "Deep Agents Code MCP tools",
+          "url": "https://docs.langchain.com/oss/python/deepagents/code/mcp-tools"
+        }
+      ],
+      "surfaces": {
+        "skills": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.deepagents/agent/skills/<command>/SKILL.md",
+            ".deepagents/skills/<command>/SKILL.md"
+          ],
+          "notes": "Command sources render as Deep Agents Code SKILL.md directories; --agent changes the user-level agent directory."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.deepagents/agent/AGENTS.md",
+            ".deepagents/AGENTS.md"
+          ],
+          "notes": "Rules render as Deep Agents Code instruction files; project root AGENTS.md remains available for project-owned instructions."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.deepagents/agent/agents/<name>/AGENTS.md",
+            ".deepagents/agents/<name>/AGENTS.md"
+          ],
+          "notes": "Deep Agents Code subagent files cannot configure per-subagent tools, so only the read-write-shell worker profile is emitted."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.deepagents/.mcp.json",
+            ".deepagents/.mcp.json"
+          ],
+          "notes": "Optional MCP output is registry-backed and generated only when the mcps category is requested."
         }
       }
     },
@@ -750,6 +827,7 @@
         "commands",
         "rules",
         "subagents",
+        "mcps",
         "external"
       ],
       "evidence": [
@@ -796,6 +874,18 @@
           ],
           "notes": "Normalized subagents render as Droid definitions."
         },
+        "mcp": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            ".factory/mcp.json"
+          ],
+          "notes": "Optional MCP output is generated from registry/optional-services.json and currently preserves the local agentmemory wiring."
+        },
         "external": {
           "support": "native",
           "generation": "generated",
@@ -804,7 +894,6 @@
             "project"
           ],
           "paths": [
-            ".factory/mcp.json",
             ".factory/skills/<skill>/..."
           ],
           "notes": "External packs are optional and render only when the corresponding submodule checkout exists."
