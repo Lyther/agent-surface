@@ -84,7 +84,7 @@ Expected current target families:
 - skill/plugin target: `codex`, `antigravity-cli`
 - instruction/rules targets: `copilot`, `vscode`, `opencode`, `trae`
 
-Do not expect removed primitive producers (`mcps`, `subagents`, generated hooks) unless the compiler has reintroduced them.
+Do not expect removed primitive producers (`mcps`, generated hooks) unless the compiler has reintroduced them.
 
 ### Check 4: Rule Budget
 
@@ -142,7 +142,7 @@ For `--scope local|all`, inspect installed manifests without editing them:
 | `cursor` | `~/.agent-surface/cursor-manifest.json` |
 | `kilo` | `~/.agent-surface/kilo-manifest.json` |
 | `antigravity` | `~/.gemini/antigravity/.agent-surface/antigravity-manifest.json` |
-| `antigravity-cli` | `~/.gemini/antigravity-cli/.agent-surface/antigravity-cli-manifest.json` |
+| `antigravity-cli` | `~/.gemini/.agent-surface/antigravity-cli-manifest.json` |
 | `vscode` / `copilot` | VS Code user config `.agent-surface/*-manifest.json` |
 
 For each manifest:

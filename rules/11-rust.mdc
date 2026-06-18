@@ -1,0 +1,53 @@
+---
+description: "Rust-specific correctness rules"
+globs:
+  - "**/*.rs"
+  - "Cargo.toml"
+  - "Cargo.lock"
+  - "rust-toolchain.toml"
+  - "rustfmt.toml"
+  - "clippy.toml"
+alwaysApply: false
+---
+
+# Rust
+
+Use the repository's toolchain, feature set, error conventions, and scripts. Do not migrate stack or tooling unless asked.
+
+## Forbidden / default-deny
+
+These differ from a model's defaults; fix the underlying issue. Genuine exceptions need an inline reason. `#[allow(...)]` is permitted only on a module containing only generated code (e.g. `include!(concat!(env!("OUT_DIR"), ...))`).
+
+- **Silent failures**: no `.unwrap()`/`.expect()` in non-test code, no `let _ = fallible()`, no `if let Ok(x) = result {}` that drops the error. Propagate with `?`, or match and act on `Err`. Tests may panic.
+- **Borrow-checker appeasement**: don't `.clone()`, `Rc<RefCell<T>>` across module boundaries, or reach for `Arc<Mutex<T>>` for non-concurrent data to satisfy the checker. If borrowing is hard, the ownership model is wrong — redesign it.
+- **`.clone()` to bypass the checker** is a design flaw, not a fix.
+- **Unfinished paths**: no `todo!()`, `unimplemented!()`, debug `println!()`/`dbg!()`, or `// TODO` standing in for required behavior.
+- **Erased context**: `map_err(|_| Error::Io)` loses information; use `map_err(|e| ConfigError::Read { path, source: e })`.
+- **`Box<dyn Trait>` without justification**: prefer generics; `dyn` is for heterogeneous collections or plugin systems.
+- **`'static` bounds to avoid thinking**: forces allocation, prevents borrowing.
+
+## Errors
+
+Error types are enums with specific variants (not `Error(String)` or an `Other(String)` catch-all), implement `std::error::Error`, and carry user-helpful `Display` + context. Prefer `thiserror` for libraries, `anyhow` for binaries.
+
+## `unsafe`
+
+Last resort, maximally isolated behind a safe wrapper that validates preconditions. Every `unsafe` block carries a `// SAFETY:` comment naming the invariant and why it holds at that site.
+
+## Toolchain gate
+
+Run in order; each green before the next. Prefer repository scripts; otherwise:
+
+```bash
+cargo fmt --all --check
+RUSTFLAGS="-Dwarnings" cargo check --workspace --all-targets --all-features
+cargo clippy --workspace --all-targets --all-features -- -D clippy::all
+RUSTFLAGS="-Dwarnings" cargo test --workspace --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace
+```
+
+### Clippy strictness
+
+Use the repo's `clippy.toml` first. For new strict configs, deny `clippy::all` and add high-signal denies: `unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented`, `dbg_macro`, `print_stdout`, `print_stderr`, `undocumented_unsafe_blocks`. Keep `pedantic`/`nursery`/`cargo` as warnings unless the repo already denies them. Avoid broad restriction lints (e.g. `as_conversions`) unless the repo chose them.
+
+Security: `cargo audit`, `cargo deny check`. Miri (`cargo +nightly miri test`) only when nightly, target support, and code shape make it meaningful — otherwise report not available.

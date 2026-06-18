@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "agent-surface normalized subagent source",
+  "type": "object",
+  "required": [
+    "name",
+    "description",
+    "access",
+    "model",
+    "targets"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 30
+    },
+    "access": {
+      "enum": [
+        "read-only",
+        "read-write",
+        "read-write-shell"
+      ]
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "targets": {
+      "type": "object",
+      "required": [
+        "claude-code",
+        "codex",
+        "deepagents",
+        "cursor",
+        "droid",
+        "kilo",
+        "gemini-cli",
+        "antigravity-cli",
+        "antigravity",
+        "opencode"
+      ],
+      "properties": {
+        "claude-code": {
+          "type": "boolean"
+        },
+        "codex": {
+          "type": "boolean"
+        },
+        "deepagents": {
+          "type": "boolean"
+        },
+        "cursor": {
+          "type": "boolean"
+        },
+        "droid": {
+          "type": "boolean"
+        },
+        "kilo": {
+          "type": "boolean"
+        },
+        "gemini-cli": {
+          "type": "boolean"
+        },
+        "antigravity-cli": {
+          "type": "boolean"
+        },
+        "antigravity": {
+          "type": "boolean"
+        },
+        "opencode": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

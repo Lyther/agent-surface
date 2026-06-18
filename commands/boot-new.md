@@ -41,7 +41,11 @@ This command creates the **context infrastructure** that enables smooth vibe cod
     - `.cursor/`: For AI memory (`review-log.md`, `nuke-state.md`, `lessons.md`).
     - `scripts/`: For task automation.
 3. **Docs naming**: kebab-case for docs (exceptions: `README.md`, `LICENSE`, `CHANGELOG.md`).
-4. **No raw web assets** in source; UI stacks are Rust (Leptos) or Python (Reflex).
+4. **UI intent**:
+    - Product UI default: Rust (Leptos) or Python (Reflex).
+    - Internal admin/ops/review console default: React with the repo's existing stack; if greenfield and the user wants ByteDance-style frontend, prefer Arco or Semi with a Modern.js/Rsbuild/Rspack-compatible scaffold.
+    - Existing repo: preserve the manifest-proven stack instead of migrating for taste.
+    - Do not place raw web assets in source except minimal interop shims or repo-established frontend source files.
 
 ### Phase 2: Git Foundation
 
@@ -114,7 +118,7 @@ This command creates the **context infrastructure** that enables smooth vibe cod
 - **IF Go**:
   - Ensure `go.mod` exists; run `go mod init <module-path>` if missing.
   - **MANDATORY formatters**: `gofumpt` (stricter superset of gofmt) + `goimports` (import hygiene). Plain `gofmt` alone is insufficient.
-  - **MANDATORY linter**: `golangci-lint` configured from the full §5.3 recipe in the active Go policy (`rules/12-lang-go.mdc` in agent-surface source, or the rendered host equivalent) — not the 6-linter minimum. The recipe enables `gosec`, `exhaustive`, `errorlint`, `gocritic`, `revive`, `unparam`, `bodyclose`, `contextcheck`, `nilerr`, `usestdlibvars`, `prealloc`, `dupl`, `goconst`, `unused`, plus complexity/cyclop/funlen/gocognit gates. Copy the config verbatim into the project's `.golangci.yml`.
+  - **MANDATORY linter**: `golangci-lint` configured with the strict-linter recipe from `rules/12-go.mdc` (in agent-surface source, or the rendered host equivalent) — not the 6-linter minimum. The recipe enables `gosec`, `exhaustive`, `errorlint`, `gocritic`, `revive`, `unparam`, `bodyclose`, `contextcheck`, `nilerr`, `usestdlibvars`, `prealloc`, `dupl`, `goconst`, `unused`, plus complexity/cyclop/funlen/gocognit gates. For greenfield projects with no existing config, seed the project's `.golangci.yml` from that recipe verbatim; preserve any stricter config already present.
   - **MANDATORY security scanner**: `govulncheck` in CI, blocking on known-vuln dependencies.
   - **Pin**: record `go` toolchain line in `go.mod`; pin the golangci-lint CI action and linter version explicitly using the current v2-compatible action for new projects. Prefer the repo's existing pinned version when present.
   - **Excludes**: add `issues.exclude-dirs` for vendored fixtures (`tests/fixtures/`) so linter doesn't run on non-code YAML.
@@ -164,25 +168,45 @@ This command creates the **context infrastructure** that enables smooth vibe cod
 
 ### Phase 7: UI Target Scaffold (web | desktop | mobile)
 
-**RULE**: One command set, multiple targets via `ui_target` flag. Approved UI stacks remain Rust (Leptos) or Python (Reflex). No raw JS/TS/CSS/HTML except minimal interop shims.
+**RULE**: One command set, multiple targets via `ui_target`; one product shape via `ui_intent`.
+
+Parameters:
+
+```text
+ui_target = web | desktop | mobile
+ui_intent = product | admin-tool | existing
+ui_library = arco | semi | repo-default
+```
 
 1. **Select Target**:
     - Default: `ui_target=web`
     - Supported: `web` | `desktop` | `mobile`
-2. **Adapters**:
+2. **Select Intent**:
+    - `product`: Use Leptos/Reflex unless the user or repo policy chooses another stack.
+    - `admin-tool`: For internal dashboards, review consoles, monitoring tools, and workflow control planes, use React with existing repo conventions. For greenfield ByteDance-style admin work, choose Arco or Semi; use Modern.js/Rsbuild/Rspack only when requested or already present.
+    - `existing`: Read `package.json`, app routing, theme files, component library imports, table/data-fetching patterns, and tests. Preserve the current framework and library, including TanStack Table/Query or route-loader patterns when already present.
+3. **Admin Tool Shape**:
+    - Pages: List, Detail, Action.
+    - List: filter form, table, pagination, status tag/badge, batch actions.
+    - Detail: drawer or side panel with descriptions, tabs, logs/timeline, and evidence links.
+    - Action: confirmation modal/form with visible state transitions and error handling.
+    - State: URL query for filters/pagination/sort; server-state layer for remote data; local state only for transient UI.
+    - Visualization: use VisActor (`VChart`/`VTable`) when dashboards or high-density analytical tables justify it.
+4. **Adapters**:
     - **desktop**: Tauri shell wrapping Leptos/Reflex app (WebView). Generate minimal Tauri config (app name, bundle identifiers), ignore platform-specific signing keys.
     - **mobile**: Prefer Tauri Mobile; fallback: Capacitor WebView hosting Leptos/Reflex build. Generate minimal Capacitor config if used.
-3. **Tasks (Makefile additions)**:
+    - For admin-tool React shells, use desktop/mobile WebView only if the user explicitly needs it; do not create extra shells by default.
+5. **Tasks (Makefile additions)**:
     - `make dev:web` → run web dev server
     - `make dev:desktop` → tauri dev
     - `make dev:mobile` → mobile dev (emulator/simulator if available)
     - `make build:web` → web production build
     - `make build:desktop` → tauri build (creates installers)
     - `make build:mobile` → mobile build (platform toolchain required)
-4. **Excludes & Packaging**:
+6. **Excludes & Packaging**:
     - Ensure `.cursorignore`/`.gitignore` exclude platform build artifacts (`src-tauri/target/`, `android/`, `ios/`, `dist/`).
     - Do not commit generated installers or store metadata.
-5. **Security**:
+7. **Security**:
     - Configure CSP consistent with app shell (no `'unsafe-inline'`).
     - No secrets in app bundle; runtime env injection only.
 

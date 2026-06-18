@@ -14,13 +14,13 @@ Go's simplicity is NOT an excuse for sloppy code. The language makes correctness
 ## PROCEDURE
 
 1. **Identify scope**: Determine which `.go` files were touched or are under review.
-2. **Apply language rules**: The full Go policy is in `rules/12-lang-go.mdc` in agent-surface source and may be rendered to the current host. Audit against every section.
+2. **Apply language rules**: The Go policy is in `rules/12-go.mdc` in agent-surface source and may be rendered to the current host. It carries the forbidden/default-deny list, concurrency rules, and the canonical `.golangci.yml` strict-linter recipe. Apply it together with the repository's configured linters and formatters; for greenfield projects with no config, seed `.golangci.yml` from that recipe.
 3. **Run toolchain gates** (in order — each must be green before the next):
 
 ```bash
 gofumpt -w . && goimports -w .      # formatters — gofumpt supersedes gofmt
 go vet ./...
-golangci-lint run ./...             # §5.3 recipe from 12-lang-go.mdc — gosec, exhaustive, errorlint, etc.
+golangci-lint run ./...             # strict set from rules/12-go.mdc (gosec, exhaustive, errorlint, etc.)
 govulncheck ./...                   # known-vuln deps — blocking
 go test -race -count=1 ./...
 ```
@@ -65,7 +65,7 @@ DEPENDENCIES:
 Toolchain commands: [list]
 gofumpt + goimports: [PASS/FAIL — zero diffs]
 go vet: [PASS/FAIL]
-golangci-lint: [PASS or specific issues; note which linters from §5.3 recipe ran]
+golangci-lint: [PASS or specific issues; note which strict linters ran]
 govulncheck: [PASS or CVE IDs]
 go test -race: [PASS with count]
 ```

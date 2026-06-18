@@ -1,0 +1,99 @@
+---
+description: "Go-specific correctness rules"
+globs:
+  - "**/*.go"
+  - "go.mod"
+  - "go.sum"
+  - ".golangci.yml"
+  - ".golangci.yaml"
+  - ".golangci.toml"
+alwaysApply: false
+---
+
+# Go
+
+Use the repository's Go version, dependencies, configuration, and scripts. Do not migrate stack or tooling unless asked.
+
+## Forbidden / default-deny
+
+These differ from a model's defaults; fix the underlying issue rather than suppressing it. Genuine exceptions need an inline reason.
+
+- **Silent failures**: never `_ = fallibleFunc()`, ignore an `error` return, leave `if err != nil {}` empty, or `recover()` without logging. Every error is returned with context (`fmt.Errorf("fetch user %s: %w", id, err)`), handled with recovery, or logged then discarded with justification.
+- **`panic` for control flow**: return an error. `panic`/`log.Fatal` are for truly unrecoverable invariants only.
+- **`interface{}`/`any` without a constraint**: use a concrete type or a typed generic. Add an interface only when there is an actual consumer that needs the abstraction.
+- **Goroutines without ownership**: every goroutine needs clear ownership, a termination path, cancellation where applicable, and surfaced errors. Use `errgroup` when errors or cancellation must propagate; `sync.WaitGroup` only when no error propagation is needed. `-race` is mandatory for concurrent changes.
+- **`//nolint` without a specific linter + inline reason**: prefer fixing the issue.
+- **`init()` with side effects**, global mutable state, naked returns in long functions, `time.Sleep` in tests.
+
+## Concurrency
+
+- Pass `context.Context` as the first parameter; honor `ctx.Done()`.
+- Coordinate shutdown with `errgroup` + a derived context; drain on `ctx.Done()` with a bounded `Shutdown` timeout.
+
+## Toolchain gate
+
+Run in order; each green before the next. Prefer repository scripts (`make check`); otherwise:
+
+```bash
+gofumpt -w . && goimports -w .   # formatters — gofumpt supersedes gofmt
+go vet ./...
+golangci-lint run ./...          # strict set below — not the 6-linter minimum
+govulncheck ./...                # known-vuln deps — blocking
+go test -race -count=1 ./...
+```
+
+Install tools via repo-pinned tooling (`tools.go`, `mise`, CI image); avoid unpinned `go install ...@latest`.
+
+### golangci-lint config (strict set)
+
+For greenfield projects with no existing config, seed `.golangci.yml` from this recipe; preserve any stricter config already present.
+
+```yaml
+version: "2"
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+linters:
+  enable:
+    - bodyclose
+    - contextcheck
+    - errcheck
+    - errorlint
+    - exhaustive
+    - govet
+    - nilerr
+    - nilnil
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - gocritic
+    - gosimple
+    - ineffassign
+    - misspell
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - cyclop
+    - funlen
+    - gocognit
+    - nestif
+    - gosec
+    - prealloc
+    - dupl
+    - goconst
+    - revive
+  settings:
+    cyclop: { max-complexity: 15 }
+    funlen: { lines: 80, statements: 50 }
+    gocognit: { min-complexity: 20 }
+    nestif: { min-complexity: 5 }
+    gocritic: { enabled-tags: [diagnostic, performance, style] }
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable: [gofumpt, goimports]
+```
+
+Pin the golangci-lint version and the CI action explicitly (v2 schema). Add `issues.exclude-dirs` for vendored fixtures so linters skip non-code YAML.

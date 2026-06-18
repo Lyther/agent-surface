@@ -1,0 +1,48 @@
+---
+description: "Python-specific correctness rules"
+globs:
+  - "**/*.py"
+  - "pyproject.toml"
+  - "uv.lock"
+  - "ruff.toml"
+  - ".ruff.toml"
+  - "pyrightconfig.json"
+  - ".python-version"
+alwaysApply: false
+---
+
+# Python
+
+Use the repository's supported Python version, dependencies, configuration, and scripts. Do not introduce a framework, validator, logger, or typing migration unless the task requires it.
+
+## Forbidden / default-deny
+
+These differ from a model's defaults; fix the underlying issue. Genuine exceptions need an inline reason with a specific code.
+
+- **Silent failures**: no bare `except:`, no `except Exception: pass`, no `except Exception as e: log(e)` without re-raise, no truthiness-as-error-check (`if result:`). Every handler re-raises, raises a more specific error, returns a typed error value, or documents why swallowing is safe.
+- **`Any` / `cast` / `# type: ignore` / `# noqa` to hide a defect**: scope and justify only genuine third-party or tool defects, with a specific code (`# type: ignore[import-untyped]`) and inline reason.
+- **Untyped boundaries**: external data (HTTP, CLI args, env, files, DB rows, external APIs) is parsed through Pydantic, attrs/cattrs, msgspec, or explicit runtime validation before flowing as `TypedDict`/dataclass. Don't let raw `dict` propagate.
+- **Foot-guns**: mutable default arguments (`def f(x=[])`), `import *`, `eval`/`exec`, `subprocess.run(shell=True)` with untrusted input, global mutable state, `__getattr__`/`__setattr__` magic, metaclasses outside frameworks.
+- **Implicit `Optional`** (`x: str = None`): write `x: str | None = None`.
+- **Garbage**: `print()` for diagnostics (use `logging`/`structlog`), `breakpoint()`/`pdb`, `NotImplementedError` in runtime paths.
+
+## Types
+
+Keep changed public contracts fully annotated. Use newtypes / Pydantic models for domain-distinct or invariant-bearing values; `dataclass(frozen=True, slots=True)` for validated internal data. Explicit `T | None` returns; raise only for unexpected cases.
+
+## Errors
+
+Define a meaningful exception hierarchy per package/domain (`ServiceError` → `ValidationError`, `NotFoundError`), not `Error(str)`.
+
+## Toolchain gate
+
+Run in order; each green before the next. Prefer repository scripts (`uv run`, `make check`); otherwise:
+
+```bash
+ruff format .
+ruff check .
+pyright .
+pytest -v
+```
+
+Use Ruff, Pyright, pytest only when present or required by the repository. If a tool is missing, report `not available` — do not pretend it passed. Security: `pip-audit` or `safety check`.

@@ -2,12 +2,13 @@
 
 Typed source and adapter compiler for coding-agent surfaces.
 
-Write commands, rules, and ignore files once in the repo source tree, then render them into the native formats used by Claude Code, Codex, Cursor, Cline, Kilo, Antigravity, and other agent hosts.
+Write commands, rules, subagents, external packs, and ignore files once in the repo source tree, then render them into the native formats used by Claude Code, Codex, Deep Agents Code, Cursor, Droid, Cline, Kilo, Antigravity, and other agent hosts.
 
 ## What it does
 
-- **Source primitive compiler**: `commands/`, `rules/`, and `ignores/` are rendered per target by explicit producers.
-- **Target adapter outputs**: each target receives the files it natively understands (commands, workflows, skills, instructions, plugins, rules, or ignore files).
+- **Source primitive compiler**: `commands/`, `rules/`, `subagents/`, external packs, and `ignores/` are rendered per target by explicit producers.
+- **Target adapter outputs**: each target receives the files it natively understands (commands, workflows, skills, instructions, plugins, rules, subagents, MCP config, or ignore files).
+- **Optional external wiring**: selected upstream packs in `external/` can be rendered into native target surfaces instead of remaining inert submodules.
 - **Sync-aware install**: dry-run previews, project-only gating for project-scoped artifacts, manifest tracking, and backups.
 
 ## Supported targets
@@ -16,18 +17,20 @@ Implemented:
 
 - Claude Code
 - Codex
+- Deep Agents Code
 - Cursor
+- Droid
 - Cline
 - Kilo
 - Antigravity CLI
 - Antigravity (legacy workflows)
+- Gemini CLI
 - GitHub Copilot
 - VS Code
 - OpenCode
 - Trae
-- Gemini CLI (legacy transition export)
 
-Planned: Droid, Goose, Grok Build, Pi, Pool, VSCodium, Windsurf, Zed.
+Planned: Goose, Grok Build, Pi, Pool, VSCodium, Windsurf, Zed.
 
 Out of scope: Roo Code (EoL), Xcode.
 
@@ -36,10 +39,10 @@ Out of scope: Roo Code (EoL), Xcode.
 ```text
 commands/          User-invoked reusable procedures
 rules/             Always-on or scoped behavior policy
-subagents/         Reserved for future agent definitions
+subagents/         Normalized subagent definitions
 mcps/              Reserved for future MCP server definitions
 ignores/           Project ignore files (.cursorignore, .kilocodeignore, .clineignore)
-registry/          Target and source-kind policy
+registry/          Target, capability, and source-kind policy
 schemas/           JSON schemas for registry and workflow artifacts
 scripts/           CLI compiler and helper modules
 tests/             Integration tests
@@ -62,6 +65,8 @@ Dry-run an install before writing anything live:
 ```bash
 node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
 node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
+node scripts/agent-surface.mjs install --target deepagents --scope user --dry-run
+node scripts/agent-surface.mjs install --target droid --scope user --dry-run
 ```
 
 Project-scope artifacts such as ignore files must be installed with `--dest`:
@@ -98,10 +103,23 @@ node scripts/agent-surface.mjs build --target antigravity-cli --dry-run
 node scripts/agent-surface.mjs build --target cline --dry-run
 ```
 
+Install selected runtimes and categories:
+
+```bash
+node scripts/agent-surface.mjs install --runtime codex,kilo --category rules --dest /path/to/project --dry-run
+node scripts/agent-surface.mjs install --runtime deepagents --category skills --category subagents --dest /path/to/project --dry-run
+node scripts/agent-surface.mjs install --runtime deepagents --category mcps --service agentmemory --dest /path/to/project --dry-run
+```
+
 ## Install behavior
 
 - Install is sync-oriented: existing files are overwritten by default.
+- `--target` and `--runtime` accept repeated or comma-separated runtime IDs.
+- `--category` accepts repeated or comma-separated output categories such as `skills`, `rules`, `subagents`, `commands`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, and `ignores`.
+- `--service <id>` narrows `--category mcps` to a specific optional MCP service from `registry/optional-services.json`.
 - Project-only artifacts (`ignores/`) are skipped on user-scope installs; use `--dest` to install them into a project.
+- Droid user installs write `.factory/commands/`, `.factory/droids/`, `.factory/skills/`, `.factory/mcp.json`, and `.factory/AGENTS.md`; project installs write project `AGENTS.md` plus project `.factory/` assets.
+- Deep Agents user installs write `~/.deepagents/<agent>/`; project installs write `.deepagents/`. Use `--agent <name>` to select a non-default user agent directory.
 - Manifests track generated files so stale outputs can be removed on the next install.
 - Backups are written to `.agent-surface/backups/` before overwrite or removal.
 
@@ -109,9 +127,29 @@ node scripts/agent-surface.mjs build --target cline --dry-run
 
 `registry/source-kinds.json` records each active primitive's `load_mode`, `install_scopes`, and `source_dir`. `check` validates the registry, and `install` uses source-kind install scopes instead of per-output special cases.
 
+`registry/target-capabilities.json` records the researched native surfaces for each implemented target and the generated render tokens that are intentionally active. `check` fails if that capability registry drifts from `registry/targets.json`.
+
+## Subagents
+
+`subagents/` contains the first workflow-oriented subagent batch: `boss`, `researcher`, `analyzer`, `adversary`, `reviewer`, and `worker`. They emit to:
+
+- Claude Code: `.claude/agents/<name>.md`
+- Codex: `.codex/agents/<name>.toml`
+- Deep Agents Code: `.deepagents/agents/worker/AGENTS.md` for the worker profile; read-only roles are not emitted because Deep Agents Code files cannot represent per-subagent tool restrictions.
+- Cursor: `.cursor/agents/<name>.md`
+- Kilo user installs: `~/.config/kilo/agents/<name>.md`
+- Kilo project installs: `.kilo/agents/<name>.md`
+- Gemini CLI: `.gemini/agents/<name>.md`
+- Google CLI extension target: `~/.gemini/extensions/agent-surface/agents/<name>.md`
+- OpenCode user installs: `~/.config/opencode/agents/<name>.md`
+- OpenCode project installs: `.opencode/agents/<name>.md`
+
+Cursor runtime launches must use the full `cursor agent ...` command shape; do not treat a bare `agent` command as Cursor because Grok Build also uses an `agent`-named surface. Desktop Antigravity remains a supervised UI surface; the current file-based Google CLI extension output is validated through Gemini CLI.
+
 ## Upgrade notes
 
-- Use `antigravity-cli` as the current Google CLI target. `gemini-cli` is kept only as a legacy transition export.
+- `gemini-cli` emits native `.gemini` commands, context, and agents.
+- `antigravity-cli` is kept as the Google CLI extension target for the Gemini/Antigravity transition and emits `~/.gemini/extensions/agent-surface`.
 
 ## Workflow kernel (optional)
 

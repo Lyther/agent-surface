@@ -69,7 +69,7 @@ Minimum shape:
       "model": "provider model id",
       "launch_shape": "headless_cli|ide_agent_manager|ollama_launch|ollama_api|native_subagent|interactive_supervised|other",
       "runtime_assignment": {
-        "runtime": "kilo-cli|kilo-ide|codex-exec|claude-code|grok-build|opencode|goose|gemini-legacy|cursor-agent|antigravity-cli|antigravity-desktop|ollama-cloud|current-session|manual",
+        "runtime": "kilo-cli|kilo-ide|codex-exec|claude-code|grok-build|opencode|goose|gemini-cli|cursor-agent|antigravity-cli|antigravity-desktop|ollama-cloud|current-session|manual",
         "agent_or_mode": "code|plan|debug|ask|custom-agent|not_applicable",
         "subagent_policy": "parallel_allowed|serial_only|disabled",
         "worktree_policy": "required|preferred|not_needed",
@@ -129,6 +129,10 @@ Minimum shape:
 
 Default workflow execution is serial. Parallel workers are allowed only when BOSS has split tasks into independent FILESCOPEs with no dependency edge, no shared generated outputs, no shared service port or database fixture, and separate patch manifests. Use separate worktrees or equivalent isolation per worker, then route the combined accepted patches through one reviewer batch. Do not parallelize merely to hide a vague spec or shared-hunk risk.
 
+The orchestrator may use `ops-swarm` as the launch topology for a BOSS round, but workflow remains the source of truth. Each swarm packet must map to BOSS `task_id`s, write evidence under the active workflow run, and return worker-style changed files, checks, blockers, and artifact refs. Swarm output is never a merge decision by itself.
+
+When parallel workers produce competing implementations or partial complementary patches, route the consolidation step to `dev-converge` as a normal worker route. `dev-converge` should read packet evidence and worktree refs, select a primary implementation, transplant only isolated logical blocks with verification after each transplant, and write the normal worker handoff. Do not add a separate workflow role for convergence.
+
 Aggressive worker-led parallelism is allowed when the target runtime has verified subagent support, the local probe is green, and the BOSS task is internally parallel-safe. The orchestrator assigns one worker lead, not a vague swarm. Use a runtime-specific prompt:
 
 ```text
@@ -140,8 +144,9 @@ Worktree policy: preferred; required if two subagents may write.
 
 Instruction to worker:
 Use the assigned runtime's verified subagent mechanism for independent subtasks:
-- Kilo CLI: Task-tool or `@agent-name` subagents.
+- Kilo CLI: Task-tool or `@agent-name` subagents after the local Kilo config probe passes.
 - Claude Code: Agent tool or agent teams; dynamic workflows only for large repeatable fan-out.
+- Gemini CLI / Antigravity CLI extension: project or extension agents under `.gemini/agents` or `~/.gemini/extensions/<name>/agents`, invoked by the runtime's documented agent selection flow.
 - Codex: explicitly spawn one subagent per independent point and wait for consolidated results.
 Start 2-4 subagents with disjoint filescope or evidence targets.
 Monitor them, spawn follow-up subagents only for discovered dependent work, and reconcile results before writing worker.json.
@@ -184,7 +189,7 @@ env -u NODE_TLS_REJECT_UNAUTHORIZED cursor agent -p --workspace "$repo" --model 
 claude -p "$(cat "$prompt_file")" --output-format json --model claude-sonnet-4-6 --max-budget-usd 1.00
 codex exec -m gpt-5.4 -C "$repo" -s workspace-write --json "$(cat "$prompt_file")"
 opencode run -m ollama/kimi-k2.6:cloud --format json --dir "$repo" "$(cat "$prompt_file")"
-env -u NODE_TLS_REJECT_UNAUTHORIZED PATH=/opt/homebrew/bin:$PATH gemini -p "$(cat "$prompt_file")" --output-format json --approval-mode plan
+env -u NODE_TLS_REJECT_UNAUTHORIZED PATH=/opt/homebrew/bin:$PATH gemini -p "$(cat "$prompt_file")" --output-format json --approval-mode plan --skip-trust
 ollama launch codex --model kimi-k2.6:cloud -- --cd "$repo" --sandbox workspace-write
 ollama launch opencode --model minimax-m3:cloud
 ollama launch claude --model glm-5.1:cloud -- -p "$(cat "$prompt_file")" --output-format json
@@ -196,7 +201,7 @@ Cursor and Grok both expose `agent`-named surfaces, but their argv shapes differ
 
 Cursor and Grok headless modes can write files and run shell commands. Give them the same role contract, filescope, and evidence requirements as any other managed role. Keep provider logs local or redact them before referencing evidence. Grok JSON output may include `thought`; Ollama API output may include `thinking`. Never persist either field.
 
-Antigravity currently has two distinct meanings in this project. `antigravity-cli` is the Google migration target for the new terminal platform; verify its real executable and non-interactive flags before assigning workflow roles. The local `antigravity` binary may be the desktop app launcher: `antigravity chat` opens or reuses a desktop chat session with `ask`, `edit`, or `agent` mode and should be recorded as `interactive_supervised`, not a verified headless worker, unless its current help exposes a non-interactive output mode.
+Antigravity currently has two distinct meanings in this project. `antigravity-cli` is the Google transition target emitted as a Gemini-compatible extension under `~/.gemini/extensions/agent-surface`; validate it with the current Google CLI extension tooling before assigning workflow roles. For runtime execution probe the `agy` binary first (the Go Antigravity CLI that imports Gemini extensions via `agy plugin import gemini`; consumer `gemini` access ends 2026-06-18), but keep `gemini -p` as the currently verified launch until a local `agy` probe proves its headless agent argv. The local `antigravity` binary may be the desktop app launcher: `antigravity chat` opens or reuses a desktop chat session with `ask`, `edit`, or `agent` mode and should be recorded as `interactive_supervised`, not a verified headless worker, unless its current help exposes a non-interactive output mode.
 
 ## HEARTBEATS AND STALE SESSIONS
 
@@ -215,9 +220,8 @@ Probe provider availability before each monitored run. Treat display names, lead
 | --- | --- |
 | Kilo | CLI headless packet mode is `kilo run`. Use `--dir`, `--model provider/model`, `--agent`, `--format json`, `--variant`, and `--auto` only when authorization allows autonomous approval. Kilo docs describe subagents as isolated sessions invoked by primary agents through the Task tool or `@agent-name`; docs also say dedicated Orchestrator mode is deprecated because full-tool agents now support subagents natively. If `kilo` reports config validation errors, do not assign it workflow roles until fixed. |
 | Cursor | Headless mode is `cursor agent -p ...`; `--output-format json` works only with `--print`. Use `--workspace`, `--model`, `--sandbox enabled`, and `--approve-mcps` only after MCP approval. May need `HTTP_PROXY=http://127.0.0.1:7890` and `HTTPS_PROXY=http://127.0.0.1:7890`. If `cursor agent models` reports no account models, do not assign it workflow roles. |
-| Antigravity CLI | Google migration notes say this is the current terminal platform with async background workflows, plugins, skills, hooks, subagents, and extensions. Verify the current executable and non-interactive flags locally before use; do not assume legacy `gemini` flags apply. |
+| Gemini CLI / Antigravity CLI extension | Current Google CLI tooling exposes `gemini -p`, `--output-format json`, `--approval-mode`, `--worktree`, `extensions`, `skills`, `hooks`, and subagents. Use the direct `gemini-cli` target for `.gemini/*` files and the `antigravity-cli` target for the packaged `~/.gemini/extensions/agent-surface` extension. Validate extension output with `gemini extensions validate` before live install. For the `antigravity-cli` runtime probe `agy --help` first (Go binary, post-2026-06-18 path); fall back to verified `gemini -p` until `agy` headless argv is locally confirmed. |
 | Antigravity desktop | Local `antigravity chat --help` exposes supervised desktop chat modes, not a JSON/print headless mode. Treat `antigravity chat -m agent ...` as interactive-supervised unless a current probe proves a headless output mode. |
-| Gemini | Legacy transition CLI. Requires compatible Node. User reports Node v26 / npm 11.12.1 works; Node v18 can fail. Use `GEMINI_CLI_TRUST_WORKSPACE=true`, `--skip-trust`, `-p/--prompt`, `--output-format json`, and `--approval-mode plan` for bounded headless runs. |
 | Grok | Build model id is `grok-build`; local `grok models` also reports `grok-composer-2.5-fast`. Use with caution and verify local CLI behavior before assigning write-scoped roles. |
 | Claude Code | Headless print mode is `claude -p`. Use `--model`, `--output-format json`, `--max-budget-usd`, `--permission-mode`, `--tools`, `--allowedTools`, `--add-dir`, and `--settings` to constrain role sessions. Claude Code also has Agent-tool subagents, agent teams, worktrees, and dynamic workflows; use those only when the runtime assignment and capability registry call for worker-led fan-out. |
 | Codex | Headless mode is `codex exec`. Use `-C`, `-s read-only\|workspace-write`,`--json`,`--output-schema`,`--oss --local-provider ollama`, or explicit`-m` as appropriate. Codex subagents require explicit parent prompts to spawn agents and consolidate results. |

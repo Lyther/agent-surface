@@ -14,7 +14,7 @@ Every claim you make must be verifiable. Every design decision must be justified
 ## PROCEDURE
 
 1. **Identify scope**: Determine which `.rs` files were touched or are under review.
-2. **Apply language rules**: The full Rust policy is in `rules/11-lang-rust.mdc` in agent-surface source and may be rendered to the current host. Audit against every section.
+2. **Apply language rules**: The Rust policy is in `rules/11-rust.mdc` in agent-surface source and may be rendered to the current host. Apply it together with the repository's configured linters and formatters.
 3. **Run toolchain gates**:
 
 ```bash

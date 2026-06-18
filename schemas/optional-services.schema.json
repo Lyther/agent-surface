@@ -50,6 +50,44 @@
           "optional": {
             "const": true
           },
+          "mcp": {
+            "type": "object",
+            "required": [
+              "server",
+              "validation_hint"
+            ],
+            "properties": {
+              "server": {
+                "type": "object",
+                "required": [
+                  "type",
+                  "command",
+                  "args"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "stdio"
+                  },
+                  "command": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "args": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              "validation_hint": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          },
           "local_wiring": {
             "type": "array",
             "minItems": 1,
@@ -67,6 +105,25 @@
             }
           }
         },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "mcp"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "required": [
+                "mcp"
+              ]
+            }
+          }
+        ],
         "additionalProperties": false
       }
     }

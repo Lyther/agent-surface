@@ -5,11 +5,9 @@ description: "Compare competing implementations and keep the strongest verifiabl
 ---
 ## OBJECTIVE
 
-**SURVIVAL OF THE FITTEST.**
-You have $N$ parallel realities (Worktrees).
-Do not mash them together.
-**Pick the Winner (The Alpha). Loot the Losers (The Betas). Kill the Rest.**
-**Core Logic**: Atomic Replacement > Line Merging.
+Compare multiple candidate implementations from parallel workers, branches, worktrees, or swarm packets. Select the strongest verifiable result, transplant only isolated improvements when they are worth the risk, and leave a clean worker-style handoff.
+
+Do not mash patches together. Prefer one primary implementation plus small, verified logical transplants. Atomic replacement beats line-by-line blending.
 
 ## CONTEXT STRATEGY (TOKEN ECONOMICS)
 
@@ -21,80 +19,83 @@ Do not mash them together.
 2. **Function Level**:
     - Do not try to merge huge files. Merge functions.
 
-## VIBE CODING INTEGRATION
+## WORKFLOW MODE
+
+When invoked from `workflow-orchestrator` or `ops-swarm`, use the workflow ledger as authority:
+
+- Read `run_id`, task IDs, filescope, verify commands, patch manifests, and packet evidence from the active workflow run.
+- Treat swarm packet reports and worktree refs as evidence, not as merge approval.
+- Preserve task IDs and artifact refs in the final handoff.
+- Do not introduce a new workflow role. `dev-converge` is a worker route for consolidation work.
+- If candidates share unisolated hunks or generated outputs, stop and request serial rework instead of forcing a merge.
+
+## PARALLEL IMPLEMENTATION INTEGRATION
 
 When AI tries multiple approaches in parallel:
 
 - Each attempt is a worktree/branch
 - Test-driven selection picks the winner
 - Atomic transplants harvest good ideas from losers
-- No Frankenstein merges
+- No blended line-level merges
 
 ## PROTOCOL
 
-### Phase 0: Setup (Parallel Realities)
+### Phase 0: Setup
 
-1. **Create Worktrees**: `git worktree add ../wt-A <base>` (repeat per agent)
-2. **List**: `git worktree list`
-3. **Isolate**: Each agent works in its own worktree; no shared state
+1. Identify candidate worktrees, branches, or packet refs.
+2. Confirm they share the same intended base or record the base mismatch.
+3. Confirm each candidate is isolated from the others.
 
-### Phase 1: The Killing Field (Qualifying)
+### Phase 1: Qualify Candidates
 
-*Dead code tells no tales.*
+1. Run the assigned verify commands, or the cheapest equivalent proof, on every candidate.
+2. Reject candidates that fail compilation, tests, or required generated-output checks.
+3. Do not inspect failed candidates for transplants unless the failure is unrelated to the candidate's useful isolated block and the block can be verified independently.
 
-1. **Parallel Test**: Run `verify-test` (unit/integration) on ALL active agent worktrees
-2. **The Cull**:
-    - If an Agent fails compilation or tests → **DELETE WORKTREE**: `git worktree remove ../wt-X`
-    - Do not inspect further
+### Phase 2: Select Primary Implementation
 
-### Phase 2: The Alpha Selection (King of the Hill)
-
-*Who has the strongest bones?*
-
-1. **Compare Survivors**:
+1. Compare surviving candidates by:
     - Alignment with `arch-api`
     - Test coverage & negative-path handling
     - Simplicity (lower complexity, fewer deps)
-2. **Designate Alpha**: Checkout as `feat/consolidated-temp`. This is the **Truth**.
+    - Behavior preservation
+    - Blast radius
+2. Designate one candidate as the primary implementation.
 
-### Phase 3: The Organ Harvesting (Atomic Grafting)
+### Phase 3: Atomic Transplants
 
-*Apply "Atomic Cherry-Pick" at function/class granularity.*
+1. Identify missing improvements that are isolated and valuable.
+2. Do not `git merge` or commit-level `cherry-pick` competing worker outputs.
+3. Copy the whole logical block: function, class, enum, schema entry, test case, or documentation section.
+4. Run the assigned verify command after each transplant.
+5. Revert a transplant immediately if it fails verification or creates style/API inconsistency.
 
-1. **Feature Audit**: Identify missing wins in Alpha
-2. **The Transplant**:
-    - **Do NOT** `git merge`
-    - **Do NOT** commit-level `cherry-pick`
-    - **DO** copy the specific **Logical Block** (Function/Class/Enum) wholly
-3. **Verify**: Run `verify-test` immediately after each transplant. Revert if failing.
-
-### Phase 4: The Final Polish
+### Phase 4: Final Handoff
 
 1. **Unified Diff**: Compare against the base branch (usually `main`/`master`, but trust `git symbolic-ref refs/remotes/origin/HEAD`, not assumption).
-2. **Security/Quality**: Lint, type-check, SAST pass. Run `/qa:review` against the consolidated diff before any commit.
-3. **Commit**: Hand off to `ship-commit` rather than running `git commit` inline — it detects repo mode and applies the right subject form (`feat: synthesized from agents A, B, C` for Conventional Commits, `subsystem: …` for kernel).
-4. **Tag**: Create a local checkpoint tag (e.g., `checkpoint-converge-<date>`). Do NOT push tags as a side effect — that requires explicit consent per `ship-release`.
-5. **Nuke**: Delete the spent worktrees (`git worktree remove ../wt-*`) and prune (`git worktree prune`).
+2. **Security/Quality**: Run the assigned lint, type, test, generated-output, or SAST checks.
+3. **Cleanup**: Remove temporary worktrees only when they are clearly created for this convergence run and no evidence still depends on local-only files.
+4. **Commit**: Hand off to `ship-commit` rather than running `git commit` inline.
 
 ## OUTPUT FORMAT
 
 **The Synthesis Log**
 
 ```markdown
-# 🧬 CONVERGE REPORT
+# CONVERGE REPORT
 
-## 🏆 The Alpha (Base)
-- **Agent-02**: Best architecture, strictly typed.
+## Primary Implementation
+- Agent-02: best architecture, strictly typed.
 
-## 🫀 Transplants (Looted from Betas)
-- **From Agent-01**: Ported `retry_logic()` (Better backoff strategy).
-- **From Agent-04**: Ported `InputValidation` struct (Handled unicode edge case).
+## Transplants
+- From Agent-01: ported `retry_logic()` after `npm test` passed.
+- From Agent-04: ported `InputValidation` after negative-path test passed.
 
-## 🗑️ The Fallen (Discarded)
-- **Agent-03**: Failed compilation. Deleted.
+## Rejected Candidates
+- Agent-03: failed compilation.
 
 ## Verdict
-**Branch `feat/login-final` is ready.**
+Branch `feat/login-final` is ready for review.
 ```
 
 ## EXECUTION RULES

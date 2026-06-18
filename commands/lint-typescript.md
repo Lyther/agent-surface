@@ -14,8 +14,16 @@ TypeScript exists to prevent JavaScript's chaos. If your code requires `any`, `@
 ## PROCEDURE
 
 1. **Identify scope**: Determine which `.ts`/`.tsx` files were touched or are under review.
-2. **Apply language rules**: The full TypeScript policy is in `rules/13-lang-typescript.mdc` in agent-surface source and may be rendered to the current host. Audit against every section.
-3. **Run toolchain gates**:
+2. **Apply language rules**: The TypeScript policy is in `rules/13-typescript.mdc` in agent-surface source and may be rendered to the current host. Apply it together with the repository's configured linters and formatters.
+3. **Frontend/Admin UI pass**: If `.tsx`/React UI changed, run this additional review before toolchain gates:
+   - **Stack preservation**: Verify the implementation follows the repo's existing router, data-fetching layer, component library, theme tokens, test runner, and build tool. Do not introduce Modern.js, Arco, Semi, VisActor, TanStack Query, Redux, Zustand, Tailwind, or another UI dependency unless the repo already uses it or the user approved the dependency change.
+   - **Intent fit**: Product UI follows the product stack; admin/ops console UI follows dense list/detail/action patterns and uses existing Arco/Semi or repo-native primitives where present.
+   - **Typed contracts**: Table rows, filter params, detail payloads, action request/response shapes, and route params are typed from API contracts or validated schemas. No `any` table records or untyped JSON response plumbing.
+   - **State topology**: URL/search params hold shareable table state; server-state tools or route loaders hold remote data; component state holds only transients. Do not duplicate server data into global stores.
+   - **Component quality**: Loading, error, empty, partial-data, permission-denied, and success states are rendered. Destructive or irreversible actions require confirmation and visible pending/failure states.
+   - **Accessibility and testing**: Prefer semantic queries in tests. Add stable selectors only where they improve diagnosis for table rows, action buttons, and status fields. Keyboard/focus behavior must survive drawers, modals, and table actions.
+   - **Visual consistency**: Use design-system tokens/components instead of ad hoc colors, spacing, button styles, or one-off table renderers. Internal tools should be dense and scannable, not marketing pages.
+4. **Run toolchain gates**:
 
 ```bash
 npx tsc --noEmit

@@ -14,7 +14,7 @@ Shell scripts are the #1 source of production incidents. Every line can fail sil
 ## PROCEDURE
 
 1. **Identify scope**: Determine which `.sh`/`.bash` files were touched or are under review.
-2. **Apply language rules**: The full Shell policy is in `rules/14-lang-shell.mdc` in agent-surface source and may be rendered to the current host. Audit against every section.
+2. **Apply language rules**: The Shell policy is in `rules/14-shell.mdc` in agent-surface source and may be rendered to the current host. Apply it together with the repository's configured linters and formatters.
 3. **Run toolchain gates**:
 
 ```bash

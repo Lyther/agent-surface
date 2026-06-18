@@ -7,6 +7,14 @@
       "commit": "68fddd418e1bbcc41d32a1c61b7a78d91eb7c4dc",
       "kind": "mcp",
       "optional": true,
+      "mcp": {
+        "server": {
+          "type": "stdio",
+          "command": "~/.local/bin/agentmemory-mcp",
+          "args": []
+        },
+        "validation_hint": "Run the target runtime's MCP status command or inspect the generated .mcp.json-compatible config."
+      },
       "local_wiring": [
         "Codex MCP: ~/.codex/config.toml mcp_servers.agentmemory",
         "Cursor MCP: ~/.cursor/mcp.json mcpServers.agentmemory",
@@ -15,7 +23,8 @@
         "Cline MCP: ~/.cline/data/settings/cline_mcp_settings.json mcpServers.agentmemory",
         "Kilo MCP: ~/.config/kilo/kilo.jsonc mcp.agentmemory",
         "Antigravity MCP: ~/.gemini/antigravity/settings.json mcpServers.agentmemory",
-        "OpenCode MCP: ~/.config/opencode/opencode.json mcp.agentmemory"
+        "OpenCode MCP: ~/.config/opencode/opencode.json mcp.agentmemory",
+        "Droid MCP: ~/.factory/mcp.json mcpServers.agentmemory"
       ],
       "notes": [
         "Use only the locally patched installed binary at ~/.local/bin/agentmemory-mcp for MCP wiring.",
@@ -33,7 +42,8 @@
       "local_wiring": [
         "Codex/agent skills: ~/.agents/skills/{book-study,code-review-expert,sigma,skill-forge,skill-review,wiki-ingest}",
         "Claude skills: ~/.claude/skills mirrors those ~/.agents/skills entries",
-        "Cline/Kilo/Antigravity/OpenCode skills: mirrored into each target's native skill directory"
+        "Cline/Kilo/Antigravity/OpenCode skills: mirrored into each target's native skill directory",
+        "Droid skills: ~/.factory/skills/{book-study,code-review-expert,sigma,skill-forge,skill-review,wiki-ingest}"
       ],
       "notes": [
         "Optional production-grade skills for review, tutoring, skill creation, wiki ingestion, and book study."
@@ -49,7 +59,8 @@
       "local_wiring": [
         "Codex/agent skill: ~/.agents/skills/karpathy-guidelines",
         "Claude skill: ~/.claude/skills/karpathy-guidelines",
-        "Cline/Kilo/Antigravity/OpenCode skill: mirrored into each target's native skill directory"
+        "Cline/Kilo/Antigravity/OpenCode skill: mirrored into each target's native skill directory",
+        "Droid skill: ~/.factory/skills/karpathy-guidelines"
       ],
       "notes": [
         "Optional coding-behavior guideline skill focused on assumptions, simplicity, surgical changes, and verification."
@@ -65,7 +76,8 @@
       "local_wiring": [
         "Codex/agent skills: ~/.agents/skills/ctf-* plus solve-challenge",
         "Claude skills: ~/.claude/skills/ctf-* plus solve-challenge",
-        "Cline/Kilo/Antigravity/OpenCode skills: mirrored into each target's native skill directory"
+        "Cline/Kilo/Antigravity/OpenCode skills: mirrored into each target's native skill directory",
+        "Droid skills: ~/.factory/skills/ctf-* plus ~/.factory/skills/solve-challenge"
       ],
       "notes": [
         "Already wired locally before this optional submodule was added.",
@@ -82,7 +94,8 @@
       "local_wiring": [
         "Codex/agent skills: ~/.agents/skills/pua and ~/.agents/skills/pua-en",
         "Claude skills: ~/.claude/skills/pua and ~/.claude/skills/pua-en",
-        "Cline/Kilo/Antigravity/OpenCode skills: only pua and pua-en mirrored into each target's native skill directory"
+        "Cline/Kilo/Antigravity/OpenCode skills: only pua and pua-en mirrored into each target's native skill directory",
+        "Droid skills: ~/.factory/skills/pua and ~/.factory/skills/pua-en"
       ],
       "notes": [
         "Already wired locally before this optional submodule was added.",

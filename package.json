@@ -14,6 +14,7 @@
     "check:commands": "node scripts/agent-surface.mjs check commands",
     "check:generated": "node scripts/agent-surface.mjs check generated",
     "check:rules": "node scripts/agent-surface.mjs check rules",
+    "check:subagents": "node scripts/agent-surface.mjs check subagents",
     "doctor": "node scripts/agent-surface.mjs doctor",
     "test": "node tests/agent-surface.test.mjs",
     "snapshot": "node tests/agent-surface.test.mjs"

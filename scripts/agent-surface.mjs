@@ -14,7 +14,10 @@ import { approximateTokens, tomlMultilineString, tomlString, yamlString } from "
 import { mergeKiloInstructionJsonc, parseJsoncResult } from "./agent-surface/jsonc.mjs";
 import {
   checkIgnores,
+  checkSubagents,
   ignoreOutputs,
+  subagentOutputs,
+  subagentValidationErrors,
 } from "./agent-surface/source-primitives.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -25,23 +28,51 @@ const commandPhases = new Set(["observe", "decide", "build", "verify", "review",
 
 const targets = {
   "claude-code": {
-    label: "Claude Code commands",
+    label: "Claude Code commands and subagents",
     commandRenders: ["commands"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "claude-code",
+    subagentOutputRoot: ".claude/agents",
     commandOutputRoot: ".claude/commands",
     renderCommand: renderClaudeCommand,
+    renderSubagent: renderClaudeSubagent,
     installRoot: installRootClaude,
     commandOutputName: groupedMarkdownCommandOutputName,
   },
   codex: {
-    label: "Codex skills and global instructions",
+    label: "Codex skills, custom agents, and global instructions",
     commandRenders: ["skills"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "codex",
+    subagentOutputRoot: path.join(".codex", "agents"),
+    subagentOutputExtension: ".toml",
     staticRenders: ["rules"],
     commandOutputRoot: ".agents/skills",
     renderCommand: renderCodexSkill,
+    renderSubagent: renderCodexSubagent,
     installRoot: installRootCodex,
     commandOutputName: codexSkillOutputName,
     additionalCommandOutputs: [codexOpenAiAgentOutput],
     staticOutputs: codexStaticOutputs,
+  },
+  deepagents: {
+    label: "Deep Agents Code skills, instructions, subagents, and MCP",
+    commandRenders: ["skills"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "deepagents",
+    subagentOutputRoot: deepagentsAgentRoot,
+    subagentOutputName: deepagentsSubagentOutputName,
+    staticRenders: ["rules"],
+    commandOutputRoot: deepagentsSkillRoot,
+    renderCommand: renderDeepAgentsSkill,
+    renderSubagent: renderDeepAgentsSubagent,
+    installRoot: installRootDeepagents,
+    commandOutputName: codexSkillOutputName,
+    staticOutputs: deepagentsStaticOutputs,
+    mcpConfig: {
+      relativeOutput: deepagentsMcpPath,
+      defaultEnabled: false,
+    },
   },
   cline: {
     label: "Cline workflows and rules",
@@ -54,11 +85,15 @@ const targets = {
     staticOutputs: clineStaticOutputs,
   },
   kilo: {
-    label: "Kilo workflows and instructions",
+    label: "Kilo workflows, instructions, and subagents",
     commandRenders: ["commands-as-workflows"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "kilo",
+    subagentOutputRoot: kiloAgentRoot,
     staticRenders: ["rules"],
     commandOutputRoot: kiloWorkflowRoot,
     renderCommand: renderKiloWorkflow,
+    renderSubagent: renderKiloSubagent,
     installRoot: installRootKilo,
     ignoreFilename: ".kilocodeignore",
     staticOutputs: kiloStaticOutputs,
@@ -71,34 +106,63 @@ const targets = {
     installRoot: installRootAntigravity,
   },
   "antigravity-cli": {
-    label: "Antigravity CLI plugin",
+    label: "Google CLI extension",
     commandRenders: ["skills"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "antigravity-cli",
+    subagentOutputRoot: path.join("extensions", "agent-surface", "agents"),
     staticRenders: ["plugins", "rules"],
-    commandOutputRoot: path.join("plugins", "agent-surface", "skills"),
+    commandOutputRoot: path.join("extensions", "agent-surface", "skills"),
     commandOutputName: antigravityCliSkillOutputName,
     renderCommand: renderAntigravityCliSkill,
+    renderSubagent: renderGeminiSubagent,
     installRoot: installRootAntigravityCli,
     staticOutputs: antigravityCliStaticOutputs,
   },
   "gemini-cli": {
-    label: "Gemini CLI legacy commands and context",
-    commandRenders: ["legacy-transition", "commands"],
+    label: "Gemini CLI commands, context, and subagents",
+    commandRenders: ["commands"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "gemini-cli",
+    subagentOutputRoot: path.join(".gemini", "agents"),
     staticRenders: ["rules"],
     commandOutputRoot: ".gemini/commands",
     renderCommand: renderGeminiCommand,
+    renderSubagent: renderGeminiSubagent,
     installRoot: installRootGemini,
     commandOutputName: geminiCommandOutputName,
     staticOutputs: geminiStaticOutputs,
   },
   cursor: {
-    label: "Cursor global commands and rules",
+    label: "Cursor global commands, rules, and subagents",
     commandRenders: ["commands"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "cursor",
+    subagentOutputRoot: ".cursor/agents",
     staticRenders: ["rules"],
     commandOutputRoot: ".cursor/commands",
     renderCommand: renderCursorCommand,
+    renderSubagent: renderCursorSubagent,
     installRoot: installRootHomeOnly,
     ignoreFilename: ".cursorignore",
     staticOutputs: cursorStaticOutputs,
+  },
+  droid: {
+    label: "Factory Droid commands, instructions, droids, and optional external assets",
+    commandRenders: ["commands"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "droid",
+    subagentOutputRoot: path.join(".factory", "droids"),
+    staticRenders: ["rules", "external"],
+    commandOutputRoot: path.join(".factory", "commands"),
+    renderCommand: renderDroidCommand,
+    renderSubagent: renderDroidSubagent,
+    installRoot: installRootDroid,
+    staticOutputs: droidStaticOutputs,
+    mcpConfig: {
+      relativeOutput: () => path.join(".factory", "mcp.json"),
+      defaultEnabled: true,
+    },
   },
   copilot: {
     label: "GitHub Copilot global instructions",
@@ -113,9 +177,16 @@ const targets = {
     staticOutputs: vscodeStaticOutputs,
   },
   opencode: {
-    label: "OpenCode global instructions",
+    label: "OpenCode commands, agents, and global instructions",
+    commandRenders: ["commands"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "opencode",
+    subagentOutputRoot: opencodeAgentRoot,
+    commandOutputRoot: opencodeCommandRoot,
+    renderCommand: renderOpenCodeCommand,
+    renderSubagent: renderOpenCodeSubagent,
     staticRenders: ["rules"],
-    installRoot: installRootHomeOnly,
+    installRoot: installRootOpencode,
     staticOutputs: opencodeStaticOutputs,
   },
   trae: {
@@ -178,6 +249,7 @@ const workflowSchemaFiles = [
 
 const registrySchemaFiles = [
   { schema: "targets.schema.json", file: "registry/targets.json" },
+  { schema: "target-capabilities.schema.json", file: "registry/target-capabilities.json" },
   { schema: "artifacts.schema.json", file: "registry/artifacts.json" },
   { schema: "source-kinds.schema.json", file: "registry/source-kinds.json" },
   { schema: "optional-services.schema.json", file: "registry/optional-services.json" },
@@ -225,6 +297,8 @@ async function main() {
       await checkGenerated(args.slice(1));
     } else if (args[0] === "ignores") {
       await checkIgnores(targets);
+    } else if (args[0] === "subagents") {
+      await checkSubagents();
     } else {
       await check();
     }
@@ -270,8 +344,9 @@ Usage:
   agent-surface check commands
   agent-surface check generated [--target <target|all>]
   agent-surface check ignores
+  agent-surface check subagents
   agent-surface build --target <target|all> [--dry-run]
-  agent-surface install --target <target> [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
+  agent-surface install --target <target>[,<target>...] [--runtime <runtime>[,<runtime>...]] [--category <category>[,<category>...]] [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
   agent-surface doctor
   agent-surface workflow doctor --run <run_id>
@@ -378,6 +453,8 @@ async function check() {
 
   await checkWorkflowSchemas(errors);
   await checkRegistrySchemas(errors);
+  await checkTargetCapabilities(targetsConfig, errors);
+  errors.push(...await subagentValidationErrors());
   checkCommandMetadata(commands, errors);
 
   if (errors.length > 0) {
@@ -394,6 +471,13 @@ async function readSourceKinds() {
   if (sourceKindsCache !== undefined) return sourceKindsCache;
   sourceKindsCache = JSON.parse(await readFile(path.join(root, "registry", "source-kinds.json"), "utf8"));
   return sourceKindsCache;
+}
+
+let optionalServicesCache;
+async function readOptionalServices() {
+  if (optionalServicesCache !== undefined) return optionalServicesCache;
+  optionalServicesCache = JSON.parse(await readFile(path.join(root, "registry", "optional-services.json"), "utf8"));
+  return optionalServicesCache;
 }
 
 function sourceKindPolicy(sourceKindsConfig, sourceKind) {
@@ -498,6 +582,37 @@ async function checkRegistrySchemas(errors) {
   }
 }
 
+async function checkTargetCapabilities(targetsConfig, errors) {
+  let capabilities;
+  try {
+    capabilities = JSON.parse(await readFile(path.join(root, "registry", "target-capabilities.json"), "utf8"));
+  } catch (error) {
+    errors.push(`target capabilities registry is not valid JSON: ${error.message}`);
+    return;
+  }
+
+  const implementedTargets = Object.keys(targetsConfig.in_scope).sort();
+  const capabilityTargets = Object.keys(capabilities.targets ?? {}).sort();
+  for (const name of implementedTargets) {
+    if (!capabilityTargets.includes(name)) errors.push(`target capabilities missing implemented target: ${name}`);
+  }
+  for (const name of capabilityTargets) {
+    if (!implementedTargets.includes(name)) errors.push(`target capabilities include unknown target: ${name}`);
+  }
+
+  for (const name of implementedTargets) {
+    const targetCapability = capabilities.targets?.[name];
+    if (!targetCapability) continue;
+    const registryTokens = [...(targetsConfig.in_scope[name].renders ?? [])].sort();
+    const capabilityTokens = [...(targetCapability.generated_render_tokens ?? [])].sort();
+    if (registryTokens.join("\0") !== capabilityTokens.join("\0")) {
+      errors.push(
+        `target capabilities generated_render_tokens drift for ${name}: expected ${registryTokens.join(", ")}, got ${capabilityTokens.join(", ")}`,
+      );
+    }
+  }
+}
+
 async function checkWorkflowFixtures(ajv, schemas, errors) {
   for (const fixture of workflowFixtureFiles) {
     const schema = schemas.get(fixture.schema);
@@ -564,7 +679,7 @@ const workflowRuntimeNames = new Set([
   "codex",
   "codex-exec",
   "cursor-agent",
-  "gemini-legacy",
+  "gemini-cli",
   "kilo-cli",
   "kilo-ide",
   "opencode",
@@ -777,31 +892,54 @@ function validateGeneratedTarget(target, outputs) {
   } else if (target === "codex") {
     requireContains(path.join(".agents", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".agents", "skills", "ops-flow", "agents", "openai.yaml"), /allow_implicit_invocation: false/);
+    requireContains(path.join(".codex", "agents", "boss.toml"), /^name = "boss"\n/);
     requireContains(path.join(".codex", "AGENTS.md"), /agent-surface global Codex rules/);
+  } else if (target === "deepagents") {
+    requireContains(path.join(".deepagents", "agent", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
+    requireContains(path.join(".deepagents", "agent", "AGENTS.md"), /agent-surface Deep Agents Code rules/);
+    requireContains(path.join(".deepagents", "agent", "agents", "worker", "AGENTS.md"), /^---\nname: worker\n/);
+    if (byPath.has(path.join(".deepagents", "agent", "agents", "boss", "AGENTS.md"))) {
+      errors.push("Deep Agents must not emit read-only subagents as unrestricted AGENTS.md subagents");
+    }
   } else if (target === "gemini-cli") {
     requireContains(path.join(".gemini", "GEMINI.md"), /agent-surface global Gemini rules/);
+    requireContains(path.join(".gemini", "agents", "boss.md"), /^---\nname: boss\n/);
     for (const output of outputs.filter((item) => item.relativeOutput.endsWith(".toml"))) {
       if (!/^description = ".+"\n\nprompt = /s.test(output.content)) errors.push(`${output.relativeOutput} is not a Gemini command TOML shape`);
     }
   } else if (target === "cline") {
-    requirePath(path.join("Documents", "Cline", "Workflows", "ops-flow.md"));
-    requireContains(path.join("Documents", "Cline", "Rules", "agent-surface.md"), /agent-surface Cline global rules/);
+    requirePath(path.join(".cline", "data", "workflows", "ops-flow.md"));
+    requireContains(path.join(".cline", "rules", "agent-surface.md"), /agent-surface Cline global rules/);
     requireContains(".clineignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "kilo") {
     requirePath(path.join(".config", "kilo", "commands", "ops-flow.md"));
+    requireContains(path.join(".config", "kilo", "agents", "boss.md"), /^---\ndescription: "/);
     requireContains(path.join(".config", "kilo", "AGENTS.md"), /agent-surface Kilo rules/);
     requireContains(".kilocodeignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "antigravity") {
     requireContains(path.join("global_workflows", "ops-flow.md"), /^---\ndescription: "/);
   } else if (target === "antigravity-cli") {
-    const plugin = requireJson(path.join("plugins", "agent-surface", "plugin.json"));
-    if (plugin && plugin.name !== "agent-surface") errors.push("Antigravity plugin name must be agent-surface");
-    requireContains(path.join("plugins", "agent-surface", "skills", "ops-flow.md"), /^---\nname: ops-flow\n/);
-    requirePath(path.join("plugins", "agent-surface", "rules", "00-precedence-and-safety.md"));
+    const plugin = requireJson(path.join("extensions", "agent-surface", "gemini-extension.json"));
+    if (plugin && plugin.name !== "agent-surface") errors.push("Google CLI extension name must be agent-surface");
+    requireContains(path.join("extensions", "agent-surface", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
+    requireContains(path.join("extensions", "agent-surface", "agents", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join("extensions", "agent-surface", "GEMINI.md"), /agent-surface Google CLI extension rules/);
   } else if (target === "cursor") {
     requirePath(path.join(".cursor", "commands", "ops-flow.md"));
-    requirePath(path.join(".cursor", "rules", "00-precedence-and-safety.mdc"));
+    requireContains(path.join(".cursor", "agents", "boss.md"), /^---\nname: boss\n/);
+    requirePath(path.join(".cursor", "rules", "00-core.mdc"));
     requireContains(".cursorignore", /agent-surface canonical AI-tool ignore baseline/);
+  } else if (target === "droid") {
+    requirePath(path.join(".factory", "commands", "ops-flow.md"));
+    requireContains(path.join(".factory", "droids", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join(".factory", "AGENTS.md"), /agent-surface Droid rules/);
+    const mcp = requireJson(path.join(".factory", "mcp.json"));
+    if (mcp && mcp.mcpServers?.agentmemory?.command !== "~/.local/bin/agentmemory-mcp") {
+      errors.push("Droid agentmemory MCP must use the local patched binary");
+    }
+    if (outputs.some((output) => output.relativeOutput.startsWith(path.join(".factory", "skills") + path.sep))) {
+      requireContains(path.join(".factory", "skills", "karpathy-guidelines", "SKILL.md"), /^---\n/);
+    }
   } else if (target === "copilot") {
     requireContains(path.join("instructions", "agent-surface-copilot.instructions.md"), /^---\ndescription: "agent-surface Copilot global instructions"\napplyTo: "\*\*"/);
   } else if (target === "vscode") {
@@ -809,6 +947,8 @@ function validateGeneratedTarget(target, outputs) {
     requireContains(path.join("prompts", "agent-surface.prompt.md"), /^---\ndescription: "Route a task to the lightest safe agent-surface path"/);
   } else if (target === "opencode") {
     requireContains(path.join(".config", "opencode", "AGENTS.md"), /agent-surface global OpenCode rules/);
+    requirePath(path.join(".config", "opencode", "commands", "ops-flow.md"));
+    requireContains(path.join(".config", "opencode", "agents", "boss.md"), /^---\ndescription: "/);
   } else if (target === "trae") {
     requireContains(path.join(".trae", "user_rules.md"), /agent-surface Trae user rules/);
   }
@@ -858,42 +998,137 @@ async function build(args) {
 }
 
 async function install(args) {
-  const target = requiredArgValue(args, "--target");
+  const selectedTargets = selectedInstallTargets(args);
   const scope = argValue(args, "--scope") ?? "project";
   const dryRun = args.includes("--dry-run");
   const allowScopeRoot = args.includes("--allow-scope-root");
   const dest = argValue(args, "--dest");
-  const adapter = targets[target];
+  const categoryFilter = installCategoryFilter(args);
+  const optionalServices = optionalServiceFilter(args);
+  const agentName = argValue(args, "--agent") ?? "agent";
 
-  if (!adapter) fail(`unsupported install target: ${target}`);
   if (!["project", "user"].includes(scope)) fail(`unsupported install scope: ${scope}`);
+  if (!isSafeTargetName(agentName)) fail(`unsafe --agent: ${agentName}`);
+  if (optionalServices && !categoryFilter?.has("mcps")) {
+    fail("--service currently applies only to --category mcps");
+  }
   if (!dryRun && !dest && !allowScopeRoot) {
     fail("live install requires explicit --dest or --allow-scope-root after reviewing --dry-run");
   }
 
-  const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
-  if (installRoot === path.parse(installRoot).root) fail("install root cannot be filesystem root");
-  const plan = await installPlan(target, adapter, installRoot, scope, dest ? "explicit --dest" : "scope-derived root");
+  const plans = [];
+  for (const target of selectedTargets) {
+    const adapter = targets[target];
+    if (!adapter) fail(`unsupported install target: ${target}`);
+    const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
+    if (installRoot === path.parse(installRoot).root) fail("install root cannot be filesystem root");
+    plans.push(await installPlan(target, adapter, installRoot, scope, dest ? "explicit --dest" : "scope-derived root", {
+      agentName,
+      categoryFilter,
+      optionalServices,
+    }));
+  }
+  addCrossPlanInstallConflicts(plans);
 
-  printInstallPlan(plan);
-  if (plan.blocked.length > 0) {
+  const blocked = plans.flatMap((plan) => plan.blocked.map((item) => `${plan.target}: ${item}`));
+  for (const plan of plans) {
+    printInstallPlan(plan);
+  }
+  if (blocked.length > 0) {
     process.exitCode = 1;
     return;
   }
 
   if (!dryRun) {
-    await applyInstallPlan(plan);
+    for (const plan of plans) {
+      await applyInstallPlan(plan);
+    }
   }
 }
 
-async function installPlan(target, adapter, installRoot, scope, rootSource) {
+function addCrossPlanInstallConflicts(plans) {
+  const planned = new Map();
+  for (const plan of plans) {
+    const outputs = [
+      ...plan.writes.map((item) => ({ output: item.output, relativeOutput: item.relativeOutput })),
+      ...plan.configMerges.map((item) => ({ output: item.output, relativeOutput: item.relativeOutput })),
+    ];
+    for (const item of outputs) {
+      const previous = planned.get(item.output);
+      if (!previous) {
+        planned.set(item.output, { target: plan.target, plan, relativeOutput: item.relativeOutput });
+        continue;
+      }
+      plan.blocked.push(`output ${item.relativeOutput} also planned by ${previous.target}`);
+      previous.plan.blocked.push(`output ${previous.relativeOutput} also planned by ${plan.target}`);
+    }
+  }
+}
+
+function selectedInstallTargets(args) {
+  const values = splitArgValues([...argValues(args, "--target"), ...argValues(args, "--runtime")]);
+  if (values.length === 0) fail("missing required --target or --runtime");
+  if (values.includes("all")) return Object.keys(targets);
+  const selected = uniqueStrings(values);
+  for (const target of selected) {
+    if (!isSafeTargetName(target)) fail(`unsafe install target: ${target}`);
+    if (!Object.hasOwn(targets, target)) fail(`unsupported install target: ${target}`);
+  }
+  return selected;
+}
+
+function installCategoryFilter(args) {
+  const values = splitArgValues([...argValues(args, "--category"), ...argValues(args, "--categories")]);
+  if (values.length === 0 || values.includes("all")) return null;
+  const known = new Set([
+    "commands",
+    "commands-as-workflows",
+    "skills",
+    "rules",
+    "instructions",
+    "prompts",
+    "subagents",
+    "ignores",
+    "plugins",
+    "external",
+    "mcps",
+  ]);
+  const selected = new Set(values);
+  for (const value of selected) {
+    if (!known.has(value)) fail(`unsupported install category: ${value}`);
+  }
+  return selected;
+}
+
+function optionalServiceFilter(args) {
+  const values = splitArgValues(argValues(args, "--service"));
+  return values.length > 0 ? new Set(values) : null;
+}
+
+function splitArgValues(values) {
+  return values
+    .flatMap((value) => value.split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+async function installPlan(target, adapter, installRoot, scope, rootSource, options = {}) {
+  const categoryFilter = options.categoryFilter ?? null;
+  const optionalServices = options.optionalServices ?? null;
   const commandFiles = await exportableCommands();
   const sourceKindsConfig = await readSourceKinds();
   const version = await packageVersion();
   const generatedAt = new Date().toISOString();
   const manifestPath = path.join(installRoot, ".agent-surface", `${target}-manifest.json`);
   const previousManifest = await readJsonIfExists(manifestPath);
-  const outputs = await targetOutputs(adapter, commandFiles, { target, scope, mode: "install" });
+  const outputs = (await targetOutputs(adapter, commandFiles, {
+    target,
+    scope,
+    mode: "install",
+    agentName: options.agentName ?? "agent",
+    categoryFilter,
+    optionalServices,
+  })).filter((output) => outputAppliesToCategory(output, categoryFilter));
   const writes = [];
   const managed = [];
   const blocked = [];
@@ -954,8 +1189,9 @@ async function installPlan(target, adapter, installRoot, scope, rootSource) {
     item.action = "overwrite";
   }
 
+  const partialInstall = categoryFilter !== null || optionalServices !== null;
   const liveOutputs = new Set(managed.map((item) => item.output));
-  const staleManaged = Array.isArray(previousManifest?.managed)
+  const staleManaged = !partialInstall && Array.isArray(previousManifest?.managed)
     ? previousManifest.managed
       .filter((item) => item?.managed_by === "agent-surface")
       .filter((item) => item?.target === target)
@@ -965,7 +1201,9 @@ async function installPlan(target, adapter, installRoot, scope, rootSource) {
     : [];
   const staleRemovals = staleManaged.map((item) => item.output);
   const staleRemovalActions = [];
-  const configMerges = target === "kilo" ? [await prepareKiloConfigMerge(await kiloConfigMerge(installRoot, scope))] : [];
+  const configMerges = target === "kilo" && (!categoryFilter || categoryFilter.has("rules"))
+    ? [await prepareKiloConfigMerge(await kiloConfigMerge(installRoot, scope))]
+    : [];
 
   for (const item of configMerges) {
     if (item.action === "blocked") blocked.push(item.error);
@@ -987,11 +1225,23 @@ async function installPlan(target, adapter, installRoot, scope, rootSource) {
     staleRemovalActions.push({ output, relativeOutput: item.output, action: "remove" });
   }
 
+  if (categoryFilter && writes.length === 0 && configMerges.length === 0 && nonApplicable.length === 0) {
+    blocked.push(`no installable outputs for categories: ${[...categoryFilter].sort().join(", ")}`);
+  }
+
+  const retainedManaged = partialInstall && Array.isArray(previousManifest?.managed)
+    ? previousManifest.managed
+      .filter((item) => item?.managed_by === "agent-surface")
+      .filter((item) => item?.target === target)
+      .filter((item) => typeof item.output === "string")
+      .filter((item) => !liveOutputs.has(item.output))
+    : [];
+  const manifestManaged = [...retainedManaged, ...managed].sort((left, right) => left.output.localeCompare(right.output));
   const manifest = {
     target,
     scope,
     generated_at: generatedAt,
-    managed,
+    managed: manifestManaged,
   };
 
   return {
@@ -1001,6 +1251,8 @@ async function installPlan(target, adapter, installRoot, scope, rootSource) {
     installRoot,
     manifestPath,
     generatedAt,
+    categories: categoryFilter ? [...categoryFilter].sort() : null,
+    services: optionalServices ? [...optionalServices].sort() : null,
     writes,
     staleRemovals,
     staleRemovalActions,
@@ -1017,6 +1269,11 @@ function outputAppliesToScope(output, scope, sourceKindsConfig) {
   return policy.install_scopes.includes(scope);
 }
 
+function outputAppliesToCategory(output, categoryFilter) {
+  if (!categoryFilter) return true;
+  return categoryFilter.has(output.renderKind) || categoryFilter.has(output.sourceKind);
+}
+
 // Any generated output must declare a source kind and that kind must be
 // defined in the registry. Missing/unknown source kinds are checked in generated
 // validation and install planning; this helper exists for call sites that do not
@@ -1029,6 +1286,8 @@ function requireKnownSourceKind(output, sourceKindsConfig, errors) {
 function printInstallPlan(plan) {
   console.log(`target: ${plan.target}`);
   console.log(`scope: ${plan.scope}`);
+  if (plan.categories) console.log(`categories: ${plan.categories.join(", ")}`);
+  if (plan.services) console.log(`services: ${plan.services.join(", ")}`);
   console.log(`root source: ${plan.rootSource}`);
   console.log(`root: ${plan.installRoot}`);
   console.log("planned writes:");
@@ -1803,7 +2062,207 @@ async function renderClaudeCommand(source) {
   return source.body;
 }
 
+function renderClaudeSubagent(source) {
+  const mapped = claudeSubagentAccess(source.metadata.access);
+  return [
+    "---",
+    `name: ${source.metadata.name}`,
+    `description: "${yamlString(source.metadata.description)}"`,
+    `tools: ${mapped.tools}`,
+    `model: ${source.metadata.model}`,
+    `maxTurns: ${mapped.maxTurns}`,
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  ].join("\n");
+}
+
+function renderKiloSubagent(source) {
+  const mapped = kiloSubagentAccess(source.metadata.access);
+  const lines = [
+    "---",
+    `description: "${yamlString(source.metadata.description)}"`,
+    "mode: subagent",
+  ];
+  if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
+  lines.push(
+    "permission:",
+    `  edit: ${mapped.edit}`,
+    `  bash: ${mapped.bash}`,
+    `steps: ${mapped.steps}`,
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  );
+  return lines.join("\n");
+}
+
+function renderCursorSubagent(source) {
+  return [
+    "---",
+    `name: ${source.metadata.name}`,
+    `description: "${yamlString(source.metadata.description)}"`,
+    `model: ${source.metadata.model}`,
+    `readonly: ${cursorSubagentReadonly(source.metadata.access)}`,
+    "is_background: false",
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  ].join("\n");
+}
+
+function cursorSubagentReadonly(access) {
+  if (access === "read-only") return true;
+  if (access === "read-write-shell") return false;
+  // Cursor `readonly` is binary: it blocks edits and state-changing shell together,
+  // so it cannot express read-write without shell. Refuse rather than silently grant shell.
+  fail(`cursor subagent access ${access} is not representable; use read-only or read-write-shell`);
+}
+
+function renderGeminiSubagent(source) {
+  const tools = geminiSubagentAccess(source.metadata.access);
+  return [
+    "---",
+    `name: ${source.metadata.name}`,
+    `description: "${yamlString(source.metadata.description)}"`,
+    `model: ${source.metadata.model}`,
+    "tools:",
+    ...tools.map((tool) => `  - ${tool}`),
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  ].join("\n");
+}
+
+function renderDroidSubagent(source) {
+  const tools = droidSubagentAccess(source.metadata.access);
+  return [
+    "---",
+    `name: ${source.metadata.name}`,
+    `description: "${yamlString(source.metadata.description)}"`,
+    `model: ${source.metadata.model}`,
+    "tools:",
+    ...tools.map((tool) => `  - ${tool}`),
+    "mcpServers: []",
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  ].join("\n");
+}
+
+function renderCodexSubagent(source) {
+  const lines = [
+    `name = "${tomlString(source.metadata.name)}"`,
+    `description = "${tomlString(source.metadata.description)}"`,
+    `sandbox_mode = "${codexSubagentSandboxMode(source.metadata.access)}"`,
+  ];
+  if (source.metadata.model !== "inherit") lines.push(`model = "${tomlString(source.metadata.model)}"`);
+  lines.push(
+    "",
+    `developer_instructions = ${tomlMultilineString(source.body.trim())}`,
+    "",
+  );
+  return lines.join("\n");
+}
+
+function renderDeepAgentsSubagent(source) {
+  const lines = [
+    "---",
+    `name: ${source.metadata.name}`,
+    `description: "${yamlString(source.metadata.description)}"`,
+  ];
+  if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
+  lines.push(
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  );
+  return lines.join("\n");
+}
+
+function renderOpenCodeSubagent(source) {
+  const mapped = opencodeSubagentAccess(source.metadata.access);
+  const lines = [
+    "---",
+    `description: "${yamlString(source.metadata.description)}"`,
+    "mode: subagent",
+  ];
+  if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
+  lines.push(
+    "permission:",
+    `  edit: ${mapped.edit}`,
+    `  bash: ${mapped.bash}`,
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  );
+  return lines.join("\n");
+}
+
+function claudeSubagentAccess(access) {
+  if (access === "read-only") return { tools: "Read, Glob, Grep", maxTurns: 20 };
+  if (access === "read-write") return { tools: "Read, Glob, Grep, Edit, Write", maxTurns: 30 };
+  if (access === "read-write-shell") return { tools: "Read, Glob, Grep, Edit, Write, Bash", maxTurns: 40 };
+  fail(`unsupported subagent access: ${access}`);
+}
+
+function codexSubagentSandboxMode(access) {
+  if (access === "read-only") return "read-only";
+  if (access === "read-write-shell") return "workspace-write";
+  // Codex sandbox modes do not separate file writes from shell execution.
+  // Refuse the intermediate tier instead of silently granting command access.
+  if (access === "read-write") fail("codex subagent access read-write is not representable; use read-only or read-write-shell");
+  fail(`unsupported subagent access: ${access}`);
+}
+
+function kiloSubagentAccess(access) {
+  if (access === "read-only") return { edit: "deny", bash: "deny", steps: 20 };
+  if (access === "read-write") return { edit: "ask", bash: "deny", steps: 30 };
+  if (access === "read-write-shell") return { edit: "ask", bash: "ask", steps: 40 };
+  fail(`unsupported subagent access: ${access}`);
+}
+
+function geminiSubagentAccess(access) {
+  const readOnly = ["glob", "grep_search", "list_directory", "read_file", "read_many_files"];
+  if (access === "read-only") return readOnly;
+  const readWrite = [...readOnly, "replace", "write_file"];
+  if (access === "read-write") return readWrite;
+  if (access === "read-write-shell") return [...readWrite, "run_shell_command"];
+  fail(`unsupported subagent access: ${access}`);
+}
+
+function droidSubagentAccess(access) {
+  const readOnly = ["Read", "LS", "Grep", "Glob"];
+  if (access === "read-only") return readOnly;
+  const readWrite = [...readOnly, "Create", "Edit", "ApplyPatch"];
+  if (access === "read-write") return readWrite;
+  if (access === "read-write-shell") return [...readWrite, "Execute"];
+  fail(`unsupported subagent access: ${access}`);
+}
+
+function opencodeSubagentAccess(access) {
+  if (access === "read-only") return { edit: "deny", bash: "deny" };
+  if (access === "read-write") return { edit: "ask", bash: "deny" };
+  if (access === "read-write-shell") return { edit: "ask", bash: "ask" };
+  fail(`unsupported subagent access: ${access}`);
+}
+
 async function renderCursorCommand(source) {
+  return source.body;
+}
+
+async function renderDroidCommand(source) {
+  return source.body;
+}
+
+async function renderOpenCodeCommand(source) {
   return source.body;
 }
 
@@ -1815,8 +2274,16 @@ async function renderCodexSkill(source) {
   });
 }
 
+async function renderDeepAgentsSkill(source) {
+  return renderSkillMarkdown(source, {
+    invocationPrefix: null,
+    generatedFor: "Deep Agents Code",
+    hostInstruction: "Deep Agents discovers this skill from its frontmatter and reads it when the task matches the description.",
+  });
+}
+
 function renderSkillMarkdown(source, options = {}) {
-  const invocationPrefix = options.invocationPrefix ?? "$";
+  const invocationPrefix = Object.hasOwn(options, "invocationPrefix") ? options.invocationPrefix : "$";
   const generatedFor = options.generatedFor ?? "agent-surface skill";
   const description = yamlString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   const hostInstruction = options.hostInstruction ?? `Invoke \`${invocationPrefix}${source.name}\` when this skill is needed.`;
@@ -1828,7 +2295,7 @@ function renderSkillMarkdown(source, options = {}) {
     "",
     `# ${source.name}`,
     "",
-    `Use explicit invocation: \`${invocationPrefix}${source.name}\`.`,
+    invocationPrefix === null ? "Use this skill when its description matches the task." : `Use explicit invocation: \`${invocationPrefix}${source.name}\`.`,
     `This skill is generated by agent-surface from \`${source.relativePath}\` for ${generatedFor}.`,
     hostInstruction,
     "",
@@ -1877,14 +2344,14 @@ async function codexOpenAiAgentOutput(source) {
 }
 
 function antigravityCliSkillOutputName(source) {
-  return `${source.name}.md`;
+  return path.join(source.name, "SKILL.md");
 }
 
 async function renderAntigravityCliSkill(source) {
   return renderSkillMarkdown(source, {
     invocationPrefix: "/",
-    generatedFor: "Antigravity CLI plugin skill",
-    hostInstruction: "Invoke this skill from Antigravity CLI after the agent-surface plugin is installed.",
+    generatedFor: "Google CLI extension skill",
+    hostInstruction: "Activate this skill from Gemini or Antigravity CLI after the agent-surface extension is installed.",
   });
 }
 
@@ -1892,8 +2359,20 @@ async function codexStaticOutputs() {
   return [
     {
       source: "rules/*.mdc",
+      renderKind: "rules",
       relativeOutput: path.join(".codex", "AGENTS.md"),
       content: await renderInstructionDocument("AGENTS.md - agent-surface global Codex rules", "Codex global instructions"),
+    },
+  ];
+}
+
+async function deepagentsStaticOutputs(_commands, context) {
+  return [
+    {
+      source: "rules/*.mdc",
+      renderKind: "rules",
+      relativeOutput: deepagentsInstructionPath(context),
+      content: await renderInstructionDocument("AGENTS.md - agent-surface Deep Agents Code rules", "Deep Agents Code instructions"),
     },
   ];
 }
@@ -1936,40 +2415,41 @@ async function geminiStaticOutputs() {
 
 async function antigravityCliStaticOutputs(commands) {
   const metadata = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
-  const rules = await readRules();
   return [
     {
       sourceKind: "commands",
       renderKind: "plugins",
       source: "package.json",
-      relativeOutput: path.join("plugins", "agent-surface", "plugin.json"),
+      relativeOutput: path.join("extensions", "agent-surface", "gemini-extension.json"),
       content: `${JSON.stringify({
         name: "agent-surface",
         version: metadata.version,
-        description: "Portable agent-surface command, skill, and rule pack generated from Lyther/agent-surface.",
+        description: "Portable agent-surface command, skill, subagent, and rule pack generated from Lyther/agent-surface.",
+        contextFileName: "GEMINI.md",
       }, null, 2)}\n`,
     },
     {
       sourceKind: "commands",
       renderKind: "plugins",
       source: "README.md",
-      relativeOutput: path.join("plugins", "agent-surface", "README.md"),
+      relativeOutput: path.join("extensions", "agent-surface", "README.md"),
       content: [
-        "# agent-surface Antigravity CLI plugin",
+        "# agent-surface Google CLI extension",
         "",
-        "Generated plugin package for Antigravity CLI.",
+        "Generated extension package for Gemini CLI and the Google CLI transition surface.",
         "",
-        "Use the Antigravity CLI plugin manager when available, or link this directory into the Antigravity CLI plugin root for local testing.",
+        "Install or link this directory with `gemini extensions install` or `gemini extensions link`.",
         "",
         `Packaged skills: ${commands.length}`,
         "",
       ].join("\n"),
     },
-    ...rules.map((rule) => ({
-      source: rule.file,
-      relativeOutput: path.join("plugins", "agent-surface", "rules", `${path.basename(rule.file, ".mdc")}.md`),
-      content: renderAntigravityRuleDocument(rule),
-    })),
+    {
+      source: "rules/*.mdc",
+      renderKind: "rules",
+      relativeOutput: path.join("extensions", "agent-surface", "GEMINI.md"),
+      content: await renderInstructionDocument("GEMINI.md - agent-surface Google CLI extension rules", "Gemini CLI extension context"),
+    },
   ];
 }
 
@@ -1980,6 +2460,114 @@ async function cursorStaticOutputs() {
     relativeOutput: path.join(".cursor", "rules", path.basename(rule.file)),
     content: rule.text,
   }));
+}
+
+async function droidStaticOutputs(_commands, context) {
+  return [
+    {
+      source: "rules/*.mdc",
+      renderKind: "rules",
+      relativeOutput: droidInstructionPath(context),
+      content: await renderInstructionDocument("AGENTS.md - agent-surface Droid rules", "Droid instructions"),
+    },
+    ...(await droidExternalSkillOutputs()),
+  ];
+}
+
+function droidInstructionPath(context) {
+  return context.scope === "user" ? path.join(".factory", "AGENTS.md") : "AGENTS.md";
+}
+
+async function optionalMcpOutputs(adapter, context) {
+  if (!adapter.mcpConfig.defaultEnabled && !context.categoryFilter?.has("mcps")) return [];
+
+  const registry = await readOptionalServices();
+  const entries = Object.entries(registry.services)
+    .filter(([, service]) => service.kind === "mcp")
+    .filter(([id]) => !context.optionalServices || context.optionalServices.has(id));
+  if (context.optionalServices) {
+    const known = new Set(entries.map(([id]) => id));
+    for (const id of context.optionalServices) {
+      if (!known.has(id)) fail(`missing optional MCP service: ${id}`);
+    }
+  }
+  if (entries.length === 0) return [];
+
+  const mcpServers = {};
+  for (const [id, service] of entries.sort(([left], [right]) => left.localeCompare(right))) {
+    mcpServers[id] = optionalServiceMcpServer(service);
+  }
+
+  return [{
+    sourceKind: "external",
+    renderKind: "mcps",
+    source: "registry/optional-services.json",
+    relativeOutput: outputRootFor(adapter.mcpConfig.relativeOutput, context),
+    content: `${JSON.stringify({ mcpServers }, null, 2)}\n`,
+  }];
+}
+
+function optionalServiceMcpServer(service) {
+  const server = service.mcp?.server;
+  if (!server || typeof server !== "object" || Array.isArray(server)) {
+    fail(`optional service ${service.path} is missing an MCP server contract`);
+  }
+  return {
+    type: server.type,
+    command: server.command,
+    args: server.args ?? [],
+  };
+}
+
+async function droidExternalSkillOutputs() {
+  const outputs = [];
+  const roots = await droidExternalSkillRoots();
+  const textExtensions = new Set([".md", ".mdx", ".json", ".yaml", ".yml", ".toml", ".txt", ".sh", ".py", ".js", ".ts"]);
+
+  for (const sourceRoot of roots) {
+    const skillName = path.basename(sourceRoot);
+    const files = await filesUnder(sourceRoot, [...textExtensions]);
+    for (const file of files) {
+      const relativeFile = path.relative(sourceRoot, file);
+      outputs.push({
+        sourceKind: "external",
+        renderKind: "external",
+        source: relative(file),
+        relativeOutput: path.join(".factory", "skills", skillName, relativeFile),
+        content: await readFile(file, "utf8"),
+      });
+    }
+  }
+
+  return outputs;
+}
+
+async function droidExternalSkillRoots() {
+  const candidates = [
+    ...await directDirectories(path.join(root, "external", "sanyuan-skills", "skills")),
+    path.join(root, "external", "andrej-karpathy-skills", "skills", "karpathy-guidelines"),
+    ...[
+      "ctf-ai-ml",
+      "ctf-crypto",
+      "ctf-forensics",
+      "ctf-malware",
+      "ctf-misc",
+      "ctf-osint",
+      "ctf-pwn",
+      "ctf-reverse",
+      "ctf-web",
+      "ctf-writeup",
+      "solve-challenge",
+    ].map((name) => path.join(root, "external", "ctf-skills", name)),
+    path.join(root, "external", "pua", "skills", "pua"),
+    path.join(root, "external", "pua", "skills", "pua-en"),
+  ];
+
+  const existing = [];
+  for (const candidate of candidates) {
+    if (await exists(path.join(candidate, "SKILL.md"))) existing.push(candidate);
+  }
+  return existing;
 }
 
 async function copilotStaticOutputs() {
@@ -2013,11 +2601,11 @@ async function vscodeStaticOutputs() {
   ];
 }
 
-async function opencodeStaticOutputs() {
+async function opencodeStaticOutputs(_commands, context) {
   return [
     {
       source: "rules/*.mdc",
-      relativeOutput: path.join(".config", "opencode", "AGENTS.md"),
+      relativeOutput: opencodeInstructionPath(context),
       content: await renderInstructionDocument("AGENTS.md - agent-surface global OpenCode rules", "OpenCode global instructions"),
     },
   ];
@@ -2054,17 +2642,6 @@ function renderKiloRuleDocument(rule) {
     `# ${path.basename(rule.file, ".mdc")}`,
     "",
     `> Kilo custom rule. Generated by agent-surface from \`${rule.file}\`.`,
-    "",
-    stripFrontmatter(rule.text).trim(),
-    "",
-  ].join("\n");
-}
-
-function renderAntigravityRuleDocument(rule) {
-  return [
-    `# ${path.basename(rule.file, ".mdc")}`,
-    "",
-    `> Antigravity CLI plugin rule. Generated by agent-surface from \`${rule.file}\`.`,
     "",
     stripFrontmatter(rule.text).trim(),
     "",
@@ -2282,6 +2859,7 @@ async function targetOutputs(adapter, commands, context) {
       ...output,
       producerId: producer.id,
       sourceKind: output.sourceKind ?? producer.sourceKind,
+      renderKind: output.renderKind ?? producerDefaultRenderKind(producer),
     })));
   }
 
@@ -2312,8 +2890,14 @@ function targetProducers(adapter) {
   if (adapter.staticOutputs) {
     producers.push({ id: "static", sourceKind: "rules", emits: adapter.staticRenders ?? [], produce: (commands, context) => adapter.staticOutputs(commands, context) });
   }
+  if (adapter.subagentOutputRoot && adapter.renderSubagent) {
+    producers.push({ id: "subagents", sourceKind: "subagents", emits: adapter.subagentRenders ?? ["subagents"], produce: (commands, context) => subagentOutputs(adapter, context) });
+  }
   if (adapter.ignoreFilename) {
     producers.push({ id: "ignores", sourceKind: "ignores", emits: ["ignores"], produce: () => ignoreOutputs(adapter) });
+  }
+  if (adapter.mcpConfig) {
+    producers.push({ id: "mcps", sourceKind: "external", emits: ["mcps"], produce: (_commands, context) => optionalMcpOutputs(adapter, context) });
   }
   return producers;
 }
@@ -2324,6 +2908,10 @@ function producerEmitsFor(adapter) {
     for (const token of producer.emits ?? []) emits.add(token);
   }
   return emits;
+}
+
+function producerDefaultRenderKind(producer) {
+  return producer.emits?.length === 1 ? producer.emits[0] : producer.id;
 }
 
 async function produceCommandOutputs(adapter, commands, context) {
@@ -2744,11 +3332,23 @@ function installRootCodex(scope) {
   return os.homedir();
 }
 
+function installRootDeepagents(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
+function installRootOpencode(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
 function installRootCline(scope) {
   return scope === "user" ? os.homedir() : process.cwd();
 }
 
 function installRootKilo(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
+function installRootDroid(scope) {
   return scope === "user" ? os.homedir() : process.cwd();
 }
 
@@ -2759,7 +3359,7 @@ function installRootAntigravity(scope) {
 
 function installRootAntigravityCli(scope) {
   if (scope !== "user") fail("antigravity-cli install supports --scope user only unless --dest is supplied");
-  return path.join(os.homedir(), ".gemini", "antigravity-cli");
+  return path.join(os.homedir(), ".gemini");
 }
 
 function installRootVsCode(scope) {
@@ -2781,16 +3381,42 @@ async function kiloConfigStatus() {
   if (pluginVersion) markers.push(`plugin ${pluginVersion}`);
   if (await exists(path.join(configDir, "AGENTS.md"))) markers.push("AGENTS.md");
   if (await exists(path.join(configDir, "commands"))) markers.push("commands");
-  if (instructions.includes("./rules/00-precedence-and-safety.md")) markers.push("rules configured");
+  if (instructions.includes("./rules/00-core.md")) markers.push("rules configured");
   return markers.length > 0 ? `present (${markers.join(", ")})` : "present";
 }
 
 function clineWorkflowRoot(context) {
-  return context.scope === "user" ? path.join("Documents", "Cline", "Workflows") : path.join(".clinerules", "workflows");
+  return context.scope === "user" ? path.join(".cline", "data", "workflows") : path.join(".clinerules", "workflows");
+}
+
+function deepagentsSkillRoot(context) {
+  return context.scope === "user"
+    ? path.join(".deepagents", context.agentName ?? "agent", "skills")
+    : path.join(".deepagents", "skills");
+}
+
+function deepagentsInstructionPath(context) {
+  return context.scope === "user"
+    ? path.join(".deepagents", context.agentName ?? "agent", "AGENTS.md")
+    : path.join(".deepagents", "AGENTS.md");
+}
+
+function deepagentsAgentRoot(context) {
+  return context.scope === "user"
+    ? path.join(".deepagents", context.agentName ?? "agent", "agents")
+    : path.join(".deepagents", "agents");
+}
+
+function deepagentsSubagentOutputName(source) {
+  return path.join(source.metadata.name, "AGENTS.md");
+}
+
+function deepagentsMcpPath() {
+  return path.join(".deepagents", ".mcp.json");
 }
 
 function clineRuleRoot(context) {
-  return context.scope === "user" ? path.join("Documents", "Cline", "Rules") : ".clinerules";
+  return context.scope === "user" ? path.join(".cline", "rules") : ".clinerules";
 }
 
 function kiloWorkflowRoot(context) {
@@ -2807,6 +3433,18 @@ function kiloRuleRoot(context) {
 
 function kiloAgentRoot(context) {
   return context.scope === "user" ? path.join(".config", "kilo", "agents") : path.join(".kilo", "agents");
+}
+
+function opencodeCommandRoot(context) {
+  return context.scope === "user" ? path.join(".config", "opencode", "commands") : path.join(".opencode", "commands");
+}
+
+function opencodeAgentRoot(context) {
+  return context.scope === "user" ? path.join(".config", "opencode", "agents") : path.join(".opencode", "agents");
+}
+
+function opencodeInstructionPath(context) {
+  return context.scope === "user" ? path.join(".config", "opencode", "AGENTS.md") : "AGENTS.md";
 }
 
 async function kiloRuleInstructionPaths(scope) {

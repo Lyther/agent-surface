@@ -1,0 +1,46 @@
+---
+description: "Shell-specific correctness rules"
+globs:
+  - "**/*.sh"
+  - "**/*.bash"
+  - "**/Dockerfile*"
+  - ".github/workflows/*"
+  - "Makefile"
+  - "justfile"
+  - "Taskfile.yml"
+alwaysApply: false
+---
+
+# Shell
+
+Target the shell declared by the script shebang; do not rewrite POSIX `sh` as Bash without need. Apply shell rules only to shell snippets inside Dockerfiles/workflow YAML.
+
+## Forbidden / default-deny
+
+These differ from a model's defaults; fix the underlying issue. Genuine exceptions need an inline reason.
+
+- **Silent failures**: no missing `set -e` in executable Bash scripts, no unexplained `cmd || true`, no `cmd 2>/dev/null` without reason, no unchecked command substitution, no `cd` without `|| exit 1`.
+- **Unquoted expansions**: always `"$var"`; word-splitting and globbing are bugs. Use arrays for command arguments in Bash (`"${args[@]}"`).
+- **Foot-guns**: `[ $x = y ]` (use `[[ "$x" = "y" ]]`), backticks `` `cmd` `` (use `$(cmd)`), `for f in $(ls)` (use a glob or `find -print0`), `echo $var` (use `printf '%s\n' "$var"`), `tmp=/tmp/x.$$` (use `mktemp`).
+- **`# shellcheck disable`** without a specific code + inline reason: prefer fixing the issue.
+- **Garbage**: `echo` for debugging (use stderr `>&2` or a logger), dead code paths, unused variables.
+
+## Strict mode & safety
+
+Use `set -euo pipefail` for standalone Bash scripts. Exceptions (sourced files, POSIX `sh`, completion scripts, generated scripts, intentional failure probes) must be named.
+
+- Temp files via `mktemp` with a cleanup `trap '...' EXIT`.
+- Atomic writes: write to a temp in the target dir, then `mv`.
+- Required vars: `: "${VAR:?must be set}"`.
+
+## Toolchain gate
+
+Run in order; each green before the next:
+
+```bash
+bash -n script.sh        # syntax
+shellcheck -x script.sh  # zero warnings
+shfmt -i 4 -ci -d .      # diff (no -w unless intentionally formatting)
+```
+
+Common ShellCheck codes: `SC2086` quote expansions, `SC2046` quote substitution, `SC2006` use `$()`, `SC2164` `cd || exit`, `SC2155` declare/assign separately.

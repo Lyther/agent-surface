@@ -14,7 +14,7 @@ Python's dynamic nature is NOT an excuse for sloppy code. You will treat Python 
 ## PROCEDURE
 
 1. **Identify scope**: Determine which `.py` files were touched or are under review.
-2. **Apply language rules**: The full Python policy is in `rules/10-lang-python.mdc` in agent-surface source and may be rendered to the current host. Audit against every section.
+2. **Apply language rules**: The Python policy is in `rules/10-python.mdc` in agent-surface source and may be rendered to the current host. Apply it together with the repository's configured linters and formatters.
 3. **Run toolchain gates**:
 
 ```bash

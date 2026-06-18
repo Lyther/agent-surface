@@ -18,11 +18,29 @@
         "project"
       ]
     },
+    "subagents": {
+      "source_dir": "subagents",
+      "load_mode": "isolated_session",
+      "scope": "both",
+      "install_scopes": [
+        "user",
+        "project"
+      ]
+    },
     "ignores": {
       "source_dir": "ignores",
       "load_mode": "external_tool",
       "scope": "project",
       "install_scopes": [
+        "project"
+      ]
+    },
+    "external": {
+      "source_dir": "external",
+      "load_mode": "on_demand",
+      "scope": "both",
+      "install_scopes": [
+        "user",
         "project"
       ]
     }

@@ -1,0 +1,70 @@
+---
+description: "TypeScript-specific correctness rules"
+globs:
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.mts"
+  - "**/*.cts"
+  - "tsconfig.json"
+  - "tsconfig.*.json"
+  - "package.json"
+  - "package-lock.json"
+  - "pnpm-lock.yaml"
+  - "yarn.lock"
+  - "bun.lock"
+  - "eslint.config.*"
+  - ".eslintrc*"
+  - "vite.config.*"
+  - "next.config.*"
+alwaysApply: false
+---
+
+# TypeScript
+
+Use the existing package manager, TypeScript configuration, runtime validator, lint rules, and scripts. Preserve current strictness; never loosen checks to pass. Do not add Zod or another framework merely to satisfy a preference.
+
+## Forbidden / default-deny
+
+These differ from a model's defaults; fix the underlying issue. Genuine exceptions need an inline reason.
+
+- **Type-system bypasses**: no `any`, `as any`, unjustified non-null `!`, or `as Type` without validation. Use `unknown` + type guards, or the repo's runtime validator, at boundaries. `as const` is safe.
+- **Escape hatches**: no `@ts-ignore` (use `@ts-expect-error` with an inline reason + issue ref), `@ts-nocheck`, or blanket `eslint-disable`. Prefer fixing the issue.
+- **Silent failures**: no empty `catch {}`, no `catch (e) { console.log(e) }` without re-throw, no `.catch(() => {})`, no floating promises, no `try {} catch { return undefined }`. Re-throw, convert to a typed result, or handle explicitly.
+- **Async foot-guns**: no unawaited `Promise` returns, no `async` without `await` when the contract is sync. Use `Promise.all`/`allSettled` for independent concurrent work; `await` sequentially only when order matters.
+- **JS anti-patterns**: `==` (use `===`), `arguments` object, `eval`/`Function()`, `var`, unbound `this`.
+- **Garbage**: `console.log()`/`debugger` in committed code.
+
+## Strict compiler settings
+
+For greenfield projects with no config, seed `tsconfig.json` from these flags (preserve any stricter settings already present):
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+## Toolchain gate
+
+Run in order; each green before the next. Prefer repository scripts; otherwise:
+
+```bash
+npm run typecheck   # tsc --noEmit
+npm run lint        # eslint
+npm run format:check
+npm test
+```
+
+Prefer `parserOptions.projectService: true` for typed linting. At boundaries, validate external data with the repo's existing mechanism (Zod/Valibot/ArkType/io-ts/TypeBox or type guards).

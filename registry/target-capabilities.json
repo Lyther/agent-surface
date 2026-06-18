@@ -1,0 +1,974 @@
+{
+  "reviewed_at": "2026-06-19",
+  "targets": {
+    "claude-code": {
+      "summary": "Claude Code supports native slash commands, subagents, MCP, and skills; agent-surface generates commands and subagents and leaves MCP/skills manual to avoid duplicated command surfaces and secret-bearing config edits.",
+      "generated_render_tokens": [
+        "commands",
+        "subagents"
+      ],
+      "evidence": [
+        {
+          "label": "Claude Code slash commands",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/slash-commands"
+        },
+        {
+          "label": "Claude Code subagents",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/sub-agents"
+        },
+        {
+          "label": "Claude Code MCP",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/mcp"
+        }
+      ],
+      "surfaces": {
+        "commands": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.claude/commands/<group>/<name>.md",
+            ".claude/commands/<group>/<name>.md"
+          ],
+          "notes": "Commands remain first-class command files rather than skills."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.claude/agents/<name>.md",
+            ".claude/agents/<name>.md"
+          ],
+          "notes": "Normalized subagents map access levels to Claude Code tool lists."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [],
+          "notes": "MCP config can grant live tool access and may carry secrets; it is not auto-merged."
+        },
+        "skills": {
+          "support": "native",
+          "generation": "not-generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [],
+          "notes": "Command sources already render as native commands for this target."
+        }
+      }
+    },
+    "codex": {
+      "summary": "Codex supports skills, custom agent TOML files, AGENTS.md instructions, and MCP config; agent-surface generates explicit-invocation skills, custom agents, and global instructions while leaving MCP config manual.",
+      "generated_render_tokens": [
+        "skills",
+        "subagents",
+        "rules"
+      ],
+      "evidence": [
+        {
+          "label": "Codex skills",
+          "url": "https://developers.openai.com/codex/skills"
+        },
+        {
+          "label": "Codex subagents",
+          "url": "https://developers.openai.com/codex/subagents"
+        },
+        {
+          "label": "Codex MCP",
+          "url": "https://developers.openai.com/codex/mcp"
+        }
+      ],
+      "surfaces": {
+        "skills": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.agents/skills/<command>/SKILL.md",
+            ".agents/skills/<command>/SKILL.md"
+          ],
+          "notes": "Generated skills include openai.yaml sidecars that disable implicit invocation."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.codex/agents/<name>.toml",
+            ".codex/agents/<name>.toml"
+          ],
+          "notes": "Custom agents render as standalone TOML with name, description, developer_instructions, and sandbox_mode."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.codex/AGENTS.md",
+            ".codex/AGENTS.md"
+          ],
+          "notes": "Rules are bundled into the Codex AGENTS.md instruction surface."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.codex/config.toml",
+            ".codex/config.toml"
+          ],
+          "notes": "MCP server entries can expose tools and secrets, so agent-surface does not auto-merge them."
+        }
+      }
+    },
+    "deepagents": {
+      "summary": "Deep Agents Code supports skills, instruction files, custom subagents, and MCP config; agent-surface generates skills, instructions, the representable worker subagent, and optional registry-backed MCP config.",
+      "generated_render_tokens": [
+        "skills",
+        "rules",
+        "subagents",
+        "mcps"
+      ],
+      "evidence": [
+        {
+          "label": "Deep Agents Code overview",
+          "url": "https://docs.langchain.com/oss/python/deepagents/code/overview"
+        },
+        {
+          "label": "Deep Agents Code data locations",
+          "url": "https://docs.langchain.com/oss/python/deepagents/code/data-locations"
+        },
+        {
+          "label": "Deep Agents Code MCP tools",
+          "url": "https://docs.langchain.com/oss/python/deepagents/code/mcp-tools"
+        }
+      ],
+      "surfaces": {
+        "skills": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.deepagents/agent/skills/<command>/SKILL.md",
+            ".deepagents/skills/<command>/SKILL.md"
+          ],
+          "notes": "Command sources render as Deep Agents Code SKILL.md directories; --agent changes the user-level agent directory."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.deepagents/agent/AGENTS.md",
+            ".deepagents/AGENTS.md"
+          ],
+          "notes": "Rules render as Deep Agents Code instruction files; project root AGENTS.md remains available for project-owned instructions."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.deepagents/agent/agents/<name>/AGENTS.md",
+            ".deepagents/agents/<name>/AGENTS.md"
+          ],
+          "notes": "Deep Agents Code subagent files cannot configure per-subagent tools, so only the read-write-shell worker profile is emitted."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.deepagents/.mcp.json",
+            ".deepagents/.mcp.json"
+          ],
+          "notes": "Optional MCP output is registry-backed and generated only when the mcps category is requested."
+        }
+      }
+    },
+    "gemini-cli": {
+      "summary": "Gemini CLI supports commands, context files, agents, skills/extensions, and MCP; agent-surface generates direct command, context, and agent files and keeps MCP settings manual.",
+      "generated_render_tokens": [
+        "commands",
+        "subagents",
+        "rules"
+      ],
+      "evidence": [
+        {
+          "label": "Gemini CLI docs",
+          "url": "https://github.com/google-gemini/gemini-cli/tree/main/docs"
+        },
+        {
+          "label": "Gemini CLI transition update",
+          "url": "https://developers.googleblog.com/en/an-important-update-transitioning-gemini-cli-to-antigravity-cli/"
+        }
+      ],
+      "surfaces": {
+        "commands": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            ".gemini/commands/**/*.toml"
+          ],
+          "notes": "Command sources render as TOML command files."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            ".gemini/agents/<name>.md"
+          ],
+          "notes": "Normalized subagents render as Gemini agent markdown."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            ".gemini/GEMINI.md"
+          ],
+          "notes": "Rules are packed into the Gemini context file."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [],
+          "notes": "MCP settings remain a reviewed host-config change."
+        },
+        "skills": {
+          "support": "native",
+          "generation": "not-generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [],
+          "notes": "Use the antigravity-cli target for generated extension skills."
+        }
+      }
+    },
+    "cline": {
+      "summary": "Cline supports workflows, rules, skills, MCP, and newer global configuration roots; agent-surface generates workflows, rules, and ignore files while leaving skills/MCP manual.",
+      "generated_render_tokens": [
+        "commands-as-workflows",
+        "rules",
+        "ignores"
+      ],
+      "evidence": [
+        {
+          "label": "Cline workflows",
+          "url": "https://docs.cline.bot/features/slash-commands/workflows"
+        },
+        {
+          "label": "Cline rules",
+          "url": "https://docs.cline.bot/features/cline-rules"
+        },
+        {
+          "label": "Cline MCP",
+          "url": "https://docs.cline.bot/mcp/configuring-mcp-servers"
+        }
+      ],
+      "surfaces": {
+        "commands-as-workflows": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.cline/data/workflows/*.md",
+            ".clinerules/workflows/*.md"
+          ],
+          "notes": "User-global workflows use the current Cline data root; project workflows retain the documented .clinerules compatibility surface."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.cline/rules/agent-surface.md",
+            ".clinerules/agent-surface.md"
+          ],
+          "notes": "Generated rules remain a single bundled rules document."
+        },
+        "ignores": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "project"
+          ],
+          "paths": [
+            ".clineignore"
+          ],
+          "notes": "The ignore file is project-only."
+        },
+        "skills": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [],
+          "notes": "Skill packs need separate activation semantics and are not derived from command workflows."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [],
+          "notes": "MCP server definitions remain reviewed host config."
+        }
+      }
+    },
+    "kilo": {
+      "summary": "Kilo supports workflows, instructions, subagents, skills, MCP, and ignore files; agent-surface generates workflows, AGENTS/rule files, subagents, ignore files, and a safe kilo.jsonc instructions merge.",
+      "generated_render_tokens": [
+        "commands-as-workflows",
+        "rules",
+        "subagents",
+        "ignores"
+      ],
+      "evidence": [
+        {
+          "label": "Kilo custom instructions",
+          "url": "https://kilo.ai/docs/customize/custom-instructions"
+        },
+        {
+          "label": "Kilo subagents",
+          "url": "https://kilo.ai/docs/code-with-ai/subagents"
+        },
+        {
+          "label": "Kilo MCP",
+          "url": "https://kilo.ai/docs/code-with-ai/mcp"
+        }
+      ],
+      "surfaces": {
+        "commands-as-workflows": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.config/kilo/commands/*.md",
+            ".kilo/commands/*.md"
+          ],
+          "notes": "Command sources render as Kilo workflow files."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.config/kilo/AGENTS.md",
+            "~/.config/kilo/rules/*.md",
+            "AGENTS.md",
+            ".kilo/rules/*.md",
+            "kilo.jsonc"
+          ],
+          "notes": "Rules are emitted as files and registered through the instructions array."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.config/kilo/agents/<name>.md",
+            ".kilo/agents/<name>.md"
+          ],
+          "notes": "Subagents render as Kilo mode: subagent markdown."
+        },
+        "ignores": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "project"
+          ],
+          "paths": [
+            ".kilocodeignore"
+          ],
+          "notes": "Ignore output is project-only."
+        },
+        "skills": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [],
+          "notes": "Native skills are separate SKILL.md directories and not synthesized from command workflows."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [],
+          "notes": "MCP server config remains a reviewed local configuration change."
+        }
+      }
+    },
+    "antigravity": {
+      "summary": "The legacy Antigravity desktop target supports workflow files; newer Google CLI extension packaging is generated by antigravity-cli.",
+      "generated_render_tokens": [
+        "commands-as-workflows"
+      ],
+      "evidence": [
+        {
+          "label": "Google Gemini CLI transition update",
+          "url": "https://developers.googleblog.com/en/an-important-update-transitioning-gemini-cli-to-antigravity-cli/"
+        }
+      ],
+      "surfaces": {
+        "commands-as-workflows": {
+          "support": "compatible",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.gemini/antigravity/global_workflows/*.md"
+          ],
+          "notes": "Legacy workflow compatibility target only."
+        },
+        "mcp": {
+          "support": "manual-only",
+          "generation": "manual",
+          "scope": [
+            "user"
+          ],
+          "paths": [],
+          "notes": "Use the current antigravity-cli target for generated extension packaging."
+        }
+      }
+    },
+    "antigravity-cli": {
+      "summary": "The Google CLI extension target packages agent-surface as a Gemini/Antigravity transition extension with skills, agents, and context.",
+      "generated_render_tokens": [
+        "plugins",
+        "skills",
+        "subagents",
+        "rules"
+      ],
+      "evidence": [
+        {
+          "label": "Gemini CLI extension docs",
+          "url": "https://github.com/google-gemini/gemini-cli/tree/main/docs"
+        },
+        {
+          "label": "Google Gemini CLI transition update",
+          "url": "https://developers.googleblog.com/en/an-important-update-transitioning-gemini-cli-to-antigravity-cli/"
+        }
+      ],
+      "surfaces": {
+        "plugins": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.gemini/extensions/agent-surface/gemini-extension.json"
+          ],
+          "notes": "Generated manifest packages the extension."
+        },
+        "skills": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.gemini/extensions/agent-surface/skills/<command>/SKILL.md"
+          ],
+          "notes": "Command sources render as extension skills."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.gemini/extensions/agent-surface/agents/<name>.md"
+          ],
+          "notes": "Normalized subagents are included inside the extension."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.gemini/extensions/agent-surface/GEMINI.md"
+          ],
+          "notes": "Shared rules render as extension context."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user"
+          ],
+          "paths": [],
+          "notes": "Extension MCP configuration is not generated until optional-service secrets and trust boundaries are explicit."
+        }
+      }
+    },
+    "opencode": {
+      "summary": "OpenCode supports AGENTS.md, commands, agents, skills, MCP, and plugins; agent-surface now generates rules, command files, and agent files and keeps MCP/skills/plugins manual.",
+      "generated_render_tokens": [
+        "commands",
+        "subagents",
+        "rules"
+      ],
+      "evidence": [
+        {
+          "label": "OpenCode commands",
+          "url": "https://opencode.ai/docs/commands/"
+        },
+        {
+          "label": "OpenCode agents",
+          "url": "https://opencode.ai/docs/agents/"
+        },
+        {
+          "label": "OpenCode rules",
+          "url": "https://opencode.ai/docs/rules/"
+        }
+      ],
+      "surfaces": {
+        "commands": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.config/opencode/commands/*.md",
+            ".opencode/commands/*.md"
+          ],
+          "notes": "Command sources render as OpenCode custom commands."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.config/opencode/agents/<name>.md",
+            ".opencode/agents/<name>.md"
+          ],
+          "notes": "Subagents render as OpenCode agent markdown using current permission fields."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.config/opencode/AGENTS.md",
+            "AGENTS.md"
+          ],
+          "notes": "Rules render as AGENTS.md."
+        },
+        "skills": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [],
+          "notes": "Native skills are not synthesized from command files."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [],
+          "notes": "MCP configuration remains manual because it can expose live tools."
+        },
+        "plugins": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [],
+          "notes": "Plugin packaging is tracked separately from direct generated files."
+        }
+      }
+    },
+    "vscode": {
+      "summary": "VS Code/Copilot supports instruction files, prompt files, MCP, and preview agent plugins; agent-surface generates the user instruction and prompt files only.",
+      "generated_render_tokens": [
+        "instructions",
+        "prompts"
+      ],
+      "evidence": [
+        {
+          "label": "VS Code Copilot customization",
+          "url": "https://code.visualstudio.com/docs/copilot/copilot-customization"
+        },
+        {
+          "label": "VS Code MCP servers",
+          "url": "https://code.visualstudio.com/docs/copilot/chat/mcp-servers"
+        }
+      ],
+      "surfaces": {
+        "instructions": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "instructions/agent-surface.instructions.md"
+          ],
+          "notes": "Path is relative to the VS Code user data directory."
+        },
+        "prompts": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "prompts/agent-surface.prompt.md"
+          ],
+          "notes": "Prompt file provides a lightweight routing entry point."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [],
+          "notes": "MCP configuration can be policy-gated and is not auto-merged."
+        },
+        "plugins": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user"
+          ],
+          "paths": [],
+          "notes": "Preview agent plugins are kept out of the direct file adapter."
+        }
+      }
+    },
+    "cursor": {
+      "summary": "Cursor supports rules, commands, agents, MCP, and ignore files; agent-surface generates rules, commands, subagents, and ignore files while keeping MCP manual.",
+      "generated_render_tokens": [
+        "rules",
+        "commands",
+        "subagents",
+        "ignores"
+      ],
+      "evidence": [
+        {
+          "label": "Cursor rules",
+          "url": "https://cursor.com/docs/context/rules"
+        },
+        {
+          "label": "Cursor commands",
+          "url": "https://cursor.com/docs/commands"
+        },
+        {
+          "label": "Cursor MCP",
+          "url": "https://cursor.com/docs/context/model-context-protocol"
+        }
+      ],
+      "surfaces": {
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.cursor/rules/*.mdc"
+          ],
+          "notes": "Rules are emitted as individual MDC files."
+        },
+        "commands": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.cursor/commands/*.md"
+          ],
+          "notes": "Command sources render as global Cursor commands."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.cursor/agents/<name>.md"
+          ],
+          "notes": "Cursor readonly is binary; unsupported intermediate write-only tiers are refused."
+        },
+        "ignores": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "project"
+          ],
+          "paths": [
+            ".cursorignore"
+          ],
+          "notes": "Ignore output is project-only."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.cursor/mcp.json",
+            ".cursor/mcp.json"
+          ],
+          "notes": "MCP config is never auto-merged because it can include secrets and live tool grants."
+        }
+      }
+    },
+    "droid": {
+      "summary": "Factory Droid supports .factory commands, droids, instructions, MCP, and skills; agent-surface generates the core .factory surfaces plus optional external skill packs when submodules are present.",
+      "generated_render_tokens": [
+        "commands",
+        "rules",
+        "subagents",
+        "mcps",
+        "external"
+      ],
+      "evidence": [
+        {
+          "label": "Factory documentation",
+          "url": "https://docs.factory.ai/"
+        }
+      ],
+      "surfaces": {
+        "commands": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            ".factory/commands/<command>.md"
+          ],
+          "notes": "Command sources remain commands."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            ".factory/AGENTS.md",
+            "AGENTS.md"
+          ],
+          "notes": "User installs use .factory/AGENTS.md; project installs use AGENTS.md."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            ".factory/droids/<name>.md"
+          ],
+          "notes": "Normalized subagents render as Droid definitions."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            ".factory/mcp.json"
+          ],
+          "notes": "Optional MCP output is generated from registry/optional-services.json and currently preserves the local agentmemory wiring."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            ".factory/skills/<skill>/..."
+          ],
+          "notes": "External packs are optional and render only when the corresponding submodule checkout exists."
+        }
+      }
+    },
+    "copilot": {
+      "summary": "GitHub Copilot and VS Code consume instruction files and repository instructions; agent-surface generates the user-profile instruction file only.",
+      "generated_render_tokens": [
+        "instructions"
+      ],
+      "evidence": [
+        {
+          "label": "GitHub Copilot custom instructions",
+          "url": "https://docs.github.com/en/copilot/customizing-copilot/adding-repository-custom-instructions-for-github-copilot"
+        },
+        {
+          "label": "VS Code Copilot customization",
+          "url": "https://code.visualstudio.com/docs/copilot/copilot-customization"
+        }
+      ],
+      "surfaces": {
+        "instructions": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "instructions/agent-surface-copilot.instructions.md"
+          ],
+          "notes": "Repository-level .github files are project-specific and are not generated by user installs."
+        }
+      }
+    },
+    "trae": {
+      "summary": "Trae exposes user/project rules and MCP config; agent-surface generates the user rules file and leaves project rules/MCP manual until the current config shape is verified by local probes.",
+      "generated_render_tokens": [
+        "rules"
+      ],
+      "evidence": [
+        {
+          "label": "Trae rules",
+          "url": "https://docs.trae.ai/ide/rules"
+        },
+        {
+          "label": "Trae MCP",
+          "url": "https://docs.trae.ai/ide/mcp"
+        }
+      ],
+      "surfaces": {
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.trae/user_rules.md"
+          ],
+          "notes": "Reusable behavior currently ships as user rules only."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            ".trae/mcp.json"
+          ],
+          "notes": "MCP config remains manual until the live schema is verified again."
+        }
+      }
+    }
+  }
+}
