@@ -123,6 +123,19 @@ const targets = {
     ignoreFilename: ".cursorignore",
     staticOutputs: cursorStaticOutputs,
   },
+  droid: {
+    label: "Factory Droid commands, instructions, droids, and optional external assets",
+    commandRenders: ["commands"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "droid",
+    subagentOutputRoot: path.join(".factory", "droids"),
+    staticRenders: ["rules", "external"],
+    commandOutputRoot: path.join(".factory", "commands"),
+    renderCommand: renderDroidCommand,
+    renderSubagent: renderDroidSubagent,
+    installRoot: installRootDroid,
+    staticOutputs: droidStaticOutputs,
+  },
   copilot: {
     label: "GitHub Copilot global instructions",
     staticRenders: ["instructions"],
@@ -831,8 +844,19 @@ function validateGeneratedTarget(target, outputs) {
   } else if (target === "cursor") {
     requirePath(path.join(".cursor", "commands", "ops-flow.md"));
     requireContains(path.join(".cursor", "agents", "boss.md"), /^---\nname: boss\n/);
-    requirePath(path.join(".cursor", "rules", "00-precedence-and-safety.mdc"));
+    requirePath(path.join(".cursor", "rules", "00-core.mdc"));
     requireContains(".cursorignore", /agent-surface canonical AI-tool ignore baseline/);
+  } else if (target === "droid") {
+    requirePath(path.join(".factory", "commands", "ops-flow.md"));
+    requireContains(path.join(".factory", "droids", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join(".factory", "AGENTS.md"), /agent-surface Droid rules/);
+    const mcp = requireJson(path.join(".factory", "mcp.json"));
+    if (mcp && mcp.mcpServers?.agentmemory?.command !== "~/.local/bin/agentmemory-mcp") {
+      errors.push("Droid agentmemory MCP must use the local patched binary");
+    }
+    if (outputs.some((output) => output.relativeOutput.startsWith(path.join(".factory", "skills") + path.sep))) {
+      requireContains(path.join(".factory", "skills", "karpathy-guidelines", "SKILL.md"), /^---\n/);
+    }
   } else if (target === "copilot") {
     requireContains(path.join("instructions", "agent-surface-copilot.instructions.md"), /^---\ndescription: "agent-surface Copilot global instructions"\napplyTo: "\*\*"/);
   } else if (target === "vscode") {
@@ -1910,6 +1934,23 @@ function renderGeminiSubagent(source) {
   ].join("\n");
 }
 
+function renderDroidSubagent(source) {
+  const tools = droidSubagentAccess(source.metadata.access);
+  return [
+    "---",
+    `name: ${source.metadata.name}`,
+    `description: "${yamlString(source.metadata.description)}"`,
+    `model: ${source.metadata.model}`,
+    "tools:",
+    ...tools.map((tool) => `  - ${tool}`),
+    "mcpServers: []",
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  ].join("\n");
+}
+
 function claudeSubagentAccess(access) {
   if (access === "read-only") return { tools: "Read, Glob, Grep", maxTurns: 20 };
   if (access === "read-write") return { tools: "Read, Glob, Grep, Edit, Write", maxTurns: 30 };
@@ -1933,7 +1974,20 @@ function geminiSubagentAccess(access) {
   fail(`unsupported subagent access: ${access}`);
 }
 
+function droidSubagentAccess(access) {
+  const readOnly = ["Read", "LS", "Grep", "Glob"];
+  if (access === "read-only") return readOnly;
+  const readWrite = [...readOnly, "Create", "Edit", "ApplyPatch"];
+  if (access === "read-write") return readWrite;
+  if (access === "read-write-shell") return [...readWrite, "Execute"];
+  fail(`unsupported subagent access: ${access}`);
+}
+
 async function renderCursorCommand(source) {
+  return source.body;
+}
+
+async function renderDroidCommand(source) {
   return source.body;
 }
 
@@ -2111,6 +2165,91 @@ async function cursorStaticOutputs() {
     relativeOutput: path.join(".cursor", "rules", path.basename(rule.file)),
     content: rule.text,
   }));
+}
+
+async function droidStaticOutputs(_commands, context) {
+  return [
+    {
+      source: "rules/*.mdc",
+      relativeOutput: droidInstructionPath(context),
+      content: await renderInstructionDocument("AGENTS.md - agent-surface Droid rules", "Droid instructions"),
+    },
+    droidAgentmemoryMcpOutput(),
+    ...(await droidExternalSkillOutputs()),
+  ];
+}
+
+function droidInstructionPath(context) {
+  return context.scope === "user" ? path.join(".factory", "AGENTS.md") : "AGENTS.md";
+}
+
+function droidAgentmemoryMcpOutput() {
+  return {
+    sourceKind: "external",
+    renderKind: "external",
+    source: "registry/optional-services.json",
+    relativeOutput: path.join(".factory", "mcp.json"),
+    content: `${JSON.stringify({
+      mcpServers: {
+        agentmemory: {
+          type: "stdio",
+          command: "~/.local/bin/agentmemory-mcp",
+          args: [],
+        },
+      },
+    }, null, 2)}\n`,
+  };
+}
+
+async function droidExternalSkillOutputs() {
+  const outputs = [];
+  const roots = await droidExternalSkillRoots();
+  const textExtensions = new Set([".md", ".mdx", ".json", ".yaml", ".yml", ".toml", ".txt", ".sh", ".py", ".js", ".ts"]);
+
+  for (const sourceRoot of roots) {
+    const skillName = path.basename(sourceRoot);
+    const files = await filesUnder(sourceRoot, [...textExtensions]);
+    for (const file of files) {
+      const relativeFile = path.relative(sourceRoot, file);
+      outputs.push({
+        sourceKind: "external",
+        renderKind: "external",
+        source: relative(file),
+        relativeOutput: path.join(".factory", "skills", skillName, relativeFile),
+        content: await readFile(file, "utf8"),
+      });
+    }
+  }
+
+  return outputs;
+}
+
+async function droidExternalSkillRoots() {
+  const candidates = [
+    ...await directDirectories(path.join(root, "external", "sanyuan-skills", "skills")),
+    path.join(root, "external", "andrej-karpathy-skills", "skills", "karpathy-guidelines"),
+    ...[
+      "ctf-ai-ml",
+      "ctf-crypto",
+      "ctf-forensics",
+      "ctf-malware",
+      "ctf-misc",
+      "ctf-osint",
+      "ctf-pwn",
+      "ctf-reverse",
+      "ctf-web",
+      "ctf-writeup",
+      "solve-challenge",
+    ].map((name) => path.join(root, "external", "ctf-skills", name)),
+    path.join(root, "external", "pua", "skills", "pua"),
+    path.join(root, "external", "pua", "skills", "pua-en"),
+  ];
+
+  const existing = [];
+  for (const candidate of candidates) {
+    if (await exists(path.join(candidate, "SKILL.md"))) existing.push(candidate);
+  }
+  return existing;
 }
 
 async function copilotStaticOutputs() {
@@ -2875,6 +3014,10 @@ function installRootKilo(scope) {
   return scope === "user" ? os.homedir() : process.cwd();
 }
 
+function installRootDroid(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
 function installRootAntigravity(scope) {
   if (scope !== "user") fail("antigravity install supports --scope user only unless --dest is supplied");
   return path.join(os.homedir(), ".gemini", "antigravity");
@@ -2904,7 +3047,7 @@ async function kiloConfigStatus() {
   if (pluginVersion) markers.push(`plugin ${pluginVersion}`);
   if (await exists(path.join(configDir, "AGENTS.md"))) markers.push("AGENTS.md");
   if (await exists(path.join(configDir, "commands"))) markers.push("commands");
-  if (instructions.includes("./rules/00-precedence-and-safety.md")) markers.push("rules configured");
+  if (instructions.includes("./rules/00-core.md")) markers.push("rules configured");
   return markers.length > 0 ? `present (${markers.join(", ")})` : "present";
 }
 

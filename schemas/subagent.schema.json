@@ -34,6 +34,7 @@
       "required": [
         "claude-code",
         "cursor",
+        "droid",
         "kilo",
         "gemini-cli",
         "antigravity-cli",
@@ -44,6 +45,9 @@
           "type": "boolean"
         },
         "cursor": {
+          "type": "boolean"
+        },
+        "droid": {
           "type": "boolean"
         },
         "kilo": {

@@ -11,7 +11,7 @@ let ignoreSourceCache;
 let subagentSourceCache;
 let subagentSchemaValidator;
 
-const subagentTargets = ["claude-code", "cursor", "kilo", "gemini-cli", "antigravity-cli", "antigravity"];
+const subagentTargets = ["claude-code", "cursor", "droid", "kilo", "gemini-cli", "antigravity-cli", "antigravity"];
 const subagentAccessValues = new Set(["read-only", "read-write", "read-write-shell"]);
 const subagentNamePattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 

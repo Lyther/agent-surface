@@ -2,12 +2,13 @@
 
 Typed source and adapter compiler for coding-agent surfaces.
 
-Write commands, rules, subagents, and ignore files once in the repo source tree, then render them into the native formats used by Claude Code, Codex, Cursor, Cline, Kilo, Antigravity, and other agent hosts.
+Write commands, rules, subagents, external packs, and ignore files once in the repo source tree, then render them into the native formats used by Claude Code, Codex, Cursor, Droid, Cline, Kilo, Antigravity, and other agent hosts.
 
 ## What it does
 
-- **Source primitive compiler**: `commands/`, `rules/`, `subagents/`, and `ignores/` are rendered per target by explicit producers.
+- **Source primitive compiler**: `commands/`, `rules/`, `subagents/`, external packs, and `ignores/` are rendered per target by explicit producers.
 - **Target adapter outputs**: each target receives the files it natively understands (commands, workflows, skills, instructions, plugins, rules, subagents, or ignore files).
+- **Optional external wiring**: selected upstream packs in `external/` can be rendered into native target surfaces instead of remaining inert submodules.
 - **Sync-aware install**: dry-run previews, project-only gating for project-scoped artifacts, manifest tracking, and backups.
 
 ## Supported targets
@@ -17,6 +18,7 @@ Implemented:
 - Claude Code
 - Codex
 - Cursor
+- Droid
 - Cline
 - Kilo
 - Antigravity CLI
@@ -27,7 +29,7 @@ Implemented:
 - OpenCode
 - Trae
 
-Planned: Droid, Goose, Grok Build, Pi, Pool, VSCodium, Windsurf, Zed.
+Planned: Goose, Grok Build, Pi, Pool, VSCodium, Windsurf, Zed.
 
 Out of scope: Roo Code (EoL), Xcode.
 
@@ -62,6 +64,7 @@ Dry-run an install before writing anything live:
 ```bash
 node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
 node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
+node scripts/agent-surface.mjs install --target droid --scope user --dry-run
 ```
 
 Project-scope artifacts such as ignore files must be installed with `--dest`:
@@ -102,6 +105,7 @@ node scripts/agent-surface.mjs build --target cline --dry-run
 
 - Install is sync-oriented: existing files are overwritten by default.
 - Project-only artifacts (`ignores/`) are skipped on user-scope installs; use `--dest` to install them into a project.
+- Droid user installs write `.factory/commands/`, `.factory/droids/`, `.factory/skills/`, `.factory/mcp.json`, and `.factory/AGENTS.md`; project installs write project `AGENTS.md` plus project `.factory/` assets.
 - Manifests track generated files so stale outputs can be removed on the next install.
 - Backups are written to `.agent-surface/backups/` before overwrite or removal.
 

@@ -96,6 +96,17 @@
         "ignores"
       ]
     },
+    "droid": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "commands",
+        "rules",
+        "subagents",
+        "external"
+      ]
+    },
     "copilot": {
       "status": "implemented",
       "build_supported": true,
@@ -114,7 +125,6 @@
     }
   },
   "planned": [
-    "droid",
     "goose",
     "pi",
     "pool",

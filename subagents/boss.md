@@ -6,6 +6,7 @@ model: inherit
 targets:
   claude-code: true
   cursor: true
+  droid: true
   kilo: true
   gemini-cli: true
   antigravity-cli: true
