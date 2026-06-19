@@ -39,6 +39,9 @@
       "commit": "08b6572ef108f22d4e8a3ecf9182a4bbef097744",
       "kind": "skill-pack",
       "optional": true,
+      "skill_roots": [
+        "external/sanyuan-skills/skills/*"
+      ],
       "local_wiring": [
         "Codex/agent skills: ~/.agents/skills/{book-study,code-review-expert,sigma,skill-forge,skill-review,wiki-ingest}",
         "Claude skills: ~/.claude/skills mirrors those ~/.agents/skills entries",
@@ -56,6 +59,9 @@
       "commit": "2c606141936f1eeef17fa3043a72095b4765b9c2",
       "kind": "skill-pack",
       "optional": true,
+      "skill_roots": [
+        "external/andrej-karpathy-skills/skills/karpathy-guidelines"
+      ],
       "local_wiring": [
         "Codex/agent skill: ~/.agents/skills/karpathy-guidelines",
         "Claude skill: ~/.claude/skills/karpathy-guidelines",
@@ -67,12 +73,15 @@
       ]
     },
     "ctf-skills": {
-      "status": "optional",
+      "status": "required",
       "source_url": "https://github.com/ljagiello/ctf-skills",
       "path": "external/ctf-skills",
       "commit": "1af14f9030fee9da46014a8a3ed61a555b81ab98",
       "kind": "skill-pack",
-      "optional": true,
+      "optional": false,
+      "skill_roots": [
+        "external/ctf-skills/*"
+      ],
       "local_wiring": [
         "Codex/agent skills: ~/.agents/skills/ctf-* plus solve-challenge",
         "Claude skills: ~/.claude/skills/ctf-* plus solve-challenge",
@@ -91,6 +100,10 @@
       "commit": "56332fe2eb33fc2600016adbb4468510e6289fbd",
       "kind": "behavior-pack",
       "optional": true,
+      "skill_roots": [
+        "external/pua/skills/pua",
+        "external/pua/skills/pua-en"
+      ],
       "local_wiring": [
         "Codex/agent skills: ~/.agents/skills/pua and ~/.agents/skills/pua-en",
         "Claude skills: ~/.claude/skills/pua and ~/.claude/skills/pua-en",
@@ -100,6 +113,62 @@
       "notes": [
         "Already wired locally before this optional submodule was added.",
         "Use narrowly because this behavior pack can increase token use and reduce model performance on normal tasks."
+      ]
+    },
+    "anthropic-cybersecurity-skills": {
+      "status": "required",
+      "source_url": "https://github.com/mukul975/Anthropic-Cybersecurity-Skills",
+      "path": "external/anthropic-cybersecurity-skills",
+      "commit": "04450304b12645cb2b974ab96d28c0664758a88d",
+      "kind": "skill-pack",
+      "optional": false,
+      "skill_roots": [
+        "external/anthropic-cybersecurity-skills/skills/*"
+      ],
+      "local_wiring": [
+        "Agent Skills runtimes: mirror discovered external/anthropic-cybersecurity-skills/skills/* entries into each target's native skill directory.",
+        "Droid skills: ~/.factory/skills/<skill-name> when external output is installed.",
+        "Poolside skills: ~/.config/poolside/skills/<skill-name> or .poolside/skills/<skill-name>."
+      ],
+      "notes": [
+        "Required cybersecurity skill pack requested as an external asset.",
+        "Only directories containing SKILL.md are emitted; non-skill repository directories are ignored."
+      ]
+    },
+    "claude-osint": {
+      "status": "required",
+      "source_url": "https://github.com/elementalsouls/Claude-OSINT",
+      "path": "external/claude-osint",
+      "commit": "833aee29af7cd42675cf2eddf0b1e75f0eb2eec0",
+      "kind": "skill-pack",
+      "optional": false,
+      "skill_roots": [
+        "external/claude-osint/skills/*"
+      ],
+      "local_wiring": [
+        "Agent Skills runtimes: mirror offensive-osint and osint-methodology into each target's native skill directory.",
+        "Windsurf skills: ~/.codeium/windsurf/skills/<skill-name> or .windsurf/skills/<skill-name>."
+      ],
+      "notes": [
+        "Required OSINT skill pack requested as an external asset."
+      ]
+    },
+    "codex-redteam-mode": {
+      "status": "required",
+      "source_url": "https://github.com/chAng-L19/codex-redteam-mode",
+      "path": "external/codex-redteam-mode",
+      "commit": "c2d676ce26b177be1cecafe601a5f727c1945218",
+      "kind": "skill-pack",
+      "optional": false,
+      "skill_roots": [
+        "external/codex-redteam-mode/agents/skills/*"
+      ],
+      "local_wiring": [
+        "Agent Skills runtimes: mirror red-team-command-doctrine and redteam-* detail packs into each target's native skill directory.",
+        "Codex-compatible skill roots: ~/.agents/skills/<skill-name> or .agents/skills/<skill-name>."
+      ],
+      "notes": [
+        "Required red-team skill pack requested as an external asset."
       ]
     }
   }

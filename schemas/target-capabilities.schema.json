@@ -74,7 +74,8 @@
                 "settings",
                 "ignores",
                 "plugins",
-                "external"
+                "external",
+                "recipes"
               ]
             },
             "additionalProperties": {

@@ -6,7 +6,8 @@
       "install_supported": true,
       "renders": [
         "commands",
-        "subagents"
+        "subagents",
+        "external"
       ]
     },
     "codex": {
@@ -16,7 +17,8 @@
       "renders": [
         "skills",
         "subagents",
-        "rules"
+        "rules",
+        "external"
       ]
     },
     "deepagents": {
@@ -27,7 +29,46 @@
         "skills",
         "rules",
         "subagents",
-        "mcps"
+        "mcps",
+        "external"
+      ]
+    },
+    "goose": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "recipes"
+      ]
+    },
+    "grok-build": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "skills",
+        "rules",
+        "external"
+      ]
+    },
+    "pi": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "skills",
+        "rules",
+        "external"
+      ]
+    },
+    "pool": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "skills",
+        "rules",
+        "external"
       ]
     },
     "gemini-cli": {
@@ -77,7 +118,8 @@
         "plugins",
         "skills",
         "subagents",
-        "rules"
+        "rules",
+        "external"
       ]
     },
     "opencode": {
@@ -91,6 +133,15 @@
       ]
     },
     "vscode": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "instructions",
+        "prompts"
+      ]
+    },
+    "vscodium": {
       "status": "implemented",
       "build_supported": true,
       "install_supported": true,
@@ -137,16 +188,29 @@
       "renders": [
         "rules"
       ]
+    },
+    "windsurf": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "commands-as-workflows",
+        "rules",
+        "external"
+      ]
+    },
+    "zed": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "skills",
+        "rules",
+        "external"
+      ]
     }
   },
-  "planned": [
-    "goose",
-    "pi",
-    "pool",
-    "vscodium",
-    "windsurf",
-    "zed"
-  ],
+  "planned": [],
   "out_of_scope": [
     "roo-code",
     "xcode"

@@ -41,6 +41,41 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+const guardedRepoFiles = [
+  path.join(root, "registry", "targets.json"),
+  path.join(root, "registry", "optional-services.json"),
+  path.join(root, "subagents", "boss.md"),
+];
+const guardedSnapshots = new Map();
+for (const file of guardedRepoFiles) {
+  try {
+    guardedSnapshots.set(file, readFileSync(file, "utf8"));
+  } catch {
+    guardedSnapshots.set(file, null);
+  }
+}
+function restoreGuardedFiles() {
+  for (const [file, content] of guardedSnapshots) {
+    if (content !== null) {
+      try {
+        writeFileSync(file, content);
+      } catch {
+        // best-effort restore; ignore failures during teardown
+      }
+    }
+  }
+}
+// Restore only on interruption (Ctrl-C / kill / hangup): the finally blocks
+// already cover normal completion and thrown exceptions, and a normal-exit
+// handler would re-write a stale snapshot that can clobber concurrent writes
+// to these shared registry/subagent files during the post-finally test runtime.
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  process.on(signal, () => {
+    restoreGuardedFiles();
+    process.exit(130);
+  });
+}
+
 function assertTomlParses(dir) {
   const script = `
 import pathlib
@@ -152,11 +187,43 @@ try {
 }
 assert.equal(run(["check"]).trim(), "check: ok");
 
+const optionalServicesPath = path.join(root, "registry", "optional-services.json");
+const optionalServicesOriginal = readFileSync(optionalServicesPath, "utf8");
+try {
+  const mutatedServices = JSON.parse(optionalServicesOriginal);
+  mutatedServices.services["ctf-skills"].optional = true;
+  writeFileSync(optionalServicesPath, `${JSON.stringify(mutatedServices, null, 2)}\n`);
+  const inconsistentService = status(["check"]);
+  assert.equal(inconsistentService.status, 1);
+  assert.match(`${inconsistentService.stdout}${inconsistentService.stderr}`, /registry\/optional-services\.json/);
+  assert.match(`${inconsistentService.stdout}${inconsistentService.stderr}`, /optional/);
+} finally {
+  writeFileSync(optionalServicesPath, optionalServicesOriginal);
+}
+assert.equal(run(["check"]).trim(), "check: ok");
+
+// F001: a required external pack without a committed submodule gitlink must fail check,
+// not warn-and-continue (fail-open supply-chain pin verification).
+try {
+  const mutatedServices = JSON.parse(optionalServicesOriginal);
+  mutatedServices.services["ctf-skills"].path = "external/unregistered-required-pin";
+  writeFileSync(optionalServicesPath, `${JSON.stringify(mutatedServices, null, 2)}\n`);
+  const unpinnedRequired = status(["check"]);
+  assert.equal(unpinnedRequired.status, 1);
+  assert.match(
+    `${unpinnedRequired.stdout}${unpinnedRequired.stderr}`,
+    /required external service ctf-skills \(external\/unregistered-required-pin\) is not a registered submodule/,
+  );
+} finally {
+  writeFileSync(optionalServicesPath, optionalServicesOriginal);
+}
+assert.equal(run(["check"]).trim(), "check: ok");
+
 const inventory = run(["inventory"]);
 assert.match(inventory, /^rules: 6$/m);
 assert.match(inventory, /^commands: 64$/m);
 assert.match(inventory, /^subagents: 6$/m);
-assert.match(inventory, /^external: 5$/m);
+assert.match(inventory, /^external: 8$/m);
 assert.match(inventory, /^schemas: 15$/m);
 
 const registry = JSON.parse(run(["commands", "--json"]));
@@ -181,6 +248,12 @@ assert.equal(opsFlowCommand.targets["gemini-cli"], path.join(".gemini", "command
 assert.equal(opsFlowCommand.targets.cursor, path.join(".cursor", "commands", "ops-flow.md"));
 assert.equal(opsFlowCommand.targets.droid, path.join(".factory", "commands", "ops-flow.md"));
 assert.equal(opsFlowCommand.targets.opencode, path.join(".config", "opencode", "commands", "ops-flow.md"));
+assert.equal(opsFlowCommand.targets.goose, path.join("recipes", "ops-flow.yaml"));
+assert.equal(opsFlowCommand.targets["grok-build"], path.join(".grok", "skills", "ops-flow", "SKILL.md"));
+assert.equal(opsFlowCommand.targets.pi, path.join(".pi", "agent", "skills", "ops-flow", "SKILL.md"));
+assert.equal(opsFlowCommand.targets.pool, path.join(".config", "poolside", "skills", "ops-flow", "SKILL.md"));
+assert.equal(opsFlowCommand.targets.windsurf, path.join(".codeium", "windsurf", "global_workflows", "ops-flow.md"));
+assert.equal(opsFlowCommand.targets.zed, path.join(".agents", "skills", "ops-flow", "SKILL.md"));
 
 const shipCommands = JSON.parse(run(["commands", "--phase", "ship", "--json"]));
 assert.equal(shipCommands.commands.every((command) => command.phase === "ship"), true);
@@ -208,7 +281,7 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
-assert.ok(generated.length >= 860);
+assert.ok(generated.length >= 37000);
 assertGeminiTomlParses();
 assertCodexAgentTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "flow.md"))), true);
@@ -226,6 +299,13 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagent
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagents", ".deepagents", "agent", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagents", ".deepagents", "agent", "agents", "worker", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagents", ".deepagents", "agent", "agents", "boss", "AGENTS.md"))), false);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "goose", "recipes", "ops-flow.yaml"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "grok-build", ".grok", "skills", "ops-flow", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "grok-build", ".grok", "skills", "red-team-command-doctrine", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pi", ".pi", "agent", "skills", "ops-flow", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pi", ".pi", "agent", "AGENTS.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pool", ".config", "poolside", "skills", "ops-flow", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pool", ".config", "poolside", ".poolside"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "workflow", "boss.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "boot", "facade.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "ops", "swarm.toml"))), true);
@@ -255,10 +335,15 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "droid", "
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "droid", ".factory", "skills", "ctf-web", "server-side-exec.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "copilot", "instructions", "agent-surface-copilot.instructions.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "vscode", "instructions", "agent-surface.instructions.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "vscodium", "instructions", "agent-surface.instructions.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "opencode", ".config", "opencode", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "opencode", ".config", "opencode", "commands", "ops-flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "opencode", ".config", "opencode", "agents", "boss.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "trae", ".trae", "user_rules.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "windsurf", ".codeium", "windsurf", "global_workflows", "ops-flow.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "windsurf", ".codeium", "windsurf", "memories", "global_rules.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "zed", ".agents", "skills", "ops-flow", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "zed", ".config", "zed", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursorignore"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".kilocodeignore"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cline", ".clineignore"))), true);
@@ -324,18 +409,27 @@ assert.equal(Object.hasOwn(sourceKinds.source_kinds, "mcps"), false);
 assert.equal(Object.hasOwn(sourceKinds.source_kinds, "subagents"), true);
 assert.equal(Object.hasOwn(sourceKinds.source_kinds, "external"), true);
 const generatedCheck = run(["check", "generated"]);
-assert.match(generatedCheck, /claude-code: generated outputs 70 ok/);
-assert.match(generatedCheck, /codex: generated outputs 135 ok/);
-assert.match(generatedCheck, /deepagents: generated outputs 66 ok/);
+assert.match(generatedCheck, /claude-code: generated outputs 3719 ok/);
+assert.match(generatedCheck, /codex: generated outputs 3784 ok/);
+assert.match(generatedCheck, /deepagents: generated outputs 3715 ok/);
+assert.match(generatedCheck, /goose: generated outputs 64 ok/);
+assert.match(generatedCheck, /grok-build: generated outputs 3713 ok/);
+assert.match(generatedCheck, /pi: generated outputs 3714 ok/);
+assert.match(generatedCheck, /pool: generated outputs 3714 ok/);
 assert.match(generatedCheck, /cline: generated outputs 66 ok/);
 assert.match(generatedCheck, /kilo: generated outputs 78 ok/);
 assert.match(generatedCheck, /antigravity: generated outputs 64 ok/);
-assert.match(generatedCheck, /antigravity-cli: generated outputs 73 ok/);
+assert.match(generatedCheck, /antigravity-cli: generated outputs 3722 ok/);
 assert.match(generatedCheck, /gemini-cli: generated outputs 71 ok/);
 assert.match(generatedCheck, /cursor: generated outputs 77 ok/);
-assert.match(generatedCheck, /droid: generated outputs 249 ok/);
+assert.match(generatedCheck, /droid: generated outputs 3721 ok/);
 assert.match(generatedCheck, /copilot: generated outputs 1 ok/);
+assert.match(generatedCheck, /vscode: generated outputs 2 ok/);
+assert.match(generatedCheck, /vscodium: generated outputs 2 ok/);
 assert.match(generatedCheck, /opencode: generated outputs 71 ok/);
+assert.match(generatedCheck, /trae: generated outputs 1 ok/);
+assert.match(generatedCheck, /windsurf: generated outputs 3714 ok/);
+assert.match(generatedCheck, /zed: generated outputs 3714 ok/);
 assert.match(generatedCheck, /generated check: ok/);
 const copilotGeneratedCheck = run(["check", "generated", "--target", "copilot"]);
 assert.match(copilotGeneratedCheck, /copilot: generated outputs 1 ok/);
@@ -415,18 +509,23 @@ assert.match(droidPlan, /\.factory\/commands\/workflow-boss\.md <- commands\/wor
 assert.match(droidPlan, /AGENTS\.md <- rules\/\*\.mdc/);
 assert.match(droidPlan, /\.factory\/droids\/boss\.md <- subagents\/boss\.md/);
 assert.match(droidPlan, /\.factory\/mcp\.json <- registry\/optional-services\.json/);
-assert.match(droidPlan, /\.factory\/skills\/karpathy-guidelines\/SKILL\.md <- external\/andrej-karpathy-skills\/skills\/karpathy-guidelines\/SKILL\.md/);
+assert.doesNotMatch(droidPlan, /\.factory\/skills\/karpathy-guidelines\/SKILL\.md/);
+
+const droidExternalPlan = run(["install", "--target", "droid", "--category", "external", "--dest", "/tmp/agent-surface-droid-external", "--dry-run"]);
+assert.match(droidExternalPlan, /^target: droid$/m);
+assert.match(droidExternalPlan, /^categories: external$/m);
+assert.match(droidExternalPlan, /\.factory\/skills\/karpathy-guidelines\/SKILL\.md <- external\/andrej-karpathy-skills\/skills\/karpathy-guidelines\/SKILL\.md/);
+assert.match(droidExternalPlan, /\.factory\/skills\/red-team-command-doctrine\/SKILL\.md <- external\/codex-redteam-mode\/agents\/skills\/red-team-command-doctrine\/SKILL\.md/);
 
 const droidUserPlan = run(["install", "--target", "droid", "--scope", "user", "--dry-run"], {
-  ...process.env,
-  HOME: "/tmp/agent-surface-droid-home",
+  env: { ...process.env, HOME: "/tmp/agent-surface-droid-home" },
 });
 assert.match(droidUserPlan, /^target: droid$/m);
 assert.match(droidUserPlan, /\.factory\/commands\/workflow-boss\.md <- commands\/workflow-boss\.md/);
 assert.match(droidUserPlan, /\.factory\/AGENTS\.md <- rules\/\*\.mdc/);
 assert.match(droidUserPlan, /\.factory\/droids\/boss\.md <- subagents\/boss\.md/);
 assert.match(droidUserPlan, /\.factory\/mcp\.json <- registry\/optional-services\.json/);
-assert.match(droidUserPlan, /\.factory\/skills\/pua\/SKILL\.md <- external\/pua\/skills\/pua\/SKILL\.md/);
+assert.doesNotMatch(droidUserPlan, /\.factory\/skills\/pua\/SKILL\.md/);
 
 const codexPlan = run(["install", "--target", "codex", "--dest", "/tmp/agent-surface-codex", "--dry-run"]);
 assert.match(codexPlan, /^target: codex$/m);
@@ -440,6 +539,41 @@ assert.match(deepagentsPlan, /\.deepagents\/skills\/workflow-boss\/SKILL\.md <- 
 assert.match(deepagentsPlan, /\.deepagents\/AGENTS\.md <- rules\/\*\.mdc/);
 assert.match(deepagentsPlan, /\.deepagents\/agents\/worker\/AGENTS\.md <- subagents\/worker\.md/);
 assert.doesNotMatch(deepagentsPlan, /\.deepagents\/\.mcp\.json/);
+
+const goosePlan = run(["install", "--target", "goose", "--dest", "/tmp/agent-surface-goose", "--dry-run"]);
+assert.match(goosePlan, /^target: goose$/m);
+assert.match(goosePlan, /recipes\/workflow-boss\.yaml <- commands\/workflow-boss\.md/);
+
+const grokBuildPlan = run(["install", "--target", "grok-build", "--dest", "/tmp/agent-surface-grok-build", "--dry-run"]);
+assert.match(grokBuildPlan, /^target: grok-build$/m);
+assert.match(grokBuildPlan, /\.grok\/skills\/workflow-boss\/SKILL\.md <- commands\/workflow-boss\.md/);
+assert.match(grokBuildPlan, /AGENTS\.md <- rules\/\*\.mdc/);
+assert.doesNotMatch(grokBuildPlan, /red-team-command-doctrine/);
+
+const piPlan = run(["install", "--target", "pi", "--dest", "/tmp/agent-surface-pi", "--dry-run"]);
+assert.match(piPlan, /^target: pi$/m);
+assert.match(piPlan, /\.pi\/skills\/workflow-boss\/SKILL\.md <- commands\/workflow-boss\.md/);
+assert.match(piPlan, /AGENTS\.md <- rules\/\*\.mdc/);
+
+const poolPlan = run(["install", "--target", "pool", "--dest", "/tmp/agent-surface-pool", "--dry-run"]);
+assert.match(poolPlan, /^target: pool$/m);
+assert.match(poolPlan, /\.poolside\/skills\/workflow-boss\/SKILL\.md <- commands\/workflow-boss\.md/);
+assert.match(poolPlan, /AGENTS\.md <- rules\/\*\.mdc/);
+
+const vscodiumPlan = run(["install", "--target", "vscodium", "--dest", "/tmp/agent-surface-vscodium", "--dry-run"]);
+assert.match(vscodiumPlan, /^target: vscodium$/m);
+assert.match(vscodiumPlan, /instructions\/agent-surface\.instructions\.md <- rules\/\*\.mdc/);
+assert.match(vscodiumPlan, /prompts\/agent-surface\.prompt\.md <- commands\/ops-flow\.md/);
+
+const windsurfPlan = run(["install", "--target", "windsurf", "--dest", "/tmp/agent-surface-windsurf", "--dry-run"]);
+assert.match(windsurfPlan, /^target: windsurf$/m);
+assert.match(windsurfPlan, /\.windsurf\/workflows\/workflow-boss\.md <- commands\/workflow-boss\.md/);
+assert.match(windsurfPlan, /\.devin\/rules\/agent-surface\.md <- rules\/\*\.mdc/);
+
+const zedPlan = run(["install", "--target", "zed", "--dest", "/tmp/agent-surface-zed", "--dry-run"]);
+assert.match(zedPlan, /^target: zed$/m);
+assert.match(zedPlan, /\.agents\/skills\/workflow-boss\/SKILL\.md <- commands\/workflow-boss\.md/);
+assert.match(zedPlan, /AGENTS\.md <- rules\/\*\.mdc/);
 
 const deepagentsMcpPlan = run([
   "install",
@@ -867,7 +1001,23 @@ assert.deepEqual(inlineKiloConfig.instructions, [
 ]);
 rmSync(inlineKiloDest, { recursive: true, force: true });
 
-for (const target of ["cursor", "copilot", "vscode", "opencode", "trae", "kilo", "droid", "deepagents"]) {
+for (const target of [
+  "cursor",
+  "copilot",
+  "vscode",
+  "vscodium",
+  "opencode",
+  "trae",
+  "kilo",
+  "droid",
+  "deepagents",
+  "goose",
+  "grok-build",
+  "pi",
+  "pool",
+  "windsurf",
+  "zed",
+]) {
   const targetDest = `/tmp/agent-surface-${target}-live`;
   rmSync(targetDest, { recursive: true, force: true });
   const install = run(["install", "--target", target, "--dest", targetDest]);
