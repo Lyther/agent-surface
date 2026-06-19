@@ -13,3 +13,12 @@
 [submodule "external/pua"]
 	path = external/pua
 	url = https://github.com/tanweai/pua.git
+[submodule "external/anthropic-cybersecurity-skills"]
+	path = external/anthropic-cybersecurity-skills
+	url = https://github.com/mukul975/Anthropic-Cybersecurity-Skills.git
+[submodule "external/claude-osint"]
+	path = external/claude-osint
+	url = https://github.com/elementalsouls/Claude-OSINT.git
+[submodule "external/codex-redteam-mode"]
+	path = external/codex-redteam-mode
+	url = https://github.com/chAng-L19/codex-redteam-mode.git

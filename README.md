@@ -2,7 +2,7 @@
 
 Typed source and adapter compiler for coding-agent surfaces.
 
-Write commands, rules, subagents, external packs, and ignore files once in the repo source tree, then render them into the native formats used by Claude Code, Codex, Deep Agents Code, Cursor, Droid, Cline, Kilo, Antigravity, and other agent hosts.
+Write commands, rules, subagents, external packs, and ignore files once in the repo source tree, then render them into the native formats used by Claude Code, Codex, Deep Agents Code, Cursor, Droid, Cline, Kilo, Antigravity, Goose, Grok Build, Pi, Poolside, Windsurf, Zed, and other agent hosts.
 
 ## What it does
 
@@ -27,10 +27,17 @@ Implemented:
 - Gemini CLI
 - GitHub Copilot
 - VS Code
+- VSCodium
 - OpenCode
 - Trae
+- Goose
+- Grok Build
+- Pi
+- Poolside
+- Windsurf
+- Zed
 
-Planned: Goose, Grok Build, Pi, Pool, VSCodium, Windsurf, Zed.
+Planned: none.
 
 Out of scope: Roo Code (EoL), Xcode.
 
@@ -109,17 +116,23 @@ Install selected runtimes and categories:
 node scripts/agent-surface.mjs install --runtime codex,kilo --category rules --dest /path/to/project --dry-run
 node scripts/agent-surface.mjs install --runtime deepagents --category skills --category subagents --dest /path/to/project --dry-run
 node scripts/agent-surface.mjs install --runtime deepagents --category mcps --service agentmemory --dest /path/to/project --dry-run
+node scripts/agent-surface.mjs install --runtime pool,zed --category external --dest /path/to/project --dry-run
 ```
 
 ## Install behavior
 
 - Install is sync-oriented: existing files are overwritten by default.
 - `--target` and `--runtime` accept repeated or comma-separated runtime IDs.
-- `--category` accepts repeated or comma-separated output categories such as `skills`, `rules`, `subagents`, `commands`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, and `ignores`.
+- `--category` accepts repeated or comma-separated output categories such as `skills`, `rules`, `subagents`, `commands`, `recipes`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, and `ignores`.
 - `--service <id>` narrows `--category mcps` to a specific optional MCP service from `registry/optional-services.json`.
 - Project-only artifacts (`ignores/`) are skipped on user-scope installs; use `--dest` to install them into a project.
 - Droid user installs write `.factory/commands/`, `.factory/droids/`, `.factory/skills/`, `.factory/mcp.json`, and `.factory/AGENTS.md`; project installs write project `AGENTS.md` plus project `.factory/` assets.
 - Deep Agents user installs write `~/.deepagents/<agent>/`; project installs write `.deepagents/`. Use `--agent <name>` to select a non-default user agent directory.
+- Goose installs are project-oriented and render `recipes/<command>.yaml`.
+- Grok Build, Pi, Poolside, Windsurf, and Zed render command sources as native skills or workflows plus target-specific instruction files.
+- Required external skill packs are `ctf-skills`, `anthropic-cybersecurity-skills`, `claude-osint`, and `codex-redteam-mode`; optional/caution packs remain registered for `sanyuan-skills`, `andrej-karpathy-skills`, and `pua`.
+- External skill packs are built and checked with each capable target, but live installs require an explicit `--category external` to avoid surprise writes of thousands of upstream files.
+- DeepAudit is not registered as an MCP asset until an upstream MCP server contract is available; process-boundary tooling without MCP config is intentionally not emitted as `mcps`.
 - Manifests track generated files so stale outputs can be removed on the next install.
 - Backups are written to `.agent-surface/backups/` before overwrite or removal.
 

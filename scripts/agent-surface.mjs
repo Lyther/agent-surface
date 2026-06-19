@@ -4,7 +4,7 @@ import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -33,6 +33,7 @@ const targets = {
     subagentRenders: ["subagents"],
     subagentTarget: "claude-code",
     subagentOutputRoot: ".claude/agents",
+    externalSkillOutputRoot: ".claude/skills",
     commandOutputRoot: ".claude/commands",
     renderCommand: renderClaudeCommand,
     renderSubagent: renderClaudeSubagent,
@@ -46,6 +47,7 @@ const targets = {
     subagentTarget: "codex",
     subagentOutputRoot: path.join(".codex", "agents"),
     subagentOutputExtension: ".toml",
+    externalSkillOutputRoot: path.join(".agents", "skills"),
     staticRenders: ["rules"],
     commandOutputRoot: ".agents/skills",
     renderCommand: renderCodexSkill,
@@ -62,6 +64,7 @@ const targets = {
     subagentTarget: "deepagents",
     subagentOutputRoot: deepagentsAgentRoot,
     subagentOutputName: deepagentsSubagentOutputName,
+    externalSkillOutputRoot: deepagentsSkillRoot,
     staticRenders: ["rules"],
     commandOutputRoot: deepagentsSkillRoot,
     renderCommand: renderDeepAgentsSkill,
@@ -73,6 +76,47 @@ const targets = {
       relativeOutput: deepagentsMcpPath,
       defaultEnabled: false,
     },
+  },
+  goose: {
+    label: "Goose reusable recipes",
+    commandRenders: ["recipes"],
+    commandOutputRoot: "recipes",
+    commandOutputName: gooseRecipeOutputName,
+    renderCommand: renderGooseRecipe,
+    installRoot: installRootProjectOnly,
+  },
+  "grok-build": {
+    label: "Grok Build skills and project instructions",
+    commandRenders: ["skills"],
+    staticRenders: ["rules"],
+    commandOutputRoot: grokBuildSkillRoot,
+    commandOutputName: codexSkillOutputName,
+    externalSkillOutputRoot: grokBuildSkillRoot,
+    renderCommand: renderGrokBuildSkill,
+    installRoot: installRootGrokBuild,
+    staticOutputs: grokBuildStaticOutputs,
+  },
+  pi: {
+    label: "Pi skills and instructions",
+    commandRenders: ["skills"],
+    staticRenders: ["rules"],
+    commandOutputRoot: piSkillRoot,
+    commandOutputName: codexSkillOutputName,
+    externalSkillOutputRoot: piSkillRoot,
+    renderCommand: renderPiSkill,
+    installRoot: installRootPi,
+    staticOutputs: piStaticOutputs,
+  },
+  pool: {
+    label: "Poolside skills and instructions",
+    commandRenders: ["skills"],
+    staticRenders: ["rules"],
+    commandOutputRoot: poolSkillRoot,
+    commandOutputName: codexSkillOutputName,
+    externalSkillOutputRoot: poolSkillRoot,
+    renderCommand: renderPoolSkill,
+    installRoot: installRootPool,
+    staticOutputs: poolStaticOutputs,
   },
   cline: {
     label: "Cline workflows and rules",
@@ -111,6 +155,7 @@ const targets = {
     subagentRenders: ["subagents"],
     subagentTarget: "antigravity-cli",
     subagentOutputRoot: path.join("extensions", "agent-surface", "agents"),
+    externalSkillOutputRoot: path.join("extensions", "agent-surface", "skills"),
     staticRenders: ["plugins", "rules"],
     commandOutputRoot: path.join("extensions", "agent-surface", "skills"),
     commandOutputName: antigravityCliSkillOutputName,
@@ -153,7 +198,8 @@ const targets = {
     subagentRenders: ["subagents"],
     subagentTarget: "droid",
     subagentOutputRoot: path.join(".factory", "droids"),
-    staticRenders: ["rules", "external"],
+    externalSkillOutputRoot: path.join(".factory", "skills"),
+    staticRenders: ["rules"],
     commandOutputRoot: path.join(".factory", "commands"),
     renderCommand: renderDroidCommand,
     renderSubagent: renderDroidSubagent,
@@ -176,6 +222,12 @@ const targets = {
     installRoot: installRootVsCode,
     staticOutputs: vscodeStaticOutputs,
   },
+  vscodium: {
+    label: "VSCodium user prompt and instruction files",
+    staticRenders: ["instructions", "prompts"],
+    installRoot: installRootVscodium,
+    staticOutputs: vscodiumStaticOutputs,
+  },
   opencode: {
     label: "OpenCode commands, agents, and global instructions",
     commandRenders: ["commands"],
@@ -194,6 +246,28 @@ const targets = {
     staticRenders: ["rules"],
     installRoot: installRootHomeOnly,
     staticOutputs: traeStaticOutputs,
+  },
+  windsurf: {
+    label: "Windsurf workflows, rules, and skills",
+    commandRenders: ["commands-as-workflows"],
+    staticRenders: ["rules"],
+    commandOutputRoot: windsurfWorkflowRoot,
+    commandOutputName: flatMarkdownCommandOutputName,
+    externalSkillOutputRoot: windsurfSkillRoot,
+    renderCommand: renderWindsurfWorkflow,
+    installRoot: installRootWindsurf,
+    staticOutputs: windsurfStaticOutputs,
+  },
+  zed: {
+    label: "Zed skills and instructions",
+    commandRenders: ["skills"],
+    staticRenders: ["rules"],
+    commandOutputRoot: zedSkillRoot,
+    commandOutputName: codexSkillOutputName,
+    externalSkillOutputRoot: zedSkillRoot,
+    renderCommand: renderZedSkill,
+    installRoot: installRootZed,
+    staticOutputs: zedStaticOutputs,
   },
 };
 
@@ -376,6 +450,66 @@ async function inventory() {
   }
 }
 
+function gitSubmoduleStatusMap() {
+  const result = spawnSync("git", ["submodule", "status"], { encoding: "utf8", cwd: root });
+  if (result.status !== 0 || !result.stdout) return new Map();
+  const map = new Map();
+  for (const line of result.stdout.split("\n")) {
+    const match = line.match(/^[+\-U ]?([0-9a-f]{40})\s+(\S+)/);
+    if (match) map.set(match[2], match[1]);
+  }
+  return map;
+}
+
+function gitStagedGitlinkMap() {
+  const result = spawnSync("git", ["ls-files", "--stage", "external"], { encoding: "utf8", cwd: root });
+  if (result.status !== 0 || !result.stdout) return new Map();
+  const map = new Map();
+  for (const line of result.stdout.split("\n")) {
+    const match = line.match(/^160000 ([0-9a-f]{40}) \d+\t(.+)$/);
+    if (match) map.set(match[2], match[1]);
+  }
+  return map;
+}
+
+// Recursive removal of large generated trees (tens of thousands of files) can hit
+// transient ENOTEMPTY/EBUSY/EPERM on some filesystems; retry with backoff so a
+// build/install is not flaky on the dist cleanup step.
+async function removeTree(target) {
+  await rm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+}
+
+async function checkExternalServicePins(errors) {
+  const registry = await readOptionalServices();
+  const submodules = gitSubmoduleStatusMap();
+  const staged = gitStagedGitlinkMap();
+  for (const [name, service] of Object.entries(registry.services)) {
+    if (typeof service.path !== "string" || typeof service.commit !== "string") continue;
+    const required = service.optional === false || service.status === "required";
+    const pin = service.commit.slice(0, 8);
+    const submoduleSha = submodules.get(service.path);
+    const stagedSha = staged.get(service.path);
+    if (submoduleSha === undefined && stagedSha === undefined) {
+      const message = `external service ${name} (${service.path}) is not a registered submodule; pin ${pin} not verifiable`;
+      if (required) errors.push(`required ${message}`);
+      else console.error(`warning: ${message}`);
+      continue;
+    }
+    if (submoduleSha !== undefined && submoduleSha !== service.commit) {
+      errors.push(`external service ${name} (${service.path}) at ${submoduleSha.slice(0, 8)} but pinned ${pin}`);
+    }
+    // Required packs must be pinned by a committed gitlink, not just a present
+    // working tree, or a fresh clone would silently build without them.
+    if (required) {
+      if (stagedSha === undefined) {
+        errors.push(`required external service ${name} (${service.path}) has no committed submodule gitlink (working-tree only); pin ${pin} not verifiable`);
+      } else if (stagedSha !== service.commit) {
+        errors.push(`required external service ${name} (${service.path}) committed gitlink ${stagedSha.slice(0, 8)} but pinned ${pin}`);
+      }
+    }
+  }
+}
+
 async function check() {
   const errors = [];
   const commands = await readCommands();
@@ -454,6 +588,7 @@ async function check() {
   await checkWorkflowSchemas(errors);
   await checkRegistrySchemas(errors);
   await checkTargetCapabilities(targetsConfig, errors);
+  await checkExternalServicePins(errors);
   errors.push(...await subagentValidationErrors());
   checkCommandMetadata(commands, errors);
 
@@ -687,7 +822,15 @@ const workflowRuntimeNames = new Set([
   "vscode",
   "goose",
   "grok-build",
+  "pi",
+  "pool",
+  "vscodium",
+  "windsurf",
+  "zed",
   "current-session",
+  "deepagents",
+  "droid",
+  "copilot",
   "ollama-api",
   "ollama-cli",
   "ollama-cloud",
@@ -884,6 +1027,7 @@ function validateGeneratedTarget(target, outputs) {
     const output = requirePath(relativeOutput);
     if (output && !pattern.test(output.content)) errors.push(`${relativeOutput} missing ${pattern}`);
   };
+  const skillFrontmatter = /^(?:\uFEFF)?---\r?\n/;
 
   if (outputs.length === 0) errors.push("no outputs generated");
 
@@ -901,6 +1045,20 @@ function validateGeneratedTarget(target, outputs) {
     if (byPath.has(path.join(".deepagents", "agent", "agents", "boss", "AGENTS.md"))) {
       errors.push("Deep Agents must not emit read-only subagents as unrestricted AGENTS.md subagents");
     }
+  } else if (target === "goose") {
+    requireContains(path.join("recipes", "ops-flow.yaml"), /^version: "1\.0\.0"\n/);
+    requireContains(path.join("recipes", "ops-flow.yaml"), /^instructions: \|$/m);
+  } else if (target === "grok-build") {
+    requireContains(path.join(".grok", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
+    requireContains(path.join(".grok", "skills", "red-team-command-doctrine", "SKILL.md"), skillFrontmatter);
+  } else if (target === "pi") {
+    requireContains(path.join(".pi", "agent", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
+    requireContains(path.join(".pi", "agent", "AGENTS.md"), /agent-surface Pi rules/);
+    requireContains(path.join(".pi", "agent", "skills", "offensive-osint", "SKILL.md"), skillFrontmatter);
+  } else if (target === "pool") {
+    requireContains(path.join(".config", "poolside", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
+    requireContains(path.join(".config", "poolside", ".poolside"), /agent-surface Poolside rules/);
+    requireContains(path.join(".config", "poolside", "skills", "redteam-web-detail-pack", "SKILL.md"), skillFrontmatter);
   } else if (target === "gemini-cli") {
     requireContains(path.join(".gemini", "GEMINI.md"), /agent-surface global Gemini rules/);
     requireContains(path.join(".gemini", "agents", "boss.md"), /^---\nname: boss\n/);
@@ -938,12 +1096,15 @@ function validateGeneratedTarget(target, outputs) {
       errors.push("Droid agentmemory MCP must use the local patched binary");
     }
     if (outputs.some((output) => output.relativeOutput.startsWith(path.join(".factory", "skills") + path.sep))) {
-      requireContains(path.join(".factory", "skills", "karpathy-guidelines", "SKILL.md"), /^---\n/);
+      requireContains(path.join(".factory", "skills", "karpathy-guidelines", "SKILL.md"), skillFrontmatter);
     }
   } else if (target === "copilot") {
     requireContains(path.join("instructions", "agent-surface-copilot.instructions.md"), /^---\ndescription: "agent-surface Copilot global instructions"\napplyTo: "\*\*"/);
   } else if (target === "vscode") {
     requireContains(path.join("instructions", "agent-surface.instructions.md"), /^---\ndescription: "agent-surface VS Code instructions"\napplyTo: "\*\*"/);
+    requireContains(path.join("prompts", "agent-surface.prompt.md"), /^---\ndescription: "Route a task to the lightest safe agent-surface path"/);
+  } else if (target === "vscodium") {
+    requireContains(path.join("instructions", "agent-surface.instructions.md"), /^---\ndescription: "agent-surface VSCodium instructions"\napplyTo: "\*\*"/);
     requireContains(path.join("prompts", "agent-surface.prompt.md"), /^---\ndescription: "Route a task to the lightest safe agent-surface path"/);
   } else if (target === "opencode") {
     requireContains(path.join(".config", "opencode", "AGENTS.md"), /agent-surface global OpenCode rules/);
@@ -951,6 +1112,14 @@ function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".config", "opencode", "agents", "boss.md"), /^---\ndescription: "/);
   } else if (target === "trae") {
     requireContains(path.join(".trae", "user_rules.md"), /agent-surface Trae user rules/);
+  } else if (target === "windsurf") {
+    requirePath(path.join(".codeium", "windsurf", "global_workflows", "ops-flow.md"));
+    requireContains(path.join(".codeium", "windsurf", "memories", "global_rules.md"), /agent-surface Windsurf rules/);
+    requireContains(path.join(".codeium", "windsurf", "skills", "osint-methodology", "SKILL.md"), skillFrontmatter);
+  } else if (target === "zed") {
+    requireContains(path.join(".agents", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
+    requireContains(path.join(".config", "zed", "AGENTS.md"), /agent-surface Zed rules/);
+    requireContains(path.join(".agents", "skills", "redteam-api-detail-pack", "SKILL.md"), skillFrontmatter);
   }
 
   return errors;
@@ -969,7 +1138,7 @@ async function build(args) {
   const commandFiles = await exportableCommands();
 
   if (!dryRun) {
-    await rm(path.join(root, "dist", target === "all" ? "" : target), { recursive: true, force: true });
+    await removeTree(path.join(root, "dist", target === "all" ? "" : target));
   }
 
   for (const item of selected) {
@@ -1092,6 +1261,7 @@ function installCategoryFilter(args) {
     "plugins",
     "external",
     "mcps",
+    "recipes",
   ]);
   const selected = new Set(values);
   for (const value of selected) {
@@ -1222,6 +1392,11 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       continue;
     }
 
+    if (typeof item.sha256 === "string" && sha256(current) !== item.sha256) {
+      staleRemovalActions.push({ output, relativeOutput: item.output, action: "keep" });
+      continue;
+    }
+
     staleRemovalActions.push({ output, relativeOutput: item.output, action: "remove" });
   }
 
@@ -1274,7 +1449,7 @@ function outputAppliesToCategory(output, categoryFilter) {
   return categoryFilter.has(output.renderKind) || categoryFilter.has(output.sourceKind);
 }
 
-// Any generated output must declare a source kind and that kind must be
+// Every generated output must declare a source kind and that kind must be
 // defined in the registry. Missing/unknown source kinds are checked in generated
 // validation and install planning; this helper exists for call sites that do not
 // already validate the output through those paths.
@@ -1294,11 +1469,17 @@ function printInstallPlan(plan) {
   for (const item of plan.writes) {
     console.log(`  ${path.relative(plan.installRoot, item.output)} <- ${item.source}`);
   }
+  const removes = plan.staleRemovalActions.filter((item) => item.action === "remove" || item.action === "missing").map((item) => item.relativeOutput);
+  const keeps = plan.staleRemovalActions.filter((item) => item.action === "keep").map((item) => item.relativeOutput);
   console.log("planned stale managed removals:");
-  if (plan.staleRemovals.length === 0) {
+  if (removes.length === 0) {
     console.log("  none");
   } else {
-    for (const item of plan.staleRemovals) console.log(`  ${item}`);
+    for (const item of removes) console.log(`  ${item}`);
+  }
+  if (keeps.length > 0) {
+    console.log("kept user-modified (not removed):");
+    for (const item of keeps) console.log(`  ${item}`);
   }
   console.log("planned manifest:");
   console.log(`  ${path.relative(plan.installRoot, plan.manifestPath)}`);
@@ -1337,6 +1518,7 @@ async function applyInstallPlan(plan) {
   let written = 0;
   let skipped = 0;
   let removed = 0;
+  let kept = 0;
   let backups = 0;
   let configMerges = 0;
 
@@ -1359,6 +1541,10 @@ async function applyInstallPlan(plan) {
   }
 
   for (const item of plan.staleRemovalActions) {
+    if (item.action === "keep") {
+      kept += 1;
+      continue;
+    }
     if (item.action !== "remove") continue;
     await backupExisting(plan.installRoot, backupRoot, item.output);
     backups += 1;
@@ -1378,12 +1564,15 @@ async function applyInstallPlan(plan) {
   }
 
   await mkdir(path.dirname(plan.manifestPath), { recursive: true });
-  await writeFile(plan.manifestPath, `${JSON.stringify(plan.manifest, null, 2)}\n`);
+  const manifestTmp = `${plan.manifestPath}.tmp`;
+  await writeFile(manifestTmp, `${JSON.stringify(plan.manifest, null, 2)}\n`);
+  await rename(manifestTmp, plan.manifestPath);
 
   console.log("installed:");
   console.log(`  wrote: ${written}`);
   console.log(`  skipped unchanged: ${skipped}`);
   console.log(`  removed stale: ${removed}`);
+  if (kept > 0) console.log(`  kept user-modified: ${kept}`);
   console.log(`  config merges: ${configMerges}`);
   console.log(`  backups: ${backups === 0 ? "none" : path.relative(plan.installRoot, backupRoot)}`);
 }
@@ -2266,12 +2455,62 @@ async function renderOpenCodeCommand(source) {
   return source.body;
 }
 
+async function renderWindsurfWorkflow(source) {
+  return source.body;
+}
+
 async function renderCodexSkill(source) {
   return renderSkillMarkdown(source, {
     invocationPrefix: "$",
     generatedFor: "Codex",
     hostInstruction: `Treat any slash-command syntax below as source documentation. In Codex, invoke \`$${source.name}\` and express options in natural language.`,
   });
+}
+
+async function renderGrokBuildSkill(source) {
+  return renderSkillMarkdown(source, {
+    invocationPrefix: "/",
+    generatedFor: "Grok Build",
+    hostInstruction: "Grok exposes user-invocable skills as slash commands; use this skill when the task matches its description.",
+  });
+}
+
+async function renderPiSkill(source) {
+  return renderSkillMarkdown(source, {
+    invocationPrefix: "/skill:",
+    generatedFor: "Pi",
+    hostInstruction: "Pi loads Agent Skills from .pi and .agents skill roots; select this skill when the task matches its description.",
+  });
+}
+
+async function renderPoolSkill(source) {
+  return renderSkillMarkdown(source, {
+    invocationPrefix: "/skills",
+    generatedFor: "Poolside",
+    hostInstruction: "Poolside can auto-apply local skills when the SKILL.md description matches the task; use the skills menu for explicit selection.",
+  });
+}
+
+async function renderZedSkill(source) {
+  return renderSkillMarkdown(source, {
+    invocationPrefix: "/",
+    generatedFor: "Zed",
+    hostInstruction: "Zed discovers Agent Skills from .agents/skills or ~/.agents/skills and applies them when the task matches the skill description.",
+  });
+}
+
+async function renderGooseRecipe(source) {
+  const description = yamlString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
+  return [
+    'version: "1.0.0"',
+    `title: "agent-surface ${yamlString(source.name)}"`,
+    `description: "${description}"`,
+    "instructions: |",
+    yamlLiteralBlock(source.body.trim(), "  "),
+    "prompt: |",
+    yamlLiteralBlock(`Run the ${source.name} agent-surface recipe.`, "  "),
+    "",
+  ].join("\n");
 }
 
 async function renderDeepAgentsSkill(source) {
@@ -2470,12 +2709,67 @@ async function droidStaticOutputs(_commands, context) {
       relativeOutput: droidInstructionPath(context),
       content: await renderInstructionDocument("AGENTS.md - agent-surface Droid rules", "Droid instructions"),
     },
-    ...(await droidExternalSkillOutputs()),
   ];
 }
 
 function droidInstructionPath(context) {
   return context.scope === "user" ? path.join(".factory", "AGENTS.md") : "AGENTS.md";
+}
+
+async function grokBuildStaticOutputs(_commands, context) {
+  if (context.scope === "user") return [];
+  return [
+    {
+      source: "rules/*.mdc",
+      renderKind: "rules",
+      relativeOutput: "AGENTS.md",
+      content: await renderInstructionDocument("AGENTS.md - agent-surface Grok Build rules", "Grok Build project instructions"),
+    },
+  ];
+}
+
+async function piStaticOutputs(_commands, context) {
+  return [
+    {
+      source: "rules/*.mdc",
+      renderKind: "rules",
+      relativeOutput: piInstructionPath(context),
+      content: await renderInstructionDocument("AGENTS.md - agent-surface Pi rules", "Pi instructions"),
+    },
+  ];
+}
+
+async function poolStaticOutputs(_commands, context) {
+  return [
+    {
+      source: "rules/*.mdc",
+      renderKind: "rules",
+      relativeOutput: poolInstructionPath(context),
+      content: await renderInstructionDocument("agent-surface Poolside rules", "Poolside instructions"),
+    },
+  ];
+}
+
+async function windsurfStaticOutputs(_commands, context) {
+  return [
+    {
+      source: "rules/*.mdc",
+      renderKind: "rules",
+      relativeOutput: windsurfRulePath(context),
+      content: await renderInstructionDocument("agent-surface Windsurf rules", "Windsurf instructions"),
+    },
+  ];
+}
+
+async function zedStaticOutputs(_commands, context) {
+  return [
+    {
+      source: "rules/*.mdc",
+      renderKind: "rules",
+      relativeOutput: zedInstructionPath(context),
+      content: await renderInstructionDocument("AGENTS.md - agent-surface Zed rules", "Zed instructions"),
+    },
+  ];
 }
 
 async function optionalMcpOutputs(adapter, context) {
@@ -2519,21 +2813,49 @@ function optionalServiceMcpServer(service) {
   };
 }
 
-async function droidExternalSkillOutputs() {
-  const outputs = [];
-  const roots = await droidExternalSkillRoots();
-  const textExtensions = new Set([".md", ".mdx", ".json", ".yaml", ".yml", ".toml", ".txt", ".sh", ".py", ".js", ".ts"]);
+const MAX_EXTERNAL_FILE_BYTES = 1_000_000;
+const MAX_EXTERNAL_TOTAL_BYTES = 200_000_000;
+const MAX_EXTERNAL_FILES = 50_000;
 
-  for (const sourceRoot of roots) {
+async function externalSkillOutputs(adapter, context) {
+  if (!adapter.externalSkillOutputRoot) return [];
+  if (context.mode === "install" && !context.categoryFilter?.has("external")) return [];
+  const outputs = [];
+  const roots = await externalSkillRoots();
+  const outputRoot = outputRootFor(adapter.externalSkillOutputRoot, context);
+  const textExtensions = [".md", ".mdx", ".json", ".yaml", ".yml", ".toml", ".txt", ".sh", ".py", ".js", ".ts", ".ps1"];
+
+  let totalBytes = 0;
+  for (const { root: sourceRoot, serviceName, required } of roots) {
     const skillName = path.basename(sourceRoot);
-    const files = await filesUnder(sourceRoot, [...textExtensions]);
-    for (const file of files) {
+    const skillFiles = await filesUnder(sourceRoot, textExtensions);
+    for (const file of skillFiles) {
+      if (outputs.length >= MAX_EXTERNAL_FILES) {
+        const detail = `external skill output cap reached (${MAX_EXTERNAL_FILES} files)`;
+        if (required) fail(`${detail}; required pack ${serviceName} would be truncated`);
+        console.error(`warning: ${detail}; further files skipped`);
+        return outputs;
+      }
+      const size = (await stat(file)).size;
+      if (size > MAX_EXTERNAL_FILE_BYTES) {
+        const detail = `oversized external file (${size} bytes): ${relative(file)}`;
+        if (required) fail(`required pack ${serviceName}: ${detail}`);
+        console.error(`warning: skipping ${detail}`);
+        continue;
+      }
+      if (totalBytes + size > MAX_EXTERNAL_TOTAL_BYTES) {
+        const detail = `external skill total-size cap reached (${MAX_EXTERNAL_TOTAL_BYTES} bytes)`;
+        if (required) fail(`${detail}; required pack ${serviceName} would be truncated`);
+        console.error(`warning: ${detail}; remaining files skipped`);
+        return outputs;
+      }
+      totalBytes += size;
       const relativeFile = path.relative(sourceRoot, file);
       outputs.push({
         sourceKind: "external",
         renderKind: "external",
         source: relative(file),
-        relativeOutput: path.join(".factory", "skills", skillName, relativeFile),
+        relativeOutput: path.join(outputRoot, skillName, relativeFile),
         content: await readFile(file, "utf8"),
       });
     }
@@ -2542,32 +2864,51 @@ async function droidExternalSkillOutputs() {
   return outputs;
 }
 
-async function droidExternalSkillRoots() {
-  const candidates = [
-    ...await directDirectories(path.join(root, "external", "sanyuan-skills", "skills")),
-    path.join(root, "external", "andrej-karpathy-skills", "skills", "karpathy-guidelines"),
-    ...[
-      "ctf-ai-ml",
-      "ctf-crypto",
-      "ctf-forensics",
-      "ctf-malware",
-      "ctf-misc",
-      "ctf-osint",
-      "ctf-pwn",
-      "ctf-reverse",
-      "ctf-web",
-      "ctf-writeup",
-      "solve-challenge",
-    ].map((name) => path.join(root, "external", "ctf-skills", name)),
-    path.join(root, "external", "pua", "skills", "pua"),
-    path.join(root, "external", "pua", "skills", "pua-en"),
-  ];
+async function externalSkillRoots() {
+  const registry = await readOptionalServices();
+  const candidates = [];
 
+  for (const [serviceName, service] of Object.entries(registry.services)) {
+    if (!["skill-pack", "behavior-pack"].includes(service.kind)) continue;
+    const required = service.optional === false || service.status === "required";
+    for (const item of service.skill_roots ?? []) {
+      for (const dir of await expandSkillRoot(item)) {
+        candidates.push({ root: dir, serviceName, required });
+      }
+    }
+  }
+
+  const seen = new Set();
   const existing = [];
   for (const candidate of candidates) {
-    if (await exists(path.join(candidate, "SKILL.md"))) existing.push(candidate);
+    const rel = relative(candidate.root);
+    if (seen.has(rel)) continue;
+    if (await exists(path.join(candidate.root, "SKILL.md"))) {
+      seen.add(rel);
+      existing.push(candidate);
+    }
   }
-  return existing;
+  // Required packs first so a total-size cap can never silently drop a required
+  // pack in favor of an optional one; ties resolved by path for determinism.
+  return existing.sort(
+    (left, right) =>
+      Number(right.required) - Number(left.required) || relative(left.root).localeCompare(relative(right.root)),
+  );
+}
+
+async function expandSkillRoot(item) {
+  if (typeof item !== "string" || item.length === 0) fail("external skill root must be a non-empty string");
+  if (item.includes("*") && !item.endsWith("/*")) fail(`external skill root wildcard must be a trailing /*: ${item}`);
+  if (item.endsWith("/*")) {
+    const base = safeExternalPath(item.slice(0, -2));
+    return directDirectories(base);
+  }
+  return [safeExternalPath(item)];
+}
+
+function safeExternalPath(item) {
+  if (!isSafeRelativePath(item) || !item.startsWith("external/")) fail(`unsafe external skill root: ${item}`);
+  return path.join(root, item);
 }
 
 async function copilotStaticOutputs() {
@@ -2590,6 +2931,25 @@ async function vscodeStaticOutputs() {
       source: "rules/*.mdc",
       relativeOutput: path.join("instructions", "agent-surface.instructions.md"),
       content: await renderVsCodeInstructionDocument("agent-surface VS Code instructions", "vscode"),
+    },
+    {
+      sourceKind: "commands",
+      renderKind: "prompts",
+      source: "commands/ops-flow.md",
+      relativeOutput: path.join("prompts", "agent-surface.prompt.md"),
+      content: await renderVsCodePromptDocument(),
+    },
+  ];
+}
+
+async function vscodiumStaticOutputs() {
+  return [
+    {
+      sourceKind: "rules",
+      renderKind: "instructions",
+      source: "rules/*.mdc",
+      relativeOutput: path.join("instructions", "agent-surface.instructions.md"),
+      content: await renderVsCodeInstructionDocument("agent-surface VSCodium instructions", "vscodium"),
     },
     {
       sourceKind: "commands",
@@ -2688,6 +3048,14 @@ function geminiCommandOutputName(source) {
 function groupedMarkdownCommandOutputName(source) {
   const [category, ...rest] = source.name.split("-");
   return path.join(category, `${rest.join("-") || category}.md`);
+}
+
+function flatMarkdownCommandOutputName(source) {
+  return `${source.name}.md`;
+}
+
+function gooseRecipeOutputName(source) {
+  return `${source.name}.yaml`;
 }
 
 function codexSkillOutputName(source) {
@@ -2890,6 +3258,9 @@ function targetProducers(adapter) {
   if (adapter.staticOutputs) {
     producers.push({ id: "static", sourceKind: "rules", emits: adapter.staticRenders ?? [], produce: (commands, context) => adapter.staticOutputs(commands, context) });
   }
+  if (adapter.externalSkillOutputRoot) {
+    producers.push({ id: "external-skills", sourceKind: "external", emits: ["external"], produce: (_commands, context) => externalSkillOutputs(adapter, context) });
+  }
   if (adapter.subagentOutputRoot && adapter.renderSubagent) {
     producers.push({ id: "subagents", sourceKind: "subagents", emits: adapter.subagentRenders ?? ["subagents"], produce: (commands, context) => subagentOutputs(adapter, context) });
   }
@@ -3069,14 +3440,19 @@ async function exists(file) {
   try {
     await stat(file);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
   }
 }
 
 async function readJsonIfExists(file) {
   if (!(await exists(file))) return null;
-  return JSON.parse(await readFile(file, "utf8"));
+  try {
+    return JSON.parse(await readFile(file, "utf8"));
+  } catch (error) {
+    fail(`failed to parse JSON at ${relative(file)}: ${error.message}`);
+  }
 }
 
 async function readJsoncIfExists(file) {
@@ -3222,6 +3598,12 @@ function yamlBlockString(value) {
   return value.replace(/\s+/g, " ").trim().replaceAll('"', '\\"');
 }
 
+function yamlLiteralBlock(value, indent) {
+  const lines = String(value).replace(/\s+$/u, "").split(/\r?\n/);
+  if (lines.length === 0 || (lines.length === 1 && lines[0] === "")) return `${indent}`;
+  return lines.map((line) => `${indent}${line}`).join("\n");
+}
+
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -3336,6 +3718,18 @@ function installRootDeepagents(scope) {
   return scope === "user" ? os.homedir() : process.cwd();
 }
 
+function installRootGrokBuild(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
+function installRootPi(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
+function installRootPool(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
 function installRootOpencode(scope) {
   return scope === "user" ? os.homedir() : process.cwd();
 }
@@ -3367,6 +3761,21 @@ function installRootVsCode(scope) {
   if (process.platform === "darwin") return path.join(os.homedir(), "Library", "Application Support", "Code", "User");
   if (process.platform === "win32") return path.join(process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"), "Code", "User");
   return path.join(os.homedir(), ".config", "Code", "User");
+}
+
+function installRootVscodium(scope) {
+  if (scope !== "user") fail("vscodium install supports --scope user only unless --dest is supplied");
+  if (process.platform === "darwin") return path.join(os.homedir(), "Library", "Application Support", "VSCodium", "User");
+  if (process.platform === "win32") return path.join(process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"), "VSCodium", "User");
+  return path.join(os.homedir(), ".config", "VSCodium", "User");
+}
+
+function installRootWindsurf(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
+}
+
+function installRootZed(scope) {
+  return scope === "user" ? os.homedir() : process.cwd();
 }
 
 async function kiloConfigStatus() {
@@ -3415,6 +3824,26 @@ function deepagentsMcpPath() {
   return path.join(".deepagents", ".mcp.json");
 }
 
+function grokBuildSkillRoot() {
+  return path.join(".grok", "skills");
+}
+
+function piSkillRoot(context) {
+  return context.scope === "user" ? path.join(".pi", "agent", "skills") : path.join(".pi", "skills");
+}
+
+function piInstructionPath(context) {
+  return context.scope === "user" ? path.join(".pi", "agent", "AGENTS.md") : "AGENTS.md";
+}
+
+function poolSkillRoot(context) {
+  return context.scope === "user" ? path.join(".config", "poolside", "skills") : path.join(".poolside", "skills");
+}
+
+function poolInstructionPath(context) {
+  return context.scope === "user" ? path.join(".config", "poolside", ".poolside") : "AGENTS.md";
+}
+
 function clineRuleRoot(context) {
   return context.scope === "user" ? path.join(".cline", "rules") : ".clinerules";
 }
@@ -3445,6 +3874,28 @@ function opencodeAgentRoot(context) {
 
 function opencodeInstructionPath(context) {
   return context.scope === "user" ? path.join(".config", "opencode", "AGENTS.md") : "AGENTS.md";
+}
+
+function windsurfWorkflowRoot(context) {
+  return context.scope === "user" ? path.join(".codeium", "windsurf", "global_workflows") : path.join(".windsurf", "workflows");
+}
+
+function windsurfRulePath(context) {
+  return context.scope === "user"
+    ? path.join(".codeium", "windsurf", "memories", "global_rules.md")
+    : path.join(".devin", "rules", "agent-surface.md");
+}
+
+function windsurfSkillRoot(context) {
+  return context.scope === "user" ? path.join(".codeium", "windsurf", "skills") : path.join(".windsurf", "skills");
+}
+
+function zedSkillRoot() {
+  return path.join(".agents", "skills");
+}
+
+function zedInstructionPath(context) {
+  return context.scope === "user" ? path.join(".config", "zed", "AGENTS.md") : "AGENTS.md";
 }
 
 async function kiloRuleInstructionPaths(scope) {

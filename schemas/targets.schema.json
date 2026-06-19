@@ -20,7 +20,12 @@
         ],
         "properties": {
           "status": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "implemented",
+              "planned",
+              "deprecated"
+            ]
           },
           "build_supported": {
             "type": "boolean"

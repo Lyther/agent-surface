@@ -5,7 +5,8 @@
       "summary": "Claude Code supports native slash commands, subagents, MCP, and skills; agent-surface generates commands and subagents and leaves MCP/skills manual to avoid duplicated command surfaces and secret-bearing config edits.",
       "generated_render_tokens": [
         "commands",
-        "subagents"
+        "subagents",
+        "external"
       ],
       "evidence": [
         {
@@ -67,6 +68,19 @@
           ],
           "paths": [],
           "notes": "Command sources already render as native commands for this target."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.claude/skills/<skill>/...",
+            ".claude/skills/<skill>/..."
+          ],
+          "notes": "Registry-backed external Agent Skills are copied only from configured skill_roots that contain SKILL.md."
         }
       }
     },
@@ -75,7 +89,8 @@
       "generated_render_tokens": [
         "skills",
         "subagents",
-        "rules"
+        "rules",
+        "external"
       ],
       "evidence": [
         {
@@ -143,6 +158,19 @@
             ".codex/config.toml"
           ],
           "notes": "MCP server entries can expose tools and secrets, so agent-surface does not auto-merge them."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.agents/skills/<skill>/...",
+            ".agents/skills/<skill>/..."
+          ],
+          "notes": "Registry-backed external Agent Skills are copied only from configured skill_roots that contain SKILL.md."
         }
       }
     },
@@ -152,7 +180,8 @@
         "skills",
         "rules",
         "subagents",
-        "mcps"
+        "mcps",
+        "external"
       ],
       "evidence": [
         {
@@ -220,6 +249,238 @@
             ".deepagents/.mcp.json"
           ],
           "notes": "Optional MCP output is registry-backed and generated only when the mcps category is requested."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.deepagents/<agent>/skills/<skill>/...",
+            ".deepagents/skills/<skill>/..."
+          ],
+          "notes": "Registry-backed external Agent Skills are copied only from configured skill_roots that contain SKILL.md."
+        }
+      }
+    },
+    "goose": {
+      "summary": "Goose supports reusable recipe YAML files; agent-surface renders command sources as project-oriented recipes.",
+      "generated_render_tokens": [
+        "recipes"
+      ],
+      "evidence": [
+        {
+          "label": "Goose recipe reference",
+          "url": "https://goose-docs.ai/docs/guides/recipes/recipe-reference/"
+        }
+      ],
+      "surfaces": {
+        "recipes": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "project"
+          ],
+          "paths": [
+            "recipes/<command>.yaml"
+          ],
+          "notes": "Recipes can be loaded from the current directory or configured recipe paths."
+        }
+      }
+    },
+    "grok-build": {
+      "summary": "Grok Build supports Agent Skills, project AGENTS.md instructions, plugins, and Claude-compatible assets; agent-surface generates skills, project instructions, and external skill packs.",
+      "generated_render_tokens": [
+        "skills",
+        "rules",
+        "external"
+      ],
+      "evidence": [
+        {
+          "label": "Grok Build skills and compatibility",
+          "url": "https://docs.x.ai/build/features/skills-plugins-marketplaces"
+        },
+        {
+          "label": "Grok Build modes and config",
+          "url": "https://docs.x.ai/build/modes-and-commands"
+        }
+      ],
+      "surfaces": {
+        "skills": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.grok/skills/<command>/SKILL.md",
+            ".grok/skills/<command>/SKILL.md"
+          ],
+          "notes": "Command sources render as user-invocable skills."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "project"
+          ],
+          "paths": [
+            "AGENTS.md"
+          ],
+          "notes": "Project instructions use the AGENTS.md compatibility family."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.grok/skills/<skill>/...",
+            ".grok/skills/<skill>/..."
+          ],
+          "notes": "External skill packs mirror into the same skill root as generated command skills."
+        }
+      }
+    },
+    "pi": {
+      "summary": "Pi supports AGENTS.md instructions and Agent Skills; agent-surface generates Pi skill folders, instructions, and external skill packs.",
+      "generated_render_tokens": [
+        "skills",
+        "rules",
+        "external"
+      ],
+      "evidence": [
+        {
+          "label": "Pi quickstart",
+          "url": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/docs/quickstart.md"
+        },
+        {
+          "label": "Pi skills",
+          "url": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/docs/skills.md"
+        },
+        {
+          "label": "Pi settings",
+          "url": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/docs/settings.md"
+        }
+      ],
+      "surfaces": {
+        "skills": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.pi/agent/skills/<command>/SKILL.md",
+            ".pi/skills/<command>/SKILL.md"
+          ],
+          "notes": "Command sources render as Agent Skills."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.pi/agent/AGENTS.md",
+            "AGENTS.md"
+          ],
+          "notes": "Rules are bundled into Pi instruction files."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.pi/agent/skills/<skill>/...",
+            ".pi/skills/<skill>/..."
+          ],
+          "notes": "External Agent Skills mirror into Pi skill roots."
+        }
+      }
+    },
+    "pool": {
+      "summary": "Poolside supports AGENTS.md, user .poolside instructions, local skill directories, and MCP servers; agent-surface generates local skills, instructions, and external skill packs while leaving MCP config manual.",
+      "generated_render_tokens": [
+        "skills",
+        "rules",
+        "external"
+      ],
+      "evidence": [
+        {
+          "label": "Poolside skills",
+          "url": "https://docs.poolside.ai/skills"
+        },
+        {
+          "label": "Poolside agent instructions",
+          "url": "https://docs.poolside.ai/agent-instructions"
+        },
+        {
+          "label": "Poolside MCP servers",
+          "url": "https://docs.poolside.ai/mcp-servers"
+        }
+      ],
+      "surfaces": {
+        "skills": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.config/poolside/skills/<command>/SKILL.md",
+            ".poolside/skills/<command>/SKILL.md"
+          ],
+          "notes": "Command sources render as local Poolside Agent Skills."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.config/poolside/.poolside",
+            "AGENTS.md"
+          ],
+          "notes": "User installs use .poolside personal instructions; project installs use AGENTS.md."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.config/poolside/skills/<skill>/...",
+            ".poolside/skills/<skill>/..."
+          ],
+          "notes": "External Agent Skills mirror into Poolside local skill roots."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.config/poolside/settings.yaml"
+          ],
+          "notes": "MCP settings can expose tools and credentials, so they are not auto-merged."
         }
       }
     },
@@ -518,7 +779,8 @@
         "plugins",
         "skills",
         "subagents",
-        "rules"
+        "rules",
+        "external"
       ],
       "evidence": [
         {
@@ -583,6 +845,18 @@
           ],
           "paths": [],
           "notes": "Extension MCP configuration is not generated until optional-service secrets and trust boundaries are explicit."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.gemini/extensions/agent-surface/skills/<skill>/..."
+          ],
+          "notes": "Registry-backed external Agent Skills are copied only from configured skill_roots that contain SKILL.md."
         }
       }
     },
@@ -736,6 +1010,47 @@
           ],
           "paths": [],
           "notes": "Preview agent plugins are kept out of the direct file adapter."
+        }
+      }
+    },
+    "vscodium": {
+      "summary": "VSCodium uses the VS Code OSS customization surfaces with VSCodium-specific user-data paths; agent-surface generates instruction and prompt files.",
+      "generated_render_tokens": [
+        "instructions",
+        "prompts"
+      ],
+      "evidence": [
+        {
+          "label": "VSCodium project",
+          "url": "https://vscodium.com/"
+        },
+        {
+          "label": "VS Code Copilot customization",
+          "url": "https://code.visualstudio.com/docs/copilot/copilot-customization"
+        }
+      ],
+      "surfaces": {
+        "instructions": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "instructions/agent-surface.instructions.md"
+          ],
+          "notes": "Generated inside the VSCodium user profile root."
+        },
+        "prompts": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "prompts/agent-surface.prompt.md"
+          ],
+          "notes": "Generated inside the VSCodium user profile root."
         }
       }
     },
@@ -967,6 +1282,154 @@
             ".trae/mcp.json"
           ],
           "notes": "MCP config remains manual until the live schema is verified again."
+        }
+      }
+    },
+    "windsurf": {
+      "summary": "Windsurf supports workflows, rule files, skills, and MCP configuration; agent-surface generates workflows, rules, and external skills while leaving MCP config manual.",
+      "generated_render_tokens": [
+        "commands-as-workflows",
+        "rules",
+        "external"
+      ],
+      "evidence": [
+        {
+          "label": "Windsurf memories and rules",
+          "url": "https://docs.devin.ai/desktop/cascade/memories"
+        },
+        {
+          "label": "Windsurf workflows",
+          "url": "https://docs.devin.ai/desktop/cascade/workflows"
+        },
+        {
+          "label": "Windsurf skills",
+          "url": "https://docs.devin.ai/desktop/cascade/skills"
+        }
+      ],
+      "surfaces": {
+        "commands-as-workflows": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.codeium/windsurf/global_workflows/<command>.md",
+            ".windsurf/workflows/<command>.md"
+          ],
+          "notes": "Command sources render as Windsurf workflows."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.codeium/windsurf/memories/global_rules.md",
+            ".devin/rules/agent-surface.md"
+          ],
+          "notes": "Project rules use the Devin/Windsurf rules directory."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.codeium/windsurf/skills/<skill>/...",
+            ".windsurf/skills/<skill>/..."
+          ],
+          "notes": "External Agent Skills mirror into Windsurf skill roots."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.codeium/windsurf/mcp_config.json"
+          ],
+          "notes": "MCP settings remain manual until safe merge behavior is implemented."
+        }
+      }
+    },
+    "zed": {
+      "summary": "Zed supports AGENTS.md instructions, Agent Skills, external agents, and MCP context servers; agent-surface generates skills, instructions, and external skill packs while leaving MCP settings manual.",
+      "generated_render_tokens": [
+        "skills",
+        "rules",
+        "external"
+      ],
+      "evidence": [
+        {
+          "label": "Zed instructions",
+          "url": "https://zed.dev/docs/ai/instructions.html"
+        },
+        {
+          "label": "Zed skills",
+          "url": "https://zed.dev/docs/ai/skills"
+        },
+        {
+          "label": "Zed MCP",
+          "url": "https://zed.dev/docs/ai/mcp.html"
+        }
+      ],
+      "surfaces": {
+        "skills": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.agents/skills/<command>/SKILL.md",
+            ".agents/skills/<command>/SKILL.md"
+          ],
+          "notes": "Command sources render as Agent Skills."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.config/zed/AGENTS.md",
+            "AGENTS.md"
+          ],
+          "notes": "Rules are bundled into AGENTS.md instruction files."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.agents/skills/<skill>/...",
+            ".agents/skills/<skill>/..."
+          ],
+          "notes": "External Agent Skills mirror into Zed-compatible skill roots."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "manual",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "context_servers in Zed settings"
+          ],
+          "notes": "Context-server settings remain manual until safe settings merge behavior is implemented."
         }
       }
     }
