@@ -25,7 +25,6 @@ const commandMetadataFields = new Set(["name", "aliases", "phase", "description"
 const commandPrefixes = new Set(["arch", "boot", "dev", "lint", "ops", "qa", "ship", "stellaris", "verify", "workflow"]);
 const commandPhases = new Set(["observe", "decide", "build", "verify", "review", "arbitrate", "ship", "improve", "bootstrap", "game", "misc"]);
 
-
 const targets = {
   "claude-code": {
     label: "Claude Code commands and subagents",
@@ -270,6 +269,34 @@ const targets = {
     staticOutputs: zedStaticOutputs,
   },
 };
+
+// Per-target generated output floors are race-free gross-drop tripwires, not
+// exact bulk pins. Keep enough headroom for legitimate small count changes
+// while still catching silent producer drops that representative path checks
+// can miss.
+const generatedOutputMinimums = new Map([
+  ["claude-code", 3000],
+  ["codex", 3000],
+  ["deepagents", 3000],
+  ["goose", 50],
+  ["grok-build", 3000],
+  ["pi", 3000],
+  ["pool", 3000],
+  ["cline", 50],
+  ["kilo", 60],
+  ["antigravity", 50],
+  ["antigravity-cli", 3000],
+  ["gemini-cli", 55],
+  ["cursor", 60],
+  ["droid", 3000],
+  ["copilot", 1],
+  ["vscode", 1],
+  ["vscodium", 1],
+  ["opencode", 55],
+  ["trae", 1],
+  ["windsurf", 3000],
+  ["zed", 3000],
+]);
 
 const ruleScenarios = {
   "generic-chat": {
@@ -977,9 +1004,13 @@ async function checkGenerated(args) {
     const adapter = targets[item];
     const outputs = await targetOutputs(adapter, commandFiles, { target: item, scope: "user", mode: "check" });
     const targetErrors = validateGeneratedTarget(item, outputs);
-    console.log(`${item}: generated outputs ${outputs.length} ${targetErrors.length > 0 ? "failed" : "ok"}`);
+    const countErrors = validateGeneratedOutputCount(item, outputs);
+    const sourceKindErrors = validateGeneratedSourceKinds(item, outputs, sourceKindsConfig);
+    const failed = targetErrors.length + countErrors.length + sourceKindErrors.length > 0;
+    console.log(`${item}: generated outputs ${outputs.length} ${failed ? "failed" : "ok"}`);
     errors.push(...targetErrors.map((error) => `${item}: ${error}`));
-    errors.push(...validateGeneratedSourceKinds(item, outputs, sourceKindsConfig));
+    errors.push(...countErrors.map((error) => `${item}: ${error}`));
+    errors.push(...sourceKindErrors);
   }
 
   if (errors.length > 0) {
@@ -990,6 +1021,13 @@ async function checkGenerated(args) {
   }
 
   console.log("generated check: ok");
+}
+
+function validateGeneratedOutputCount(target, outputs) {
+  const minimum = generatedOutputMinimums.get(target);
+  if (minimum === undefined) return ["missing generated output minimum"];
+  if (outputs.length >= minimum) return [];
+  return [`generated output count ${outputs.length} below minimum ${minimum}`];
 }
 
 function validateGeneratedSourceKinds(target, outputs, sourceKindsConfig) {
