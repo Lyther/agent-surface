@@ -13,8 +13,8 @@ Keep ASCII workflow diagrams out of rule files (prompt token budget), but still 
 
 ```text
 User invokes command (e.g., "dev-refactor", "arch-roadmap")
-    ↓
-1. In context?     → EXECUTE
+     ↓
+1. Context?        → EXECUTE
 2. On disk?        → READ the matching generated command for the current host, or source `commands/<name>.md` in agent-surface → EXECUTE
 3. Unknown?        → ASK user. DO NOT HALLUCINATE A PROCESS.
 ```
@@ -34,19 +34,19 @@ User invokes command (e.g., "dev-refactor", "arch-roadmap")
 ### Workflow map
 
 ```text
-                  [boot-new]
-                       ↓
-[boot-context] → [arch-roadmap] → [arch-model] → [arch-api]
-                                        ↓
+                   [boot-new]
+                        ↓
+ [boot-context] → [arch-roadmap] → [arch-model] → [arch-api]
+                                         ↓
                                   [workflow-boss]
-                                        ↓
-                                ┌→ [dev-feature] ──┐
-                                ↓       ↓          ↓
-[ops-monitor] ← [ship-deploy]   | [verify-test]    |
-     ↑                ↑         ↓       ↓          ↓
-[ops-report] ─→ [dev-fix] ──────┴─ [dev-refactor] ←┘
-     ↑                ↑
-         [qa-sec]
+                                         ↓
+                                ┌→ [dev-feature] ─┐
+                                |        ↓        |
+[ops-monitor] ←─ [ship-deploy]  |  [verify-test]  |
+      ↑                ↑        |        ↓        |
+ [ops-report] ───→ [dev-fix] ───┴ [dev-refactor] ←┘
+      ↑                ↑
+      └────[qa-sec]────┘
 ```
 
 For formal workflow mode, start `workflow-orchestrator`. It is the long-running monitor that spawns each role session, chooses provider/model/role assignments from quality, cost, speed, context, prior outcomes, and review independence, and stays active until the run is closed, quarantined, aborted, human-blocked, or has no remaining task work. `boot-workflow` remains the workflow map, ledger contract, and role-file reference.
@@ -233,3 +233,150 @@ Instead, each workflow-aware command should:
 - point to the role file path and next recommended command
 - replace its own role file after writing its artifact
 - do not paste or repeat the full JSON body in chat after writing the role file
+
+## RUNTIME AGENT MANUAL
+
+### Scope decision
+
+Keep runtime how-to-use and what-to-use details here, not in `workflow-orchestrator`.
+
+- `workflow-orchestrator` owns durable policy: role assignment, independence, heartbeat state, evidence, and selection snapshots.
+- `boot-workflow` owns the current manual: runtime probes, launch examples, model inventory, and known local caveats.
+- Target adapters own packaging details: where commands, skills, rules, agents, plugins, ignores, and manifests render.
+
+Do not treat this manual as a durable truth source. Every workflow run that delegates to an external runtime must re-probe the runtime and record the probe command, version, model id, output shape, and caveats in local evidence.
+
+### Probe protocol
+
+Before assigning a runtime:
+
+1. Run `command -v <binary>` and `<binary> --version` when available.
+2. Run `<binary> --help` or the relevant subcommand help.
+3. List models through the runtime, not from memory.
+4. Run a bounded smoke prompt such as `Reply OK only.` in read-only or non-writing mode.
+5. Record whether output is plain text, JSON, JSONL, stream JSON, or mixed logs.
+6. Redact or drop fields named `thinking`, `thought`, or similar before writing workflow artifacts.
+7. If model pinning is requested, verify the actual model used; display names and aliases can fall back silently.
+
+### Current local probe snapshot
+
+Snapshot date: 2026-06-25. Refresh before real assignment.
+
+| Runtime | Local status | Verified launch shape | Models observed locally | Caveats |
+| --- | --- | --- | --- | --- |
+| Codex | `codex-cli 0.135.0`; smoke returned `OK` | `codex exec -C "$repo" -s read-only --ephemeral --ignore-rules --json -o "$out" "Reply OK only."` | GPT family through Codex; use `-m <model>` when pinning | JSONL can include high token usage; plugin/MCP warnings are not launch failure by themselves |
+| Kilo | `7.2.52`; CLI present, model commands currently blocked by local config validation | `kilo run --dir "$repo" --model provider/model --agent code --format json --variant high "$prompt"` | Config declares ByteLLM, Ollama Cloud, and xAI providers | Current `~/.config/kilo/kilo.jsonc` has invalid top-level keys `subagent_model` and `subagent_variant_overrides`; fix config before assignment |
+| Ollama | Server `0.30.7`, client `0.30.10`; API smoke returned `OK` | `curl -sS http://localhost:11434/api/generate -d '{"model":"kimi-k2.6:cloud","prompt":"Reply OK only.","stream":false,"think":false}'` | `glm-5.2:cloud`, `kimi-k2.7:cloud`, `deepseek-v4-pro:cloud`, `minimax-m3:cloud`, `deepseek-v4-flash:cloud` | `think:false` disables thinking; `--hidethinking` only hides trace. Set enough output budget for thinking models |
+| Antigravity CLI | `agy 1.0.12`; smoke works; plugin validation works | `agy --print --model gemini-3-flash --print-timeout 30s "Reply OK only."` | `agy models` lists Gemini 3.5 Flash, Gemini 3.1 Pro, Claude Sonnet 4.6 Thinking, Claude Opus 4.6 Thinking, GPT-OSS 120B | Local `--model` attempts fell back to Gemini 3.5 Flash; do not trust pinning until a probe proves the actual model |
+| Grok Build | `grok 0.2.54`; smoke returned JSON text `OK` | `grok -p "Reply OK only." --output-format json --max-turns 1 --no-memory --no-subagents --disable-web-search` | `grok-build`; `grok-composer-2.5-fast` listed by `grok models` | `grok models` reported auth warning but default run still worked; JSON may include `thought`, which must be dropped |
+
+### Runtime use
+
+#### Codex
+
+Use for high-trust planning, hard implementation, review against non-OpenAI workers, and tasks where repo-native tooling and structured output matter.
+
+```bash
+codex exec \
+  -C "$repo" \
+  -s read-only \
+  --ephemeral \
+  --json \
+  -o "$run_dir/codex.last.txt" \
+  -m "$CODEX_MODEL" \
+  "$prompt"
+```
+
+Use `-s workspace-write` only when the role is authorized to edit. Use `--output-schema` when the role must return a machine-validated artifact. Use `--oss --local-provider ollama` only after probing the local Ollama provider path.
+
+#### Kilo
+
+Use after config validation is clean. Kilo is useful when a workflow wants provider diversity through one CLI: Ollama Cloud, xAI, and ByteLLM.
+
+```bash
+kilo run \
+  --dir "$repo" \
+  --model "bytellm/gpt-5.5-2026-04-24" \
+  --agent code \
+  --format json \
+  --variant high \
+  "$prompt"
+```
+
+Observed config model groups:
+
+- `ollama-cloud`: `glm-5.2`, `kimi-k2.7-code`, `deepseek-v4-pro`.
+- `xai`: `grok-composer-2.5-fast`.
+- `bytellm`: GPT 5.x/Codex variants, GLM, Gemini, Grok, Kimi, Minimax, Qwen, Doubao, and embeddings. Check `~/.config/kilo/kilo.jsonc` for the exact current list without printing secrets.
+
+If `kilo models` fails config validation, do not assign Kilo roles. Fix or remove unsupported config keys first, then run `kilo models --refresh <provider>` when the provider catalog may be stale.
+
+#### Ollama Cloud
+
+Use for cheap or local-gateway worker/reviewer roles after model-specific smoke tests. Prefer the HTTP API for workflow artifacts because it can request non-stream JSON and exposes token counters cleanly.
+
+```bash
+curl -sS http://localhost:11434/api/generate \
+  -d '{"model":"glm-5.2:cloud","prompt":"<role packet>","stream":false,"think":true,"options":{"num_predict":4096}}'
+```
+
+For CLI use:
+
+```bash
+ollama run glm-5.2:cloud --think --hidethinking "$(cat "$prompt_file")"
+```
+
+Use `think:false` only for cheap formatting, extraction, or latency-sensitive tasks where reasoning quality is not part of the role contract.
+
+#### Antigravity CLI
+
+Use `agy` for the Antigravity CLI runtime. Use the `antigravity-cli` agent-surface target for plugin packaging; it installs under `~/.gemini/config/plugins/agent-surface`, not `~/.gemini/extensions/agent-surface`.
+
+```bash
+agy models
+agy plugin validate ~/.gemini/config/plugins/agent-surface
+agy plugin enable agent-surface
+agy --print --print-timeout 5m --model "gemini-3-flash" "$prompt"
+```
+
+Local `agy models` lists Gemini and Claude display names, but local smoke tests did not prove model pinning for Claude aliases. If a role requires Opus, Sonnet, or a specific Gemini tier, first run a model-identification probe and record the actual model reported. Treat the separate `antigravity` binary as desktop-supervised unless a current headless probe proves otherwise.
+
+#### Grok Build
+
+Use for fast worker exploration, parallel branches, and Grok-family review diversity after a local smoke test. Prefer JSON output and disable memory/subagents/web search when the role packet must stay bounded.
+
+```bash
+grok \
+  -p "$prompt" \
+  -m grok-build \
+  --output-format json \
+  --max-turns 1 \
+  --no-memory \
+  --no-subagents \
+  --disable-web-search
+```
+
+Use `-m grok-composer-2.5-fast` only after confirming entitlement and launch behavior with `grok models` and a smoke prompt. Drop `thought` before writing workflow artifacts.
+
+### Selection examples
+
+| Situation | Preferred routing |
+| --- | --- |
+| Complex cross-file design or task decomposition | Codex GPT family or Kilo ByteLLM high-tier as BOSS; no implementation writes |
+| Low-risk scoped implementation | Kilo, Ollama Cloud, or Grok Build worker if current smoke passes; Codex for harder patches |
+| Reviewer after OpenAI/Codex worker | Kilo non-OpenAI provider, Ollama Cloud, Antigravity Gemini/Claude if pinning is proven, or Grok Build |
+| Reviewer after Grok/Kilo/Ollama worker | Codex GPT family or another independent strong model |
+| Bulk non-blocking exploration | Use `ops-swarm` with multiple runtimes in parallel, each with bounded filescope and evidence |
+| Sensitive repo data or secrets nearby | Prefer local/current-session review or explicitly approved runtime; do not send secrets to external services |
+
+### Sources checked
+
+- OpenAI Codex CLI reference: `https://developers.openai.com/codex/cli/reference`
+- OpenAI Codex non-interactive mode: `https://developers.openai.com/codex/noninteractive`
+- Kilo CLI reference: `https://kilo.ai/docs/code-with-ai/platforms/cli-reference`
+- Kilo CLI overview: `https://kilo.ai/docs/code-with-ai/platforms/cli`
+- Kilo subagents and model selection docs: `https://kilo.ai/docs/customize/custom-subagents`, `https://kilo.ai/docs/code-with-ai/agents/model-selection`
+- Ollama thinking docs: `https://docs.ollama.com/capabilities/thinking`
+- Antigravity CLI docs: `https://antigravity.google/docs/cli-overview`, `https://antigravity.google/docs/cli-reference`, `https://antigravity.google/docs/cli-plugins`, `https://antigravity.google/docs/cli-subagents`
+- Grok Build docs: `https://docs.x.ai/build/overview`
+- Grok Composer 2.5 release note: `https://x.ai/news/composer-2-5`

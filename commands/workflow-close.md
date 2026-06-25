@@ -22,6 +22,12 @@ Close an accepted or intentionally aborted workflow run without deleting its can
 
 Run `workflow-doctor` first. Do not close a run with blocking doctor findings unless the user explicitly asks to abort or quarantine it.
 
+## COMMAND REUSE
+
+Use `workflow-doctor` as the required structural check before close. Use `ops-report` or `ops-learn` only as helper analysis for summaries or lesson candidates; do not edit global memory, run shipping commands, or change workflow state outside the close artifacts unless the user explicitly asks.
+
+Helper command output is subordinate to `workflow-close`: write the close artifacts and chat output in the close format.
+
 ## CLOSE STATES
 
 ```text

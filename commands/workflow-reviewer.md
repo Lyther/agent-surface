@@ -58,14 +58,14 @@ After the per-task checklist, review the completed batch as a codebase change, n
 
 - Security and privacy: validate auth/authz, injection, path traversal, unsafe shell/process use, secret exposure, sensitive logs, unsafe defaults, and evidence redaction when touched.
 - Documentation: confirm README, adapter docs, command help, schemas, examples, and operational notes match changed behavior. Missing docs for public behavior, config, CLI, security posture, or workflow semantics are at least `major`.
-- Dependencies: confirm dependency additions/updates were approved, justified, reflected in lockfiles, and covered by vulnerability/license expectations. Phantom deps or unreviewed lockfile churn are `major` or `blocker`.
+- Dependencies: confirm dependency additions/updates were justified, risk-researched, reflected in lockfiles, and covered by vulnerability/license expectations. Phantom deps or unreviewed lockfile churn are `major` or `blocker`.
 - Tests and gates: verify tests cover meaningful behavior and failure paths, not just snapshots or mock choreography. Deleted, weakened, skipped, or sabotaged gates are `blocker`.
 - Config, CI, and deployment: inspect workflow YAML, package scripts, generated manifests, install paths, permissions, and release packaging when touched.
 - Compatibility: check public CLI/API/config contracts, generated target paths, migration behavior, backward compatibility, and stale artifact cleanup.
 - Maintainability: flag unnecessary complexity, duplicated policy, broad refactors hidden inside feature work, TODO placeholders, and scope creep outside the BOSS filescope.
 - Observability and operations: when behavior affects installs, automation, security, or deployments, confirm errors, logs, dry-runs, backups, and recovery paths remain understandable.
 
-Specialist QA commands are escalation routes, not mandatory serial phases. Use `qa-review` or `qa-sec` when the BOSS route, touched surface, or reviewer findings need deeper domain coverage, and treat that specialist pass as the detailed review for that domain rather than stacking duplicate checklist work. `qa-sec` is a heavyweight security/supply-chain audit path; use it for explicit security audit, dependency/supply-chain proof, secrets/auth/crypto/install-risk surfaces, or reviewer escalation, not as a routine add-on for every batch.
+Specialist QA commands are helper functions, not mandatory serial phases and not a new workflow route. Use `qa-review`, `qa-trace`, or `qa-sec` when the BOSS route, touched surface, or reviewer findings need deeper domain coverage, and treat that specialist pass as the detailed review for that domain rather than stacking duplicate checklist work. `qa-review` covers broad code quality/regression risk, `qa-trace` covers root-cause/dataflow/race/security-path tracing, and `qa-sec` covers heavyweight security/supply-chain evidence. When a helper command is invoked from `workflow-reviewer`, its original output format is subordinate: record its findings as reviewer evidence, but still write `reviewer.json` and chat output in the `workflow-reviewer` format with the existing `workflow.next_command` choices.
 
 After per-task review, also check **batch-level invariants**:
 

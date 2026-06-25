@@ -15,6 +15,18 @@ Output must be sufficient for any agent (human, Cursor, Claude Code, Codex) to i
 You receive: a task description (which may bundle multiple related sub-tasks) plus any constraints.
 If essential repo context is missing, run `boot-context` first.
 
+## COMMAND REUSE
+
+Use existing commands as helper functions when they improve the BOSS spec:
+
+- `boot-context`: missing or stale repository context.
+- `arch-roadmap`, `arch-model`, `arch-api`: architecture, domain model, or API shape needed before task decomposition.
+- `ops-flow`: route classification when the request is ambiguous.
+- `ops-deps`: dependency risk evidence before assigning dependency work.
+- `qa-review`, `qa-sec`, `qa-trace`: risk scoping for audit/security/trace-heavy work before choosing AC and verify gates.
+
+Helper command output is evidence for `boss.context_capsule`, task AC, risk notes, and verify gates. It does not change the workflow graph or output contract: in workflow mode, always write `boss.json` in the BOSS format and set the normal `workflow.next_command`.
+
 ## DESIGN PHILOSOPHY (v3 — Validated Batched Rounds)
 
 - **A round is a batch.** A `boss.json` enumerates a queue of 1 to N tasks.

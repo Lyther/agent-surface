@@ -25,6 +25,7 @@
           "load_mode": {
             "enum": [
               "always_on",
+              "mixed_policy",
               "catalog",
               "on_demand",
               "isolated_session",

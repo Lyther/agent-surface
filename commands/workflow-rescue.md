@@ -25,6 +25,18 @@ You must be provided:
 
 If runner evidence is missing, request it and stop.
 
+## COMMAND REUSE
+
+Use helper commands as diagnostic tools before choosing RESPEC, CONTEXT, PATCH, or HUMAN:
+
+- `workflow-doctor`: artifact, schema, run-state, and handoff integrity.
+- `boot-context`: missing repository context.
+- `qa-review`: disputed patch quality or regression risk.
+- `qa-trace`: repeated root-cause failure, dataflow, race, or security-path uncertainty.
+- `qa-sec`: dependency, supply-chain, secrets, auth, crypto, payment, or install-risk uncertainty.
+
+Helper output does not become a rescue artifact by itself. In workflow mode, fold useful findings into `rescue.json` and keep the rescue output format and existing next-command choices.
+
 ### Workflow mode
 
 - If `.agent-surface/workflows/<run_id>/boss.json` exists, load `boss.json`, `worker.json`, plus `reviewer.json` and `judger.json` when present instead of requiring the human to restate them.

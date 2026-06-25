@@ -10,6 +10,9 @@ Deep Agents Code target for `agent-surface`.
 - `rules/*.mdc` -> Deep Agents Code instructions:
   - user: `~/.deepagents/<agent>/AGENTS.md`
   - project: `.deepagents/AGENTS.md`
+- scoped language rules -> references:
+  - user: `~/.deepagents/<agent>/references/rules/<rule>.md`
+  - project: `.deepagents/references/rules/<rule>.md`
 - `subagents/worker.md` -> Deep Agents Code worker subagent:
   - user: `~/.deepagents/<agent>/agents/worker/AGENTS.md`
   - project: `.deepagents/agents/worker/AGENTS.md`
@@ -20,6 +23,8 @@ Deep Agents Code target for `agent-surface`.
 ## Intentional limits
 
 Deep Agents Code subagent files support `name`, `description`, optional `model`, and a markdown system prompt. They do not support per-subagent tool restrictions in `AGENTS.md` frontmatter, so read-only roles are not emitted. The `worker` profile is emitted because its normalized access is `read-write-shell`, matching inherited Deep Agents Code tools.
+
+Generated instruction files bundle only `alwaysApply: true` rules. Scoped language policies are reference files for project-aware commands such as `boot-new`.
 
 ## References
 

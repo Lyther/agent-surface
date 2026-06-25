@@ -13,7 +13,7 @@ No production behavior changes. If the work requires behavior changes, route to 
 
 - BOSS route is `chore`.
 - The task is maintenance-only and has explicit FILESCOPE.
-- Dependency work has user approval and a rollback path.
+- Dependency work has changelog/advisory/license/maintenance review, lockfile impact understood, and a rollback path.
 - Repo-wide formatting or autofix has explicit approval.
 
 ## WHEN NOT TO USE
@@ -22,6 +22,19 @@ No production behavior changes. If the work requires behavior changes, route to 
 - Security remediations that alter authorization, validation, crypto, payment, or data mutation behavior.
 - Broad dependency upgrades without changelog/advisory review.
 - Unscoped `prettier --write .`, `eslint --fix .`, `cargo fix`, or lockfile churn.
+
+## COMMAND REUSE
+
+Use existing commands as helper functions when they improve maintenance quality:
+
+- `ops-deps`: dependency risk, changelog, advisory, license, and lockfile review.
+- `ops-doctor`: repository/tooling health checks.
+- `lint-python`, `lint-rust`, `lint-go`, `lint-typescript`, `lint-shell`: language-specific checks for touched files.
+- `verify-test`, `verify-spec`, `verify-coverage`: focused proof for chore AC.
+- `qa-review`: broad regression/scope review for config, CI, generated metadata, or lockfile changes.
+- `ops-swarm`: parallel non-blocking check packets only when FILESCOPE isolation is clear.
+
+In workflow mode, helper command output is evidence, not the final format. Keep writing `worker.json`, evidence refs, patch refs, and the normal `workflow.next_command = "workflow-reviewer"`.
 
 ## WORKFLOW MODE
 
@@ -93,7 +106,7 @@ Do not emit a blocker until you have attempted the safe discovery or repair avai
 
 - Not blockers: repo discovery, selecting verify commands from manifests/Makefiles/CI, scoped format/lint/test failures in owned files, and documentation alignment for public behavior in FILESCOPE. Resolve these before stopping.
 - Conditional worker-owned recovery: generated artifact refresh is allowed only when BOSS assigned generated outputs or the repo's generator/check explicitly requires it; record the generator command and keep the normal generated-file gate green.
-- Human-required blockers: secrets or credential access, unapproved dependency add/update, destructive commands, database mutation, deployment, production data, approval-gated network calls, product decisions not inferable from BOSS/user evidence, or files outside FILESCOPE.
+- Human-required blockers: secrets or credential access, dependency risk that cannot be researched or accepted from available evidence, destructive commands, database mutation, deployment, production data, approval-gated network calls, product decisions not inferable from BOSS/user evidence, or files outside FILESCOPE.
 - Repeated failure: after two focused correction attempts on the same task, stop with `blocker.type="repeated_failure"`, `resolution_class="human_required"` unless the next safe action is purely mechanical, and include the failed attempts.
 - Every blocker should include `type`, `detail`, `needs`, `resolution_class` (`auto_resolvable` or `human_required`), `attempts`, and `recommended_decision`. Legacy v3 artifacts may omit the last three fields, but new worker output should include them.
 
@@ -101,7 +114,7 @@ Do not emit a blocker until you have attempted the safe discovery or repair avai
 
 - Do not change production logic.
 - Do not weaken tests, linters, compiler settings, auth checks, or security checks to pass.
-- Do not run dependency update, repo-wide formatting, destructive cleanup, or network commands without explicit approval.
+- Do not run repo-wide formatting, destructive cleanup, or approval-gated network commands without explicit approval. Dependency updates require documented risk research before mutation.
 - Do not edit workflow artifacts outside `worker.json`, per-task patches, evidence files, and this role's event.
 - If a chore exposes a required behavior change, stop and route to `workflow-boss` for route correction.
 

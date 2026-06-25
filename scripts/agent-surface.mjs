@@ -49,7 +49,7 @@ const targets = {
     externalSkillOutputRoot: path.join(".agents", "skills"),
     staticRenders: ["rules"],
     commandOutputRoot: ".agents/skills",
-    renderCommand: renderCodexSkill,
+    renderCommand: renderSharedAgentSkill,
     renderSubagent: renderCodexSubagent,
     installRoot: installRootCodex,
     commandOutputName: codexSkillOutputName,
@@ -149,14 +149,14 @@ const targets = {
     installRoot: installRootAntigravity,
   },
   "antigravity-cli": {
-    label: "Google CLI extension",
+    label: "Antigravity CLI plugin",
     commandRenders: ["skills"],
     subagentRenders: ["subagents"],
     subagentTarget: "antigravity-cli",
-    subagentOutputRoot: path.join("extensions", "agent-surface", "agents"),
-    externalSkillOutputRoot: path.join("extensions", "agent-surface", "skills"),
+    subagentOutputRoot: path.join("config", "plugins", "agent-surface", "agents"),
+    externalSkillOutputRoot: path.join("config", "plugins", "agent-surface", "skills"),
     staticRenders: ["plugins", "rules"],
-    commandOutputRoot: path.join("extensions", "agent-surface", "skills"),
+    commandOutputRoot: path.join("config", "plugins", "agent-surface", "skills"),
     commandOutputName: antigravityCliSkillOutputName,
     renderCommand: renderAntigravityCliSkill,
     renderSubagent: renderGeminiSubagent,
@@ -164,7 +164,7 @@ const targets = {
     staticOutputs: antigravityCliStaticOutputs,
   },
   "gemini-cli": {
-    label: "Gemini CLI commands, context, and subagents",
+    label: "Gemini CLI legacy commands, context, and subagents",
     commandRenders: ["commands"],
     subagentRenders: ["subagents"],
     subagentTarget: "gemini-cli",
@@ -264,7 +264,7 @@ const targets = {
     commandOutputRoot: zedSkillRoot,
     commandOutputName: codexSkillOutputName,
     externalSkillOutputRoot: zedSkillRoot,
-    renderCommand: renderZedSkill,
+    renderCommand: renderSharedAgentSkill,
     installRoot: installRootZed,
     staticOutputs: zedStaticOutputs,
   },
@@ -301,38 +301,48 @@ const generatedOutputMinimums = new Map([
 const ruleScenarios = {
   "generic-chat": {
     paths: [],
-    targetTokens: 3000,
-    hardTokens: 3500,
+    targetTokens: 10000,
+    hardTokens: 12000,
   },
   "python-source": {
     paths: ["src/example.py"],
-    targetTokens: 6000,
-    hardTokens: 7000,
+    targetTokens: 10000,
+    hardTokens: 12000,
   },
   "python-tooling": {
     paths: ["pyproject.toml"],
-    targetTokens: 6000,
-    hardTokens: 7000,
+    targetTokens: 10000,
+    hardTokens: 12000,
   },
   "rust-source": {
     paths: ["src/lib.rs"],
-    targetTokens: 6000,
-    hardTokens: 7000,
+    targetTokens: 10000,
+    hardTokens: 12000,
   },
   "go-ci": {
     paths: [".golangci.yml"],
-    targetTokens: 6000,
-    hardTokens: 7000,
+    targetTokens: 10000,
+    hardTokens: 12000,
   },
   "typescript-eslint": {
     paths: ["eslint.config.mjs"],
-    targetTokens: 6000,
-    hardTokens: 7000,
+    targetTokens: 10000,
+    hardTokens: 12000,
   },
   "shell-script": {
     paths: ["scripts/deploy.sh"],
-    targetTokens: 6000,
-    hardTokens: 7000,
+    targetTokens: 10000,
+    hardTokens: 12000,
+  },
+  "security-exploit": {
+    paths: ["exploit.py", "ctf/chall/pwn.c", "findings/pentest.md", ".garak.toml"],
+    targetTokens: 10000,
+    hardTokens: 12000,
+  },
+  "ordinary-patch": {
+    paths: ["patches/fix-build-regression.patch"],
+    targetTokens: 10000,
+    hardTokens: 12000,
   },
 };
 
@@ -1110,20 +1120,26 @@ function validateGeneratedTarget(target, outputs) {
   } else if (target === "kilo") {
     requirePath(path.join(".config", "kilo", "commands", "ops-flow.md"));
     requireContains(path.join(".config", "kilo", "agents", "boss.md"), /^---\ndescription: "/);
-    requireContains(path.join(".config", "kilo", "AGENTS.md"), /agent-surface Kilo rules/);
+    requireContains(path.join(".config", "kilo", "kilo.jsonc"), /"\.\/rules\/00-precedence-and-safety\.md"/);
+    requireContains(path.join(".config", "kilo", "rules", "00-precedence-and-safety.md"), /Precedence and Safety/);
+    requireContains(path.join(".config", "kilo", "references", "rules", "10-python.md"), /Scoped agent-surface reference/);
+    if (byPath.has(path.join(".config", "kilo", "AGENTS.md"))) {
+      errors.push("Kilo must not emit AGENTS.md when kilo.jsonc instruction rules are generated");
+    }
     requireContains(".kilocodeignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "antigravity") {
     requireContains(path.join("global_workflows", "ops-flow.md"), /^---\ndescription: "/);
   } else if (target === "antigravity-cli") {
-    const plugin = requireJson(path.join("extensions", "agent-surface", "gemini-extension.json"));
-    if (plugin && plugin.name !== "agent-surface") errors.push("Google CLI extension name must be agent-surface");
-    requireContains(path.join("extensions", "agent-surface", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
-    requireContains(path.join("extensions", "agent-surface", "agents", "boss.md"), /^---\nname: boss\n/);
-    requireContains(path.join("extensions", "agent-surface", "GEMINI.md"), /agent-surface Google CLI extension rules/);
+    const plugin = requireJson(path.join("config", "plugins", "agent-surface", "plugin.json"));
+    if (plugin && plugin.name !== "agent-surface") errors.push("Antigravity CLI plugin name must be agent-surface");
+    requireContains(path.join("config", "plugins", "agent-surface", "skills", "ops-flow.md"), /^---\nname: ops-flow\n/);
+    requireContains(path.join("config", "plugins", "agent-surface", "agents", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join("config", "plugins", "agent-surface", "rules", "00-precedence-and-safety.md"), /Antigravity CLI plugin rule/);
+    requireContains(path.join("config", "plugins", "agent-surface", "references", "rules", "10-python.md"), /Scoped agent-surface reference/);
   } else if (target === "cursor") {
     requirePath(path.join(".cursor", "commands", "ops-flow.md"));
     requireContains(path.join(".cursor", "agents", "boss.md"), /^---\nname: boss\n/);
-    requirePath(path.join(".cursor", "rules", "00-core.mdc"));
+    requirePath(path.join(".cursor", "rules", "00-precedence-and-safety.mdc"));
     requireContains(".cursorignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "droid") {
     requirePath(path.join(".factory", "commands", "ops-flow.md"));
@@ -1257,15 +1273,16 @@ function addCrossPlanInstallConflicts(plans) {
   const planned = new Map();
   for (const plan of plans) {
     const outputs = [
-      ...plan.writes.map((item) => ({ output: item.output, relativeOutput: item.relativeOutput })),
-      ...plan.configMerges.map((item) => ({ output: item.output, relativeOutput: item.relativeOutput })),
+      ...plan.writes.map((item) => ({ output: item.output, relativeOutput: item.relativeOutput, content: item.content })),
+      ...plan.configMerges.map((item) => ({ output: item.output, relativeOutput: item.relativeOutput, content: null })),
     ];
     for (const item of outputs) {
       const previous = planned.get(item.output);
       if (!previous) {
-        planned.set(item.output, { target: plan.target, plan, relativeOutput: item.relativeOutput });
+        planned.set(item.output, { target: plan.target, plan, relativeOutput: item.relativeOutput, content: item.content });
         continue;
       }
+      if (item.content !== null && previous.content !== null && item.content === previous.content) continue;
       plan.blocked.push(`output ${item.relativeOutput} also planned by ${previous.target}`);
       previous.plan.blocked.push(`output ${previous.relativeOutput} also planned by ${plan.target}`);
     }
@@ -1618,7 +1635,11 @@ async function applyInstallPlan(plan) {
 async function kiloConfigMerge(installRoot, scope) {
   const relativeOutput = scope === "user" ? path.join(".config", "kilo", "kilo.jsonc") : "kilo.jsonc";
   const instructions = await kiloRuleInstructionPaths(scope);
-  const legacyInstructions = [scope === "user" ? "./rules/agent-surface.md" : ".kilo/rules/agent-surface.md"];
+  const legacyRuleRoot = scope === "user" ? "./rules" : ".kilo/rules";
+  const legacyScopedRuleInstructions = (await readRules())
+    .filter((rule) => rule.alwaysApply === false)
+    .map((rule) => `${legacyRuleRoot}/${path.basename(rule.file, ".mdc")}.md`);
+  const legacyInstructions = [`${legacyRuleRoot}/agent-surface.md`, `${legacyRuleRoot}/00-core.md`, ...legacyScopedRuleInstructions];
   return {
     output: path.join(installRoot, relativeOutput),
     relativeOutput,
@@ -2497,11 +2518,11 @@ async function renderWindsurfWorkflow(source) {
   return source.body;
 }
 
-async function renderCodexSkill(source) {
+async function renderSharedAgentSkill(source) {
   return renderSkillMarkdown(source, {
-    invocationPrefix: "$",
-    generatedFor: "Codex",
-    hostInstruction: `Treat any slash-command syntax below as source documentation. In Codex, invoke \`$${source.name}\` and express options in natural language.`,
+    invocationPrefix: null,
+    generatedFor: "Codex and Zed",
+    hostInstruction: `For explicit invocation, use the current host's Agent Skill syntax, such as \`$${source.name}\` in Codex or \`/${source.name}\` in Zed. Treat slash-command syntax below as portable command documentation unless the host supports it directly.`,
   });
 }
 
@@ -2526,14 +2547,6 @@ async function renderPoolSkill(source) {
     invocationPrefix: "/skills",
     generatedFor: "Poolside",
     hostInstruction: "Poolside can auto-apply local skills when the SKILL.md description matches the task; use the skills menu for explicit selection.",
-  });
-}
-
-async function renderZedSkill(source) {
-  return renderSkillMarkdown(source, {
-    invocationPrefix: "/",
-    generatedFor: "Zed",
-    hostInstruction: "Zed discovers Agent Skills from .agents/skills or ~/.agents/skills and applies them when the task matches the skill description.",
   });
 }
 
@@ -2621,18 +2634,18 @@ async function codexOpenAiAgentOutput(source) {
 }
 
 function antigravityCliSkillOutputName(source) {
-  return path.join(source.name, "SKILL.md");
+  return `${source.name}.md`;
 }
 
 async function renderAntigravityCliSkill(source) {
   return renderSkillMarkdown(source, {
     invocationPrefix: "/",
-    generatedFor: "Google CLI extension skill",
-    hostInstruction: "Activate this skill from Gemini or Antigravity CLI after the agent-surface extension is installed.",
+    generatedFor: "Antigravity CLI plugin skill",
+    hostInstruction: "Invoke this skill from Antigravity CLI after the agent-surface plugin is installed and enabled.",
   });
 }
 
-async function codexStaticOutputs() {
+async function codexStaticOutputs(_commands, context) {
   return [
     {
       source: "rules/*.mdc",
@@ -2640,6 +2653,7 @@ async function codexStaticOutputs() {
       relativeOutput: path.join(".codex", "AGENTS.md"),
       content: await renderInstructionDocument("AGENTS.md - agent-surface global Codex rules", "Codex global instructions"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join(".codex", "references", "rules")),
   ];
 }
 
@@ -2651,6 +2665,7 @@ async function deepagentsStaticOutputs(_commands, context) {
       relativeOutput: deepagentsInstructionPath(context),
       content: await renderInstructionDocument("AGENTS.md - agent-surface Deep Agents Code rules", "Deep Agents Code instructions"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join(deepagentsConfigRoot(context), "references", "rules")),
   ];
 }
 
@@ -2661,73 +2676,105 @@ async function clineStaticOutputs(_commands, context) {
       relativeOutput: path.join(outputRootFor(clineRuleRoot, context), "agent-surface.md"),
       content: await renderInstructionDocument("agent-surface Cline global rules", "Cline rules"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join(outputRootFor(clineRuleRoot, context), "references", "rules")),
   ];
 }
 
 async function kiloStaticOutputs(_commands, context) {
   const rules = await readRules();
-  return [
-    {
-      source: "rules/*.mdc",
-      relativeOutput: kiloInstructionPath(context),
-      content: await renderInstructionDocument("AGENTS.md - agent-surface Kilo rules", "Kilo instructions"),
-    },
-    ...rules.map((rule) => ({
+  const alwaysApplyRules = rules.filter((rule) => rule.alwaysApply !== false);
+  const scopedRules = rules.filter((rule) => rule.alwaysApply === false);
+  const outputs = [
+    ...alwaysApplyRules.map((rule) => ({
       source: rule.file,
       relativeOutput: path.join(kiloRuleRoot(context), `${path.basename(rule.file, ".mdc")}.md`),
       content: renderKiloRuleDocument(rule),
     })),
   ];
+  if (context.mode !== "install") {
+    outputs.unshift({
+      source: "rules/*.mdc",
+      relativeOutput: kiloConfigPath(context.scope),
+      content: `${JSON.stringify({
+        $schema: "https://app.kilo.ai/config.json",
+        instructions: await kiloRuleInstructionPaths(context.scope),
+      }, null, 2)}\n`,
+    });
+  }
+  outputs.push(...scopedRules.map((rule) => ({
+    source: rule.file,
+    relativeOutput: path.join(kiloRuleReferenceRoot(context), `${path.basename(rule.file, ".mdc")}.md`),
+    content: renderScopedRuleReferenceDocument(rule),
+  })));
+  return outputs;
 }
 
-async function geminiStaticOutputs() {
+async function geminiStaticOutputs(_commands, context) {
   return [
     {
       source: "rules/*.mdc",
       relativeOutput: path.join(".gemini", "GEMINI.md"),
       content: await renderInstructionDocument("GEMINI.md - agent-surface global Gemini rules", "Gemini CLI global context"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join(".gemini", "references", "rules")),
   ];
 }
 
-async function antigravityCliStaticOutputs(commands) {
+async function antigravityCliStaticOutputs(commands, context) {
   const metadata = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+  const rules = await readRules();
+  const alwaysApplyRules = rules.filter((rule) => rule.alwaysApply !== false);
   return [
     {
       sourceKind: "commands",
       renderKind: "plugins",
       source: "package.json",
-      relativeOutput: path.join("extensions", "agent-surface", "gemini-extension.json"),
+      relativeOutput: path.join("config", "plugins", "agent-surface", "plugin.json"),
       content: `${JSON.stringify({
         name: "agent-surface",
         version: metadata.version,
         description: "Portable agent-surface command, skill, subagent, and rule pack generated from Lyther/agent-surface.",
-        contextFileName: "GEMINI.md",
       }, null, 2)}\n`,
     },
     {
       sourceKind: "commands",
       renderKind: "plugins",
       source: "README.md",
-      relativeOutput: path.join("extensions", "agent-surface", "README.md"),
+      relativeOutput: path.join("config", "plugins", "agent-surface", "README.md"),
       content: [
-        "# agent-surface Google CLI extension",
+        "# agent-surface Antigravity CLI plugin",
         "",
-        "Generated extension package for Gemini CLI and the Google CLI transition surface.",
+        "Generated plugin package for Antigravity CLI.",
         "",
-        "Install or link this directory with `gemini extensions install` or `gemini extensions link`.",
+        "Validate with `agy plugin validate ~/.gemini/config/plugins/agent-surface`, then enable with `agy plugin enable agent-surface` after installation.",
         "",
         `Packaged skills: ${commands.length}`,
         "",
       ].join("\n"),
     },
-    {
-      source: "rules/*.mdc",
+    ...alwaysApplyRules.map((rule) => ({
+      sourceKind: "rules",
       renderKind: "rules",
-      relativeOutput: path.join("extensions", "agent-surface", "GEMINI.md"),
-      content: await renderInstructionDocument("GEMINI.md - agent-surface Google CLI extension rules", "Gemini CLI extension context"),
-    },
+      source: rule.file,
+      relativeOutput: path.join("config", "plugins", "agent-surface", "rules", `${path.basename(rule.file, ".mdc")}.md`),
+      content: renderAntigravityCliRuleDocument(rule),
+    })),
+    ...await scopedRuleReferenceOutputs(
+      context,
+      path.join("config", "plugins", "agent-surface", "references", "rules"),
+    ),
   ];
+}
+
+function renderAntigravityCliRuleDocument(rule) {
+  return [
+    `# ${path.basename(rule.file, ".mdc")}`,
+    "",
+    `> Antigravity CLI plugin rule. Generated by agent-surface from \`${rule.file}\`.`,
+    "",
+    stripFrontmatter(rule.text).trim(),
+    "",
+  ].join("\n");
 }
 
 async function cursorStaticOutputs() {
@@ -2747,11 +2794,16 @@ async function droidStaticOutputs(_commands, context) {
       relativeOutput: droidInstructionPath(context),
       content: await renderInstructionDocument("AGENTS.md - agent-surface Droid rules", "Droid instructions"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join(droidConfigRoot(context), "references", "rules")),
   ];
 }
 
 function droidInstructionPath(context) {
   return context.scope === "user" ? path.join(".factory", "AGENTS.md") : "AGENTS.md";
+}
+
+function droidConfigRoot(_context) {
+  return ".factory";
 }
 
 async function grokBuildStaticOutputs(_commands, context) {
@@ -2763,6 +2815,7 @@ async function grokBuildStaticOutputs(_commands, context) {
       relativeOutput: "AGENTS.md",
       content: await renderInstructionDocument("AGENTS.md - agent-surface Grok Build rules", "Grok Build project instructions"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join(".grok", "references", "rules")),
   ];
 }
 
@@ -2774,6 +2827,7 @@ async function piStaticOutputs(_commands, context) {
       relativeOutput: piInstructionPath(context),
       content: await renderInstructionDocument("AGENTS.md - agent-surface Pi rules", "Pi instructions"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join(piConfigRoot(context), "references", "rules")),
   ];
 }
 
@@ -2785,6 +2839,7 @@ async function poolStaticOutputs(_commands, context) {
       relativeOutput: poolInstructionPath(context),
       content: await renderInstructionDocument("agent-surface Poolside rules", "Poolside instructions"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join(poolConfigRoot(context), "references", "rules")),
   ];
 }
 
@@ -2796,6 +2851,7 @@ async function windsurfStaticOutputs(_commands, context) {
       relativeOutput: windsurfRulePath(context),
       content: await renderInstructionDocument("agent-surface Windsurf rules", "Windsurf instructions"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join(windsurfConfigRoot(context), "references", "rules")),
   ];
 }
 
@@ -2807,6 +2863,7 @@ async function zedStaticOutputs(_commands, context) {
       relativeOutput: zedInstructionPath(context),
       content: await renderInstructionDocument("AGENTS.md - agent-surface Zed rules", "Zed instructions"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join(zedConfigRoot(context), "references", "rules")),
   ];
 }
 
@@ -2949,7 +3006,7 @@ function safeExternalPath(item) {
   return path.join(root, item);
 }
 
-async function copilotStaticOutputs() {
+async function copilotStaticOutputs(_commands, context) {
   return [
     {
       sourceKind: "rules",
@@ -2958,10 +3015,11 @@ async function copilotStaticOutputs() {
       relativeOutput: path.join("instructions", "agent-surface-copilot.instructions.md"),
       content: await renderVsCodeInstructionDocument("agent-surface Copilot global instructions", "copilot"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join("instructions", "references", "rules")),
   ];
 }
 
-async function vscodeStaticOutputs() {
+async function vscodeStaticOutputs(_commands, context) {
   return [
     {
       sourceKind: "rules",
@@ -2970,6 +3028,7 @@ async function vscodeStaticOutputs() {
       relativeOutput: path.join("instructions", "agent-surface.instructions.md"),
       content: await renderVsCodeInstructionDocument("agent-surface VS Code instructions", "vscode"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join("instructions", "references", "rules")),
     {
       sourceKind: "commands",
       renderKind: "prompts",
@@ -2980,7 +3039,7 @@ async function vscodeStaticOutputs() {
   ];
 }
 
-async function vscodiumStaticOutputs() {
+async function vscodiumStaticOutputs(_commands, context) {
   return [
     {
       sourceKind: "rules",
@@ -2989,6 +3048,7 @@ async function vscodiumStaticOutputs() {
       relativeOutput: path.join("instructions", "agent-surface.instructions.md"),
       content: await renderVsCodeInstructionDocument("agent-surface VSCodium instructions", "vscodium"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join("instructions", "references", "rules")),
     {
       sourceKind: "commands",
       renderKind: "prompts",
@@ -3006,25 +3066,27 @@ async function opencodeStaticOutputs(_commands, context) {
       relativeOutput: opencodeInstructionPath(context),
       content: await renderInstructionDocument("AGENTS.md - agent-surface global OpenCode rules", "OpenCode global instructions"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join(opencodeConfigRoot(context), "references", "rules")),
   ];
 }
 
-async function traeStaticOutputs() {
+async function traeStaticOutputs(_commands, context) {
   return [
     {
       source: "rules/*.mdc",
       relativeOutput: path.join(".trae", "user_rules.md"),
       content: await renderInstructionDocument("agent-surface Trae user rules", "Trae user rules"),
     },
+    ...await scopedRuleReferenceOutputs(context, path.join(".trae", "references", "rules")),
   ];
 }
 
 async function renderInstructionDocument(title, subtitle) {
-  const rules = await readRules();
+  const rules = (await readRules()).filter((rule) => rule.alwaysApply !== false);
   return [
     `# ${title}`,
     "",
-    `> ${subtitle}. Generated by agent-surface from \`rules/*.mdc\`.`,
+    `> ${subtitle}. Generated by agent-surface from always-on \`rules/*.mdc\`. Scoped language rules are emitted as separate reference files.`,
     "",
     ...rules.flatMap((rule) => [
       `## ${path.basename(rule.file)}`,
@@ -3032,6 +3094,28 @@ async function renderInstructionDocument(title, subtitle) {
       stripFrontmatter(rule.text).trim(),
       "",
     ]),
+  ].join("\n");
+}
+
+async function scopedRuleReferenceOutputs(_context, outputRoot) {
+  const rules = (await readRules()).filter((rule) => rule.alwaysApply === false);
+  return rules.map((rule) => ({
+    sourceKind: "rules",
+    renderKind: "rules",
+    source: rule.file,
+    relativeOutput: path.join(outputRoot, `${path.basename(rule.file, ".mdc")}.md`),
+    content: renderScopedRuleReferenceDocument(rule),
+  }));
+}
+
+function renderScopedRuleReferenceDocument(rule) {
+  return [
+    `# ${path.basename(rule.file, ".mdc")}`,
+    "",
+    `> Scoped agent-surface reference. Generated from \`${rule.file}\`. Attach this rule only when the current project files match its frontmatter globs.`,
+    "",
+    stripFrontmatter(rule.text).trim(),
+    "",
   ].join("\n");
 }
 
@@ -3828,7 +3912,7 @@ async function kiloConfigStatus() {
   if (pluginVersion) markers.push(`plugin ${pluginVersion}`);
   if (await exists(path.join(configDir, "AGENTS.md"))) markers.push("AGENTS.md");
   if (await exists(path.join(configDir, "commands"))) markers.push("commands");
-  if (instructions.includes("./rules/00-core.md")) markers.push("rules configured");
+  if (instructions.includes("./rules/00-precedence-and-safety.md")) markers.push("rules configured");
   return markers.length > 0 ? `present (${markers.join(", ")})` : "present";
 }
 
@@ -3854,6 +3938,10 @@ function deepagentsAgentRoot(context) {
     : path.join(".deepagents", "agents");
 }
 
+function deepagentsConfigRoot(context) {
+  return context.scope === "user" ? path.join(".deepagents", context.agentName ?? "agent") : ".deepagents";
+}
+
 function deepagentsSubagentOutputName(source) {
   return path.join(source.metadata.name, "AGENTS.md");
 }
@@ -3874,12 +3962,20 @@ function piInstructionPath(context) {
   return context.scope === "user" ? path.join(".pi", "agent", "AGENTS.md") : "AGENTS.md";
 }
 
+function piConfigRoot(context) {
+  return context.scope === "user" ? path.join(".pi", "agent") : ".pi";
+}
+
 function poolSkillRoot(context) {
   return context.scope === "user" ? path.join(".config", "poolside", "skills") : path.join(".poolside", "skills");
 }
 
 function poolInstructionPath(context) {
   return context.scope === "user" ? path.join(".config", "poolside", ".poolside") : "AGENTS.md";
+}
+
+function poolConfigRoot(context) {
+  return context.scope === "user" ? path.join(".config", "poolside") : ".poolside";
 }
 
 function clineRuleRoot(context) {
@@ -3890,12 +3986,22 @@ function kiloWorkflowRoot(context) {
   return context.scope === "user" ? path.join(".config", "kilo", "commands") : path.join(".kilo", "commands");
 }
 
+function kiloConfigPath(scope) {
+  return scope === "user" ? path.join(".config", "kilo", "kilo.jsonc") : "kilo.jsonc";
+}
+
 function kiloInstructionPath(context) {
   return context.scope === "user" ? path.join(".config", "kilo", "AGENTS.md") : "AGENTS.md";
 }
 
 function kiloRuleRoot(context) {
   return context.scope === "user" ? path.join(".config", "kilo", "rules") : path.join(".kilo", "rules");
+}
+
+function kiloRuleReferenceRoot(context) {
+  return context.scope === "user"
+    ? path.join(".config", "kilo", "references", "rules")
+    : path.join(".kilo", "references", "rules");
 }
 
 function kiloAgentRoot(context) {
@@ -3914,8 +4020,16 @@ function opencodeInstructionPath(context) {
   return context.scope === "user" ? path.join(".config", "opencode", "AGENTS.md") : "AGENTS.md";
 }
 
+function opencodeConfigRoot(context) {
+  return context.scope === "user" ? path.join(".config", "opencode") : ".opencode";
+}
+
 function windsurfWorkflowRoot(context) {
   return context.scope === "user" ? path.join(".codeium", "windsurf", "global_workflows") : path.join(".windsurf", "workflows");
+}
+
+function windsurfConfigRoot(context) {
+  return context.scope === "user" ? path.join(".codeium", "windsurf") : ".windsurf";
 }
 
 function windsurfRulePath(context) {
@@ -3936,8 +4050,14 @@ function zedInstructionPath(context) {
   return context.scope === "user" ? path.join(".config", "zed", "AGENTS.md") : "AGENTS.md";
 }
 
+function zedConfigRoot(context) {
+  return context.scope === "user" ? path.join(".config", "zed") : ".zed";
+}
+
 async function kiloRuleInstructionPaths(scope) {
-  const ruleNames = (await readRules()).map((rule) => path.basename(rule.file, ".mdc"));
+  const ruleNames = (await readRules())
+    .filter((rule) => rule.alwaysApply !== false)
+    .map((rule) => path.basename(rule.file, ".mdc"));
   const prefix = scope === "user" ? "./rules" : ".kilo/rules";
   return ruleNames.map((name) => `${prefix}/${name}.md`);
 }

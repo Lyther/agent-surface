@@ -17,6 +17,12 @@ description: "Bootstrap a new project from a user vision into a working structur
 2. **Batch Generation**: If creating a complex app, generate 5 files at a time.
 3. **Prompt**: "Created config. Now creating `src/core`. Continue?"
 
+## MODE
+
+- `boot-new check`: read-only audit for a new or existing project. Detect stack, repo shape, generated/local agent overlays, missing hygiene files, stale ignores, and which scoped rule references should be attached. Report the plan without writing.
+- `boot-new run`: apply the scaffold/update plan. If the host does not expose subcommands, treat a bare `boot-new` request as `run` only after the read-only check has produced a coherent plan.
+- Existing projects use the same flow as new projects: check first, preserve the proven stack, then update only missing or stale structure.
+
 ## VIBE CODING FOUNDATION
 
 This command creates the **context infrastructure** that enables smooth vibe coding:
@@ -98,7 +104,14 @@ This command creates the **context infrastructure** that enables smooth vibe cod
     - Output valid JSONC only.
 4. **Agentic Rules (`.cursor/rules/` scaffolding)**:
     - **MANDATORY**: Scaffold `.cursor/rules/` in the target project with `.mdc` files.
-    - **Source**: Copy or adapt templates from the active agent-surface `rules/*.mdc` policy sources when the target project needs local rule overlays.
+    - **Source**: Copy or adapt always-on templates from the active agent-surface `rules/00-precedence-and-safety.mdc` through `rules/06-test-policy.mdc` when the target project needs local rule overlays.
+    - **Scoped References**: Treat language rules (`10-python`, `11-rust`, `12-go`, `13-typescript`, `14-shell`) as references, not always-on policy. Attach or copy only the references that match the target project's actual manifests/files:
+        - Python: `pyproject.toml`, `uv.lock`, `.python-version`, `requirements*.txt`, `*.py`.
+        - Rust: `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `*.rs`.
+        - Go: `go.mod`, `go.sum`, `.golangci.*`, `*.go`.
+        - TypeScript/Node: `package.json`, `tsconfig*.json`, lockfiles, `*.ts`, `*.tsx`.
+        - Shell/automation: `*.sh`, `*.bash`, `Dockerfile*`, `.github/workflows/*`, `Makefile`, `justfile`, `Taskfile.yml`.
+    - **No Blanket Attach**: Do not copy every scoped language rule into an always-on rule file. If a generated target provides `references/rules/<name>.md`, use that as the source for matching local overlays; otherwise use the source `rules/<name>.mdc`.
     - **Cross-tool**: Generate `AGENTS.md` at project root for local cross-tool compatibility (gitignored).
     - **Gemini/Antigravity**: create local-only generated instruction overlays from the active agent-surface rules when the host needs them; keep those overlays gitignored.
     - **Legacy**: If the project needs `.cursorrules` for older tooling, generate it from the project-local `.cursor/rules/` overlay with the project's own script and keep it gitignored.
@@ -146,6 +159,7 @@ This command creates the **context infrastructure** that enables smooth vibe cod
     - Copy or adapt policy templates from active agent-surface rules into the project's local rule overlay when needed.
     - Generate `AGENTS.md` at project root for local cross-tool compatibility.
     - Generate Gemini/Antigravity local-only overlays from the active policy sources when needed.
+    - For existing projects, run the `boot-new check` audit before changing local overlays. Codebase-audit or maintenance commands should call this check when project structure, toolchain config, ignores, or agent overlays may be stale.
     - Keep all agentic rule files ignored and unstaged. They are for local assistant context, not remote source control.
 4. **Customize if Needed**: Add project-specific rules in `.cursor/rules/` or `.agent/rules/` directories.
 

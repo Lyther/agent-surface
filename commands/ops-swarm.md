@@ -117,7 +117,7 @@ Use runtime-specific prompt variants instead of a generic "use subagents" instru
 
 - Kilo CLI: use Task-tool or `@agent-name` subagents after `kilo run --help`, `kilo agent list`, and model/config probes pass.
 - Claude Code: use the Agent tool or agent teams for small fan-out; use dynamic workflows only for large repeatable fan-out where script-managed orchestration is worth the overhead.
-- Gemini CLI / Antigravity CLI extension: use verified project or extension agents under `.gemini/agents` or `~/.gemini/extensions/<name>/agents`; validate packaged extensions before install.
+- Gemini CLI: use verified project agents under `.gemini/agents`; Antigravity CLI: use plugin agents under `~/.gemini/config/plugins/agent-surface/agents` after `agy plugin validate` passes.
 - Codex: explicitly ask the parent Codex session to spawn one subagent per independent point, wait for all results, and summarize. Use `codex exec` for single role sessions unless the current Codex surface confirms subagent visibility.
 
 For aggressive Kilo worker assignment, use a prompt shape like this after probing the exact model id with `kilo models` or a configured project profile:
@@ -418,11 +418,12 @@ Refresh these probes before a real run. The following entries were locally verif
 | OpenCode | `opencode run -m <provider/model> --format json --dir "$repo" "..."` | Use when provider credentials and model IDs are configured. |
 | Goose | `goose --version` | Installed-probe only. Inspect current CLI help before assigning packet work. |
 | Antigravity desktop | `antigravity chat -m agent "..."` | Local help exposes a desktop chat handoff, not a verified non-interactive JSON/headless worker. Record as `interactive_supervised` unless a current probe proves a headless output mode. |
-| Gemini CLI / Antigravity CLI extension | `gemini -p "..." --output-format json --approval-mode plan --skip-trust` | Current Google CLI tooling exposes non-interactive prompt mode, worktree support, extension validation, skills, hooks, and subagents. Use direct `.gemini/*` files for `gemini-cli` and packaged `~/.gemini/extensions/agent-surface` output for `antigravity-cli`. Probe `agy` first for the `antigravity-cli` runtime (Go binary; consumer `gemini` ends 2026-06-18); keep `gemini -p` as the verified bridge until `agy` headless argv is confirmed. |
+| Gemini CLI (legacy) | `gemini -p "..." --output-format json --approval-mode plan --skip-trust` | Legacy direct `.gemini/*` target. Keep only for Gemini CLI compatibility; do not use it as proof that Antigravity CLI plugin packaging works. |
+| Antigravity CLI | `agy --print --print-timeout 5m --model <model> "..."` | Current `agy` exposes print mode, model listing, and plugin validation. The `antigravity-cli` target packages to `~/.gemini/config/plugins/agent-surface`; validate with `agy plugin validate`. Local model pinning probes fell back to Gemini 3.5 Flash, so verify the actual model before assigning model-specific work. |
 
 Cursor and Grok both use `agent` in their command surface, but they are not interchangeable. Cursor headless starts with `cursor agent -p`; Grok Build starts with `grok -m grok-build ...` or its own probed `grok ... agent headless` path.
 
-Google's Antigravity transition target is represented here by the Gemini-compatible `antigravity-cli` extension package, while the local `antigravity` binary may be the desktop application entrypoint. If the desktop app appears, treat that launch as supervised UI work, not a completed headless swarm packet.
+Google's Antigravity CLI target is represented by the `agy` plugin package under `~/.gemini/config/plugins/agent-surface`, while the local `antigravity` binary may be the desktop application entrypoint. If the desktop app appears, treat that launch as supervised UI work, not a completed headless swarm packet.
 
 Ollama thinking policy for swarm packets:
 

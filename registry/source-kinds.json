@@ -11,7 +11,7 @@
     },
     "rules": {
       "source_dir": "rules",
-      "load_mode": "always_on",
+      "load_mode": "mixed_policy",
       "scope": "both",
       "install_scopes": [
         "user",

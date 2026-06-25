@@ -1,0 +1,92 @@
+---
+description: "Authorized offensive security: red-team, CTF/exploit-dev, AI/ML red-teaming, kernel security, bug bounty, and coordinated disclosure"
+globs:
+  - "**/exploit*"
+  - "**/exploits/**"
+  - "**/*poc*"
+  - "**/pwn*"
+  - "**/ctf/**"
+  - "**/ctf-*/**"
+  - "**/chall*"
+  - "**/solve*"
+  - "**/redteam*"
+  - "**/red-team*"
+  - "**/pentest*"
+  - "**/engagement*"
+  - "**/recon*"
+  - "**/security/**/*.patch"
+  - "**/*security*.patch"
+  - "**/*vuln*.patch"
+  - "**/*cve*.patch"
+  - "**/*exploit*.patch"
+  - "**/vuln*"
+  - "**/findings*"
+  - "**/disclosure*"
+  - "**/.garak*"
+  - "**/pyrit*"
+  - "**/*jailbreak*"
+  - "**/*prompt-injection*"
+  - "**/adversarial*"
+  - "**/fuzz*"
+  - "**/shellcode*"
+  - "**/payload*"
+alwaysApply: false
+---
+# Cybersecurity
+
+These rules apply to **offensive security work only**: penetration tests and red-team engagements under written scope/ROE, CTF and lab challenges, security research on targets you own or are authorized to test, bug-bounty programs whose policy you have read, and coordinated vulnerability disclosure. They are offensive tradecraft, not defensive hardening guidance.
+
+## Engagement lifecycle
+
+- Label work with the active phase (pre-engagement -> recon -> mapping -> exploitation -> post-exploitation -> persistence-in-scope -> reporting) and map planned actions to the phase, an ATT&CK tactic/technique ID, and the written scope before executing.
+- If the same approach fails repeatedly without new evidence, change technique class or escalate for human review rather than repeating identical probes.
+
+## Offensive tradecraft
+
+- Default to minimum-impact validation; escalate to intrusive or persistent TTPs when ROE explicitly allows or business risk is accepted.
+- Validate that the asset you are hitting is in-scope before each intrusive step (re-verify host/account/network, not just the first).
+- For each confirmed offensive action, cite at least one ATT&CK technique (and sub-technique when applicable) in notes and the final report.
+- Document the threat hypothesis (actor, objective, initial access vector) before exploitation and revisit it after each major milestone.
+- Label all shared engagement artifacts with the correct TLP marking (TLP:CLEAR/GREEN/AMBER/RED); do not downgrade without source approval.
+- Handle discovered credentials, secrets, and other users' data as evidence.
+
+## CTF and exploit development
+
+- Identify competition format (jeopardy / attack-defense / mixed) and targets before exploitation; read flag format and platform rules before sending exploits or submitting flags.
+- Follow recon -> categorize -> hypothesis -> local reproduction -> minimal PoC -> in-scope remote verification -> flag validation; pivot category when two independent approaches fail.
+- Record mitigations from `pwn checksec` (NX, PIE, RELRO, canary, arch) before choosing overflow, ROP, heap, or kernel strategy; for kernel/QEMU targets, mirror the provided kernel image and config and verify KASLR/SMEP/SMAP/KPTI/KCFI/IBT rather than assuming userland techniques apply.
+- State required leak/write/PC-control primitives explicitly and tie each ROP, heap, or kernel step to a mitigation bypass, not only to gadget availability.
+- Reverse: complete static triage and decompilation (Ghidra/Binary Ninja) before heavy dynamic instrumentation; confirm hypotheses with pwndbg/Frida on the challenge's own binary or harness. When anti-debug or packing is detected, document the mechanism and choose unpack/emulation/targeted bypass, not blind patching.
+- Test exploits locally against the supplied binary, libc, or image before remote attempts; prefer snapshots over irreversible target mutation. Deliver one runnable script that reproduces the solve from provided challenge files - no hand-wavy partial snippets.
+
+## AI / ML red-teaming
+
+- Use the current threat model as the frame: OWASP Top 10 for LLM Applications and OWASP Agentic AI, MITRE ATLAS, NIST AI 100-2 adversarial-ML taxonomy. Map each attack to a taxonomy class before execution.
+- Agent attack surfaces: tool poisoning, MCP server abuse, prompt injection via tool output or retrieved content, memory/context poisoning, confused-deputy via agent permissions, excessive agency, and multi-agent (A2A) abuse. Probe these as red-team TTPs, with the same scope/impact discipline as any other engagement.
+- For adversarial ML beyond LLMs (evasion, model inversion/extraction, membership inference, data poisoning, model supply-chain), use the SOTA tooling (Garak, PyRIT, PurpleLlama, Counterfit, ART/cleverhans/foolbox) and document the attack class against MITRE ATLAS.
+
+## Linux kernel security and patch review
+
+- Threat-model before reporting: map impact to a concrete trust-boundary violation for an unprivileged user on a correctly configured, supported production system before using `security@kernel.org`; many "security" reports are regular bugs that fail the threat model.
+- Develop and run kernel exploits only on self-built kernels, VMs, or designated lab hardware; reproduce on actively supported kernel.org releases before reporting or bounty submission. Ship minimal source reproducers (no binary-only); withhold public exploit chains until coordinated disclosure permits.
+- Enumerate mitigations in the target config (SMEP/SMAP/PXN/PAN, KASLR/FG-KASLR, W^X, KCFI/IBT, MTE, refcount_t, hardened usercopy) and reason from worst-case local attacker with arbitrary kernel read/write for defense design, while practical bugs often stop earlier.
+- Kernel patches: run `scripts/checkpatch.pl` on every hunk and justify remaining ERROR/WARNING/CHECK; use canonical format - one logical change per patch, imperative `subsystem:` subject, `Fixes: <sha> ("title")` for bugfixes, `Signed-off-by:` (DCO, mandatory) and `Assisted-by:` when tools generated code, full changelog on each resend.
+- Route patches via `scripts/get_maintainer.pl`, `git send-email`, inline plain text. For user-visible fixes on supported branches add `Cc: stable@vger.kernel.org`; for exploitable bugs send to `security@kernel.org` first (embargo may apply), never substitute the stable queue for a private security report. Do not promise third-party NDAs on behalf of kernel.org security contacts.
+
+## Bug bounty
+
+- Use test accounts provided; search known issues and program duplicates before investing in a full write-up (first valid reporter wins; duplicates are unpaid).
+- Submit reports with numbered reproduction, the in-scope asset URL/build, demonstrated impact, and minimal proof. Score with CVSS v4.0 (or the program-mandated scheme) and publish the full vector, not the base score alone; use EPSS only as a triage signal alongside reproduced impact.
+
+## Coordinated vulnerability disclosure
+
+- Default to private coordination until a fix or mutually agreed mitigation is available; align with ISO/IEC 29147 (disclosure) and 30111 (handling), and FIRST multi-party coordination for supply-chain bugs (identify the upstream owner first; do not mass-disclose before the downstream propagation window is agreed).
+- Apply the recipient's disclosure clock, not a universal number: kernel ~7 days post-fix (exceptional 14), HackerOne 30 days default (180 only as a documented last resort), vendor PSIRT as written. Never cite "90 days" as an override without program agreement.
+- Request CVE from the correct CNA (kernel via `cve@kernel.org` after merge to supported trees; vendor/MITRE for others). Treat non-authoritative CVEs on supported kernels as invalid until remediated.
+- On accidental disclosure, notify the vendor immediately and assist damage control - do not publish further details. Minimize public artifact surface during embargo; share exploit details only over agreed private channels. Keep bounty PoC artifacts private until coordinated disclosure is approved; never disclose private-program details, briefs, or media publicly.
+
+## Evidence and reporting
+
+- Produce both an executive summary (business impact) and technical finding entries with unique reference IDs for every validated issue; tie each test technique to an assessment objective (find weakness, verify control, or compliance check).
+- Attach reproducible proof for every finding rated Medium or above - steps, impact, remediation, and reproducible artifacts (curl, PoC, HAR, screenshots); redact secrets and PII from all artifacts.
+- Report outcomes faithfully: if a check could not be run, a PoC failed, or a step was skipped, say so with the real output; inspection or reasoning is not a passed check. Maintain evidence integrity and chain of custody for engagement artifacts.

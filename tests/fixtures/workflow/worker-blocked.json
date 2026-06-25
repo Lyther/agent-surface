@@ -25,16 +25,16 @@
     {
       "task_id": "T2",
       "status": "BLOCKED",
-      "summary": "dependency addition needs approval",
+      "summary": "dependency addition needs unresolved risk review",
       "files_changed": [],
       "evidence_refs": [],
       "blocker": {
         "type": "dependency_missing",
         "detail": "requested implementation requires a new runtime dependency",
-        "needs": "human approval for dependency mutation and lockfile update",
+        "needs": "dependency maintenance, license, advisory, install-script, compatibility, and lockfile risk review",
         "resolution_class": "human_required",
         "attempts": [],
-        "recommended_decision": "ask for dependency approval or rescope to existing dependencies"
+        "recommended_decision": "research and accept dependency risk or rescope to existing dependencies"
       }
     }
   ],
@@ -44,7 +44,7 @@
     "T2"
   ],
   "stop_reason": "blocker",
-  "stop_detail": "blocked on T1 verify-command discovery and T2 dependency approval",
+  "stop_detail": "blocked on T1 verify-command discovery and T2 dependency risk review",
   "workflow": {
     "dir": ".agent-surface/workflows/run-fixture-001",
     "file": "worker.json",
