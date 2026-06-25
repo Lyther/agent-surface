@@ -232,13 +232,13 @@ assert.equal(run(["check"]).trim(), "check: ok");
 
 const inventory = run(["inventory"]);
 assert.match(inventory, /^rules: 12$/m);
-assert.match(inventory, /^commands: 64$/m);
+assert.match(inventory, /^commands: 65$/m);
 assert.match(inventory, /^subagents: 6$/m);
 assert.match(inventory, /^external: 8$/m);
 assert.match(inventory, /^schemas: 15$/m);
 
 const registry = JSON.parse(run(["commands", "--json"]));
-assert.equal(registry.count, 64);
+assert.equal(registry.count, 65);
 const opsFlowCommand = registry.commands.find((command) => command.name === "ops-flow");
 assert.ok(opsFlowCommand);
 assert.equal(opsFlowCommand.phase, "decide");
@@ -265,6 +265,28 @@ assert.equal(opsFlowCommand.targets.pi, path.join(".pi", "agent", "skills", "ops
 assert.equal(opsFlowCommand.targets.pool, path.join(".config", "poolside", "skills", "ops-flow", "SKILL.md"));
 assert.equal(opsFlowCommand.targets.windsurf, path.join(".codeium", "windsurf", "global_workflows", "ops-flow.md"));
 assert.equal(opsFlowCommand.targets.zed, path.join(".agents", "skills", "ops-flow", "SKILL.md"));
+
+const bootConceptCommand = registry.commands.find((command) => command.name === "boot-concept");
+assert.ok(bootConceptCommand);
+assert.equal(bootConceptCommand.phase, "bootstrap");
+assert.deepEqual(bootConceptCommand.aliases, ["concept-zero"]);
+assert.equal(bootConceptCommand.metadata_source, "frontmatter");
+assert.equal(bootConceptCommand.targets["claude-code"], path.join(".claude", "commands", "boot", "concept.md"));
+assert.equal(bootConceptCommand.targets.codex, path.join(".agents", "skills", "boot-concept", "SKILL.md"));
+assert.equal(bootConceptCommand.targets.deepagents, path.join(".deepagents", "agent", "skills", "boot-concept", "SKILL.md"));
+assert.equal(bootConceptCommand.targets.cline, path.join(".cline", "data", "workflows", "boot-concept.md"));
+assert.equal(bootConceptCommand.targets.kilo, path.join(".config", "kilo", "commands", "boot-concept.md"));
+assert.equal(bootConceptCommand.targets["antigravity-cli"], path.join("config", "plugins", "agent-surface", "skills", "boot-concept.md"));
+assert.equal(bootConceptCommand.targets["gemini-cli"], path.join(".gemini", "commands", "boot", "concept.toml"));
+assert.equal(bootConceptCommand.targets.cursor, path.join(".cursor", "commands", "boot-concept.md"));
+assert.equal(bootConceptCommand.targets.droid, path.join(".factory", "commands", "boot-concept.md"));
+assert.equal(bootConceptCommand.targets.opencode, path.join(".config", "opencode", "commands", "boot-concept.md"));
+assert.equal(bootConceptCommand.targets.goose, path.join("recipes", "boot-concept.yaml"));
+assert.equal(bootConceptCommand.targets["grok-build"], path.join(".grok", "skills", "boot-concept", "SKILL.md"));
+assert.equal(bootConceptCommand.targets.pi, path.join(".pi", "agent", "skills", "boot-concept", "SKILL.md"));
+assert.equal(bootConceptCommand.targets.pool, path.join(".config", "poolside", "skills", "boot-concept", "SKILL.md"));
+assert.equal(bootConceptCommand.targets.windsurf, path.join(".codeium", "windsurf", "global_workflows", "boot-concept.md"));
+assert.equal(bootConceptCommand.targets.zed, path.join(".agents", "skills", "boot-concept", "SKILL.md"));
 
 const shipCommands = JSON.parse(run(["commands", "--phase", "ship", "--json"]));
 assert.equal(shipCommands.commands.every((command) => command.phase === "ship"), true);
@@ -300,10 +322,12 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-co
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "swarm.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "workflow", "orchestrator.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "boot", "facade.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "boot", "concept.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "agents", "boss.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "ops-flow", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "ops-swarm", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "workflow-orchestrator", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "boot-concept", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "ops-flow", "agents", "openai.yaml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "references", "rules", "10-python.md"))), true);
@@ -321,6 +345,7 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pool", ".
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pool", ".config", "poolside", ".poolside"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "workflow", "boss.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "boot", "facade.toml"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "boot", "concept.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "ops", "swarm.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "ops", "nuke.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "GEMINI.md"))), true);
@@ -695,12 +720,12 @@ const liveDest = "/tmp/agent-surface-live";
 rmSync(liveDest, { recursive: true, force: true });
 const liveInstall = run(["install", "--target", "cline", "--dest", liveDest]);
 assert.match(liveInstall, /^installed:$/m);
-assert.match(liveInstall, /wrote: 72/);
+assert.match(liveInstall, /wrote: 73/);
 assert.match(readFileSync(path.join(liveDest, ".clinerules", "workflows", "workflow-boss.md"), "utf8"), /^## OBJECTIVE/);
 assert.match(readFileSync(path.join(liveDest, ".clineignore"), "utf8"), /agent-surface canonical AI-tool ignore baseline/);
 const liveManifest = JSON.parse(readFileSync(path.join(liveDest, ".agent-surface", "cline-manifest.json"), "utf8"));
 assert.equal(liveManifest.target, "cline");
-assert.equal(liveManifest.managed.length, 72);
+assert.equal(liveManifest.managed.length, 73);
 assert.equal(liveManifest.managed[0].managed_by, "agent-surface");
 rmSync(liveDest, { recursive: true, force: true });
 

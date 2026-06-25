@@ -17,27 +17,27 @@ Compatibility is ranked from 1 to 5 based on how much of the `agent-surface` sou
 
 | Target | Build files | Commands / workflows | Rules / instructions | Agents / subagents | Skills / external packs | Config / ignores / prompts | Compatibility |
 |---|---:|---|---|---|---|---|---:|
-| Claude Code | 3719 | 64 native `.claude/commands/<group>/<name>.md` | None | 6 `.claude/agents/*.md` | External `.claude/skills/*` | None | 4/5 |
-| Codex | 3790 | 64 command skills in `.agents/skills/*` | `.codex/AGENTS.md` plus 6 scoped refs in `.codex/references/rules/*.md` | 6 `.codex/agents/*.toml` | External `.agents/skills/*` | None | 5/5 |
-| Deep Agents Code | 3721 | 64 command skills in `.deepagents/agent/skills/*` | `.deepagents/agent/AGENTS.md` plus 6 scoped refs | Worker only at `.deepagents/agent/agents/worker/AGENTS.md` | External `.deepagents/agent/skills/*` | MCP config via install only | 4/5 |
-| Cursor | 83 | 64 native `.cursor/commands/*.md` | 12 native scoped `.cursor/rules/*.mdc` | 6 `.cursor/agents/*.md` | None | `.cursorignore` | 5/5 |
-| Droid | 3727 | 64 native `.factory/commands/*.md` | `.factory/AGENTS.md` plus 6 scoped refs | 6 `.factory/droids/*.md` | External `.factory/skills/*` | `.factory/mcp.json` | 5/5 |
-| Cline | 72 | 64 workflows in `.cline/data/workflows/*.md` | `.cline/rules/agent-surface.md` plus 6 scoped refs | None | None | `.clineignore` | 4/5 |
-| Kilo | 84 | 64 workflows in `.config/kilo/commands/*.md` | 6 always-on `.config/kilo/rules/*.md` plus 6 scoped refs | 6 `.config/kilo/agents/*.md` | None | `.kilocodeignore`; `kilo.jsonc` merge during install | 5/5 |
-| Antigravity CLI | 3733 | 64 plugin skills in `config/plugins/agent-surface/skills/*.md` | 6 always-on `config/plugins/agent-surface/rules/*.md` plus 6 scoped refs | 6 `config/plugins/agent-surface/agents/*.md` | External plugin skills | `config/plugins/agent-surface/plugin.json` | 5/5 |
-| Antigravity (legacy workflows) | 64 | 64 `global_workflows/*.md` | None | None | None | None | 2/5 |
-| Gemini CLI (legacy) | 77 | 64 native `.gemini/commands/**/*.toml` | `.gemini/GEMINI.md` plus 6 scoped refs | 6 `.gemini/agents/*.md` | None | None | 5/5 |
+| Claude Code | 3720 | 65 native `.claude/commands/<group>/<name>.md` | None | 6 `.claude/agents/*.md` | External `.claude/skills/*` | None | 4/5 |
+| Codex | 3792 | 65 command skills in `.agents/skills/*` | `.codex/AGENTS.md` plus 6 scoped refs in `.codex/references/rules/*.md` | 6 `.codex/agents/*.toml` | External `.agents/skills/*` | None | 5/5 |
+| Deep Agents Code | 3722 | 65 command skills in `.deepagents/agent/skills/*` | `.deepagents/agent/AGENTS.md` plus 6 scoped refs | Worker only at `.deepagents/agent/agents/worker/AGENTS.md` | External `.deepagents/agent/skills/*` | MCP config via install only | 4/5 |
+| Cursor | 84 | 65 native `.cursor/commands/*.md` | 12 native scoped `.cursor/rules/*.mdc` | 6 `.cursor/agents/*.md` | None | `.cursorignore` | 5/5 |
+| Droid | 3728 | 65 native `.factory/commands/*.md` | `.factory/AGENTS.md` plus 6 scoped refs | 6 `.factory/droids/*.md` | External `.factory/skills/*` | `.factory/mcp.json` | 5/5 |
+| Cline | 73 | 65 workflows in `.cline/data/workflows/*.md` | `.cline/rules/agent-surface.md` plus 6 scoped refs | None | None | `.clineignore` | 4/5 |
+| Kilo | 85 | 65 workflows in `.config/kilo/commands/*.md` | 6 always-on `.config/kilo/rules/*.md` plus 6 scoped refs | 6 `.config/kilo/agents/*.md` | None | `.kilocodeignore`; `kilo.jsonc` merge during install | 5/5 |
+| Antigravity CLI | 3734 | 65 plugin skills in `config/plugins/agent-surface/skills/*.md` | 6 always-on `config/plugins/agent-surface/rules/*.md` plus 6 scoped refs | 6 `config/plugins/agent-surface/agents/*.md` | External plugin skills | `config/plugins/agent-surface/plugin.json` | 5/5 |
+| Antigravity (legacy workflows) | 65 | 65 `global_workflows/*.md` | None | None | None | None | 2/5 |
+| Gemini CLI (legacy) | 78 | 65 native `.gemini/commands/**/*.toml` | `.gemini/GEMINI.md` plus 6 scoped refs | 6 `.gemini/agents/*.md` | None | None | 5/5 |
 | GitHub Copilot | 7 | None | `instructions/agent-surface-copilot.instructions.md` plus 6 scoped refs | None | None | None | 2/5 |
 | VS Code | 8 | None | `instructions/agent-surface.instructions.md` plus 6 scoped refs | None | None | `prompts/agent-surface.prompt.md` | 2/5 |
 | VSCodium | 8 | None | `instructions/agent-surface.instructions.md` plus 6 scoped refs | None | None | `prompts/agent-surface.prompt.md` | 2/5 |
-| OpenCode | 77 | 64 native `.config/opencode/commands/*.md` | `.config/opencode/AGENTS.md` plus 6 scoped refs | 6 `.config/opencode/agents/*.md` | None | None | 5/5 |
+| OpenCode | 78 | 65 native `.config/opencode/commands/*.md` | `.config/opencode/AGENTS.md` plus 6 scoped refs | 6 `.config/opencode/agents/*.md` | None | None | 5/5 |
 | Trae | 7 | None | `.trae/user_rules.md` plus 6 scoped refs | None | None | None | 2/5 |
-| Goose | 64 | 64 recipes in `recipes/*.yaml` | None | None | None | None | 3/5 |
-| Grok Build | 3713 | 64 command skills in `.grok/skills/*` | Project install emits `AGENTS.md`; default user build emits none | None | External `.grok/skills/*` | None | 4/5 |
-| Pi | 3720 | 64 command skills in `.pi/agent/skills/*` | `.pi/agent/AGENTS.md` plus 6 scoped refs | None | External `.pi/agent/skills/*` | None | 4/5 |
-| Poolside | 3720 | 64 command skills in `.config/poolside/skills/*` | `.config/poolside/.poolside` plus 6 scoped refs | None | External `.config/poolside/skills/*` | None | 4/5 |
-| Windsurf | 3720 | 64 workflows in `.codeium/windsurf/global_workflows/*.md` | `.codeium/windsurf/memories/global_rules.md` plus 6 scoped refs | None | External `.codeium/windsurf/skills/*` | None | 4/5 |
-| Zed | 3720 | 64 command skills in `.agents/skills/*` | `.config/zed/AGENTS.md` plus 6 scoped refs | None | External `.agents/skills/*` | None | 4/5 |
+| Goose | 65 | 65 recipes in `recipes/*.yaml` | None | None | None | None | 3/5 |
+| Grok Build | 3714 | 65 command skills in `.grok/skills/*` | Project install emits `AGENTS.md`; default user build emits none | None | External `.grok/skills/*` | None | 4/5 |
+| Pi | 3721 | 65 command skills in `.pi/agent/skills/*` | `.pi/agent/AGENTS.md` plus 6 scoped refs | None | External `.pi/agent/skills/*` | None | 4/5 |
+| Poolside | 3721 | 65 command skills in `.config/poolside/skills/*` | `.config/poolside/.poolside` plus 6 scoped refs | None | External `.config/poolside/skills/*` | None | 4/5 |
+| Windsurf | 3721 | 65 workflows in `.codeium/windsurf/global_workflows/*.md` | `.codeium/windsurf/memories/global_rules.md` plus 6 scoped refs | None | External `.codeium/windsurf/skills/*` | None | 4/5 |
+| Zed | 3721 | 65 command skills in `.agents/skills/*` | `.config/zed/AGENTS.md` plus 6 scoped refs | None | External `.agents/skills/*` | None | 4/5 |
 
 Bundled instruction targets include only `alwaysApply: true` rules inline. Scoped cybersecurity and language rules (`04`, `10`-`14`) are emitted as separate reference files under each target's config tree and are selected by project-aware commands such as `boot-new`. Cursor keeps all 12 files as native scoped `.mdc` rules; Kilo config-merges only the 6 always-on rules and keeps the 6 scoped policies as references. No legacy compact core rule is emitted in source or generated target outputs.
 
