@@ -37,6 +37,19 @@ Read Mission → Implement Step → Test → Iterate
 
 Keep changes **atomic** (< 50 lines). Test **immediately**. Course-correct **fast**.
 
+## COMMAND REUSE
+
+Use existing commands as helper functions when they improve implementation quality:
+
+- `boot-context`: stale or missing local context.
+- `lint-python`, `lint-rust`, `lint-go`, `lint-typescript`, `lint-shell`, `lint-kernel`: language-specific checks for touched files.
+- `verify-test`, `verify-spec`, `verify-coverage`, `verify-edge`, `verify-performance`, `verify-prove`: focused proof for task AC.
+- `qa-self-critique`: bounded self-audit before worker handoff.
+- `qa-trace`: unproven root cause, dataflow/race/security path, or trust-boundary uncertainty.
+- `ops-swarm`: parallel non-blocking research/check packets only when FILESCOPE isolation is clear.
+
+In workflow mode, helper command output is evidence, not the final format. Keep writing `worker.json`, evidence refs, patch refs, and the normal `workflow.next_command = "workflow-reviewer"`.
+
 ## PROTOCOL
 
 ### Phase 0: Workflow mode (validated run ledger, v3)
@@ -186,7 +199,7 @@ Keep changes **atomic** (< 50 lines). Test **immediately**. Course-correct **fas
 
 1. **Verify Libraries**:
     - Check manifests before importing
-    - If missing in workflow mode → record `blocker.type="dependency_missing"` with approval needed; outside workflow mode, ask before changing dependency graph
+    - If missing, research maintenance, license, advisories, install scripts/native code, transitive footprint, compatibility, and lockfile impact before adding or updating a dependency. Record the research in the task evidence.
 2. **Use Domain Types**:
     - Import from `arch-model` definitions
     - Don't invent new types on the fly
@@ -197,7 +210,7 @@ Do not emit a blocker until you have attempted the safe discovery or repair avai
 
 - Not blockers: repo discovery, selecting verify commands from manifests/Makefiles/CI, scoped format/lint/test failures in owned files, and documentation alignment for public behavior in FILESCOPE. Resolve these before stopping.
 - Conditional worker-owned recovery: generated artifact refresh is allowed only when BOSS assigned generated outputs or the repo's generator/check explicitly requires it; record the generator command and keep the normal generated-file gate green.
-- Human-required blockers: secrets or credential access, unapproved dependency add/update, destructive commands, database mutation, deployment, production data, approval-gated network calls, product decisions not inferable from BOSS/user evidence, or files outside FILESCOPE.
+- Human-required blockers: secrets or credential access, dependency risk that cannot be researched or accepted from available evidence, destructive commands, database mutation, deployment, production data, approval-gated network calls, product decisions not inferable from BOSS/user evidence, or files outside FILESCOPE.
 - Repeated failure: after two focused correction attempts on the same task, stop with `blocker.type="repeated_failure"`, `resolution_class="human_required"` unless the next safe action is purely mechanical, and include the failed attempts.
 - Every blocker must include `type`, `detail`, `needs`, `resolution_class` (`auto_resolvable` or `human_required`), `attempts`, and `recommended_decision`.
 

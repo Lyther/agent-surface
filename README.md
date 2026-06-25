@@ -13,29 +13,33 @@ Write commands, rules, subagents, external packs, and ignore files once in the r
 
 ## Supported targets
 
-Implemented:
+Compatibility is ranked from 1 to 5 based on how much of the `agent-surface` source model is represented by native or close-native target surfaces. Counts are from the current default user-scope `npm run build -- --target all` output; project-only or install-only surfaces are noted explicitly.
 
-- Claude Code
-- Codex
-- Deep Agents Code
-- Cursor
-- Droid
-- Cline
-- Kilo
-- Antigravity CLI
-- Antigravity (legacy workflows)
-- Gemini CLI
-- GitHub Copilot
-- VS Code
-- VSCodium
-- OpenCode
-- Trae
-- Goose
-- Grok Build
-- Pi
-- Poolside
-- Windsurf
-- Zed
+| Target | Build files | Commands / workflows | Rules / instructions | Agents / subagents | Skills / external packs | Config / ignores / prompts | Compatibility |
+|---|---:|---|---|---|---|---|---:|
+| Claude Code | 3720 | 65 native `.claude/commands/<group>/<name>.md` | None | 6 `.claude/agents/*.md` | External `.claude/skills/*` | None | 4/5 |
+| Codex | 3792 | 65 command skills in `.agents/skills/*` | `.codex/AGENTS.md` plus 6 scoped refs in `.codex/references/rules/*.md` | 6 `.codex/agents/*.toml` | External `.agents/skills/*` | None | 5/5 |
+| Deep Agents Code | 3722 | 65 command skills in `.deepagents/agent/skills/*` | `.deepagents/agent/AGENTS.md` plus 6 scoped refs | Worker only at `.deepagents/agent/agents/worker/AGENTS.md` | External `.deepagents/agent/skills/*` | MCP config via install only | 4/5 |
+| Cursor | 84 | 65 native `.cursor/commands/*.md` | 12 native scoped `.cursor/rules/*.mdc` | 6 `.cursor/agents/*.md` | None | `.cursorignore` | 5/5 |
+| Droid | 3728 | 65 native `.factory/commands/*.md` | `.factory/AGENTS.md` plus 6 scoped refs | 6 `.factory/droids/*.md` | External `.factory/skills/*` | `.factory/mcp.json` | 5/5 |
+| Cline | 73 | 65 workflows in `.cline/data/workflows/*.md` | `.cline/rules/agent-surface.md` plus 6 scoped refs | None | None | `.clineignore` | 4/5 |
+| Kilo | 85 | 65 workflows in `.config/kilo/commands/*.md` | 6 always-on `.config/kilo/rules/*.md` plus 6 scoped refs | 6 `.config/kilo/agents/*.md` | None | `.kilocodeignore`; `kilo.jsonc` merge during install | 5/5 |
+| Antigravity CLI | 3734 | 65 plugin skills in `config/plugins/agent-surface/skills/*.md` | 6 always-on `config/plugins/agent-surface/rules/*.md` plus 6 scoped refs | 6 `config/plugins/agent-surface/agents/*.md` | External plugin skills | `config/plugins/agent-surface/plugin.json` | 5/5 |
+| Antigravity (legacy workflows) | 65 | 65 `global_workflows/*.md` | None | None | None | None | 2/5 |
+| Gemini CLI (legacy) | 78 | 65 native `.gemini/commands/**/*.toml` | `.gemini/GEMINI.md` plus 6 scoped refs | 6 `.gemini/agents/*.md` | None | None | 5/5 |
+| GitHub Copilot | 7 | None | `instructions/agent-surface-copilot.instructions.md` plus 6 scoped refs | None | None | None | 2/5 |
+| VS Code | 8 | None | `instructions/agent-surface.instructions.md` plus 6 scoped refs | None | None | `prompts/agent-surface.prompt.md` | 2/5 |
+| VSCodium | 8 | None | `instructions/agent-surface.instructions.md` plus 6 scoped refs | None | None | `prompts/agent-surface.prompt.md` | 2/5 |
+| OpenCode | 78 | 65 native `.config/opencode/commands/*.md` | `.config/opencode/AGENTS.md` plus 6 scoped refs | 6 `.config/opencode/agents/*.md` | None | None | 5/5 |
+| Trae | 7 | None | `.trae/user_rules.md` plus 6 scoped refs | None | None | None | 2/5 |
+| Goose | 65 | 65 recipes in `recipes/*.yaml` | None | None | None | None | 3/5 |
+| Grok Build | 3714 | 65 command skills in `.grok/skills/*` | Project install emits `AGENTS.md`; default user build emits none | None | External `.grok/skills/*` | None | 4/5 |
+| Pi | 3721 | 65 command skills in `.pi/agent/skills/*` | `.pi/agent/AGENTS.md` plus 6 scoped refs | None | External `.pi/agent/skills/*` | None | 4/5 |
+| Poolside | 3721 | 65 command skills in `.config/poolside/skills/*` | `.config/poolside/.poolside` plus 6 scoped refs | None | External `.config/poolside/skills/*` | None | 4/5 |
+| Windsurf | 3721 | 65 workflows in `.codeium/windsurf/global_workflows/*.md` | `.codeium/windsurf/memories/global_rules.md` plus 6 scoped refs | None | External `.codeium/windsurf/skills/*` | None | 4/5 |
+| Zed | 3721 | 65 command skills in `.agents/skills/*` | `.config/zed/AGENTS.md` plus 6 scoped refs | None | External `.agents/skills/*` | None | 4/5 |
+
+Bundled instruction targets include only `alwaysApply: true` rules inline. Scoped cybersecurity and language rules (`04`, `10`-`14`) are emitted as separate reference files under each target's config tree and are selected by project-aware commands such as `boot-new`. Cursor keeps all 12 files as native scoped `.mdc` rules; Kilo config-merges only the 6 always-on rules and keeps the 6 scoped policies as references. No legacy compact core rule is emitted in source or generated target outputs.
 
 Planned: none.
 
@@ -126,7 +130,7 @@ node scripts/agent-surface.mjs install --runtime pool,zed --category external --
 - `--category` accepts repeated or comma-separated output categories such as `skills`, `rules`, `subagents`, `commands`, `recipes`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, and `ignores`.
 - `--service <id>` narrows `--category mcps` to a specific optional MCP service from `registry/optional-services.json`.
 - Project-only artifacts (`ignores/`) are skipped on user-scope installs; use `--dest` to install them into a project.
-- Droid user installs write `.factory/commands/`, `.factory/droids/`, `.factory/skills/`, `.factory/mcp.json`, and `.factory/AGENTS.md`; project installs write project `AGENTS.md` plus project `.factory/` assets.
+- Droid user installs write `.factory/commands/`, `.factory/droids/`, `.factory/skills/`, `.factory/mcp.json`, `.factory/AGENTS.md`, and `.factory/references/rules/` scoped rule references; project installs write project `AGENTS.md` plus project `.factory/` assets.
 - Deep Agents user installs write `~/.deepagents/<agent>/`; project installs write `.deepagents/`. Use `--agent <name>` to select a non-default user agent directory.
 - Goose installs are project-oriented and render `recipes/<command>.yaml`.
 - Grok Build, Pi, Poolside, Windsurf, and Zed render command sources as native skills or workflows plus target-specific instruction files.
@@ -152,17 +156,17 @@ node scripts/agent-surface.mjs install --runtime pool,zed --category external --
 - Cursor: `.cursor/agents/<name>.md`
 - Kilo user installs: `~/.config/kilo/agents/<name>.md`
 - Kilo project installs: `.kilo/agents/<name>.md`
-- Gemini CLI: `.gemini/agents/<name>.md`
-- Google CLI extension target: `~/.gemini/extensions/agent-surface/agents/<name>.md`
+- Gemini CLI legacy compatibility: `.gemini/agents/<name>.md`
+- Antigravity CLI plugin target: `~/.gemini/config/plugins/agent-surface/agents/<name>.md`
 - OpenCode user installs: `~/.config/opencode/agents/<name>.md`
 - OpenCode project installs: `.opencode/agents/<name>.md`
 
-Cursor runtime launches must use the full `cursor agent ...` command shape; do not treat a bare `agent` command as Cursor because Grok Build also uses an `agent`-named surface. Desktop Antigravity remains a supervised UI surface; the current file-based Google CLI extension output is validated through Gemini CLI.
+Cursor runtime launches must use the full `cursor agent ...` command shape; do not treat a bare `agent` command as Cursor because Grok Build also uses an `agent`-named surface. Desktop Antigravity remains a supervised UI surface; the Antigravity CLI target is a validated `agy` plugin package.
 
 ## Upgrade notes
 
-- `gemini-cli` emits native `.gemini` commands, context, and agents.
-- `antigravity-cli` is kept as the Google CLI extension target for the Gemini/Antigravity transition and emits `~/.gemini/extensions/agent-surface`.
+- `gemini-cli` is a legacy compatibility target for native `.gemini` commands, context, and agents.
+- `antigravity-cli` is the current Google CLI target and emits the Antigravity CLI plugin under `~/.gemini/config/plugins/agent-surface`; validate it with `agy plugin validate ~/.gemini/config/plugins/agent-surface`.
 
 ## Workflow kernel (optional)
 

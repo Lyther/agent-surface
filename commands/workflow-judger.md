@@ -28,6 +28,17 @@ You must be provided:
 - Rework history (brief — derived from prior `reviewer.json` snapshots if available)
 - Per-task patch files and hashes for accepted/rejected tasks
 
+## COMMAND REUSE
+
+Use helper commands to sharpen arbitration when evidence is thin or risk is high:
+
+- `qa-review`: independent code-review pass over disputed patches.
+- `qa-trace`: root-cause, dataflow, race, or exploitability tracing for the stuck task.
+- `qa-sec`: security, dependency, supply-chain, secrets, auth, crypto, or payment evidence.
+- `workflow-doctor`: structural validation of workflow artifacts before deciding.
+
+Helper output is advisory evidence. It must be summarized into `judger.json`; do not switch to the helper command's output format or alter the workflow graph.
+
 ### Workflow mode
 
 - If `.agent-surface/workflows/<run_id>/boss.json` exists, load `boss.json`, `worker.json`, and `reviewer.json` instead of requiring manual copy-paste.

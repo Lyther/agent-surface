@@ -1,23 +1,25 @@
 # Kilo adapter
 
-Current implementation renders command sources to Kilo workflow files and generated instructions.
+Current implementation renders command sources to Kilo workflow files, generated always-on rules, scoped rule references, and subagents.
 
 Implemented target paths:
 
 - user: `~/.config/kilo/commands/*.md`
 - user: `~/.config/kilo/agents/*.md`
-- user: `~/.config/kilo/AGENTS.md`
-- user: `~/.config/kilo/rules/*.md`
-- user merge: `~/.config/kilo/kilo.jsonc` `instructions += "./rules/<rule>.md"` in source order
+- user: `~/.config/kilo/rules/*.md` for the 6 always-on rules
+- user: `~/.config/kilo/references/rules/*.md` for scoped language references
+- user merge: `~/.config/kilo/kilo.jsonc` `instructions += "./rules/<rule>.md"` for always-on rules only
 - project: `.kilo/commands/*.md`
 - project: `.kilo/agents/*.md`
-- project: `AGENTS.md`
-- project: `.kilo/rules/*.md`
-- project merge: `kilo.jsonc` `instructions += ".kilo/rules/<rule>.md"` in source order
+- project: `.kilo/rules/*.md` for the 6 always-on rules
+- project: `.kilo/references/rules/*.md` for scoped language references
+- project merge: `kilo.jsonc` `instructions += ".kilo/rules/<rule>.md"` for always-on rules only
 - project: `.kilocodeignore` (rendered from `ignores/default.ignore`; user-scope installs skip it as non-applicable)
 - custom: any reviewed `--dest` path
 
-Kilo workflows are Markdown slash commands. Kilo automatically loads `AGENTS.md`, but the extension Rules UI is backed by the `instructions` array in `kilo.jsonc`, so the installer merges an explicit ordered list of generated rule files and preserves existing config keys. Older generated `agent-surface.md` rule entries are removed from `instructions` during migration because the matching managed file is removed as stale output.
+Kilo workflows are Markdown slash commands. The extension Rules UI is backed by the `instructions` array in `kilo.jsonc`, so the installer merges an explicit ordered list of generated always-on rule files and preserves existing config keys. Older generated `AGENTS.md` and `agent-surface.md` rule outputs are removed as stale managed files during full installs when the manifest proves they are safe to remove.
+
+Build/check previews include a generated `kilo.jsonc` so the `dist/kilo` tree is self-contained. Live installs merge `kilo.jsonc` instead of overwriting user config. Scoped language policies are reference files only; project-aware commands decide whether to attach them.
 
 Native MCP and skill support is not currently generated; local user wiring for optional services belongs in the host config. Kilo workflows are the target name for command sources; native skills remain separate `SKILL.md` directories.
 

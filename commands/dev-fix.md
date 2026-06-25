@@ -17,6 +17,19 @@ This is the **Correction** step:
 issue/debug → RCA → FIX → verify → commit
 ```
 
+## COMMAND REUSE
+
+Use existing commands as helper functions when they improve fix quality:
+
+- `boot-repro` or `boot-context`: reproduce the bug or recover missing context.
+- `qa-trace`: prove root cause, dataflow, race, or exploitability before patching when diagnosis is weak.
+- `lint-python`, `lint-rust`, `lint-go`, `lint-typescript`, `lint-shell`, `lint-kernel`: language-specific checks for touched files.
+- `verify-test`, `verify-spec`, `verify-edge`, `verify-prove`: focused regression and AC proof.
+- `qa-self-critique`: bounded self-audit before worker handoff.
+- `ops-swarm`: parallel non-blocking repro/check packets only when isolated by FILESCOPE and state.
+
+In workflow mode, helper command output is evidence, not the final format. Keep writing `worker.json`, evidence refs, patch refs, and the normal `workflow.next_command = "workflow-reviewer"`.
+
 ## PROTOCOL
 
 ### Phase 0: Workflow mode (validated run ledger, v3)
@@ -74,7 +87,7 @@ Do not emit a blocker until you have attempted the safe discovery or repair avai
 
 - Not blockers: repo discovery, selecting verify commands from manifests/Makefiles/CI, scoped format/lint/test failures in owned files, and documentation alignment for public behavior in FILESCOPE. Resolve these before stopping.
 - Conditional worker-owned recovery: generated artifact refresh is allowed only when BOSS assigned generated outputs or the repo's generator/check explicitly requires it; record the generator command and keep the normal generated-file gate green.
-- Human-required blockers: secrets or credential access, unapproved dependency add/update, destructive commands, database mutation, deployment, production data, approval-gated network calls, product decisions not inferable from BOSS/user evidence, or files outside FILESCOPE.
+- Human-required blockers: secrets or credential access, dependency risk that cannot be researched or accepted from available evidence, destructive commands, database mutation, deployment, production data, approval-gated network calls, product decisions not inferable from BOSS/user evidence, or files outside FILESCOPE.
 - Repeated failure: after two focused correction attempts on the same task, stop with `blocker.type="repeated_failure"`, `resolution_class="human_required"` unless the next safe action is purely mechanical, and include the failed attempts.
 - Every blocker must include `type`, `detail`, `needs`, `resolution_class` (`auto_resolvable` or `human_required`), `attempts`, and `recommended_decision`.
 

@@ -1,0 +1,71 @@
+---
+description: "Agent workflow: evidence first, scoped diffs, narrow checks, honest handoff"
+alwaysApply: true
+---
+
+# Agent Workflow
+
+## Operating Loop
+
+1. Reconstruct the actual request, scope, repo state, and constraints from current evidence.
+2. Read the relevant project evidence before editing: manifests, config, nearby code, tests, and existing patterns. Re-read when a file may have changed or the task has gone stale.
+3. Verify dependencies, imports, APIs, CLI flags, file paths, schema fields, and tool results against local evidence or a cited live source before relying on them.
+4. Define the smallest safe change that fully satisfies the request.
+5. Edit only in scope. No drive-by refactors, formatting churn, speculative abstractions, or unrelated deletions.
+6. Run the cheapest relevant check after edits. Use broader checks before final when risk warrants it.
+7. Report exact check status and any remaining risk.
+
+## L.O.V.E. Workflow
+
+Keep L.O.V.E. as an operating loop, not a persona: Locate current evidence, Observe existing constraints, Verify reality, Execute incrementally.
+
+- Locate current evidence: read the files, manifests, generated outputs, and tests that define the task.
+- Observe constraints: preserve decisions already made by the repo unless the user explicitly asks to change them.
+- Verify reality: check stack, imports, APIs, tool flags, and failing errors against live evidence before relying on memory.
+- Execute incrementally: make one scoped change, run a meaningful check, then iterate from the result.
+
+## Decision Rules
+
+- Preserve existing stack/tooling unless the user asks to change it.
+- Prefer repo scripts over ad hoc commands.
+- Re-read a file before editing if it may have changed or if prior context is stale.
+- Ask only when the next action is ambiguous and a reasonable assumption would risk behavior, data, security, or irreversible work.
+- For risky experiments, prefer a branch, worktree, stash, patch, or user-approved checkpoint over automatic tag creation.
+- Stay with the task through implementation, verification, and reporting. Work a blocker yourself before handing it back, and do not stop at analysis, a plan, or a half-finished change unless that is what was requested.
+
+## Tool Use
+
+- Run independent reads, searches, and checks in parallel when the host supports it. Do not chain shell commands with separators just to batch output.
+- Prefer the host's structured file and search tools when available. When using shell, use `rg` over `grep` for speed and keep output focused.
+- Reference code with a file path and line number when possible so locations are unambiguous.
+
+## Scope Rules
+
+- Keep one concern per patch when feasible.
+- Larger atomic diffs are allowed when splitting would break behavior or verification.
+- Generated files, lockfiles, migrations, snapshots, and vendored code need explicit reason or repo precedent.
+- If a requested change conflicts with project config, follow the config and report the conflict unless the user explicitly requests migration.
+
+## Resolve Uncertainty and Risk
+
+- Low-stakes choice: decide and note it. Architectural choice: propose 2-3 options, recommend one, and say why. Requirements unclear or the action is irreversible: stop and ask; do not guess forward.
+- If the same blocker persists after three distinct focused attempts, ask rather than keep trying the same approach.
+- Fix root causes, not symptoms: trace the real error to its source before editing; change one thing at a time and re-check after each. Never paper over a failure to make a gate look green.
+- Before overwriting or deleting a file you did not create, look at it; if the contents contradict how it was described, surface that instead of proceeding.
+
+## Completion Semantics
+
+- Use `COMPLETE` only when the explicit scope is implemented and integrated, required repository or task checks pass, an appropriate real acceptance scenario passes, and no known blocker remains. A scoped completion must not imply the whole project is complete.
+- Use `IMPLEMENTED BUT UNVERIFIED` when the code is in place but real acceptance was not run.
+- Use `BLOCKED` when a required dependency, credential, environment, approval, or external condition prevents the claim.
+- Never use completion euphemisms such as "essentially complete", "core complete", or "complete except". Report exact commands and scenarios with real outcomes; inspection or reasoning is not a passed check.
+
+## Prompt and Rule Design
+
+- Optimize for reliable behavior first, then token cost. Keep always-on rules high-signal, but do not remove concrete, failure-preventing instructions solely to satisfy a token target.
+- Add prompt/rule content when it addresses an observed failure mode, makes behavior verifiable, or clarifies precedence, trust boundaries, tool use, or completion criteria.
+- Prefer stable contracts over persona branding, slogans, brittle line limits, or host-specific assumptions.
+
+## Command References
+
+Commands and workflows are first-class `agent-surface` artifacts, but exported rules must not leave dangling command references. Adapters should include required commands, rewrite to target equivalents, or fail clearly.

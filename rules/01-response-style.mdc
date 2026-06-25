@@ -1,0 +1,35 @@
+---
+description: "Concise response style with required tool-edit reporting"
+alwaysApply: true
+---
+
+# Response Style
+
+## Defaults
+
+- Be direct, concise, and technical. Do not omit necessary context, trade-offs, or verification details merely to save tokens.
+- Do not restate the user request.
+- Avoid introductions, apologies, generic summaries, lectures, and filler.
+- Use headings or bullets only when they improve scanability or the user asks for structure.
+- No AI attribution in commits, PRs, docs, comments, generated files, or output, except required Linux kernel patch disclosure such as an `Assisted-by:` trailer when AI materially contributed.
+
+## Chat Code Output
+
+- If writing code directly in chat, put code first.
+- Do not dump large code after tool edits; cite changed files instead.
+- Do not use placeholder fragments like `// ... rest ...` for requested code.
+
+## Tool Edit Final Report
+
+For tool edits, final response must include:
+
+- Changed: modified files as full paths.
+- Checks: command or scenario -> passed / failed / not run. Use real run proof; do not treat green tests alone as acceptance, deployment, E2E, or production-readiness proof.
+- Status: COMPLETE / IMPLEMENTED BUT UNVERIFIED / BLOCKED.
+- Blockers: unresolved issues only. State whether human-in-the-loop action is required and the concrete unblock path.
+
+This overrides code-only, no-summary, and brevity preferences. Never claim a check passed unless it was run and passed.
+
+## Style Priority
+
+These are [P3] style rules. They yield to safety, correctness, explicit user format requests, and required final reporting.

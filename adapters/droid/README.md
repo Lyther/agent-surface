@@ -5,7 +5,8 @@ Droid support targets Factory's current `.factory/` project/user surfaces.
 ## Outputs
 
 - `commands/*.md` -> `.factory/commands/<command>.md`
-- `rules/*.mdc` -> `AGENTS.md` for project installs, `.factory/AGENTS.md` for user installs
+- always-on `rules/*.mdc` -> `AGENTS.md` for project installs, `.factory/AGENTS.md` for user installs
+- scoped language rules -> `.factory/references/rules/<rule>.md`
 - `subagents/*.md` -> `.factory/droids/<name>.md`
 - optional external MCP wiring -> `.factory/mcp.json`
 - optional external skill packs -> `.factory/skills/<skill>/...`
@@ -32,3 +33,6 @@ External skill directories are optional: they render only when the corresponding
 `external/*` submodule checkout is present. Packaged npm installs still render
 the core Droid command, rule, subagent, and MCP surfaces without bundling those
 submodule payloads.
+
+Generated Droid instructions bundle only always-on rules. Language policies are
+distributed as references for project-aware commands to attach when applicable.
