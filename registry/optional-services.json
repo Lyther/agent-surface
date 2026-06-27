@@ -4,7 +4,7 @@
       "status": "optional-caution",
       "source_url": "https://github.com/rohitg00/agentmemory",
       "path": "external/agentmemory",
-      "commit": "68fddd418e1bbcc41d32a1c61b7a78d91eb7c4dc",
+      "commit": "25158519d5d68b9060a97ba5bdcccc3e1aba6d79",
       "kind": "mcp",
       "optional": true,
       "mcp": {
