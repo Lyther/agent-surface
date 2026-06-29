@@ -1,187 +1,107 @@
 ---
 name: arch-model
 phase: decide
-description: "Define aligned database schemas and domain types."
+description: "Define the data and domain model: entities, relationships, schema, invariants, and migration posture."
 ---
-## OBJECTIVE
+## Objective
 
-**DEFINE THE SINGLE SOURCE OF TRUTH.**
-We don't guess types. We don't use `any`.
-Define shapes so rigidly that bugs become compile-time errors.
-**Your Goal**: Define DB Schema AND Domain Types. They must align.
+Produce or update the data and domain model and record it where implementers rely on it:
 
-## VIBE CODING INTEGRATION
+- the schema and model artifacts the stack uses (`schema.sql` or migrations, ORM models, `src/model.*`, domain types); and
+- the `## Data and State` section of `docs/architecture.md`, plus a data dictionary for the non-obvious fields.
 
-This is **foundational** — do this BEFORE implementing features:
+Work from the concept and the selected architecture. Define the system's source of truth for data so implementers do not invent fields, types, or relationships while coding. If the inputs are missing, report `RESEARCH_REQUIRED` and name what `arch-roadmap` or `boot-concept` must resolve first.
 
-```text
-roadmap → MODEL → api → breakdown → feature
+## Decision Standard
+
+Act as the data and domain owner. The model is the single source of truth: the storage schema and the in-code domain types must describe the same reality and stay aligned. Define shapes precisely enough that invalid states are hard to represent and that drift between schema and types is caught early. Keep the model as small as the concept allows; add fields and entities only when a requirement needs them.
+
+## Research Basis
+
+- Model in layers: conceptual (entities and relationships stakeholders recognize), then logical (attributes, keys, constraints, cardinality, technology-agnostic), then physical (schema/DDL or ORM for the chosen store).
+- ERD as a living view: keep an entity-relationship view that matches the schema; generate or refresh it with `arch-diagram`.
+- Data dictionary as a contract: for each non-obvious field record meaning, type, allowed values, null semantics, owner, and sensitivity. Keep it beside the schema so updates happen with schema changes.
+- Keys: prefer stable surrogate keys (UUID or sequence) for identity; document natural keys and uniqueness as constraints.
+- Money, time, enums: store money as integer minor units, not float; store times as explicit typed timestamps with a defined zone; model closed sets as enums or check constraints, and treat enum changes as compatibility events.
+- Invariants and validation: state which component owns each invariant; validate external input at the boundary before it becomes domain state.
+- Boundary separation: keep internal entities (with secrets and internal flags) distinct from external DTOs; never serialize secrets or internal fields.
+- Migrations as code: version-controlled, reviewed, reversible by construction, with naming/index/sensitivity linting; treat schema like application code.
+
+## Inputs
+
+Read, in order:
+
+1. Explicit user instructions and constraints.
+2. `docs/context/concept-zero.md` (or verified equivalent) and `docs/architecture.md` (Data and State, Interfaces, Source Tree).
+3. Existing schema, migrations, ORM models, and domain types in the repo.
+4. Repository evidence: the datastore, validation library, serialization, ID strategy, and naming conventions already in use.
+5. Authoritative external research when a store, type system, or constraint mechanism's real limits affect the model.
+
+Preserve the existing datastore and conventions unless the user asks to change them; report conflicts rather than silently migrating.
+
+## Principles
+
+- Concept before schema: the entities and rules come from the concept; the storage technology is a consequence.
+- One source of truth: generate one representation from the other (types from schema or schema from types) rather than hand-maintaining both in parallel.
+- Make illegal states unrepresentable where the language allows it (distinct id types, closed enums, non-null by default, explicit optionality), without turning it into ceremony for trivial fields.
+- Minimum sufficient model: the simplest schema that satisfies the concept; add structure when a requirement forces it.
+- Own every invariant: each data rule has a home (a constraint, a type, or a single module) and a test or explicit proof.
+
+## Protocol
+
+### 1. Extract entities and relationships
+
+From the concept and architecture, list the entities, their meaning, their relationships, and cardinality. Identify the system of record for each. Mark what is in scope and what is explicitly not stored.
+
+### 2. Define the logical model
+
+For each entity: attributes with types, identity (surrogate and natural keys), required versus optional, allowed values, uniqueness, referential relationships, and the invariants it owns. Keep this technology-agnostic.
+
+### 3. Map to the physical schema
+
+Translate to the chosen store: schema/DDL or ORM models, keys and indexes, constraints (not-null, unique, check, foreign-key), id encoding, and consistency/transaction boundaries. State retention, soft-delete versus hard-delete, and corruption/recovery posture where relevant.
+
+### 4. Align domain types and DTOs
+
+Define the in-code domain types that mirror the schema, the validators that parse external input at the boundary, and the public DTOs that exclude secrets and internal fields. State the entity-to-DTO mapping rule.
+
+### 5. Write the data dictionary and migration posture
+
+Record the non-obvious fields (meaning, allowed values, null semantics, owner, sensitivity). State the migration approach: how schema changes are versioned, reviewed, made reversible, and linted.
+
+### 6. Update the architecture and ERD
+
+Update `docs/architecture.md` `## Data and State` to match, note the source-tree files that own the model, and generate or refresh the ERD via `arch-diagram`.
+
+## Output
+
+Produce aligned outputs.
+
+1. The model artifacts in the form the stack uses: schema/DDL (or a canonical `schema.sql` mirror), migrations, ORM models, and/or domain type files. Keep schema and types aligned and generated from a single source where possible.
+2. The `## Data and State` section in `docs/architecture.md`.
+3. A data dictionary for non-obvious fields. A small table is appropriate here, because a dictionary is a ledger:
+
+```markdown
+| Field | Type | Allowed / null | Owner | Sensitivity |
+|---|---|---|---|---|
+| user.email | text | not null, unique | accounts | PII |
+| order.amount_minor | integer | >= 0, not null | billing | - |
 ```
 
-Strong types = Fewer AI hallucinations. AI can't invent fields that don't exist.
+For relationships and structure, prefer an ERD via `arch-diagram` over a wall of tables.
 
-## PROTOCOL
+## Execution Rules
 
-### Phase 1: Branded Types (Anti-String Law)
+1. Schema and domain types describe the same reality and stay aligned; generate one from the other where possible.
+2. Validate external input at the boundary before it becomes domain state.
+3. Never store secrets in plaintext or expose internal fields through DTOs.
+4. Money as integer minor units; times as typed timestamps with a defined zone; closed sets as enums or checks.
+5. Schema changes ship as versioned, reviewed, reversible migrations.
+6. Keep the model minimal; add entities or fields only when a requirement needs them.
 
-**Problem**: Passing `userId` to function expecting `orderId`. Both strings. Compiler silent. App crashes.
+## Completion Report
 
-**Solution**: Branded Types / Newtypes
-
-```typescript
-// TypeScript
-type UserId = string & { readonly __brand: unique symbol };
-type OrderId = string & { readonly __brand: unique symbol };
-
-// Now compiler catches: processOrder(userId) // Error!
-```
-
-```rust
-// Rust
-struct UserId(Uuid);  // Newtype pattern
-struct OrderId(Uuid);
-```
-
-**Rule**: NEVER use plain `string` or `number` for IDs, Money, or status codes.
-
-### Phase 2: Schema + Validation (Trust But Verify)
-
-**Problem**: TS types vanish at runtime. API returns garbage. App crashes.
-
-**Solution**: Co-locate Types and Validators (Zod/Serde/Pydantic)
-
-```typescript
-// TypeScript with Zod
-import { z } from 'zod';
-
-export const UserSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email(),
-  role: z.enum(['ADMIN', 'USER']),
-  balanceCents: z.number().int().nonnegative(), // Money as integer!
-  createdAt: z.date(),
-});
-
-export type User = z.infer<typeof UserSchema>;
-```
-
-```python
-# Python with Pydantic
-from pydantic import BaseModel, EmailStr
-from uuid import UUID
-
-class User(BaseModel):
-    id: UUID
-    email: EmailStr
-    role: Literal['ADMIN', 'USER']
-    balance_cents: int  # Money as integer!
-```
-
-**Rule**: If you define a Type, you MUST define its Validator.
-
-### Phase 3: DTO Separation (Security)
-
-**Problem**: `SELECT *` → `res.json(user)` → Hacker gets `password_hash`.
-
-**Solution**: Explicit Public vs Private types.
-
-```typescript
-// Internal (full data, includes secrets)
-interface UserEntity {
-  id: UserId;
-  email: string;
-  passwordHash: string;  // SECRET
-  createdAt: Date;
-  deletedAt: Date | null;  // INTERNAL
-}
-
-// External (public, excludes secrets)
-interface UserDTO {
-  id: UserId;
-  email: string;
-  createdAt: Date;
-}
-
-// Mapper
-function toDTO(entity: UserEntity): UserDTO {
-  return {
-    id: entity.id,
-    email: entity.email,
-    createdAt: entity.createdAt,
-  };
-}
-```
-
-**Rule**: API responses MUST use DTOs. Never return entities directly.
-
-### Phase 4: Common Patterns
-
-| Type | Bad | Good |
-|------|-----|------|
-| Money | `price: number` (float!) | `priceCents: number` (integer) |
-| IDs | `id: string` | `id: UserId` (branded) |
-| Status | `status: string` | `status: 'PENDING' \| 'DONE'` (enum) |
-| Optional | `user?: { name?: string }` | `user: User \| null` (explicit) |
-| Dates | `date: string` | `date: Date` (typed) |
-
-## OUTPUT FORMAT
-
-**The Domain Definition File**
-
-```typescript
-// src/domain/types.ts
-
-// ============================================
-// 1. BRANDED IDS
-// ============================================
-export type UserId = string & { __brand: 'UserId' };
-export type OrderId = string & { __brand: 'OrderId' };
-
-// Helper to create branded IDs
-export const UserId = (id: string) => id as UserId;
-export const OrderId = (id: string) => id as OrderId;
-
-// ============================================
-// 2. CORE ENTITIES (With Validation)
-// ============================================
-import { z } from 'zod';
-
-export const UserSchema = z.object({
-  id: z.string().uuid().transform(v => v as UserId),
-  email: z.string().email(),
-  role: z.enum(['ADMIN', 'USER']),
-  balanceCents: z.number().int().nonnegative(),
-  createdAt: z.coerce.date(),
-});
-
-export type User = z.infer<typeof UserSchema>;
-
-// ============================================
-// 3. DTOs (Public Interface)
-// ============================================
-export type UserProfileDTO = Pick<User, 'id' | 'email'>;
-
-export const UserProfileDTOSchema = UserSchema.pick({
-  id: true,
-  email: true,
-});
-```
-
-## EXECUTION RULES
-
-1. **NO ANY**: `any` or unnarrowed `unknown` is capital offense
-2. **NO OPTIONAL HELL**: Use `Null Object Pattern` or explicit `Option<T>`
-3. **READONLY DEFAULT**: Types should be `readonly`. Mutation is evil.
-4. **SINGLE SOURCE**: Don't manually write SQL AND TS types. Generate one from other.
-5. **VALIDATE AT BOUNDARY**: Parse input with validator before using
-
-## AI GUARDRAILS
-
-| ⛔ Banned | ✅ Required |
-|----------|-------------|
-| `any` type | Explicit types |
-| `as` casts without validation | `schema.parse()` |
-| Plain `string` for IDs | Branded types |
-| Float for money | Integer cents |
-| Returning entities from API | Returning DTOs |
-| Optional everything | Explicit null handling |
+- Changed: full paths to schema/model artifacts, the architecture section, and the data dictionary.
+- Checks: migration dry-run / schema lint / type-check / tests run as `passed`, `failed`, or `not run`.
+- Blockers: unresolved modeling questions and how to unblock.
+- Next command: usually `arch-api`, `arch-diagram`, or `workflow-boss`.
