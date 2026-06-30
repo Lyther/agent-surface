@@ -88,12 +88,20 @@ const targets = {
     },
   },
   goose: {
-    label: "Goose reusable recipes",
+    label: "Goose reusable recipes and MCP",
     commandRenders: ["recipes"],
     commandOutputRoot: "recipes",
     commandOutputName: gooseRecipeOutputName,
     renderCommand: renderGooseRecipe,
-    installRoot: installRootProjectOnly,
+    installRoot: installRootGoose,
+    mcpConfig: {
+      // Goose MCP lives in the user-global config.yaml (`extensions:`), so it is user-scope
+      // only; recipes stay project-oriented. Use `--category mcps` for a clean user wire.
+      relativeOutput: () => path.join(".config", "goose", "config.yaml"),
+      format: "goose-extensions",
+      defaultEnabled: true,
+      scopes: ["user"],
+    },
   },
   "grok-build": {
     label: "Grok Build skills and project instructions",
@@ -105,6 +113,11 @@ const targets = {
     renderCommand: renderGrokBuildSkill,
     installRoot: installRootGrokBuild,
     staticOutputs: grokBuildStaticOutputs,
+    mcpConfig: {
+      relativeOutput: () => path.join(".grok", "settings.json"),
+      format: "mcpServers",
+      defaultEnabled: true,
+    },
   },
   pi: {
     label: "Pi skills and instructions",
@@ -127,6 +140,13 @@ const targets = {
     renderCommand: renderPoolSkill,
     installRoot: installRootPool,
     staticOutputs: poolStaticOutputs,
+    mcpConfig: {
+      relativeOutput: (context) => context.scope === "user"
+        ? path.join(".config", "poolside", "settings.yaml")
+        : path.join(".poolside", "settings.yaml"),
+      format: "poolside-mcp",
+      defaultEnabled: true,
+    },
   },
   cline: {
     label: "Cline workflows and rules",
@@ -184,6 +204,11 @@ const targets = {
     renderSubagent: renderGeminiSubagent,
     installRoot: installRootAntigravityCli,
     staticOutputs: antigravityCliStaticOutputs,
+    mcpConfig: {
+      relativeOutput: () => path.join("config", "plugins", "agent-surface", "mcp_config.json"),
+      format: "mcpServers",
+      defaultEnabled: true,
+    },
   },
   cursor: {
     label: "Cursor global commands, rules, and subagents",
@@ -245,6 +270,11 @@ const targets = {
     staticRenders: ["instructions", "prompts"],
     installRoot: installRootVscodium,
     staticOutputs: vscodiumStaticOutputs,
+    mcpConfig: {
+      relativeOutput: () => "mcp.json",
+      format: "vscode-servers",
+      defaultEnabled: true,
+    },
   },
   opencode: {
     label: "OpenCode commands, agents, and global instructions",
@@ -1504,7 +1534,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       categoryFilter,
       optionalServices,
     })));
-  } else if (adapter.mcpConfig && (!categoryFilter || categoryFilter.has("mcps"))) {
+  } else if (adapter.mcpConfig && (!categoryFilter || categoryFilter.has("mcps")) && mcpConfigScopeAllows(adapter.mcpConfig, scope)) {
     const merge = await mcpConfigMerge(adapter, installRoot, scope, {
       target,
       scope,
@@ -1762,6 +1792,8 @@ async function prepareMcpConfigMerge(merge) {
   try {
     if (merge.format === "codex-toml") {
       content = mergeCodexMcpToml(text, merge.entries);
+    } else if (YAML_MCP_FORMATS.has(merge.format)) {
+      content = mergeYamlMcpConfig(text, merge.format, merge.entries);
     } else {
       content = mergeJsonMcpConfig(text, merge.format, merge.entries);
     }
@@ -1798,6 +1830,85 @@ function mcpConfigRootKey(format) {
   if (format === "zed-context-servers") return "context_servers";
   if (format === "local-command-map") return "mcp";
   return "mcpServers";
+}
+
+const YAML_MCP_FORMATS = new Set(["goose-extensions", "poolside-mcp"]);
+function yamlMcpRootKey(format) {
+  return format === "goose-extensions" ? "extensions" : "mcp_servers";
+}
+
+// One server's block, relative (name header at col 0, fields at col 2). Block style only.
+function yamlMcpServerEntry(format, id, service) {
+  const server = service.mcp?.server;
+  if (!server || typeof server !== "object") fail(`optional service ${id} is missing an MCP server contract`);
+  const args = `[${(server.args ?? []).map((a) => JSON.stringify(String(a))).join(", ")}]`;
+  if (format === "goose-extensions") {
+    return [`${id}:`, `  name: ${id}`, `  type: stdio`, `  cmd: ${server.command}`, `  args: ${args}`, `  enabled: true`, `  timeout: 300`];
+  }
+  return [`${id}:`, `  command: ${server.command}`, `  args: ${args}`];
+}
+
+function renderYamlMcpConfig(format, entries) {
+  const rootKey = yamlMcpRootKey(format);
+  const body = entries.flatMap(([id, service]) => yamlMcpServerEntry(format, id, service).map((l) => `  ${l}`));
+  return `${rootKey}:\n${body.join("\n")}\n`;
+}
+
+// Non-destructive merge of agent-surface-owned MCP servers into a BLOCK-style YAML mapping
+// under `rootKey`. Preserves every other key, comment, and sibling server. Owned servers are
+// replaced in place (idempotent). Refuses (throws → blocked) on tabs or a flow/inline rootKey
+// value so we never corrupt an unexpected shape rather than guess.
+function mergeYamlMcpConfig(text, format, entries) {
+  if (text.includes("\t")) throw new Error("YAML indented with tabs; refusing to edit");
+  const rootKey = yamlMcpRootKey(format);
+  const owned = new Map(entries.map(([id, service]) => [id, yamlMcpServerEntry(format, id, service)]));
+  const ownedIds = [...owned.keys()];
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const lines = text.split(/\r?\n/);
+  const renderOwned = (indent) => ownedIds.flatMap((id) => owned.get(id).map((l) => (l === "" ? "" : " ".repeat(indent) + l)));
+
+  const headerRe = new RegExp(`^${rootKey}:[ \\t]*(#.*)?$`);
+  const inlineRe = new RegExp(`^${rootKey}:[ \\t]*\\S`);
+  let headerIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (headerRe.test(lines[i])) { headerIdx = i; break; }
+    if (inlineRe.test(lines[i])) throw new Error(`${rootKey} is not a block mapping`);
+  }
+
+  if (headerIdx === -1) {
+    const base = text.length === 0 ? "" : (text.endsWith("\n") ? text : text + eol);
+    return `${base}${rootKey}:${eol}${renderOwned(2).join(eol)}${eol}`;
+  }
+
+  // Block body extent + child indent.
+  let end = lines.length;
+  let childIndent = null;
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === "" || line.trimStart().startsWith("#")) continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0) { end = i; break; }
+    if (childIndent === null) childIndent = indent;
+  }
+  if (childIndent === null) childIndent = 2;
+
+  const ownedKeyRe = new RegExp(`^${" ".repeat(childIndent)}(${ownedIds.join("|")}):[ \\t]*(#.*)?$`);
+  const body = lines.slice(headerIdx + 1, end);
+  const kept = [];
+  for (let i = 0; i < body.length;) {
+    if (ownedKeyRe.test(body[i])) {
+      i++; // drop owned child + its deeper sub-block (re-added at end)
+      while (i < body.length && (body[i].trim() === "" || (body[i].length - body[i].trimStart().length) > childIndent)) i++;
+      continue;
+    }
+    kept.push(body[i]);
+    i++;
+  }
+  while (kept.length && kept[kept.length - 1].trim() === "") kept.pop();
+  const result = [...lines.slice(0, headerIdx + 1), ...kept, ...renderOwned(childIndent), ...lines.slice(end)];
+  let out = result.join(eol);
+  if (text.endsWith("\n") && !out.endsWith(eol)) out += eol;
+  return out;
 }
 
 function mergeCodexMcpToml(text, entries) {
@@ -3123,9 +3234,14 @@ async function zedStaticOutputs(_commands, context) {
   ];
 }
 
+function mcpConfigScopeAllows(mcpConfig, scope) {
+  return !mcpConfig.scopes || mcpConfig.scopes.includes(scope);
+}
+
 async function optionalMcpOutputs(adapter, context) {
   if (adapter.mcpConfig.emitOutput === false) return [];
   if (context.mode === "install" && adapter.mcpConfig.installMode !== "write") return [];
+  if (!mcpConfigScopeAllows(adapter.mcpConfig, context.scope)) return [];
 
   const entries = await selectedMcpServiceEntries(adapter.mcpConfig.defaultEnabled, context);
   if (entries.length === 0) return [];
@@ -3144,10 +3260,13 @@ async function selectedMcpServiceEntries(defaultEnabled, context) {
   if (!defaultEnabled && !explicitMcp) return [];
 
   const registry = await readOptionalServices();
+  // Opt-in contract: external/secret-bearing MCPs are included ONLY when named explicitly
+  // via --service. `--category mcps` alone (no --service) selects first-party MCPs only —
+  // it must never auto-add agentmemory or any other non-first-party server.
   const entries = Object.entries(registry.services)
     .filter(([, service]) => service.kind === "mcp")
     .filter(([id]) => !context.optionalServices || context.optionalServices.has(id))
-    .filter(([, service]) => explicitMcp || service.first_party === true);
+    .filter(([, service]) => context.optionalServices || service.first_party === true);
   if (context.optionalServices) {
     const known = new Set(entries.map(([id]) => id));
     for (const id of context.optionalServices) {
@@ -3158,6 +3277,7 @@ async function selectedMcpServiceEntries(defaultEnabled, context) {
 }
 
 function renderMcpConfig(format, entries) {
+  if (YAML_MCP_FORMATS.has(format)) return renderYamlMcpConfig(format, entries);
   const servers = optionalServiceMcpServers(entries, format);
   if (format === "codex-toml") {
     return entries.map(([id, service]) => renderCodexMcpServer(id, service)).join("\n");
@@ -4106,9 +4226,9 @@ async function packageVersion() {
   return metadata.version;
 }
 
-function installRootProjectOnly(scope) {
-  if (scope !== "project") fail("this target supports --scope project only unless --dest is supplied");
-  return process.cwd();
+function installRootGoose(scope) {
+  // user → ~ (so MCP reaches ~/.config/goose/config.yaml); project → cwd (recipes in ./recipes).
+  return scope === "user" ? os.homedir() : process.cwd();
 }
 
 function installRootHomeOnly(scope) {

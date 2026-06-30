@@ -10,13 +10,13 @@ Implemented target paths:
 - project: `.clinerules/workflows/*.md`
 - project: `.clinerules/agent-surface.md`
 - project: `.clinerules/references/rules/<rule>.md`
-- user/project merge: `.cline/mcp.json` `mcpServers.synapse`
+- user/project merge: `.cline/mcp.json` `mcpServers.{synapse,grimoire}`
 - project: `.clineignore` (rendered from `ignores/default.ignore`; user-scope installs skip it as non-applicable)
 - custom: any reviewed `--dest` path
 
 Cline built-in slash commands are not treated as a custom command-file primitive.
 
-First-party Synapse MCP wiring is generated and safely merged. External or secret-bearing MCPs remain opt-in.
+First-party MCP wiring (Synapse and Grimoire) is generated and safely merged. External or secret-bearing MCPs remain opt-in.
 
 Native skills are experimental in Cline. External `SKILL.md` packs are not generated for Cline yet; generated command sources continue to render as workflows.
 

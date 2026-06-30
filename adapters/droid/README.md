@@ -8,7 +8,7 @@ Droid support targets Factory's current `.factory/` project/user surfaces.
 - always-on `rules/*.mdc` -> `AGENTS.md` for project installs, `.factory/AGENTS.md` for user installs
 - scoped language rules -> `.factory/references/rules/<rule>.md`
 - `subagents/*.md` -> `.factory/droids/<name>.md`
-- first-party Synapse MCP wiring -> `.factory/mcp.json`
+- first-party Synapse and Grimoire MCP wiring -> `.factory/mcp.json`
 - optional external MCP wiring -> `.factory/mcp.json` only when explicitly requested
 - optional external skill packs -> `.factory/skills/<skill>/...`
 

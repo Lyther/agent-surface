@@ -1,8 +1,8 @@
 # Roadmap
 
-Status: IMPLEMENTED (v0.4 core + distribution + robustness) — remaining: live per-host transport smoke (T2.5) and pending-target wiring (P3.4)
+Status: IMPLEMENTED (v0.4 core + distribution + robustness) — remaining: Phase 5 production-readiness (ship, per-host live smoke, CI, doctor health, Goose/Poolside YAML, release)
 Source architecture: mcps/synapse/architecture.md
-Last updated: 2026-06-30
+Last updated: 2026-07-01
 
 ## Roadmap Principles
 
@@ -15,7 +15,7 @@ Last updated: 2026-06-30
 ## Status Snapshot
 
 - **Done**: Phase 0 (spike + contract + model + namespace), Phase 1 (sidecar/bridge/store/identity/memory/locks/realtime/instructions), Phase 2 (autostart + launchd, security pass, threat-model README, first-party distribution, **concurrency + crash recovery**), Phase 3 (**non-destructive MCP merge engine** + flip of all 11 manual hosts to generated-merge; agentmemory opt-in policy reconciled), Phase 4 (**dirty-bit coalescing**, **bridge MCP-roots routing**, SSE-resume + idle-shutdown claims truth-stated). Proof: synapse `npm test` 29/29; repo `npm run check` + `npm test` green.
-- **Remaining**: live per-host transport smoke (T2.5 runbook landed; recorded live passes pending); pending-target wiring (P3.4: Antigravity/Poolside/Copilot CLI/VSCodium/Goose/Grok/Pi).
+- **Remaining (Phase 5 — production-readiness)**: ship the wiring/docs (P5.1); recorded per-host live transport smoke across the 17 generated hosts (P5.2 / T2.5); CI gate (P5.4); `doctor` sidecar health (P5.5); Linux always-on story (P5.6); release + CHANGELOG (P5.7). **P3.4 pending-target wiring is done**: 17 generated MCP hosts (VSCodium/Grok/Antigravity CLI + Goose/Poolside YAML added); Antigravity-legacy/Copilot/Pi no modeled MCP.
 
 ## Phase 0–1: Core (DONE)
 
@@ -69,9 +69,10 @@ Goal: deliver synapse to the hosts the user listed in `README.md` Distribution s
   - Scope: external/secret-bearing MCPs (agentmemory) are **opt-in** via `--category mcps --service <id>`; only first-party secretless MCPs (synapse) are default-on. This matches the README.
   - Acceptance evidence: `tests/agent-surface.test.mjs` asserts `agentmemory` absent from droid default `mcp.json` while `synapse` present; merge tests assert `agentmemory` never auto-added. Decision: **opt-in** (resolved — the prior "default-on for droid" note was stale; code already excluded it).
   - Dependencies: none.
-- [ ] `P3.4` Pending-target research/wiring
-  - Scope (from `README.md` "Pending target wiring"): Antigravity CLI plugin MCP shape (+ desktop `mcp_config.json`), Poolside settings-YAML safe merge, Copilot CLI MCP, VSCodium extension policy, Goose/Grok Build/Pi MCP surfaces.
-  - Acceptance evidence: per target, either a verified merge path lands or a recorded reason it stays out (see `test/smoke/README.md` Pending targets).
+- [x] `P3.4` Pending-target research/wiring
+  - Scope: research each previously-unwired host's MCP surface and either wire it (generated-merge) or record an evidence-backed reason it stays out.
+  - Outcome: **VSCodium** (`mcp.json` servers), **Grok Build** (`.grok/settings.json` mcpServers), **Antigravity CLI** (plugin `mcp_config.json` mcpServers) → `generated` (JSON, safe merge). **Goose** (`config.yaml` extensions, user-scope) + **Poolside** (`settings.yaml` mcp_servers) → `generated` via the new non-destructive YAML block-merge (`mergeYamlMcpConfig`). **Antigravity (legacy)** / **Copilot** / **Pi** → no modeled MCP surface (legacy→use CLI; Copilot MCP is host-editor-owned; Pi has no verified stdio MCP config).
+  - Acceptance evidence: `registry/target-capabilities.json` `surfaces.mcp` records generated/none per target with reasons; `check generated` + `tests/agent-surface.test.mjs` cover the new generated targets. **17 generated MCP hosts total.**
   - Dependencies: P3.1.
 
 ## Phase 4: Robustness + doc reconciliation
@@ -80,6 +81,18 @@ Goal: deliver synapse to the hosts the user listed in `README.md` Distribution s
 - [x] `P4.2` Dirty-bit coalescing — added a leading+trailing-edge per-channel coalescer in `src/sidecar.ts` (`NotificationCoalescer`, default 50ms window) so a burst of writes collapses to ≤2 notifications. Acceptance: `test/coalescing.test.ts` — a 20-write burst produces ≤2 notifications and all 20 rows stay cursor-retrievable; spaced writes each notify (no over-coalescing).
 - [x] `P4.3` Bridge MCP-roots routing — `src/bridge.ts` resolves the project key as `SYNAPSE_PROJECT` → host's first MCP root (`file://` URI) → cwd git-root, so hosts that launch the bridge outside the workspace still isolate. Acceptance: `test/roots-routing.test.ts` — a roots-provided workspace routes to the right DB without cwd reliance; override wins; no-roots host falls back to cwd.
 - [x] `P4.4` Doc/code drift sweep — `architecture.md`/`README.md`/`roadmap.md` truth-stated against the code; every IMPLEMENTED claim maps to a named test (synapse 29/29; repo check+test green). The three prior drift claims (SSE resume, dirty-bit rate-limit, idle-shutdown) are reconciled: SSE resume = not wired (stated); dirty-bit = coalesced now (was best-effort, never "rate-limited"); idle-shutdown = the sidecar stays resident (no idle-shutdown; `architecture.md` Operations states this).
+
+## Phase 5: Production-readiness (remaining)
+
+The honest blockers before an unqualified "production-ready" claim. Items marked **(shared)** are tracked in `mcps/grimoire/roadmap.md` too — they cover the agent-surface MCP plumbing both services ride.
+
+- [ ] `P5.1` **(shared)** Ship the distribution work — branch + commit + PR + merge: the new MCP-target wiring (VSCodium / Grok Build / Antigravity CLI, P3.4), the honest capability matrix, and the docs. Acceptance: merged to `main`; `check` + `test` green on the tip.
+- [ ] `P5.2` Per-host live transport smoke — the recorded operator passes for `T2.5` / the Cross-Phase "Per-target smoke passed" gate: launch `synapse-bridge` under each of the 17 generated MCP hosts and record a `tools/list` + remember→recall round-trip + realtime push pass. **Especially the 3 just-added formats** (VSCodium / Grok / Antigravity CLI) — proven written, not yet proven loaded by the real tool.
+- [x] `P5.3` **(shared)** Goose + Poolside MCP — **done**: safe non-destructive YAML block-merge added (`mergeYamlMcpConfig`); both flipped to `generated` (17 total). Preserves keys/comments/siblings, idempotent, refuses tabs/flow-style rather than corrupt.
+- [ ] `P5.4` **(shared)** CI gate — CI runs the `mcps/synapse` suite (29 tests) + `npm audit` on every PR. Acceptance: green CI workflow.
+- [ ] `P5.5` `agent-surface doctor` sidecar health — assert `synapse-bridge`/`synapse-sidecar` are linked, the launchd job (macOS) is up or the lazy-start path is healthy, `~/.synapse/{token,sidecar.json}` exist (mode 600), and `GET /health` returns ok; assert synapse is wired in host configs. Acceptance: `doctor` flags a down/unwired synapse.
+- [ ] `P5.6` Linux always-on service — promote the `Later` systemd unit to a deliverable if a Linux host needs always-on; otherwise document lazy-start (bridge autostarts the sidecar) as the supported Linux mode. Acceptance: a systemd unit + install path, or a stated lazy-start support note.
+- [ ] `P5.7` **(shared)** Release — cut `synapse 0.4` with a `CHANGELOG`; tag. Clear `NODE_TLS_REJECT_UNAUTHORIZED=0` from the release shell. Acceptance: tagged release + notes.
 
 ## Later / Not Now
 

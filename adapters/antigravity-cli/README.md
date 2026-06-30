@@ -11,6 +11,7 @@ Default user install target:
 - `~/.gemini/config/plugins/agent-surface/skills/<command>.md`
 - `~/.gemini/config/plugins/agent-surface/skills/<external-skill>/SKILL.md`
 - `~/.gemini/config/plugins/agent-surface/agents/<name>.md`
+- `~/.gemini/config/plugins/agent-surface/mcp_config.json` `mcpServers.{synapse,grimoire}`
 
 Validate generated output with:
 
@@ -26,4 +27,4 @@ The separate `antigravity` binary is a desktop-supervised surface unless current
 
 Only `alwaysApply: true` rules are packaged under plugin `rules/`. Cybersecurity policy is always-on; scoped language policies are reference files and should be attached by project-aware commands only when applicable.
 
-Synapse MCP wiring is pending for this target. The current adapter packages an Antigravity CLI plugin; the plugin-level MCP declaration shape still needs live `agy` validation before agent-surface emits it. The desktop Antigravity app uses a separate `mcp_config.json` surface and should be researched independently from plugin packaging.
+First-party MCP services (Synapse, Grimoire) are generated and non-destructively merged into the plugin's `mcp_config.json` (`mcpServers` map), which Antigravity discovers from the staged plugin. External or secret-bearing MCPs remain opt-in. Confirm the plugin MCP loads with a live `agy`/Antigravity probe before treating the host as runtime-verified (the file shape follows Antigravity's documented plugin `mcp_config.json` + shared `~/.gemini/config/mcp_config.json`).
