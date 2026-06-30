@@ -12,3 +12,5 @@ Implemented target paths:
 - project merge: `.mcp.json` `mcpServers.synapse`
 
 The current subagent batch emits `subagents/{boss,researcher,analyzer,adversary,reviewer,worker}.md` to `.claude/agents/*.md`. First-party Synapse MCP wiring is generated and safely merged; external or secret-bearing MCPs remain opt-in.
+
+External skill packs render only when the optional-service entry declares `skill_roots`. `anthropic-cybersecurity-skills` is kept as a pinned source asset but is not emitted into Claude Code skill roots by default.

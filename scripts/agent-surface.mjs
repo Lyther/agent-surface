@@ -185,25 +185,6 @@ const targets = {
     installRoot: installRootAntigravityCli,
     staticOutputs: antigravityCliStaticOutputs,
   },
-  "gemini-cli": {
-    label: "Gemini CLI legacy commands, context, and subagents",
-    commandRenders: ["commands"],
-    subagentRenders: ["subagents"],
-    subagentTarget: "gemini-cli",
-    subagentOutputRoot: path.join(".gemini", "agents"),
-    staticRenders: ["rules"],
-    commandOutputRoot: ".gemini/commands",
-    renderCommand: renderGeminiCommand,
-    renderSubagent: renderGeminiSubagent,
-    installRoot: installRootGemini,
-    commandOutputName: geminiCommandOutputName,
-    staticOutputs: geminiStaticOutputs,
-    mcpConfig: {
-      relativeOutput: () => path.join(".gemini", "settings.json"),
-      format: "mcpServers",
-      defaultEnabled: true,
-    },
-  },
   cursor: {
     label: "Cursor global commands, rules, and subagents",
     commandRenders: ["commands"],
@@ -333,27 +314,26 @@ const targets = {
 // while still catching silent producer drops that representative path checks
 // can miss.
 const generatedOutputMinimums = new Map([
-  ["claude-code", 3000],
-  ["codex", 3000],
-  ["deepagents", 3000],
+  ["claude-code", 250],
+  ["codex", 300],
+  ["deepagents", 250],
   ["goose", 50],
-  ["grok-build", 3000],
-  ["pi", 3000],
-  ["pool", 3000],
+  ["grok-build", 250],
+  ["pi", 250],
+  ["pool", 250],
   ["cline", 50],
   ["kilo", 60],
   ["antigravity", 50],
-  ["antigravity-cli", 3000],
-  ["gemini-cli", 55],
+  ["antigravity-cli", 250],
   ["cursor", 60],
-  ["droid", 3000],
+  ["droid", 250],
   ["copilot", 1],
   ["vscode", 1],
   ["vscodium", 1],
   ["opencode", 55],
   ["trae", 1],
-  ["windsurf", 3000],
-  ["zed", 3000],
+  ["windsurf", 250],
+  ["zed", 250],
 ]);
 
 const ruleScenarios = {
@@ -427,6 +407,10 @@ const registrySchemaFiles = [
 const workflowFixtureFiles = [
   { schema: "workflow.run.schema.json", file: "tests/fixtures/workflow/run.json" },
   { schema: "workflow.boss.schema.json", file: "tests/fixtures/workflow/boss-chore.json" },
+  { schema: "workflow.boss.schema.json", file: "tests/fixtures/workflow/boss-rich.json" },
+  { schema: "workflow.reviewer.schema.json", file: "tests/fixtures/workflow/reviewer-rich.json" },
+  { schema: "workflow.judger.schema.json", file: "tests/fixtures/workflow/judger-rich.json" },
+  { schema: "workflow.rescue.schema.json", file: "tests/fixtures/workflow/rescue-rich.json" },
   { schema: "workflow.worker.schema.json", file: "tests/fixtures/workflow/worker-chore.json" },
   { schema: "workflow.worker.schema.json", file: "tests/fixtures/workflow/worker-blocked.json" },
   { schema: "workflow.worker.schema.json", file: "tests/fixtures/workflow/worker-blocked-legacy.json" },
@@ -605,6 +589,37 @@ async function checkExternalServicePins(errors) {
   }
 }
 
+// served_by links a large source-pack to the first-party MCP(s) that serve it just-in-time.
+// Invariant: a served pack stays a pinned source-pack with NO skill_roots, so it is never
+// mirrored into a host startup catalog (externalSkillRoots only emits skill/behavior packs);
+// and every server it names is a real first-party mcp service.
+async function checkServedBy(errors) {
+  const registry = await readOptionalServices();
+  const services = registry.services;
+  const catalogPacks = new Set(
+    Object.entries(services)
+      .filter(([, s]) => ["skill-pack", "behavior-pack"].includes(s.kind) && Array.isArray(s.skill_roots))
+      .map(([id]) => id),
+  );
+  for (const [id, service] of Object.entries(services)) {
+    if (!Object.hasOwn(service, "served_by")) continue;
+    const servedBy = service.served_by;
+    if (!Array.isArray(servedBy) || servedBy.length === 0) {
+      errors.push(`served pack ${id} has an empty served_by`);
+      continue;
+    }
+    if (service.kind !== "source-pack") errors.push(`served pack ${id} must be kind "source-pack" (got "${service.kind}")`);
+    if (service.skill_roots !== undefined) errors.push(`served pack ${id} must not declare skill_roots; it is served just-in-time, not mirrored into a catalog`);
+    if (typeof service.commit !== "string") errors.push(`served pack ${id} must be pinned with a commit`);
+    if (catalogPacks.has(id)) errors.push(`served pack ${id} must not also emit a native skill catalog`);
+    for (const serverId of servedBy) {
+      const server = services[serverId];
+      if (!server) errors.push(`served pack ${id} references unknown server "${serverId}" in served_by`);
+      else if (server.kind !== "mcp" || server.first_party !== true) errors.push(`served pack ${id} server "${serverId}" must be a first-party mcp service`);
+    }
+  }
+}
+
 async function check() {
   const errors = [];
   const commands = await readCommands();
@@ -684,6 +699,7 @@ async function check() {
   await checkRegistrySchemas(errors);
   await checkTargetCapabilities(targetsConfig, errors);
   await checkExternalServicePins(errors);
+  await checkServedBy(errors);
   errors.push(...await subagentValidationErrors());
   checkCommandMetadata(commands, errors);
 
@@ -909,7 +925,6 @@ const workflowRuntimeNames = new Set([
   "codex",
   "codex-exec",
   "cursor-agent",
-  "gemini-cli",
   "kilo-cli",
   "kilo-ide",
   "opencode",
@@ -1165,12 +1180,6 @@ function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".config", "poolside", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".config", "poolside", ".poolside"), /agent-surface Poolside rules/);
     requireContains(path.join(".config", "poolside", "skills", "redteam-web-detail-pack", "SKILL.md"), skillFrontmatter);
-  } else if (target === "gemini-cli") {
-    requireContains(path.join(".gemini", "GEMINI.md"), /agent-surface global Gemini rules/);
-    requireContains(path.join(".gemini", "agents", "boss.md"), /^---\nname: boss\n/);
-    for (const output of outputs.filter((item) => item.relativeOutput.endsWith(".toml"))) {
-      if (!/^description = ".+"\n\nprompt = /s.test(output.content)) errors.push(`${output.relativeOutput} is not a Gemini command TOML shape`);
-    }
   } else if (target === "cline") {
     requirePath(path.join(".cline", "data", "workflows", "ops-flow.md"));
     requireContains(path.join(".cline", "rules", "agent-surface.md"), /agent-surface Cline global rules/);
@@ -1206,6 +1215,9 @@ function validateGeneratedTarget(target, outputs) {
     const mcp = requireJson(path.join(".factory", "mcp.json"));
     if (mcp && mcp.mcpServers?.synapse?.command !== "~/.local/bin/synapse-bridge") {
       errors.push("Droid synapse MCP must use the first-party local bridge binary");
+    }
+    if (mcp && mcp.mcpServers?.grimoire?.command !== "~/.local/bin/grimoire-server") {
+      errors.push("Droid grimoire MCP must use the first-party local server binary");
     }
     if (outputs.some((output) => output.relativeOutput.startsWith(path.join(".factory", "skills") + path.sep))) {
       requireContains(path.join(".factory", "skills", "karpathy-guidelines", "SKILL.md"), skillFrontmatter);
@@ -1635,7 +1647,7 @@ function printInstallPlan(plan) {
         console.log(`  ${item.relativeOutput} MCP += ${addMcpServers.join(", ")}`);
       }
       if (addInstructions.length === 0 && removeInstructions.length === 0 && addMcpServers.length === 0) {
-        console.log(`  ${item.relativeOutput} instructions unchanged`);
+        console.log(`  ${item.relativeOutput} config unchanged`);
       }
     }
   }
@@ -1955,7 +1967,6 @@ async function doctor() {
     "antigravity-workflows",
     (await exists(path.join(os.homedir(), ".gemini", "antigravity", "global_workflows"))) ? "present" : "missing",
   ]);
-  checks.push(["gemini", commandVersion("gemini", ["--version"])]);
   checks.push(["claude", commandVersion("claude", ["--version"])]);
   checks.push(["codex", commandVersion("codex", ["--version"])]);
   checks.push(["kilo", commandVersion("kilo", ["--version"])]);
@@ -2081,7 +2092,7 @@ async function workflowDoctor(args) {
     if (!(await exists(path.join(runDir, file)))) errors.push(`missing workflow file: ${file}`);
   }
 
-  await validateWorkflowJson(path.join(runDir, "run.json"), schemas.get("workflow.run.schema.json"), errors);
+  const runData = await readWorkflowJson(path.join(runDir, "run.json"), schemas.get("workflow.run.schema.json"), errors);
   const bossArtifact = path.join(runDir, "boss.json");
   if (await exists(bossArtifact)) {
     const boss = await readWorkflowJson(bossArtifact, schemas.get("workflow.boss.schema.json"), errors);
@@ -2099,6 +2110,7 @@ async function workflowDoctor(args) {
   await validateWorkflowPatchManifests(runDir, schemas.get("workflow.patch.schema.json"), errors);
 
   const eventsPath = path.join(runDir, "events.ndjson");
+  let lastTransition = null;
   if (await exists(eventsPath)) {
     const text = await readFile(eventsPath, "utf8");
     let previousHash = null;
@@ -2121,6 +2133,21 @@ async function workflowDoctor(args) {
         errors.push(`events.ndjson:${index + 1}: event_hash does not match event content`);
       }
       previousHash = event.event_hash;
+      if ("to" in event) lastTransition = event;
+    }
+  }
+
+  // The run ledger is the source of truth for routing. If the most recent
+  // recorded transition advanced the route, run.json.workflow_next_command must
+  // match it; otherwise the next-command pointer is lagging the accepted ledger
+  // (e.g. a role wrote its artifact but `workflow apply` never synced run.json).
+  if (runData && lastTransition && runData.status === "active") {
+    const ledgerNext = runData.workflow_next_command ?? null;
+    const transitionTo = lastTransition.to ?? null;
+    if (ledgerNext !== transitionTo) {
+      errors.push(
+        `run.json.workflow_next_command (${JSON.stringify(ledgerNext)}) lags the latest transition in events.ndjson (to=${JSON.stringify(transitionTo)}); run \`agent-surface workflow apply\` after the owning role to advance the ledger`,
+      );
     }
   }
 
@@ -2175,6 +2202,11 @@ async function workflowApply(args) {
   const runDir = workflowRunDir(runId);
   const artifactPath = path.resolve(artifactArg);
   const roleSchemas = {
+    "workflow-boss": "workflow.boss.schema.json",
+    "dev-feature": "workflow.worker.schema.json",
+    "dev-fix": "workflow.worker.schema.json",
+    "dev-chore": "workflow.worker.schema.json",
+    "dev-refactor": "workflow.worker.schema.json",
     "workflow-reviewer": "workflow.reviewer.schema.json",
     "workflow-judger": "workflow.judger.schema.json",
     "workflow-rescue": "workflow.rescue.schema.json",
@@ -2198,6 +2230,7 @@ async function workflowApply(args) {
   if (artifact.workflow?.owner !== role) fail("artifact owner does not match --role");
 
   const artifactHash = `sha256:${sha256(await readFile(artifactPath))}`;
+  const fromCommand = runData.workflow_next_command ?? null;
   const nextCommand = artifact.workflow.next_command ?? null;
   const update = artifact.run_state_update ?? {};
   const moved = new Set([
@@ -2210,6 +2243,9 @@ async function workflowApply(args) {
   runData.current_round = Math.max(runData.current_round, artifact.round_id);
   runData.workflow_next_command = nextCommand;
   runData.active_task_ids = uniqueStrings((runData.active_task_ids ?? []).filter((taskId) => !moved.has(taskId)));
+  if (role === "workflow-boss" && artifact.run_state && Array.isArray(artifact.run_state.active_task_ids)) {
+    runData.active_task_ids = uniqueStrings(artifact.run_state.active_task_ids);
+  }
   runData.accepted_task_ids = uniqueStrings([...(runData.accepted_task_ids ?? []), ...(update.accepted_task_ids ?? [])]);
   runData.rework_task_ids = uniqueStrings([...(runData.rework_task_ids ?? []), ...(update.rework_task_ids ?? [])]);
   runData.deferred_task_ids = uniqueStrings([...(runData.deferred_task_ids ?? []), ...(update.deferred_task_ids ?? [])]);
@@ -2233,7 +2269,7 @@ async function workflowApply(args) {
     run_id: runId,
     round_id: artifact.round_id,
     role,
-    from: "REVIEWING",
+    from: fromCommand,
     to: nextCommand ?? null,
     artifact: path.relative(runDir, artifactPath),
     artifact_hash: artifactHash,
@@ -2626,7 +2662,6 @@ function renderDroidSubagent(source) {
     `model: ${source.metadata.model}`,
     "tools:",
     ...tools.map((tool) => `  - ${tool}`),
-    "mcpServers: []",
     "---",
     "",
     source.body.trim(),
@@ -2840,13 +2875,6 @@ async function renderAntigravityWorkflow(source) {
   return `---\ndescription: "${description}"\n---\n\n${body}`;
 }
 
-async function renderGeminiCommand(source) {
-  const body = source.body;
-  const description = tomlString(source.metadata.description ?? firstHeading(body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
-  const prompt = tomlMultilineString(body);
-  return `description = "${description}"\n\nprompt = ${prompt}\n`;
-}
-
 async function codexOpenAiAgentOutput(source) {
   const description = yamlBlockString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   return {
@@ -2946,17 +2974,6 @@ async function kiloStaticOutputs(_commands, context) {
     content: renderScopedRuleReferenceDocument(rule),
   })));
   return outputs;
-}
-
-async function geminiStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      relativeOutput: path.join(".gemini", "GEMINI.md"),
-      content: await renderInstructionDocument("GEMINI.md - agent-surface global Gemini rules", "Gemini CLI global context"),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(".gemini", "references", "rules")),
-  ];
 }
 
 async function antigravityCliStaticOutputs(commands, context) {
@@ -3193,7 +3210,10 @@ const MAX_EXTERNAL_FILES = 50_000;
 
 async function externalSkillOutputs(adapter, context) {
   if (!adapter.externalSkillOutputRoot) return [];
-  if (context.mode === "install" && !context.categoryFilter?.has("external")) return [];
+  // External assets are part of the default distribution: a full install (no category
+  // filter) generates them so strict-sync keeps in-scope packs and prunes de-scoped ones.
+  // Only skip when an explicit category filter excludes "external".
+  if (context.mode === "install" && context.categoryFilter && !context.categoryFilter.has("external")) return [];
   const outputs = [];
   const roots = await externalSkillRoots();
   const outputRoot = outputRootFor(adapter.externalSkillOutputRoot, context);
@@ -3438,12 +3458,6 @@ function stripFrontmatter(text) {
   if (!text.startsWith("---\n")) return text;
   const end = text.indexOf("\n---\n", 4);
   return end === -1 ? text : text.slice(end + 5);
-}
-
-function geminiCommandOutputName(source) {
-  const basename = source.name;
-  const [category, ...rest] = basename.split("-");
-  return path.join(category, `${rest.join("-") || category}.toml`);
 }
 
 function groupedMarkdownCommandOutputName(source) {
@@ -4100,10 +4114,6 @@ function installRootProjectOnly(scope) {
 function installRootHomeOnly(scope) {
   if (scope !== "user") fail("this target supports --scope user only unless --dest is supplied");
   return os.homedir();
-}
-
-function installRootGemini(scope) {
-  return scope === "user" ? os.homedir() : process.cwd();
 }
 
 function installRootClaude(scope) {

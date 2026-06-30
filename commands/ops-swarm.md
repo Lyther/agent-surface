@@ -101,7 +101,7 @@ Runtime assignment fields:
 
 ```json
 {
-  "runtime": "kilo-cli|kilo-ide|codex-exec|claude-code|grok-build|opencode|goose|gemini-cli|cursor-agent|antigravity-cli|antigravity-desktop|ollama-cloud|current-session|manual",
+  "runtime": "kilo-cli|kilo-ide|codex-exec|claude-code|grok-build|opencode|goose|cursor-agent|antigravity-cli|antigravity-desktop|ollama-cloud|current-session|manual",
   "model": "exact provider/model id or env placeholder",
   "agent_or_mode": "code|plan|debug|ask|custom-agent|not_applicable",
   "launch_shape": "headless_cli|ide_agent_manager|ollama_launch|ollama_api|native_subagent|interactive_supervised|manual",
@@ -117,7 +117,7 @@ Use runtime-specific prompt variants instead of a generic "use subagents" instru
 
 - Kilo CLI: use Task-tool or `@agent-name` subagents after `kilo run --help`, `kilo agent list`, and model/config probes pass.
 - Claude Code: use the Agent tool or agent teams for small fan-out; use dynamic workflows only for large repeatable fan-out where script-managed orchestration is worth the overhead.
-- Gemini CLI: use verified project agents under `.gemini/agents`; Antigravity CLI: use plugin agents under `~/.gemini/config/plugins/agent-surface/agents` after `agy plugin validate` passes.
+- Antigravity CLI: use plugin agents under `~/.gemini/config/plugins/agent-surface/agents` after `agy plugin validate` passes.
 - Codex: explicitly ask the parent Codex session to spawn one subagent per independent point, wait for all results, and summarize. Use `codex exec` for single role sessions unless the current Codex surface confirms subagent visibility.
 
 For aggressive Kilo worker assignment, use a prompt shape like this after probing the exact model id with `kilo models` or a configured project profile:
@@ -418,7 +418,6 @@ Refresh these probes before a real run. The following entries were locally verif
 | OpenCode | `opencode run -m <provider/model> --format json --dir "$repo" "..."` | Use when provider credentials and model IDs are configured. |
 | Goose | `goose --version` | Installed-probe only. Inspect current CLI help before assigning packet work. |
 | Antigravity desktop | `antigravity chat -m agent "..."` | Local help exposes a desktop chat handoff, not a verified non-interactive JSON/headless worker. Record as `interactive_supervised` unless a current probe proves a headless output mode. |
-| Gemini CLI (legacy) | `gemini -p "..." --output-format json --approval-mode plan --skip-trust` | Legacy direct `.gemini/*` target. Keep only for Gemini CLI compatibility; do not use it as proof that Antigravity CLI plugin packaging works. |
 | Antigravity CLI | `agy --print --print-timeout 5m --model <model> "..."` | Current `agy` exposes print mode, model listing, and plugin validation. The `antigravity-cli` target packages to `~/.gemini/config/plugins/agent-surface`; validate with `agy plugin validate`. Local model pinning probes fell back to Gemini 3.5 Flash, so verify the actual model before assigning model-specific work. |
 
 Cursor and Grok both use `agent` in their command surface, but they are not interchangeable. Cursor headless starts with `cursor agent -p`; Grok Build starts with `grok -m grok-build ...` or its own probed `grok ... agent headless` path.
@@ -445,7 +444,6 @@ claude -p "Reply OK only." --output-format json --max-budget-usd 0.05
 grok -m grok-build -p "Reply OK only." --output-format json --max-turns 1
 cursor agent -p --workspace "$PWD" --output-format json --sandbox enabled "Reply OK only."
 antigravity chat --help
-gemini -p "Reply OK only." --output-format json --approval-mode plan
 ```
 
 ## PROTOCOL

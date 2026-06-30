@@ -1,0 +1,54 @@
+{
+  "schema_version": "workflow.v3",
+  "run_id": "run-fixture-001",
+  "round_id": 3,
+  "decision": "RESPEC",
+  "scope": "task",
+  "target_task_ids": [
+    "T2"
+  ],
+  "diagnosis": {
+    "type": "SPEC_AMBIGUITY",
+    "evidence": [
+      ".agent-surface/workflows/run-fixture-001/rounds/round-001/evidence/T2/check.evidence.json"
+    ]
+  },
+  "next": {
+    "command": "workflow-boss",
+    "requires_human": false,
+    "why": "AC for T2 is under-specified"
+  },
+  "respec": {
+    "scope": "task",
+    "tasks": [
+      {
+        "task_id": "T2",
+        "ac": [
+          {
+            "id": "AC1",
+            "type": "functional",
+            "text": "tighter testable behavior",
+            "verify": "npm test"
+          }
+        ]
+      }
+    ]
+  },
+  "context_request": null,
+  "patch": null,
+  "workflow": {
+    "dir": ".agent-surface/workflows/run-fixture-001",
+    "file": "rescue.json",
+    "owner": "workflow-rescue",
+    "run_id": "run-fixture-001",
+    "round_id": 3,
+    "parent_artifact_hashes": [
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    ],
+    "next_command": "workflow-boss",
+    "requires_human": false
+  }
+}

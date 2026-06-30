@@ -42,7 +42,8 @@
             "enum": [
               "mcp",
               "skill-pack",
-              "behavior-pack"
+              "behavior-pack",
+              "source-pack"
             ]
           },
           "optional": {
@@ -57,6 +58,14 @@
             "items": {
               "type": "string",
               "pattern": "^external/[A-Za-z0-9._*/-]+$"
+            }
+          },
+          "served_by": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
             }
           },
           "mcp": {

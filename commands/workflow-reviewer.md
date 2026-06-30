@@ -75,6 +75,7 @@ If the BOSS goal, worker report, docs, release text, PR text, or chat handoff cl
 - Check that the readiness proof names the exact scope, support matrix, real entry points, dependencies, artifacts or installed outputs, and unsupported/deferred/blocked paths.
 - If a readiness-critical matrix item is missing, not run, false, mocked, fixture-only, or blocked, the readiness claim is UNKNOWN or FAIL even if the code change itself may be otherwise acceptable.
 - Do not let a batch PASS while preserving an unsupported readiness claim in docs, generated config, release text, or worker output. Narrow the claim, require rework, or route to `verify-readiness`.
+- A reviewer PASS gates the code change only; it does not certify the run as shipped, deployed, or production-ready. Readiness boundaries are preserved until a real ship gate runs: `ship-commit` for the commit, and the push/MR/release gate (`ship-release`/`ship-deploy`) for delivery. Until those gates produce real-run proof, keep readiness claims marked unproven even on an accepted batch, and never let workflow acceptance be read as a delivery guarantee.
 
 After per-task review, also check **batch-level invariants**:
 
@@ -210,7 +211,7 @@ Top issue: <short summary or none>
 2. REJECT at the batch level: every reviewed task REJECT, or any batch-invariant failure, or stale/malformed handoff.
 3. PARTIAL: at least one task PASS/already accepted and at least one task either REJECT or deferred/remaining. `partial.accept` must be non-empty, and at least one of `partial.reject` or `partial.deferred` must be non-empty.
 4. No speculation. Missing evidence on a "completed" task = UNKNOWN for its AC = task REJECT.
-5. In workflow mode, write the review JSON into `.agent-surface/workflows/<run_id>/reviewer.json` before responding in chat.
+5. In workflow mode, write the review JSON into `.agent-surface/workflows/<run_id>/reviewer.json`, then advance the ledger with `agent-surface workflow apply --role workflow-reviewer --run <run_id> --artifact .agent-surface/workflows/<run_id>/reviewer.json` before responding in chat. Apply moves `run_state_update` task IDs into `run.json`, sets `run.json.workflow_next_command`, and appends the transition event; never hand-edit `run.json`. Skipping apply leaves the ledger lagging the accepted reviewer state and fails `workflow-doctor`.
 6. Deterministic next command in workflow mode:
    - PASS → `workflow-boss` (next batch or close run)
    - PARTIAL with no escalation → route to the route-specific worker for the rejected/deferred tasks; the worker carries forward the same `run_id` and re-attempts only those task IDs.
@@ -221,4 +222,5 @@ Top issue: <short summary or none>
 8. In workflow mode, write only reviewer-owned artifacts for the current round; never modify another role file.
 9. `reviewer.json` is the machine-readable artifact. Chat output stays brief and human-readable.
 10. **Don't punish the batch for one bad task.** Use PARTIAL. The judger can MERGE_PARTIAL while still escalating the stuck task.
+11. **A `workflow-doctor` or artifact-schema mismatch is a tooling/process blocker, not a per-task code REJECT.** If valid worker output fails doctor only because the artifact schema and the generated command contract disagree, do not down-score the code. Record it as a process blocker, fix or report the schema/doctor drift (route to workflow maintenance or `workflow-rescue`), and re-run the gate. Reserve code REJECT for actual AC, scope, security, or evidence failures.
 11. Reviewer writes its canonical artifact under `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/reviewer.json`, writes the compatibility copy, and appends only its own event to `events.ndjson`.

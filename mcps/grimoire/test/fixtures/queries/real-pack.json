@@ -1,0 +1,183 @@
+[
+  {
+    "query": "extract cobalt strike beacon configuration from a sample",
+    "expect": [
+      "anthropic-cybersecurity-skills:analyzing-cobalt-strike-beacon-configuration"
+    ]
+  },
+  {
+    "query": "investigate a phishing email by its headers",
+    "expect": [
+      "anthropic-cybersecurity-skills:analyzing-email-headers-for-phishing-investigation"
+    ]
+  },
+  {
+    "query": "reverse engineer golang malware in ghidra",
+    "expect": [
+      "anthropic-cybersecurity-skills:analyzing-golang-malware-with-ghidra"
+    ]
+  },
+  {
+    "query": "analyze a captured pcap in wireshark",
+    "expect": [
+      "anthropic-cybersecurity-skills:analyzing-network-traffic-with-wireshark",
+      "anthropic-cybersecurity-skills:performing-network-forensics-with-wireshark"
+    ]
+  },
+  {
+    "query": "understand how ransomware encrypts files",
+    "expect": [
+      "anthropic-cybersecurity-skills:analyzing-ransomware-encryption-mechanisms"
+    ]
+  },
+  {
+    "query": "audit aws s3 bucket permissions for public exposure",
+    "expect": [
+      "anthropic-cybersecurity-skills:auditing-aws-s3-bucket-permissions"
+    ]
+  },
+  {
+    "query": "review terraform code for security misconfigurations",
+    "expect": [
+      "anthropic-cybersecurity-skills:auditing-terraform-infrastructure-for-security"
+    ]
+  },
+  {
+    "query": "author sigma detection rules",
+    "expect": [
+      "anthropic-cybersecurity-skills:building-detection-rules-with-sigma"
+    ]
+  },
+  {
+    "query": "build an incident timeline in timesketch",
+    "expect": [
+      "anthropic-cybersecurity-skills:building-incident-timeline-with-timesketch"
+    ]
+  },
+  {
+    "query": "run a spear phishing simulation campaign",
+    "expect": [
+      "anthropic-cybersecurity-skills:conducting-spearphishing-simulation-campaign"
+    ]
+  },
+  {
+    "query": "set up an oauth2 authorization code flow",
+    "expect": [
+      "anthropic-cybersecurity-skills:configuring-oauth2-authorization-flow"
+    ]
+  },
+  {
+    "query": "configure tls 1.3 for a service",
+    "expect": [
+      "anthropic-cybersecurity-skills:configuring-tls-1-3-for-secure-communications"
+    ]
+  },
+  {
+    "query": "deploy osquery for endpoint monitoring",
+    "expect": [
+      "anthropic-cybersecurity-skills:deploying-osquery-for-endpoint-monitoring"
+    ]
+  },
+  {
+    "query": "detect privilege escalation paths in aws iam",
+    "expect": [
+      "anthropic-cybersecurity-skills:detecting-aws-iam-privilege-escalation"
+    ]
+  },
+  {
+    "query": "detect command and control over dns",
+    "expect": [
+      "anthropic-cybersecurity-skills:detecting-command-and-control-over-dns"
+    ]
+  },
+  {
+    "query": "detect a dcsync attack in active directory",
+    "expect": [
+      "anthropic-cybersecurity-skills:detecting-dcsync-attack-in-active-directory"
+    ]
+  },
+  {
+    "query": "hunt lateral movement using splunk",
+    "expect": [
+      "anthropic-cybersecurity-skills:detecting-lateral-movement-with-splunk"
+    ]
+  },
+  {
+    "query": "find malicious scheduled tasks with sysmon",
+    "expect": [
+      "anthropic-cybersecurity-skills:detecting-malicious-scheduled-tasks-with-sysmon"
+    ]
+  },
+  {
+    "query": "detect privilege escalation in kubernetes pods",
+    "expect": [
+      "anthropic-cybersecurity-skills:detecting-privilege-escalation-in-kubernetes-pods"
+    ]
+  },
+  {
+    "query": "analyze active directory acl abuse",
+    "expect": [
+      "anthropic-cybersecurity-skills:analyzing-active-directory-acl-abuse"
+    ]
+  },
+  {
+    "query": "find typosquatting domains with dnstwist",
+    "expect": [
+      "anthropic-cybersecurity-skills:analyzing-typosquatting-domains-with-dnstwist"
+    ]
+  },
+  {
+    "query": "audit azure active directory configuration",
+    "expect": [
+      "anthropic-cybersecurity-skills:auditing-azure-active-directory-configuration"
+    ]
+  },
+  {
+    "query": "build a soc playbook for ransomware",
+    "expect": [
+      "anthropic-cybersecurity-skills:building-soc-playbook-for-ransomware"
+    ]
+  },
+  {
+    "query": "respond to a cloud security incident",
+    "expect": [
+      "anthropic-cybersecurity-skills:conducting-cloud-incident-response"
+    ]
+  },
+  {
+    "query": "set up an active directory tiered admin model",
+    "expect": [
+      "anthropic-cybersecurity-skills:configuring-active-directory-tiered-model"
+    ]
+  },
+  {
+    "query": "deploy canary files to detect ransomware",
+    "expect": [
+      "anthropic-cybersecurity-skills:deploying-ransomware-canary-files"
+    ]
+  },
+  {
+    "query": "detect lateral movement in azure",
+    "expect": [
+      "anthropic-cybersecurity-skills:detecting-azure-lateral-movement"
+    ]
+  },
+  {
+    "query": "deploy decoy files to catch ransomware encryption",
+    "expect": [
+      "anthropic-cybersecurity-skills:deploying-decoy-files-for-ransomware-detection"
+    ]
+  },
+  {
+    "query": "run a post incident lessons learned review",
+    "expect": [
+      "anthropic-cybersecurity-skills:conducting-post-incident-lessons-learned"
+    ]
+  },
+  {
+    "query": "configure microsegmentation for zero trust",
+    "expect": [
+      "anthropic-cybersecurity-skills:configuring-microsegmentation-for-zero-trust"
+    ]
+  }
+]

@@ -80,7 +80,7 @@ Report one line per target:
 
 Expected current target families:
 
-- native command/workflow targets: `claude-code`, `cline`, `kilo`, `antigravity`, `gemini-cli`, `cursor`
+- native command/workflow targets: `claude-code`, `cline`, `kilo`, `antigravity`, `cursor`
 - skill/plugin target: `codex`, `antigravity-cli`
 - instruction/rules targets: `copilot`, `vscode`, `opencode`, `trae`
 

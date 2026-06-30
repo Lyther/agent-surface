@@ -10,7 +10,6 @@ targets:
   cursor: true
   droid: true
   kilo: true
-  gemini-cli: true
   antigravity-cli: true
   antigravity: false
   opencode: true

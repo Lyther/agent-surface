@@ -1,0 +1,105 @@
+{
+  "schema_version": "workflow.v3",
+  "run_id": "run-fixture-001",
+  "round_id": 1,
+  "review_round": 1,
+  "aggregate_status": "PARTIAL",
+  "tasks_reviewed": [
+    {
+      "task_id": "T1",
+      "status": "PASS",
+      "review_mode": "rerun",
+      "consecutive_rejections": 0,
+      "ac": [
+        {
+          "id": "AC1",
+          "status": "PASS",
+          "evidence": "npm test exit 0"
+        }
+      ],
+      "independent_verify_results": [
+        {
+          "cmd": "npm test",
+          "exit_code": 0,
+          "evidence_ref": ".agent-surface/workflows/run-fixture-001/rounds/round-001/evidence/T1/test.evidence.json",
+          "tree_hash": "1111111111111111111111111111111111111111"
+        }
+      ],
+      "patch_isolation": {
+        "patch_hash_valid": true,
+        "filescope_respected": true,
+        "dependencies_accepted": true,
+        "applies_without_rejected_hunks": true
+      },
+      "issues": []
+    },
+    {
+      "task_id": "T2",
+      "status": "REJECT",
+      "review_mode": "log_only",
+      "consecutive_rejections": 1,
+      "ac": [
+        {
+          "id": "AC1",
+          "status": "UNKNOWN",
+          "evidence": "missing runner evidence"
+        }
+      ],
+      "issues": [
+        {
+          "severity": "blocker",
+          "title": "missing evidence",
+          "evidence": "no evidence_refs for completed task",
+          "fix": "re-run verify with hashed evidence"
+        }
+      ]
+    }
+  ],
+  "tasks_skipped_by_worker": [],
+  "partial": {
+    "accept": [
+      "T1"
+    ],
+    "reject": [
+      "T2"
+    ],
+    "deferred": []
+  },
+  "batch_invariants": {
+    "run_id_match": true,
+    "branch_and_base_match": true,
+    "parent_hashes_valid": true,
+    "filescope_respected": true,
+    "stop_reason_consistent": true,
+    "cross_task_coherent": true,
+    "evidence_hashes_valid": true,
+    "secrets_redacted": true
+  },
+  "run_state_update": {
+    "accepted_task_ids": [
+      "T1"
+    ],
+    "rework_task_ids": [
+      "T2"
+    ],
+    "deferred_task_ids": [],
+    "closed_task_ids": []
+  },
+  "escalation": {
+    "recommend": "REWORK",
+    "reason": "T2 missing evidence",
+    "escalated_task_ids": []
+  },
+  "workflow": {
+    "dir": ".agent-surface/workflows/run-fixture-001",
+    "file": "reviewer.json",
+    "owner": "workflow-reviewer",
+    "run_id": "run-fixture-001",
+    "round_id": 1,
+    "parent_artifact_hashes": [
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ],
+    "next_command": "dev-feature"
+  }
+}

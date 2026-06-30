@@ -70,10 +70,10 @@ This command creates the **context infrastructure** that enables smooth vibe cod
         - `.claude/` (Anthropic)
         - `.obsidian/` (Notes)
         - `.cursor/` (Cursor local)
-        - `.gemini/` (Gemini local)
+        - `.gemini/` (Antigravity CLI plugin/local config)
         - `.agent/` (Antigravity local)
         - `.cursorrules` (Cursor rules symlink)
-        - `.geminirules` (Gemini rules symlink)
+        - `.geminirules` (legacy Gemini rules symlink)
         - `.roorules`, `.clinerules`, `.traerules`, `.windsurfrules` (other tool-local overlays)
         - `.cursorignore` (Cursor ignore file)
         - Private/local-only agent overlays.
@@ -113,7 +113,7 @@ This command creates the **context infrastructure** that enables smooth vibe cod
         - Shell/automation: `*.sh`, `*.bash`, `Dockerfile*`, `.github/workflows/*`, `Makefile`, `justfile`, `Taskfile.yml`.
     - **No Blanket Attach**: Do not copy every scoped language rule into an always-on rule file. If a generated target provides `references/rules/<name>.md`, use that as the source for matching local overlays; otherwise use the source `rules/<name>.mdc`.
     - **Cross-tool**: Generate `AGENTS.md` at project root for local cross-tool compatibility (gitignored).
-    - **Gemini/Antigravity**: create local-only generated instruction overlays from the active agent-surface rules when the host needs them; keep those overlays gitignored.
+    - **Antigravity**: create local-only generated instruction overlays from the active agent-surface rules when the host needs them; keep those overlays gitignored.
     - **Legacy**: If the project needs `.cursorrules` for older tooling, generate it from the project-local `.cursor/rules/` overlay with the project's own script and keep it gitignored.
     - **Git Scope**: Treat all of these as local project overlays only. They belong in `.gitignore`, not in the remote repository.
 
@@ -158,7 +158,7 @@ This command creates the **context infrastructure** that enables smooth vibe cod
 3. **Scaffold Project Rules**:
     - Copy or adapt policy templates from active agent-surface rules into the project's local rule overlay when needed.
     - Generate `AGENTS.md` at project root for local cross-tool compatibility.
-    - Generate Gemini/Antigravity local-only overlays from the active policy sources when needed.
+    - Generate Antigravity local-only overlays from the active policy sources when needed.
     - For existing projects, run the `boot-new check` audit before changing local overlays. Codebase-audit or maintenance commands should call this check when project structure, toolchain config, ignores, or agent overlays may be stale.
     - Keep all agentic rule files ignored and unstaged. They are for local assistant context, not remote source control.
 4. **Customize if Needed**: Add project-specific rules in `.cursor/rules/` or `.agent/rules/` directories.

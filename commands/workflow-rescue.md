@@ -118,7 +118,7 @@ Per-decision payload rules:
 - **CONTEXT**: set `context_request` to `{ "task_ids": [...], "task": "short investigation prompt", "filescope_hint": [...] }`.
 - **PATCH**: set `patch` to `{ "task_ids": [...], "mode": "proposed_only|apply_authorized", "diff": "<unified diff>", "verify": ["..."], "applies_to_tree_hash": "..." }`. The diff must be applicable cleanly to the current worktree/tree hash. Use `apply_authorized` only when the user explicitly authorized takeover.
 - **HUMAN**: explain the blocker in `diagnosis.evidence`, set `next.command = null`, `requires_human = true`, and do not invent diffs or specs.
-- In workflow mode, write the rescue JSON into `.agent-surface/workflows/<run_id>/rescue.json` before responding in chat.
+- In workflow mode, write the rescue JSON into `.agent-surface/workflows/<run_id>/rescue.json`, then advance the ledger with `agent-surface workflow apply --role workflow-rescue --run <run_id> --artifact .agent-surface/workflows/<run_id>/rescue.json` before responding in chat. Apply sets `run.json.workflow_next_command` (including `null` for `HUMAN`) and appends the transition event; never hand-edit `run.json`.
 - `workflow.next_command` must exactly mirror `next.command`; `null` means automation stops. Downstream commands follow `workflow.next_command`.
 
 ## HARD RULES

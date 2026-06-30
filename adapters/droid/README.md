@@ -22,12 +22,14 @@ The Droid adapter wires selected optional upstream projects instead of leaving t
 
 - `synapse` is rendered by default as the first-party local MCP bridge.
 - `agentmemory` can be rendered as an MCP server using the locally patched `~/.local/bin/agentmemory-mcp` binary when explicitly requested with `--category mcps --service agentmemory`.
-- `sanyuan-skills`, `andrej-karpathy-skills`, `ctf-skills`, and the selected
-  `pua` skills are copied into `.factory/skills/`.
+- `sanyuan-skills`, `andrej-karpathy-skills`, `ctf-skills`, `claude-osint`, `codex-redteam-mode`, and the selected `pua` skills are copied into `.factory/skills/`.
+- `anthropic-cybersecurity-skills` is kept as a pinned source asset but is not emitted into Droid skill roots by default.
 
 The adapter does not copy whole upstream repositories into Droid output. It
 copies native skill directories and the MCP registration needed for Droid to
 use them.
+
+Generated Droid subagents render as normalized droid definitions without extra skill or MCP restrictions.
 
 External skill directories are optional: they render only when the corresponding
 `external/*` submodule checkout is present. Packaged npm installs still render

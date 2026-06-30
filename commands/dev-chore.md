@@ -57,6 +57,7 @@ agent-surface run --task <task_id> --class <class> --timeout <ms> --out .agent-s
 8. Before marking a task blocked, apply the Blocker Discipline section below.
 9. Write canonical worker artifact to `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and latest copy to `.agent-surface/workflows/<run_id>/worker.json`.
 10. Set `workflow.owner = "dev-chore"` and `workflow.next_command = "workflow-reviewer"`.
+11. Advance the ledger with `agent-surface workflow apply --role dev-chore --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`; this appends the transition event and sets `run.json.workflow_next_command`. Do not hand-edit `run.json`.
 
 Worker artifact shape:
 

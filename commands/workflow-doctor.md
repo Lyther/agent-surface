@@ -40,8 +40,9 @@ Validate the active agent-surface workflow state before any role acts on it.
 10. Confirm evidence refs exist and hashes match for completed worker tasks.
 11. Confirm patch refs exist and hashes match for completed worker tasks.
 12. Confirm root role files match the latest canonical round artifacts.
-13. Report `.cursor/.workflow/` compatibility files as stale if they disagree with canonical artifacts.
-14. Confirm workflow state is gitignored.
+13. Confirm `run.json.workflow_next_command` matches the `to` field of the latest transition in `events.ndjson`. A mismatch means a role wrote its artifact but never ran `agent-surface workflow apply`, so the ledger pointer lags the accepted state — fail closed.
+14. Report `.cursor/.workflow/` compatibility files as stale if they disagree with canonical artifacts.
+15. Confirm workflow state is gitignored.
 
 ## OUTPUT
 
