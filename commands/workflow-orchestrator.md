@@ -71,11 +71,11 @@ Minimum shape:
       "agent_id": "stable monitor-local id",
       "command": "workflow-boss|dev-feature|dev-fix|dev-chore|dev-refactor|workflow-reviewer|workflow-judger|workflow-rescue|workflow-close|qa-trace|qa-review",
       "role_class": "boss|worker|reviewer|judger|rescue|closer|qa",
-      "provider": "codex|claude-code|kilo|grok|ollama-codex|ollama-claude|ollama-opencode|opencode|goose|gemini|antigravity-cli|antigravity-desktop|cursor|current-session|other",
+      "provider": "codex|claude-code|kilo|grok|ollama-codex|ollama-claude|ollama-opencode|opencode|goose|antigravity-cli|antigravity-desktop|cursor|current-session|other",
       "model": "provider model id",
       "launch_shape": "headless_cli|ide_agent_manager|ollama_launch|ollama_api|native_subagent|interactive_supervised|other",
       "runtime_assignment": {
-        "runtime": "kilo-cli|kilo-ide|codex-exec|claude-code|grok-build|opencode|goose|gemini-cli|cursor-agent|antigravity-cli|antigravity-desktop|ollama-cloud|current-session|manual",
+        "runtime": "kilo-cli|kilo-ide|codex-exec|claude-code|grok-build|opencode|goose|cursor-agent|antigravity-cli|antigravity-desktop|ollama-cloud|current-session|manual",
         "agent_or_mode": "code|plan|debug|ask|custom-agent|not_applicable",
         "subagent_policy": "parallel_allowed|serial_only|disabled",
         "worktree_policy": "required|preferred|not_needed",
@@ -152,7 +152,7 @@ Instruction to worker:
 Use the assigned runtime's verified subagent mechanism for independent subtasks:
 - Kilo CLI: Task-tool or `@agent-name` subagents after the local Kilo config probe passes.
 - Claude Code: Agent tool or agent teams; dynamic workflows only for large repeatable fan-out.
-- Gemini CLI: project agents under `.gemini/agents`; Antigravity CLI: plugin agents under `~/.gemini/config/plugins/agent-surface/agents`, invoked by the runtime's documented agent selection flow after validation.
+- Antigravity CLI: plugin agents under `~/.gemini/config/plugins/agent-surface/agents`, invoked by the runtime's documented agent selection flow after validation.
 - Codex: explicitly spawn one subagent per independent point and wait for consolidated results.
 Start 2-4 subagents with disjoint filescope or evidence targets.
 Monitor them, spawn follow-up subagents only for discovered dependent work, and reconcile results before writing worker.json.
@@ -189,7 +189,7 @@ The monitor must not treat `resolution_class` as decoration. After a worker exit
 
 Before assigning a runtime, re-probe the actual local CLI/API and record the command, model id, version, output shape, and caveats in `agents.json.selection_snapshot`. Treat old notes, display names, README examples, benchmark labels, and prior successful launches as hints, not proof.
 
-Antigravity has two project surfaces: `antigravity-cli` is the `agy` plugin package under `~/.gemini/config/plugins/agent-surface`; validate it with `agy plugin validate`. The `antigravity` desktop binary remains a supervised UI surface unless a current probe proves a headless output mode. Gemini CLI is a legacy compatibility target, not the Antigravity CLI runtime.
+Antigravity has two project surfaces: `antigravity-cli` is the `agy` plugin package under `~/.gemini/config/plugins/agent-surface`; validate it with `agy plugin validate`. The `antigravity` desktop binary remains a supervised UI surface unless a current probe proves a headless output mode. Gemini CLI is EoL in this project and must not be assigned.
 
 ## HEARTBEATS AND STALE SESSIONS
 

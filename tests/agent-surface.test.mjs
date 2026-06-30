@@ -107,10 +107,6 @@ if bad:
   });
 }
 
-function assertGeminiTomlParses() {
-  assertTomlParses(path.join(root, "dist", "gemini-cli", ".gemini", "commands"));
-}
-
 function assertCodexAgentTomlParses() {
   assertTomlParses(path.join(root, "dist", "codex", ".codex", "agents"));
 }
@@ -272,7 +268,7 @@ assert.equal(opsFlowCommand.targets.deepagents, path.join(".deepagents", "agent"
 assert.equal(opsFlowCommand.targets.cline, path.join(".cline", "data", "workflows", "ops-flow.md"));
 assert.equal(opsFlowCommand.targets.kilo, path.join(".config", "kilo", "commands", "ops-flow.md"));
 assert.equal(opsFlowCommand.targets["antigravity-cli"], path.join("config", "plugins", "agent-surface", "skills", "ops-flow.md"));
-assert.equal(opsFlowCommand.targets["gemini-cli"], path.join(".gemini", "commands", "ops", "flow.toml"));
+assert.equal(Object.hasOwn(opsFlowCommand.targets, "gemini-cli"), false);
 assert.equal(opsFlowCommand.targets.cursor, path.join(".cursor", "commands", "ops-flow.md"));
 assert.equal(opsFlowCommand.targets.droid, path.join(".factory", "commands", "ops-flow.md"));
 assert.equal(opsFlowCommand.targets.opencode, path.join(".config", "opencode", "commands", "ops-flow.md"));
@@ -294,7 +290,7 @@ assert.equal(bootConceptCommand.targets.deepagents, path.join(".deepagents", "ag
 assert.equal(bootConceptCommand.targets.cline, path.join(".cline", "data", "workflows", "boot-concept.md"));
 assert.equal(bootConceptCommand.targets.kilo, path.join(".config", "kilo", "commands", "boot-concept.md"));
 assert.equal(bootConceptCommand.targets["antigravity-cli"], path.join("config", "plugins", "agent-surface", "skills", "boot-concept.md"));
-assert.equal(bootConceptCommand.targets["gemini-cli"], path.join(".gemini", "commands", "boot", "concept.toml"));
+assert.equal(Object.hasOwn(bootConceptCommand.targets, "gemini-cli"), false);
 assert.equal(bootConceptCommand.targets.cursor, path.join(".cursor", "commands", "boot-concept.md"));
 assert.equal(bootConceptCommand.targets.droid, path.join(".factory", "commands", "boot-concept.md"));
 assert.equal(bootConceptCommand.targets.opencode, path.join(".config", "opencode", "commands", "boot-concept.md"));
@@ -332,7 +328,6 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
-assertGeminiTomlParses();
 assertCodexAgentTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "swarm.md"))), true);
@@ -361,13 +356,7 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pi", ".pi
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pi", ".pi", "agent", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pool", ".config", "poolside", "skills", "ops-flow", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pool", ".config", "poolside", ".poolside"))), true);
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "workflow", "boss.toml"))), true);
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "boot", "facade.toml"))), true);
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "boot", "concept.toml"))), true);
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "ops", "swarm.toml"))), true);
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "commands", "ops", "nuke.toml"))), true);
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "GEMINI.md"))), true);
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cli", ".gemini", "agents", "boss.md"))), true);
+assert.equal(generated.some((file) => file.includes(`${path.sep}dist${path.sep}gemini-cli${path.sep}`)), false);
 assert.equal(generated.some((file) => file.includes(`${path.sep}.gemini${path.sep}extensions${path.sep}agent-surface${path.sep}`)), false);
 assert.equal(generated.some((file) => file.includes(`${path.sep}.agent-surface${path.sep}claude-plugin${path.sep}`)), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cline", ".cline", "rules", "agent-surface.md"))), true);
@@ -437,14 +426,6 @@ assert.equal(generated.some((file) => file.includes(`${path.sep}.codex${path.sep
 assert.equal(generated.some((file) => file.includes(`${path.sep}.config${path.sep}kilo${path.sep}agents${path.sep}`)), true);
 
 // subagent access -> per-target capability metadata: read-only must not carry write/shell tools.
-const geminiBossAgent = readFileSync(path.join(root, "dist", "gemini-cli", ".gemini", "agents", "boss.md"), "utf8");
-assert.match(geminiBossAgent, /^tools:$/m);
-assert.match(geminiBossAgent, /^ {2}- read_file$/m);
-assert.equal(/^ {2}- write_file$/m.test(geminiBossAgent), false);
-assert.equal(/^ {2}- replace$/m.test(geminiBossAgent), false);
-assert.equal(/^ {2}- run_shell_command$/m.test(geminiBossAgent), false);
-const geminiWorkerAgent = readFileSync(path.join(root, "dist", "gemini-cli", ".gemini", "agents", "worker.md"), "utf8");
-assert.match(geminiWorkerAgent, /^ {2}- run_shell_command$/m);
 const antigravityBossAgent = readFileSync(path.join(root, "dist", "antigravity-cli", "config", "plugins", "agent-surface", "agents", "boss.md"), "utf8");
 assert.match(antigravityBossAgent, /^tools:$/m);
 assert.equal(/^ {2}- run_shell_command$/m.test(antigravityBossAgent), false);
@@ -563,12 +544,9 @@ assert.match(kiloPlan, /kilo\.jsonc instructions \+= \.kilo\/rules\/00-precedenc
 assert.doesNotMatch(kiloPlan, /kilo\.jsonc instructions \+= .*14-shell/);
 assert.match(kiloPlan, /\.agent-surface\/kilo-manifest\.json/);
 
-const geminiPlan = run(["install", "--target", "gemini-cli", "--dest", "/tmp/agent-surface-gemini", "--dry-run"]);
-assert.match(geminiPlan, /^target: gemini-cli$/m);
-assert.match(geminiPlan, /\.gemini\/commands\/workflow\/boss\.toml <- commands\/workflow-boss\.md/);
-assert.match(geminiPlan, /\.gemini\/GEMINI\.md <- rules\/\*\.mdc/);
-assert.match(geminiPlan, /\.gemini\/references\/rules\/10-python\.md <- rules\/10-python\.mdc/);
-assert.match(geminiPlan, /\.gemini\/agents\/boss\.md <- subagents\/boss\.md/);
+const geminiPlan = status(["install", "--target", "gemini-cli", "--dest", "/tmp/agent-surface-gemini", "--dry-run"]);
+assert.notEqual(geminiPlan.status, 0);
+assert.match(`${geminiPlan.stdout}${geminiPlan.stderr}`, /unsupported install target: gemini-cli/);
 
 const antigravityCliPlan = run(["install", "--target", "antigravity-cli", "--dest", "/tmp/agent-surface-antigravity-cli", "--dry-run"]);
 assert.match(antigravityCliPlan, /^target: antigravity-cli$/m);
@@ -1182,15 +1160,11 @@ rmSync(existingCodexMcpDest, { recursive: true, force: true });
 // host. Each fixture carries a pre-existing user server; the merge must keep it,
 // add the first-party synapse entry, never add external/secret-bearing MCPs, and a
 // second merge must be a no-op (idempotent). Cursor + Codex are covered explicitly
-// above; this loop closes the remaining nine (claude-code, cline, gemini-cli, kilo,
+// above; this loop closes the remaining eight (claude-code, cline, kilo,
 // opencode, trae, vscode, windsurf, zed).
 const mergeFixtures = [
   { target: "claude-code", rel: ".mcp.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } } },
   { target: "cline", rel: ".cline/mcp.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } } },
-  {
-    target: "gemini-cli", rel: ".gemini/settings.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } }, theme: "dark" },
-    keep: (parsed) => assert.equal(parsed.theme, "dark", "gemini non-mcp settings preserved")
-  },
   {
     target: "kilo", rel: "kilo.jsonc", root: "mcp", pre: { $schema: "keep", mcp: { existing: { type: "local", command: ["local-existing"], enabled: true } } },
     keep: (parsed) => assert.equal(parsed.$schema, "keep", "kilo $schema preserved")

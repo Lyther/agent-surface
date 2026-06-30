@@ -20,7 +20,7 @@ agy plugin validate ~/.gemini/config/plugins/agent-surface
 
 The local `agy 1.0.12` validator accepts flat command skills, nested external skill directories, and `agents/*.md` in this package. It reports rules as package files but only summarizes skills and agents, so rule loading should be re-probed if Antigravity changes its plugin loader.
 
-The separate `antigravity` binary is a desktop-supervised surface unless current help/probe output proves a headless mode. Gemini CLI remains a legacy compatibility target and is generated separately by `gemini-cli`.
+The separate `antigravity` binary is a desktop-supervised surface unless current help/probe output proves a headless mode. Gemini CLI is EoL in this project; do not use it as an adapter or as proof that Antigravity CLI plugin packaging works.
 
 Only `alwaysApply: true` rules are packaged under plugin `rules/`. Cybersecurity policy is always-on; scoped language policies are reference files and should be attached by project-aware commands only when applicable.
 

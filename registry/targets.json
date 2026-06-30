@@ -73,17 +73,6 @@
         "external"
       ]
     },
-    "gemini-cli": {
-      "status": "deprecated",
-      "build_supported": true,
-      "install_supported": true,
-      "renders": [
-        "commands",
-        "subagents",
-        "rules",
-        "mcps"
-      ]
-    },
     "cline": {
       "status": "implemented",
       "build_supported": true,

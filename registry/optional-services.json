@@ -18,7 +18,6 @@
       "local_wiring": [
         "Codex MCP: ~/.codex/config.toml mcp_servers.agentmemory",
         "Cursor MCP: ~/.cursor/mcp.json mcpServers.agentmemory",
-        "Gemini MCP: ~/.gemini/settings.json mcpServers.agentmemory",
         "Claude Code MCP: claude mcp list shows agentmemory connected",
         "Cline MCP: ~/.cline/data/settings/cline_mcp_settings.json mcpServers.agentmemory",
         "Kilo MCP: ~/.config/kilo/kilo.jsonc mcp.agentmemory",
@@ -51,7 +50,6 @@
         "Deep Agents MCP: ~/.deepagents/.mcp.json mcpServers.synapse (auto-generated/merged)",
         "Cursor MCP: ~/.cursor/mcp.json mcpServers.synapse (auto-generated/merged)",
         "Droid MCP: ~/.factory/mcp.json mcpServers.synapse (auto-generated/merged)",
-        "Gemini CLI MCP: ~/.gemini/settings.json mcpServers.synapse (auto-generated/merged)",
         "Cline MCP: ~/.cline/mcp.json mcpServers.synapse (auto-generated/merged)",
         "Kilo MCP: ~/.config/kilo/kilo.jsonc mcp.synapse (auto-generated/merged)",
         "OpenCode MCP: ~/.config/opencode/opencode.json mcp.synapse (auto-generated/merged)",

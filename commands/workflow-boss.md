@@ -145,7 +145,7 @@ For each task, include runtime and parallelism hints when they are useful:
 
 - `parallel_group`: orchestrator-level parallelism. Tasks with the same group and no dependency edges may be launched as separate managed worker sessions.
 - `isolation`: `same_worktree_read_only`, `separate_worktree`, or `serial_required`.
-- `suggested_runtime`: optional hint from the workflow runtime taxonomy, such as `kilo-cli`, `kilo-ide`, `codex-exec`, `claude-code`, `cursor-agent`, `grok-build`, `goose`, `gemini-cli`, `ollama-cloud`, `opencode`, `antigravity-cli`, `antigravity-desktop`, `current-session`, or `unspecified`.
+- `suggested_runtime`: optional hint from the workflow runtime taxonomy, such as `kilo-cli`, `kilo-ide`, `codex-exec`, `claude-code`, `cursor-agent`, `grok-build`, `goose`, `ollama-cloud`, `opencode`, `antigravity-cli`, `antigravity-desktop`, `current-session`, or `unspecified`.
 - `subagent_suitable`: worker-led parallelism. Set true only when a single worker lead can safely delegate this task's internal subtasks to runtime-native subagents with isolated context.
 
 Use `separate_worktree` whenever two writable tasks can overlap in time. Use `serial_required` for shared generated outputs, migrations, shared service ports, database fixtures, lockfiles, or any FILESCOPE that cannot be cleanly isolated. Do not set `parallel_group` or `subagent_suitable=true` on a `serial_required` task. Do not set both `parallel_group` and `subagent_suitable=true` on any task; they are alternate fan-out modes.
@@ -205,7 +205,7 @@ Use this shape (v3):
       "depends_on": [],
       "parallel_group": "G1",
       "isolation": "same_worktree_read_only|separate_worktree|serial_required",
-      "suggested_runtime": "kilo-cli|kilo-ide|codex-exec|claude-code|cursor-agent|grok-build|goose|gemini-cli|ollama-cloud|opencode|antigravity-cli|antigravity-desktop|current-session|unspecified",
+      "suggested_runtime": "kilo-cli|kilo-ide|codex-exec|claude-code|cursor-agent|grok-build|goose|ollama-cloud|opencode|antigravity-cli|antigravity-desktop|current-session|unspecified",
       "subagent_suitable": true,
       "patch_required": true,
       "plan": [

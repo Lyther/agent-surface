@@ -26,7 +26,6 @@ Compatibility is ranked from 1 to 5 based on how much of the `agent-surface` sou
 | Kilo | 86 | 66 workflows in `.config/kilo/commands/*.md` | 7 always-on `.config/kilo/rules/*.md` plus 5 scoped language refs | 6 `.config/kilo/agents/*.md` | None | Synapse MCP + instructions in `kilo.jsonc`; `.kilocodeignore` | 5/5 |
 | Antigravity CLI | 3735 | 66 plugin skills in `config/plugins/agent-surface/skills/*.md` | 7 always-on `config/plugins/agent-surface/rules/*.md` plus 5 scoped language refs | 6 `config/plugins/agent-surface/agents/*.md` | External plugin skills | `config/plugins/agent-surface/plugin.json` | 5/5 |
 | Antigravity (legacy workflows) | 66 | 66 `global_workflows/*.md` | None | None | None | None | 2/5 |
-| Gemini CLI (legacy) | 79 | 66 native `.gemini/commands/**/*.toml` | `.gemini/GEMINI.md` plus 5 scoped language refs | 6 `.gemini/agents/*.md` | None | Synapse MCP in `.gemini/settings.json` | 5/5 |
 | GitHub Copilot | 6 | None | `instructions/agent-surface-copilot.instructions.md` plus 5 scoped language refs | None | None | None | 2/5 |
 | VS Code | 8 | None | `instructions/agent-surface.instructions.md` plus 5 scoped language refs | None | None | `mcp.json`; `prompts/agent-surface.prompt.md` | 2/5 |
 | VSCodium | 7 | None | `instructions/agent-surface.instructions.md` plus 5 scoped language refs | None | None | `prompts/agent-surface.prompt.md` | 2/5 |
@@ -43,7 +42,7 @@ Bundled instruction targets include only `alwaysApply: true` rules inline. Cyber
 
 Planned: none.
 
-Out of scope: Roo Code (EoL), Xcode.
+Out of scope: Gemini CLI (EoL; use Antigravity CLI), Roo Code (EoL), Xcode.
 
 ## Project layout
 
@@ -157,7 +156,6 @@ node scripts/agent-surface.mjs install --runtime pool,zed --category external --
 - Cursor: `.cursor/agents/<name>.md`
 - Kilo user installs: `~/.config/kilo/agents/<name>.md`
 - Kilo project installs: `.kilo/agents/<name>.md`
-- Gemini CLI legacy compatibility: `.gemini/agents/<name>.md`
 - Antigravity CLI plugin target: `~/.gemini/config/plugins/agent-surface/agents/<name>.md`
 - OpenCode user installs: `~/.config/opencode/agents/<name>.md`
 - OpenCode project installs: `.opencode/agents/<name>.md`
@@ -166,8 +164,7 @@ Cursor runtime launches must use the full `cursor agent ...` command shape; do n
 
 ## Upgrade notes
 
-- `gemini-cli` is a legacy compatibility target for native `.gemini` commands, context, and agents.
-- `antigravity-cli` is the current Google CLI target and emits the Antigravity CLI plugin under `~/.gemini/config/plugins/agent-surface`; validate it with `agy plugin validate ~/.gemini/config/plugins/agent-surface`.
+- Gemini CLI is EoL in this project. Use `antigravity-cli`, the current Google CLI target; it emits the Antigravity CLI plugin under `~/.gemini/config/plugins/agent-surface`. Validate it with `agy plugin validate ~/.gemini/config/plugins/agent-surface`.
 
 ## Workflow kernel (optional)
 

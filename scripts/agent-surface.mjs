@@ -185,25 +185,6 @@ const targets = {
     installRoot: installRootAntigravityCli,
     staticOutputs: antigravityCliStaticOutputs,
   },
-  "gemini-cli": {
-    label: "Gemini CLI legacy commands, context, and subagents",
-    commandRenders: ["commands"],
-    subagentRenders: ["subagents"],
-    subagentTarget: "gemini-cli",
-    subagentOutputRoot: path.join(".gemini", "agents"),
-    staticRenders: ["rules"],
-    commandOutputRoot: ".gemini/commands",
-    renderCommand: renderGeminiCommand,
-    renderSubagent: renderGeminiSubagent,
-    installRoot: installRootGemini,
-    commandOutputName: geminiCommandOutputName,
-    staticOutputs: geminiStaticOutputs,
-    mcpConfig: {
-      relativeOutput: () => path.join(".gemini", "settings.json"),
-      format: "mcpServers",
-      defaultEnabled: true,
-    },
-  },
   cursor: {
     label: "Cursor global commands, rules, and subagents",
     commandRenders: ["commands"],
@@ -344,7 +325,6 @@ const generatedOutputMinimums = new Map([
   ["kilo", 60],
   ["antigravity", 50],
   ["antigravity-cli", 3000],
-  ["gemini-cli", 55],
   ["cursor", 60],
   ["droid", 3000],
   ["copilot", 1],
@@ -909,7 +889,6 @@ const workflowRuntimeNames = new Set([
   "codex",
   "codex-exec",
   "cursor-agent",
-  "gemini-cli",
   "kilo-cli",
   "kilo-ide",
   "opencode",
@@ -1165,12 +1144,6 @@ function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".config", "poolside", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".config", "poolside", ".poolside"), /agent-surface Poolside rules/);
     requireContains(path.join(".config", "poolside", "skills", "redteam-web-detail-pack", "SKILL.md"), skillFrontmatter);
-  } else if (target === "gemini-cli") {
-    requireContains(path.join(".gemini", "GEMINI.md"), /agent-surface global Gemini rules/);
-    requireContains(path.join(".gemini", "agents", "boss.md"), /^---\nname: boss\n/);
-    for (const output of outputs.filter((item) => item.relativeOutput.endsWith(".toml"))) {
-      if (!/^description = ".+"\n\nprompt = /s.test(output.content)) errors.push(`${output.relativeOutput} is not a Gemini command TOML shape`);
-    }
   } else if (target === "cline") {
     requirePath(path.join(".cline", "data", "workflows", "ops-flow.md"));
     requireContains(path.join(".cline", "rules", "agent-surface.md"), /agent-surface Cline global rules/);
@@ -1955,7 +1928,6 @@ async function doctor() {
     "antigravity-workflows",
     (await exists(path.join(os.homedir(), ".gemini", "antigravity", "global_workflows"))) ? "present" : "missing",
   ]);
-  checks.push(["gemini", commandVersion("gemini", ["--version"])]);
   checks.push(["claude", commandVersion("claude", ["--version"])]);
   checks.push(["codex", commandVersion("codex", ["--version"])]);
   checks.push(["kilo", commandVersion("kilo", ["--version"])]);
@@ -2840,13 +2812,6 @@ async function renderAntigravityWorkflow(source) {
   return `---\ndescription: "${description}"\n---\n\n${body}`;
 }
 
-async function renderGeminiCommand(source) {
-  const body = source.body;
-  const description = tomlString(source.metadata.description ?? firstHeading(body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
-  const prompt = tomlMultilineString(body);
-  return `description = "${description}"\n\nprompt = ${prompt}\n`;
-}
-
 async function codexOpenAiAgentOutput(source) {
   const description = yamlBlockString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   return {
@@ -2946,17 +2911,6 @@ async function kiloStaticOutputs(_commands, context) {
     content: renderScopedRuleReferenceDocument(rule),
   })));
   return outputs;
-}
-
-async function geminiStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      relativeOutput: path.join(".gemini", "GEMINI.md"),
-      content: await renderInstructionDocument("GEMINI.md - agent-surface global Gemini rules", "Gemini CLI global context"),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(".gemini", "references", "rules")),
-  ];
 }
 
 async function antigravityCliStaticOutputs(commands, context) {
@@ -3438,12 +3392,6 @@ function stripFrontmatter(text) {
   if (!text.startsWith("---\n")) return text;
   const end = text.indexOf("\n---\n", 4);
   return end === -1 ? text : text.slice(end + 5);
-}
-
-function geminiCommandOutputName(source) {
-  const basename = source.name;
-  const [category, ...rest] = basename.split("-");
-  return path.join(category, `${rest.join("-") || category}.toml`);
 }
 
 function groupedMarkdownCommandOutputName(source) {
@@ -4100,10 +4048,6 @@ function installRootProjectOnly(scope) {
 function installRootHomeOnly(scope) {
   if (scope !== "user") fail("this target supports --scope user only unless --dest is supplied");
   return os.homedir();
-}
-
-function installRootGemini(scope) {
-  return scope === "user" ? os.homedir() : process.cwd();
 }
 
 function installRootClaude(scope) {
