@@ -136,7 +136,7 @@ Key finding: <short summary>
 2. Prefer the smallest change that restores correctness for each task. Don't bundle unrelated cleanups into the rework instruction.
 3. No extra features. No unrelated refactors.
 4. Runner evidence is not the only truth. Inspect source diffs, patch refs, task dependencies, artifact hashes, file contents, and reviewer rerun results. Logs alone cannot prove scope, security, or correctness.
-5. In workflow mode, write the final verdict JSON into `.agent-surface/workflows/<run_id>/judger.json` before responding in chat.
+5. In workflow mode, write the final verdict JSON into `.agent-surface/workflows/<run_id>/judger.json`, then advance the ledger with `agent-surface workflow apply --role workflow-judger --run <run_id> --artifact .agent-surface/workflows/<run_id>/judger.json` before responding in chat. Apply moves `run_state_update` task IDs, sets `run.json.workflow_next_command`, and appends the transition event; never hand-edit `run.json`.
 6. Deterministic next command in workflow mode:
    - `MERGE` → `workflow-boss` (close the run or queue the next batch)
    - `MERGE_PARTIAL` → route-specific worker for the `rework_task_ids`; passing tasks are accepted in `run_state_update`

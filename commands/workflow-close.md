@@ -104,4 +104,5 @@ Unresolved risks: N
 1. Do not delete `.agent-surface/workflows/<run_id>/`.
 2. Do not close a run while required role artifacts are missing unless closing as `aborted`.
 3. Do not claim work shipped; shipping is handled by `ship-*` commands.
-4. Extract lessons as candidates only. Do not edit global memory or rule files unless the user explicitly asks.
+4. Preserve readiness boundaries. A closed run means the accepted tasks passed review, not that the work is production-ready, deployed, or pushed. Do not upgrade `stable`/`production-ready`/`release-ready`/`E2E passed` claims in the summary; readiness stays unproven until `ship-commit` and the push/MR/release gate run with real-run proof. Record any surviving readiness claim as an unresolved risk.
+5. Extract lessons as candidates only. Do not edit global memory or rule files unless the user explicitly asks.

@@ -1,0 +1,85 @@
+{
+  "schema_version": "workflow.v3",
+  "run_id": "run-fixture-001",
+  "round_id": 2,
+  "final_verdict": "MERGE_PARTIAL",
+  "per_task_findings": [
+    {
+      "task_id": "T1",
+      "ac_status": [
+        {
+          "ac_id": "AC1",
+          "status": "FULFILLED",
+          "evidence": "npm test exit 0"
+        }
+      ],
+      "disposition": "ACCEPT",
+      "patch_isolation": {
+        "patch_or_commit_present": true,
+        "dependencies_accepted": true,
+        "applies_without_rejected_hunks": true,
+        "shared_setup_task_accepted": true
+      }
+    },
+    {
+      "task_id": "T2",
+      "ac_status": [
+        {
+          "ac_id": "AC1",
+          "status": "UNKNOWN",
+          "evidence": "no runner evidence"
+        }
+      ],
+      "disposition": "REWORK",
+      "patch_isolation": {
+        "patch_or_commit_present": false,
+        "dependencies_accepted": true,
+        "applies_without_rejected_hunks": false,
+        "shared_setup_task_accepted": true
+      }
+    }
+  ],
+  "merge_partial": {
+    "accept_task_ids": [
+      "T1"
+    ],
+    "rework_task_ids": [
+      "T2"
+    ],
+    "prune_task_ids": [],
+    "respec_task_ids": []
+  },
+  "action_plan": [
+    {
+      "owner": "WORKER",
+      "task_id": "T2",
+      "action": "Re-run verify and capture hashed evidence",
+      "verify": "npm test"
+    }
+  ],
+  "run_state_update": {
+    "accepted_task_ids": [
+      "T1"
+    ],
+    "rework_task_ids": [
+      "T2"
+    ],
+    "deferred_task_ids": [],
+    "closed_task_ids": [
+      "T1"
+    ]
+  },
+  "workflow": {
+    "dir": ".agent-surface/workflows/run-fixture-001",
+    "file": "judger.json",
+    "owner": "workflow-judger",
+    "run_id": "run-fixture-001",
+    "round_id": 2,
+    "parent_artifact_hashes": [
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ],
+    "next_command": "dev-feature"
+  }
+}

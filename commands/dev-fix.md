@@ -164,8 +164,8 @@ if (!user.hasCard) {
 
 1. Regression proof first — failing automated test when feasible; otherwise record infeasibility and equivalent verification for every task in the batch.
 2. Minimal patch only. Don't refactor neighboring code while you're in there.
-3. In workflow mode, write the worker artifact to `.agent-surface/workflows/<run_id>/worker.json` before handing off to `workflow-reviewer`.
-4. In workflow mode, write only `worker.json`, per-task patch manifests, runner evidence files, and this role's event; never modify another role file.
+3. In workflow mode, write the worker artifact to `.agent-surface/workflows/<run_id>/worker.json`, then advance the ledger with `agent-surface workflow apply --role dev-fix --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json` before handing off to `workflow-reviewer`. Do not hand-edit `run.json`.
+4. In workflow mode, write only `worker.json`, per-task patch manifests, runner evidence files, and this role's event; never modify another role file. The transition event is appended by `workflow apply`, not by hand.
 5. **BURN THE QUEUE** but stop on the first hard blocker after applying blocker discipline. Don't skip a failing fix to do the next one — that creates partial-merge ambiguity.
 6. **STOP SOONER UNDER PRESSURE**: ≥30 distinct files, ≥5 verify cycles, or context degradation → stop with `stop_reason=context_pressure` even if no blocker.
 7. **PATCH ISOLATION REQUIRED**: Every completed fix needs `agent-surface workflow patch begin/end/verify` output: patch, hash, tree hashes, name-status, and clean-apply proof. Without it, reviewer must reject partial-merge claims.

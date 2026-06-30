@@ -1,0 +1,128 @@
+{
+  "schema_version": "workflow.v3",
+  "run_id": "run-fixture-001",
+  "round_id": 0,
+  "goal": "Harden the workflow ledger so the next-command pointer never lags accepted reviewer state.",
+  "branch": "main",
+  "base_commit": "0000000000000000000000000000000000000000",
+  "base_tree_hash": "1111111111111111111111111111111111111111",
+  "dirty_baseline": false,
+  "filescope": {
+    "allowed": [
+      "scripts/agent-surface.mjs"
+    ],
+    "forbidden": [
+      ".agent-surface/workflows/run-fixture-001"
+    ],
+    "protected": [
+      "package.json"
+    ]
+  },
+  "requirements": [
+    {
+      "id": "R1",
+      "quote": "next-command state lagged the accepted reviewer ledger",
+      "interpretation": "run.json must advance on every role transition",
+      "satisfied_by": [
+        "T1"
+      ]
+    }
+  ],
+  "assumptions": [],
+  "context_capsule": {
+    "inspected_files": [
+      "scripts/agent-surface.mjs"
+    ],
+    "commands_run": [
+      "npm run check"
+    ],
+    "decisions": [
+      "apply is the single ledger-advance mechanism"
+    ],
+    "discarded_options": [],
+    "open_questions": [],
+    "contract_changes": []
+  },
+  "tasks": [
+    {
+      "task_id": "T1",
+      "title": "Advance run ledger on worker handoff",
+      "description": "Extend workflow apply to sync run.json after the worker writes its artifact.",
+      "filescope": {
+        "allowed": [
+          "scripts/agent-surface.mjs"
+        ],
+        "forbidden": []
+      },
+      "depends_on": [],
+      "isolation": "serial_required",
+      "suggested_runtime": "claude-code",
+      "subagent_suitable": false,
+      "patch_required": true,
+      "plan": [
+        {
+          "step_id": 1,
+          "title": "Add worker roles to apply",
+          "description": "Map worker owners to the worker schema.",
+          "deliverable": "apply accepts dev-* roles",
+          "touches": [
+            "scripts/agent-surface.mjs"
+          ]
+        }
+      ],
+      "ac": [
+        {
+          "id": "AC1",
+          "type": "functional",
+          "text": "run.json.workflow_next_command becomes workflow-reviewer after worker apply",
+          "verify": "npm test"
+        }
+      ],
+      "verify": [
+        {
+          "cmd": "npm test",
+          "class": "build_test",
+          "timeout_ms": 120000
+        }
+      ],
+      "risk_notes": []
+    }
+  ],
+  "batch_policy": {
+    "stop_on": [
+      "blocker",
+      "context_pressure",
+      "queue_empty",
+      "max_tasks_cap",
+      "drift_check"
+    ],
+    "context_pressure_threshold_pct": 70,
+    "max_tasks_per_round": 3,
+    "drift_check_every": 5,
+    "timeout_budget_ms": 1800000
+  },
+  "run_state": {
+    "active_task_ids": [
+      "T1"
+    ],
+    "accepted_task_ids": [],
+    "rework_task_ids": [],
+    "deferred_task_ids": [],
+    "closed_task_ids": []
+  },
+  "risk": {
+    "level": "medium",
+    "sandbox_required": false,
+    "notes": []
+  },
+  "workflow": {
+    "dir": ".agent-surface/workflows/run-fixture-001",
+    "file": "boss.json",
+    "owner": "workflow-boss",
+    "run_id": "run-fixture-001",
+    "round_id": 0,
+    "parent_artifact_hashes": [],
+    "route": "feature",
+    "next_command": "dev-feature"
+  }
+}

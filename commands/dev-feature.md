@@ -307,6 +307,7 @@ Before outputting, verify:
   - Include each task's self-audit in its own `tasks_processed` entry.
   - Set the next recommended command to `workflow-reviewer`.
   - Preserve `boss.workflow.run_id` in `worker.json.workflow.run_id`.
+  - Advance the ledger with `agent-surface workflow apply --role dev-feature --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`. This appends the transition event and sets `run.json.workflow_next_command = workflow-reviewer`. Do not hand-edit `run.json`; a worker artifact without an apply leaves the ledger lagging and fails `workflow-doctor`.
   - Do not force a commit before reviewer handoff unless the user explicitly requests it.
   - Do not dump the `worker.json` contents in chat; summarize: `Round done: M/N tasks completed; stop_reason=<reason>; next: workflow-reviewer`.
 - **Workflow mode OFF**:

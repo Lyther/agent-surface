@@ -50,9 +50,7 @@
         "type": "object",
         "required": [
           "task_id",
-          "status",
-          "reason",
-          "evidence_refs"
+          "status"
         ],
         "properties": {
           "task_id": {
@@ -62,7 +60,8 @@
             "enum": [
               "PASS",
               "REJECT",
-              "DEFERRED"
+              "DEFERRED",
+              "UNKNOWN"
             ]
           },
           "reason": {
@@ -76,7 +75,7 @@
             }
           }
         },
-        "additionalProperties": false
+        "additionalProperties": true
       }
     },
     "run_state_update": {
@@ -199,5 +198,5 @@
       "additionalProperties": false
     }
   },
-  "additionalProperties": false
+  "additionalProperties": true
 }

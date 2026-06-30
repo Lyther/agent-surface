@@ -45,20 +45,22 @@ Durable workflow authority lives in `.agent-surface/workflows/<run_id>/run.json`
 ## MONITOR DUTIES
 
 1. Resolve `.agent-surface/workflows/current.json`, `run.json`, and the latest role files. If no valid active run exists, spawn `workflow-boss` to create one.
-2. Run `workflow-doctor` or equivalent structural validation before launching any role.
+2. Run `workflow-doctor` (and `agent-surface workflow doctor --run <run_id>`) or equivalent structural validation before launching any role. If the doctor fails because the artifact schema and the generated command contract disagree, that is a **tooling/process blocker**: fix the schema/doctor drift or route to workflow maintenance, and do not convert it into a code verdict against the worker. Keep the role schemas and the documented artifact shapes aligned so valid artifacts pass the doctor.
 3. Validate `run_id`, round, branch, lock, parent hashes, active task IDs, file scope, `run.json.workflow_next_command`, and artifact `workflow.next_command` before launching any role.
 4. Start by invoking `workflow-boss` unless an active run is already valid. Do not synthesize BOSS artifacts from monitor memory.
 5. Spawn or reuse a managed role session only when its `run_id`, command, role class, task scope, file scope, and base tree match the ledger.
 6. Choose the role, provider, model, session shape, and write access from the ledger route, task risk, local availability, quota, context size, quality/cost/speed tradeoff, prior outcomes, approval state, whether the role needs source writes, and whether external/headless provider diversity is available.
 7. Feed each role only the task spec, filescope, role contract, relevant role files, and redacted evidence refs it needs.
 8. Require heartbeat evidence for long-running sessions: current task, files touched, command running, last check result, current blocker, and latest artifact path.
-9. After a role writes its artifact, validate the file exists, update monitor state, and follow the next command from the ledger.
+9. After a role writes its artifact, run (or confirm the role ran) `agent-surface workflow apply --role <role> --run <run_id> --artifact <path>` so `run.json`, `events.ndjson`, and `current.json` advance before you route. Then re-read `run.json` and `events.ndjson` and **reconcile `agents.json`** — set the finished agent's `status` and `outcome_summary` (role_result from the applied ledger, wall time, tokens, cost, model id), mark superseded sessions `stale`, and only then follow the next command. `agents.json` is a derived projection of the ledger plus live session state; it must be reconciled on every transition, not written once at spawn and forgotten.
 10. Mark lost, mismatched, or superseded sessions as `stale` or `closed`. Stale session memory must never override a fresh role artifact.
 11. Continue until `workflow-close` finishes the run, automation reaches `requires_human: true`, or the run is explicitly quarantined or aborted. Do not stop just because one role session returned.
 
 ## AGENT REGISTRY
 
 When the monitor spawns or reuses agents, keep `.agent-surface/workflows/<run_id>/agents.json`. This file is project-local workflow state and must not be committed.
+
+Reconcile it on every transition, not only at spawn. The most common monitor defect is writing one agent entry at the first worker launch and then never updating it: the registry goes stale after the first handoff, so heartbeats, outcomes, and stale-session detection silently stop. Treat `agents.json` as a projection of `run.json` + `events.ndjson` + live session state, and rewrite the affected agent entries after every spawn, heartbeat, apply, handoff, failure, and close.
 
 Minimum shape:
 
@@ -108,6 +110,7 @@ Minimum shape:
         "tokens_out": null,
         "thinking_present": null,
         "thinking_persisted": false,
+        "downstream_outcome": "verdict the next role gave this output (e.g. reviewer PASS, judger MERGE) or null until known",
         "blind_spots": [],
         "lesson": "short reusable lesson or null"
       },
@@ -219,7 +222,14 @@ Optimize the workflow, not a single role. Model choice is a trade-off across:
 
 Do not always choose the highest-quality model. Use expensive frontier models where failure cost is high; use cheaper or faster models for bounded worker tasks, routine chores, shadow reviews, and exploration after local probes support the speed/quality trade-off. A premium model that creates perfect code too slowly or expensively can still be the wrong orchestration choice.
 
-Do not assign the same model family to worker and reviewer for non-trivial work when an approved alternative exists. If the worker used `gpt-5.5`, prefer Claude, Gemini, DeepSeek, Kimi, GLM, or another independent reviewer candidate; if the worker used Claude, prefer OpenAI, Gemini, DeepSeek, Kimi, GLM, or another independent reviewer candidate. If forced to reuse the same family, record the reason and require stricter evidence validation.
+Do not assign the same model family to worker and reviewer for non-trivial work when an approved alternative exists. If the worker used `gpt-5.5`, prefer Claude (`claude-opus-4-8`, `claude-sonnet-4-6`), Gemini, DeepSeek, Kimi, GLM, or another independent reviewer candidate; if the worker used Claude, prefer OpenAI, Gemini, DeepSeek, Kimi, GLM, Grok, or another independent reviewer candidate. If forced to reuse the same family, record the reason and require stricter evidence validation.
+
+Independence is judged by the **probed** model's `independence_group`, not by the runtime label. A run that routes worker, reviewer, and judger all through Codex/GPT (or all through one Ollama gateway model) is **not** independent even though three different CLIs were used. Before accepting a non-trivial batch, compute the effective independence groups of the worker and the reviewing roles from `agents.json.selection_snapshot.independence_group`. If they collapse to one family:
+
+- For low/medium-risk batches: record an `independence: degraded` note in the run and apply stricter evidence validation (log/hash re-checks, smaller batches).
+- For P0 / high-risk batches (auth, crypto, money, data deletion, migrations, security-fix, release-gating, or any task flagged `risk.level: high`): a same-family review is insufficient. Require a **second independent QA pass** from a different provider family (route `qa-review`/`qa-sec`/`qa-trace` to a non-worker-family model, or a human reviewer) before the judger may MERGE. If no independent family is available or approved, stop with `requires_human: true` rather than accepting on a same-family review.
+
+Add the chosen reviewer/judger/QA independence group and the worker group to the run notes so the calibration loop can spot a route that silently stayed single-family across rounds.
 
 Match model signals to the role instead of collapsing everything into one leaderboard rank:
 
@@ -243,9 +253,14 @@ Match model signals to the role instead of collapsing everything into one leader
 
 The orchestrator must learn from each run without treating anecdotes as permanent truth.
 
-1. Before launch, record a `selection_snapshot` in `agents.json`: model id, provider, role, quality/cost/speed/context/tool-fit tiers, independence group, selection reason, approval ref, and source refs.
+1. Before launch, record a `selection_snapshot` in `agents.json`: the **exact resolved model id** (the one the probe proved, not the requested alias or display name), provider, role, quality/cost/speed/context/tool-fit tiers, independence group, selection reason, approval ref, and source refs. A null/unknown model id is a measurement gap, not a default — record it as such and prefer conservative routing.
 2. During the run, record heartbeats with wall time, context pressure, commands, checks, retries, and drift/blocker notes.
-3. After role completion, update `outcome_summary`: accepted/partial/rejected/failed, wall time, estimated cost or token counters when available, thinking mode and whether a thinking field was present, evidence quality, reviewer findings, blind spots, and a one-line lesson.
+3. After role completion, update `outcome_summary` with the fields needed for robust routing learning. Capture each as a real value or an explicit `unknown` with a reason — silent omission is the telemetry gap the calibration loop cannot recover from:
+   - `role_result` (accepted/partial/rejected/failed/stale) and `wall_time_seconds`.
+   - `tokens_in` / `tokens_out` and `estimated_cost_usd` — map to OpenTelemetry GenAI fields when the runtime emits them (`gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.client.operation.duration`); Codex/Gemini/Grok JSON and the Ollama API expose token counters, so prefer real counts over estimates.
+   - `thinking_present` / `thinking_persisted` (record presence only — never persist trace text).
+   - `downstream_outcome`: the verdict the next role gave this agent's output (e.g. reviewer PASS/REJECT for a worker, judger MERGE/REWORK for a reviewer). Backfill it onto the upstream agent's `outcome_summary` after the downstream role applies, so a model is scored by what its work actually earned, not just by whether it returned.
+   - `blind_spots` and a one-line reusable `lesson`.
 4. On future assignments, prefer models with good local outcomes for the same role and risk class, but reserve some low-risk tasks for exploration when the queue has enough slack.
 5. Promote a model only after repeated local wins: clean patch, low rework, good evidence, acceptable cost, and no repeated blind spots.
 6. Demote a model or batch policy for repeated scope drift, missing evidence, over-eager PASS verdicts, broken tool use, excessive latency, excessive cost, lower clean-pass rate, higher rework loops, more judger escalations, or repeated user/reviewer corrections.

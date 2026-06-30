@@ -63,16 +63,6 @@
           ],
           "notes": "First-party secretless MCP services are generated/merged; external or secret-bearing MCPs remain opt-in."
         },
-        "skills": {
-          "support": "native",
-          "generation": "not-generated",
-          "scope": [
-            "user",
-            "project"
-          ],
-          "paths": [],
-          "notes": "Command sources already render as native commands for this target."
-        },
         "external": {
           "support": "native",
           "generation": "generated",
@@ -575,7 +565,7 @@
       }
     },
     "kilo": {
-      "summary": "Kilo supports workflows, instructions, subagents, skills, MCP, and ignore files; agent-surface generates workflows, AGENTS/rule files, subagents, ignore files, and a safe kilo.jsonc instructions merge.",
+      "summary": "Kilo supports workflows, instructions, subagents, skills, MCP, and ignore files; agent-surface generates workflows, AGENTS/rule files, subagents, ignore files, and a safe kilo.jsonc merge.",
       "generated_render_tokens": [
         "commands-as-workflows",
         "rules",
@@ -650,16 +640,6 @@
             ".kilocodeignore"
           ],
           "notes": "Ignore output is project-only."
-        },
-        "skills": {
-          "support": "native",
-          "generation": "manual",
-          "scope": [
-            "user",
-            "project"
-          ],
-          "paths": [],
-          "notes": "Native skills are separate SKILL.md directories and not synthesized from command workflows."
         },
         "mcp": {
           "support": "native",
@@ -1083,7 +1063,7 @@
       }
     },
     "droid": {
-      "summary": "Factory Droid supports .factory commands, droids, instructions, MCP, and skills; agent-surface generates the core .factory surfaces plus optional external skill packs when submodules are present.",
+      "summary": "Factory Droid supports .factory commands, droids, instructions, MCP, and skills; agent-surface generates the core .factory surfaces and optional external skill packs when submodules are present.",
       "generated_render_tokens": [
         "commands",
         "rules",
@@ -1157,7 +1137,7 @@
           "paths": [
             ".factory/skills/<skill>/..."
           ],
-          "notes": "External packs are optional and render only when the corresponding submodule checkout exists."
+          "notes": "External packs are optional and render only when the corresponding submodule checkout exists and the service declares skill_roots."
         }
       }
     },
@@ -1368,7 +1348,7 @@
             "~/.agents/skills/<skill>/...",
             ".agents/skills/<skill>/..."
           ],
-          "notes": "External Agent Skills mirror into Zed-compatible skill roots."
+          "notes": "External Agent Skills mirror into Zed-compatible skill roots only when the service declares skill_roots."
         },
         "mcp": {
           "support": "native",

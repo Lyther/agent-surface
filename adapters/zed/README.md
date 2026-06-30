@@ -14,5 +14,6 @@ Generates Zed-compatible Agent Skills and instruction files.
 ## Notes
 
 - Zed discovers Agent Skills from `.agents/skills/` and `~/.agents/skills/`.
+- External skill packs render only when the optional-service entry declares `skill_roots`. `anthropic-cybersecurity-skills` is kept as a pinned source asset but is not emitted into Zed skill roots by default.
 - First-party Synapse MCP wiring is generated and safely merged. External or secret-bearing MCPs remain opt-in.
 - Generated instructions bundle only always-on rules. Scoped language policies are reference files for project-aware commands.

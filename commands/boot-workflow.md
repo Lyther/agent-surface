@@ -206,6 +206,18 @@ Minimum `run.json`:
 }
 ```
 
+### Ledger advance (required after every role artifact)
+
+`run.json` is a derived projection of the role artifacts plus `events.ndjson`. It does not update itself. After a role writes its artifact, advance the ledger with one mechanical step instead of hand-editing `run.json`:
+
+```bash
+agent-surface workflow apply --role <role> --run <run_id> --artifact .agent-surface/workflows/<run_id>/<role-file>.json
+```
+
+`workflow apply` validates the artifact against its schema, appends the canonical transition event to `events.ndjson` (`from` = prior `workflow_next_command`, `to` = artifact `workflow.next_command`), moves task IDs per `run_state_update` (or `run_state` for a fresh `workflow-boss` queue), sets `run.json.workflow_next_command`, refreshes `current.json`, and records the artifact hash in `last_artifact_hashes`. It is idempotent for a given artifact and is the single supported way to move the run forward. Supported roles: `workflow-boss`, `dev-feature`, `dev-fix`, `dev-chore`, `dev-refactor`, `workflow-reviewer`, `workflow-judger`, `workflow-rescue`.
+
+`workflow-boss` may initialize `run.json`/`current.json`/`lock` directly when creating a run; every later transition must go through `workflow apply`. A role that writes an artifact but skips `workflow apply` leaves `run.json.workflow_next_command` lagging the accepted ledger — `workflow-doctor` now fails closed when the last `events.ndjson` transition disagrees with `run.json.workflow_next_command`.
+
 Minimum expectations (v3):
 
 - **boss**: full BOSS JSON v3 — goal, branch/base binding, batch-level FILESCOPE, `tasks[]` (each with narrowed FILESCOPE, AC taxonomy, verify, depends_on, risk_notes), `batch_policy` (`stop_on`, `context_pressure_threshold_pct`, `max_tasks_per_round`, `drift_check_every`, `timeout_budget_ms`), route, and next handoff.
@@ -265,6 +277,7 @@ Snapshot date: 2026-06-25. Refresh before real assignment.
 | Runtime | Local status | Verified launch shape | Models observed locally | Caveats |
 | --- | --- | --- | --- | --- |
 | Codex | `codex-cli 0.135.0`; smoke returned `OK` | `codex exec -C "$repo" -s read-only --ephemeral --ignore-rules --json -o "$out" "Reply OK only."` | GPT family through Codex; use `-m <model>` when pinning | JSONL can include high token usage; plugin/MCP warnings are not launch failure by themselves |
+| Claude Code | `claude` CLI present; smoke returns `OK` | `claude -p "Reply OK only." --model claude-opus-4-8 --output-format json` (add `--permission-mode plan` for read-only) | `claude-opus-4-8` (Opus 4.8), `claude-sonnet-4-6` (Sonnet 4.6), `claude-haiku-4-5-20251001` (Haiku 4.5), `claude-fable-5` (Fable 5) | Anthropic independence group; strong reviewer/judger when the worker is GPT/Gemini/Grok. `--output-format stream-json` for incremental; verify the resolved model in the result JSON rather than trusting the alias |
 | Kilo | `7.2.52`; CLI present, model commands currently blocked by local config validation | `kilo run --dir "$repo" --model provider/model --agent code --format json --variant high "$prompt"` | Config declares ByteLLM, Ollama Cloud, and xAI providers | Current `~/.config/kilo/kilo.jsonc` has invalid top-level keys `subagent_model` and `subagent_variant_overrides`; fix config before assignment |
 | Ollama | Server `0.30.7`, client `0.30.10`; API smoke returned `OK` | `curl -sS http://localhost:11434/api/generate -d '{"model":"kimi-k2.6:cloud","prompt":"Reply OK only.","stream":false,"think":false}'` | `glm-5.2:cloud`, `kimi-k2.7:cloud`, `deepseek-v4-pro:cloud`, `minimax-m3:cloud`, `deepseek-v4-flash:cloud` | `think:false` disables thinking; `--hidethinking` only hides trace. Set enough output budget for thinking models |
 | Antigravity CLI | `agy 1.0.12`; smoke works; plugin validation works | `agy --print --model gemini-3-flash --print-timeout 30s "Reply OK only."` | `agy models` lists Gemini 3.5 Flash, Gemini 3.1 Pro, Claude Sonnet 4.6 Thinking, Claude Opus 4.6 Thinking, GPT-OSS 120B | Local `--model` attempts fell back to Gemini 3.5 Flash; do not trust pinning until a probe proves the actual model |
@@ -288,6 +301,19 @@ codex exec \
 ```
 
 Use `-s workspace-write` only when the role is authorized to edit. Use `--output-schema` when the role must return a machine-validated artifact. Use `--oss --local-provider ollama` only after probing the local Ollama provider path.
+
+#### Claude Code
+
+Use the `claude` CLI for the Anthropic independence group: high-trust planning (BOSS), hard implementation, and — most usefully — reviewer/judger passes when the worker ran on a non-Anthropic family (GPT/Codex, Gemini, Grok, GLM, Kimi, DeepSeek). Claude is strong on reasoning and evidence discipline, which fits the reviewing roles.
+
+```bash
+claude -p "$prompt" \
+  --model "$CLAUDE_MODEL" \
+  --output-format json \
+  --permission-mode plan
+```
+
+Current model ids: `claude-opus-4-8` (Opus 4.8, highest-trust planning/review), `claude-sonnet-4-6` (Sonnet 4.6, balanced worker/review), `claude-haiku-4-5-20251001` (Haiku 4.5, cheap/fast shadow QA, extraction, formatting), `claude-fable-5` (Fable 5). Use `--permission-mode plan` (or omit write tools) for read-only review roles; grant edit permissions only for an authorized worker role. Confirm the resolved model in the result JSON — do not trust that the alias pinned. Opus 4.8 also offers a faster output mode; it does not downgrade to a smaller model. Default reviewer/judger to a Claude tier distinct from the worker's family.
 
 #### Kilo
 
@@ -362,10 +388,12 @@ Use `-m grok-composer-2.5-fast` only after confirming entitlement and launch beh
 
 | Situation | Preferred routing |
 | --- | --- |
-| Complex cross-file design or task decomposition | Codex GPT family or Kilo ByteLLM high-tier as BOSS; no implementation writes |
-| Low-risk scoped implementation | Kilo, Ollama Cloud, or Grok Build worker if current smoke passes; Codex for harder patches |
-| Reviewer after OpenAI/Codex worker | Kilo non-OpenAI provider, Ollama Cloud, Antigravity Gemini/Claude if pinning is proven, or Grok Build |
-| Reviewer after Grok/Kilo/Ollama worker | Codex GPT family or another independent strong model |
+| Complex cross-file design or task decomposition | Codex GPT family, Claude Code `claude-opus-4-8`, or Kilo ByteLLM high-tier as BOSS; no implementation writes |
+| Low-risk scoped implementation | Kilo, Ollama Cloud, Grok Build, or Claude Code `claude-sonnet-4-6` worker if current smoke passes; Codex or `claude-opus-4-8` for harder patches |
+| Reviewer after OpenAI/Codex worker | Claude Code (`claude-opus-4-8`/`claude-sonnet-4-6`), Kilo non-OpenAI provider, Ollama Cloud, Antigravity Gemini/Claude if pinning is proven, or Grok Build |
+| Reviewer after Claude worker | Codex GPT family, Gemini, Grok Build, or another independent strong model — not another Claude tier |
+| Reviewer after Grok/Kilo/Ollama worker | Codex GPT family, Claude Code, or another independent strong model |
+| P0 / high-risk final QA | A second pass from a provider family distinct from the worker (e.g. Claude after Codex, Codex after Claude); if none is available, stop with `requires_human: true` |
 | Bulk non-blocking exploration | Use `ops-swarm` with multiple runtimes in parallel, each with bounded filescope and evidence |
 | Sensitive repo data or secrets nearby | Prefer local/current-session review or explicitly approved runtime; do not send secrets to external services |
 
