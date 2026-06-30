@@ -240,6 +240,30 @@ try {
 }
 assert.equal(run(["check"]).trim(), "check: ok");
 
+// served_by invariant: a served pack must stay a pinned source-pack with NO skill_roots
+// (so it never leaks into a host startup catalog), and must name a real first-party MCP.
+try {
+  const mutated = JSON.parse(optionalServicesOriginal);
+  mutated.services["anthropic-cybersecurity-skills"].skill_roots = ["external/anthropic-cybersecurity-skills/skills/*"];
+  writeFileSync(optionalServicesPath, `${JSON.stringify(mutated, null, 2)}\n`);
+  const r = status(["check"]);
+  assert.equal(r.status, 1, "served pack regaining skill_roots must fail check");
+  assert.match(`${r.stdout}${r.stderr}`, /served pack anthropic-cybersecurity-skills must not declare skill_roots/);
+} finally {
+  writeFileSync(optionalServicesPath, optionalServicesOriginal);
+}
+try {
+  const mutated = JSON.parse(optionalServicesOriginal);
+  mutated.services["anthropic-cybersecurity-skills"].served_by = ["claude-osint"]; // not an mcp service
+  writeFileSync(optionalServicesPath, `${JSON.stringify(mutated, null, 2)}\n`);
+  const r = status(["check"]);
+  assert.equal(r.status, 1, "served_by must reference a first-party mcp service");
+  assert.match(`${r.stdout}${r.stderr}`, /server "claude-osint" must be a first-party mcp service/);
+} finally {
+  writeFileSync(optionalServicesPath, optionalServicesOriginal);
+}
+assert.equal(run(["check"]).trim(), "check: ok");
+
 const inventory = run(["inventory"]);
 assert.match(inventory, /^rules: 12$/m);
 assert.match(inventory, /^commands: 66$/m);
@@ -328,6 +352,19 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
 
 run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
+assert.equal(generated.some((file) => file.includes(`${path.sep}agent-surface-cybersecurity${path.sep}`)), false);
+assert.equal(generated.some((file) => file.includes(`${path.sep}conducting-cloud-penetration-testing${path.sep}`)), false);
+const anthropicCybersecuritySkillRoot = path.join(root, "external", "anthropic-cybersecurity-skills", "skills");
+if (existsSync(anthropicCybersecuritySkillRoot)) {
+  const anthropicCybersecuritySkillNames = readdirSync(anthropicCybersecuritySkillRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .filter((entry) => existsSync(path.join(anthropicCybersecuritySkillRoot, entry.name, "SKILL.md")))
+    .map((entry) => entry.name);
+  assert.notEqual(anthropicCybersecuritySkillNames.length, 0);
+  for (const skillName of anthropicCybersecuritySkillNames) {
+    assert.equal(generated.some((file) => file.includes(`${path.sep}${skillName}${path.sep}SKILL.md`) || file.endsWith(`${path.sep}${skillName}.md`)), false);
+  }
+}
 assertCodexAgentTomlParses();
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "ops", "swarm.md"))), true);
@@ -340,6 +377,7 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", "
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "ops-swarm", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "workflow-orchestrator", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "boot-concept", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "conducting-cloud-penetration-testing", "SKILL.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "ops-flow", "agents", "openai.yaml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "references", "rules", "10-python.md"))), true);
@@ -349,12 +387,16 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagent
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagents", ".deepagents", "agent", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagents", ".deepagents", "agent", "agents", "worker", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagents", ".deepagents", "agent", "agents", "boss", "AGENTS.md"))), false);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "skills", "conducting-cloud-penetration-testing", "SKILL.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "goose", "recipes", "ops-flow.yaml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "grok-build", ".grok", "skills", "ops-flow", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "grok-build", ".grok", "skills", "conducting-cloud-penetration-testing", "SKILL.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "grok-build", ".grok", "skills", "red-team-command-doctrine", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pi", ".pi", "agent", "skills", "ops-flow", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pi", ".pi", "agent", "AGENTS.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pi", ".pi", "agent", "skills", "conducting-cloud-penetration-testing", "SKILL.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pool", ".config", "poolside", "skills", "ops-flow", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pool", ".config", "poolside", "skills", "conducting-cloud-penetration-testing", "SKILL.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "pool", ".config", "poolside", ".poolside"))), true);
 assert.equal(generated.some((file) => file.includes(`${path.sep}dist${path.sep}gemini-cli${path.sep}`)), false);
 assert.equal(generated.some((file) => file.includes(`${path.sep}.gemini${path.sep}extensions${path.sep}agent-surface${path.sep}`)), false);
@@ -372,6 +414,7 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity", "global_workflows", "ops-flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "config", "plugins", "agent-surface", "plugin.json"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "config", "plugins", "agent-surface", "skills", "ops-flow.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "config", "plugins", "agent-surface", "skills", "conducting-cloud-penetration-testing", "SKILL.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "config", "plugins", "agent-surface", "agents", "boss.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "config", "plugins", "agent-surface", "rules", "00-precedence-and-safety.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "config", "plugins", "agent-surface", "references", "rules", "10-python.md"))), true);
@@ -383,6 +426,7 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "droid", "
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "droid", ".factory", "references", "rules", "10-python.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "droid", ".factory", "droids", "boss.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "droid", ".factory", "mcp.json"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "droid", ".factory", "skills", "conducting-cloud-penetration-testing", "SKILL.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "droid", ".factory", "skills", "karpathy-guidelines", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "droid", ".factory", "skills", "ctf-web", "server-side-exec.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "copilot", "instructions", "agent-surface-copilot.instructions.md"))), true);
@@ -394,7 +438,9 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "opencode"
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "trae", ".trae", "user_rules.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "windsurf", ".codeium", "windsurf", "global_workflows", "ops-flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "windsurf", ".codeium", "windsurf", "memories", "global_rules.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "windsurf", ".codeium", "windsurf", "skills", "conducting-cloud-penetration-testing", "SKILL.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "zed", ".agents", "skills", "ops-flow", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "zed", ".agents", "skills", "conducting-cloud-penetration-testing", "SKILL.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "zed", ".config", "zed", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursorignore"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".kilocodeignore"))), true);
@@ -418,6 +464,8 @@ assert.deepEqual(kiloPreviewConfig.instructions, [
   "./rules/05-tooling.md",
   "./rules/06-test-policy.md",
 ]);
+assert.equal(Object.hasOwn(kiloPreviewConfig, "skills"), false);
+assert.equal(Object.hasOwn(kiloPreviewConfig, "permission"), false);
 const ignoresCheck = run(["check", "ignores"]);
 assert.match(ignoresCheck, /ignores check: ok/);
 assert.match(ignoresCheck, /emitters 3 \(cline, cursor, kilo\)/);
@@ -447,10 +495,10 @@ const deepagentsWorkerAgent = readFileSync(path.join(root, "dist", "deepagents",
 assert.match(deepagentsWorkerAgent, /^name: worker$/m);
 const kiloBossAgent = readFileSync(path.join(root, "dist", "kilo", ".config", "kilo", "agents", "boss.md"), "utf8");
 assert.match(kiloBossAgent, /bash: deny/);
-assert.match(kiloBossAgent, /skill: deny/);
+assert.doesNotMatch(kiloBossAgent, /skill: deny/);
 const kiloWorkerAgent = readFileSync(path.join(root, "dist", "kilo", ".config", "kilo", "agents", "worker.md"), "utf8");
 assert.match(kiloWorkerAgent, /bash: ask/);
-assert.match(kiloWorkerAgent, /skill: deny/);
+assert.doesNotMatch(kiloWorkerAgent, /skill: deny/);
 const opencodeBossAgent = readFileSync(path.join(root, "dist", "opencode", ".config", "opencode", "agents", "boss.md"), "utf8");
 assert.match(opencodeBossAgent, /edit: deny/);
 assert.match(opencodeBossAgent, /bash: deny/);
@@ -488,6 +536,19 @@ const vscodeMcp = JSON.parse(readFileSync(path.join(root, "dist", "vscode", "mcp
 assert.equal(vscodeMcp.servers.synapse.command, "~/.local/bin/synapse-bridge");
 const zedMcp = JSON.parse(readFileSync(path.join(root, "dist", "zed", ".config", "zed", "settings.json"), "utf8"));
 assert.equal(zedMcp.context_servers.synapse.command, "~/.local/bin/synapse-bridge");
+// First-party grimoire MCP is auto-wired by default across every host config family (P3 distribution).
+assert.equal(droidMcp.mcpServers.grimoire.command, "~/.local/bin/grimoire-server");
+assert.equal(droidMcp.mcpServers.grimoire.type, "stdio");
+assert.deepEqual(droidMcp.mcpServers.grimoire.args, []);
+assert.equal(claudeMcp.mcpServers.grimoire.command, "~/.local/bin/grimoire-server");
+assert.match(codexMcp, /\[mcp_servers\.grimoire\]/);
+assert.match(codexMcp, /command = "~\/\.local\/bin\/grimoire-server"/);
+assert.equal(deepagentsMcp.mcpServers.grimoire.command, "~/.local/bin/grimoire-server");
+assert.equal(cursorMcp.mcpServers.grimoire.command, "~/.local/bin/grimoire-server");
+assert.deepEqual(kiloMcp.mcp.grimoire.command, ["~/.local/bin/grimoire-server"]);
+assert.deepEqual(opencodeMcp.mcp.grimoire.command, ["~/.local/bin/grimoire-server"]);
+assert.equal(vscodeMcp.servers.grimoire.command, "~/.local/bin/grimoire-server");
+assert.equal(zedMcp.context_servers.grimoire.command, "~/.local/bin/grimoire-server");
 const sourceKinds = JSON.parse(readFileSync(path.join(root, "registry", "source-kinds.json"), "utf8"));
 assert.equal(Object.hasOwn(sourceKinds.source_kinds, "mcps"), false);
 assert.equal(Object.hasOwn(sourceKinds.source_kinds, "subagents"), true);
@@ -577,8 +638,9 @@ assert.match(droidPlan, /\.factory\/commands\/workflow-boss\.md <- commands\/wor
 assert.match(droidPlan, /AGENTS\.md <- rules\/\*\.mdc/);
 assert.match(droidPlan, /\.factory\/references\/rules\/10-python\.md <- rules\/10-python\.mdc/);
 assert.match(droidPlan, /\.factory\/droids\/boss\.md <- subagents\/boss\.md/);
-assert.match(droidPlan, /\.factory\/mcp\.json MCP \+= synapse/);
-assert.doesNotMatch(droidPlan, /\.factory\/skills\/karpathy-guidelines\/SKILL\.md/);
+assert.match(droidPlan, /\.factory\/mcp\.json MCP \+= grimoire, synapse/);
+// External assets are part of the default distribute: a full install emits in-scope packs.
+assert.match(droidPlan, /\.factory\/skills\/karpathy-guidelines\/SKILL\.md <- external\/andrej-karpathy-skills\/skills\/karpathy-guidelines\/SKILL\.md/);
 
 const droidExternalPlan = run(["install", "--target", "droid", "--category", "external", "--dest", "/tmp/agent-surface-droid-external", "--dry-run"]);
 assert.match(droidExternalPlan, /^target: droid$/m);
@@ -594,8 +656,8 @@ assert.match(droidUserPlan, /\.factory\/commands\/workflow-boss\.md <- commands\
 assert.match(droidUserPlan, /\.factory\/AGENTS\.md <- rules\/\*\.mdc/);
 assert.match(droidUserPlan, /\.factory\/references\/rules\/10-python\.md <- rules\/10-python\.mdc/);
 assert.match(droidUserPlan, /\.factory\/droids\/boss\.md <- subagents\/boss\.md/);
-assert.match(droidUserPlan, /\.factory\/mcp\.json MCP \+= synapse/);
-assert.doesNotMatch(droidUserPlan, /\.factory\/skills\/pua\/SKILL\.md/);
+assert.match(droidUserPlan, /\.factory\/mcp\.json MCP \+= grimoire, synapse/);
+assert.match(droidUserPlan, /\.factory\/skills\/pua\/SKILL\.md/);
 
 const codexPlan = run(["install", "--target", "codex", "--dest", "/tmp/agent-surface-codex", "--dry-run"]);
 assert.match(codexPlan, /^target: codex$/m);
@@ -610,7 +672,7 @@ assert.match(deepagentsPlan, /\.deepagents\/skills\/workflow-boss\/SKILL\.md <- 
 assert.match(deepagentsPlan, /\.deepagents\/AGENTS\.md <- rules\/\*\.mdc/);
 assert.match(deepagentsPlan, /\.deepagents\/references\/rules\/10-python\.md <- rules\/10-python\.mdc/);
 assert.match(deepagentsPlan, /\.deepagents\/agents\/worker\/AGENTS\.md <- subagents\/worker\.md/);
-assert.match(deepagentsPlan, /\.deepagents\/\.mcp\.json MCP \+= synapse/);
+assert.match(deepagentsPlan, /\.deepagents\/\.mcp\.json MCP \+= grimoire, synapse/);
 
 const goosePlan = run(["install", "--target", "goose", "--dest", "/tmp/agent-surface-goose", "--dry-run"]);
 assert.match(goosePlan, /^target: goose$/m);
@@ -620,7 +682,31 @@ const grokBuildPlan = run(["install", "--target", "grok-build", "--dest", "/tmp/
 assert.match(grokBuildPlan, /^target: grok-build$/m);
 assert.match(grokBuildPlan, /\.grok\/skills\/workflow-boss\/SKILL\.md <- commands\/workflow-boss\.md/);
 assert.match(grokBuildPlan, /AGENTS\.md <- rules\/\*\.mdc/);
-assert.doesNotMatch(grokBuildPlan, /red-team-command-doctrine/);
+assert.match(grokBuildPlan, /\.grok\/skills\/red-team-command-doctrine\/SKILL\.md/);
+
+// Strict-sync (the de-scope / upstream-changed edge case): a full distribute prunes a
+// managed external skill that is no longer generated (pack de-scoped or removed upstream),
+// while regenerating the in-scope external packs. Seed a prior manifest with a ghost skill.
+const syncDest = "/tmp/agent-surface-strict-sync";
+rmSync(syncDest, { recursive: true, force: true });
+const ghostRel = path.join(".factory", "skills", "ghost-descoped-skill", "SKILL.md");
+const ghostPath = path.join(syncDest, ghostRel);
+const ghostContent = "---\nname: ghost-descoped-skill\ndescription: removed upstream\n---\nbody\n";
+mkdirSync(path.dirname(ghostPath), { recursive: true });
+writeFileSync(ghostPath, ghostContent);
+mkdirSync(path.join(syncDest, ".agent-surface"), { recursive: true });
+writeFileSync(
+  path.join(syncDest, ".agent-surface", "droid-manifest.json"),
+  `${JSON.stringify({
+    target: "droid",
+    managed: [{ target: "droid", output: ghostRel, sha256: sha256(ghostContent), managed_by: "agent-surface", version: "test" }],
+  }, null, 2)}\n`,
+);
+const syncPlan = run(["install", "--target", "droid", "--dest", syncDest, "--dry-run"]);
+assert.match(syncPlan, /planned stale managed removals:/);
+assert.match(syncPlan, /\.factory\/skills\/ghost-descoped-skill\/SKILL\.md/); // de-scoped pruned
+assert.match(syncPlan, /\.factory\/skills\/karpathy-guidelines\/SKILL\.md/); // in-scope regenerated, not pruned
+rmSync(syncDest, { recursive: true, force: true });
 
 const piPlan = run(["install", "--target", "pi", "--dest", "/tmp/agent-surface-pi", "--dry-run"]);
 assert.match(piPlan, /^target: pi$/m);
@@ -1037,6 +1123,9 @@ assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/00-precedence-and-saf
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/references\/rules\/14-shell\.md <- rules\/14-shell\.mdc/);
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/agents\/boss\.md <- subagents\/boss\.md/);
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/kilo\.jsonc instructions \+= \.\/rules\/00-precedence-and-safety\.md, .*\.\/rules\/06-test-policy\.md/);
+assert.doesNotMatch(kiloUserScope.stdout, /\.kilo\/skills/);
+assert.doesNotMatch(kiloUserScope.stdout, /skills\.paths/);
+assert.doesNotMatch(kiloUserScope.stdout, /permission\.skill/);
 assert.doesNotMatch(kiloUserScope.stdout, /kilo\.jsonc instructions \+= .*14-shell/);
 assert.match(kiloUserScope.stdout, /\.kilocodeignore \(project-scope only\)/);
 assert.doesNotMatch(kiloUserScope.stdout, /\.kilocodeignore <- ignores/);
@@ -1091,9 +1180,12 @@ writeFileSync(
 );
 run(["install", "--target", "kilo", "--dest", existingKiloDest]);
 const mergedKiloConfig = readFileSync(path.join(existingKiloDest, "kilo.jsonc"), "utf8");
+assert.equal(existsSync(path.join(existingKiloDest, ".kilo", "skills")), false);
 assert.match(mergedKiloConfig, /\/\/ keep this comment/);
 assert.match(mergedKiloConfig, /"marker": ",\]"/);
 assert.match(mergedKiloConfig, /"\.\/existing-rule\.md"/);
+assert.doesNotMatch(mergedKiloConfig, /"skills"/);
+assert.doesNotMatch(mergedKiloConfig, /"permission"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/agent-surface\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/00-core\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/10-python\.md"/);
@@ -1120,6 +1212,8 @@ assert.deepEqual(inlineKiloConfig.instructions, [
   ".kilo/rules/05-tooling.md",
   ".kilo/rules/06-test-policy.md",
 ]);
+assert.equal(Object.hasOwn(inlineKiloConfig, "skills"), false);
+assert.equal(Object.hasOwn(inlineKiloConfig, "permission"), false);
 assert.deepEqual(inlineKiloConfig.mcp.synapse.command, ["~/.local/bin/synapse-bridge"]);
 rmSync(inlineKiloDest, { recursive: true, force: true });
 
