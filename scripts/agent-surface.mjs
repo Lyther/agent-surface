@@ -2541,6 +2541,7 @@ function renderKiloSubagent(source) {
     "permission:",
     `  edit: ${mapped.edit}`,
     `  bash: ${mapped.bash}`,
+    "  skill: deny",
     `steps: ${mapped.steps}`,
     "---",
     "",

@@ -447,6 +447,10 @@ const deepagentsWorkerAgent = readFileSync(path.join(root, "dist", "deepagents",
 assert.match(deepagentsWorkerAgent, /^name: worker$/m);
 const kiloBossAgent = readFileSync(path.join(root, "dist", "kilo", ".config", "kilo", "agents", "boss.md"), "utf8");
 assert.match(kiloBossAgent, /bash: deny/);
+assert.match(kiloBossAgent, /skill: deny/);
+const kiloWorkerAgent = readFileSync(path.join(root, "dist", "kilo", ".config", "kilo", "agents", "worker.md"), "utf8");
+assert.match(kiloWorkerAgent, /bash: ask/);
+assert.match(kiloWorkerAgent, /skill: deny/);
 const opencodeBossAgent = readFileSync(path.join(root, "dist", "opencode", ".config", "opencode", "agents", "boss.md"), "utf8");
 assert.match(opencodeBossAgent, /edit: deny/);
 assert.match(opencodeBossAgent, /bash: deny/);
