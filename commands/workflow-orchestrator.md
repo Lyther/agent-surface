@@ -274,6 +274,15 @@ For thinking-capable runtimes, privacy and reasoning quality are separate decisi
 - Gemini JSON includes token counters for thoughts in `stats`; those are usage metrics, not chain-of-thought text. Record counts only when useful.
 - Grok JSON can include thought-like fields. Do not paste raw JSON into workflow artifacts without redaction.
 
+## SYNAPSE AGENT SEEDING (T2.7)
+
+When the monitor fans out concurrent role sessions, seed Synapse provenance so each concurrent agent gets a distinct identity and a shared project namespace:
+
+- Set `SYNAPSE_AGENT_ID` per spawned agent to a stable, distinct value (e.g. `<run_id>:<role>:<agent_id>` or the `agents.json` `agent_id`). Distinct ids keep lock ownership and provenance separate across concurrent workers; never reuse the monitor's own id for a spawned agent.
+- Set `SYNAPSE_PROJECT` to the shared project root for the whole run so concurrent agents in the same run write to the same project DB. Omit it only when a role is deliberately scoped to a different project.
+- Single-agent runs (one worker, no fan-out) are untouched: leave `SYNAPSE_AGENT_ID`/`SYNAPSE_PROJECT` unset and let the bridge derive identity from its pid and the project from the workspace root.
+- These are non-secret, process-local env values. They must never be persisted to `agents.json`, prompts, or committed artifacts; set them only on the spawned process environment.
+
 ## DISTRIBUTION
 
 `workflow-orchestrator` is a default-exported command. It must move through the normal agent-surface pipeline instead of manual copies:

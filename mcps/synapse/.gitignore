@@ -1,7 +1,5 @@
-# synapse MCP — .gitignore
 node_modules/
 dist/
 *.sqlite
-*.sqlite-wal
-*.sqlite-shm
-*.tick
+*.sqlite-*
+.DS_Store

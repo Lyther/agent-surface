@@ -214,6 +214,7 @@ State the detected mode in one line before proceeding (e.g., `Mode: kernel — c
 
 - Small PRs (≤ 400 LOC of meaningful change). Clear description. Link mission/spec/issue.
 - Do not open the PR if any 🔴 finding from `/qa:review` is unresolved.
+- Do not claim `stable`, `production-ready`, `release-ready`, `deployment-ready`, `E2E passed`, `100% implemented`, or `all features supported` in the commit body, PR/MR text, release notes, or reviewer handoff unless a scoped `verify-readiness` PASS artifact or explicitly equivalent real-run proof artifact exists. Otherwise use the narrower claim that was actually proven, such as `tests passed`, `local smoke passed`, or `install dry-run passed`.
 
 ## OUTPUT FORMAT
 
@@ -269,7 +270,8 @@ For **kernel mode**, replace the Execution block with `git format-patch …` and
 8. **PROTECTED BRANCHES**: No push, merge, or rebase onto `main`/`master`/`trunk`/`release/*` without explicit user authorization in the current turn or durable instructions.
 9. **NO AUTO-EMAIL**: `git send-email`, SMTP, or any patch broadcast requires explicit user authorization. Prepare locally, present recipient list, then stop.
 10. **NO AUTO-PUSH**: Same rule for `git push`. Print the command, wait for the green light.
-11. **HEURISTICS OVER HARD-CODES**: Treat the example commands as illustrations, not scripts. Pick the right tool for the detected stack (uv, cargo, go, kbuild). When the heuristic is ambiguous, ask.
+11. **NO READINESS OVERCLAIMS**: Broad readiness claims require `verify-readiness` PASS or equivalent real-run proof; otherwise state the narrower checks that passed.
+12. **HEURISTICS OVER HARD-CODES**: Treat the example commands as illustrations, not scripts. Pick the right tool for the detected stack (uv, cargo, go, kbuild). When the heuristic is ambiguous, ask.
 
 ## AI GUARDRAILS
 

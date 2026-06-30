@@ -2,159 +2,170 @@
 
 ## Status
 
-Status: PROPOSED
-Source concept: mcps/synapse/concept-zero.md
-Last updated: 2026-06-26
+Status: IMPLEMENTED (v0.4 core + distribution + robustness — HTTP sidecar + stdio bridge, realtime with coalescing, budgeted recall, autostart, non-destructive MCP merge into all 13 hosts, crash recovery, bridge roots routing). Remaining: live per-host transport smoke (T2.5 runbook) and pending-target wiring (P3.4). See [roadmap.md](roadmap.md).
+Source concept: mcps/synapse/concept-zero.md (HISTORICAL; this doc is the source of truth)
+Last updated: 2026-06-30
 
 ## Executive Decision
 
-`synapse` is a single, local-first MCP server (TypeScript, official `@modelcontextprotocol/sdk` pinned `<2`, `node:sqlite` in WAL) whose **system of record is one append-only `events` table** in a per-namespace SQLite file. `bus_*` (coordination) and `memory_*` (shared memory) tools are thin handlers that append events and read **synchronously-maintained projection tables** (FTS5 for recall, plus `reservations` and `presence`) updated inside the same write transaction. The decisive architectural fact: **v0.1 stdio transport is one-process-per-client**, so several agents run several `synapse` processes over one shared WAL file — cross-process realtime therefore comes from **polling the event-log offset, accelerated by an `fs.watch` tick-file wake**, not from an in-process SQLite update hook. Each server then emits MCP `notifications/resources/updated` to its own client. Security is structural: process isolation + per-agent identity from env, provenance on every row, private-by-default scopes, secret redaction on ingest, and stored content rendered as quoted data never as instructions. Deliberately excluded: HTTP/auth surface (deferred to v0.2), network mesh, embeddings/graph, web viewer.
+`synapse` is **one local sidecar** (TypeScript, `@modelcontextprotocol/sdk` `>=1.24.0 <2`, `node:sqlite` WAL) that is the **sole owner/writer** of per-project + global SQLite stores and the realtime hub for **many concurrent agent sessions**. It speaks **Streamable HTTP on 127.0.0.1** (bearer + Origin/Host validation). Because stdio is the only *universally* supported MCP transport, clients connect through a **thin stdio bridge** that autostarts the sidecar, proxies JSON-RPC to it, and forwards server notifications back over stdout; HTTP-native hosts may hit the sidecar URL directly. Realtime is native: an in-process `commit_hook` pushes MCP `notifications/resources/updated` (a **dirty-bit**) to subscribed sessions — **no watcher, no poll, no topic bus, no handshake**. Push is an accelerator; the **correctness floor is cursor pull**: `memory_recall({since})` + `lock_list`. Surface = **7 tools** (`memory_remember`/`recall`/`get`/`forget`, `lock_acquire`/`release`/`list`); `memory_recall` returns **compact, budgeted** results by default with `memory_get({ids})` for full records. Usage is taught via the server **`instructions` field** + rich tool/arg descriptions + **in-band result hints**. Isolation is **physical** (file per canonical git-root hash + opt-in global file; explicit cross-project read) — there is **no `scope`/visibility column**. Single owner removes the cold-start/WAL-contention class. **Distribution**: a first-party `agent-surface` registry entry renders the stdio `synapse-bridge` into the MCP configs agent-surface *owns* (droid, deepagents) and **non-destructively merges** into the 11 secret-bearing manual-MCP hosts (Cursor/Codex/Gemini/Cline/Kilo/OpenCode/VS Code/Trae/Windsurf/Zed/Claude Code) so synapse never clobbers a user's own servers; `install.sh` (`npm run install:synapse`) builds + links the bins and deploys/updates the always-on launchd sidecar. **Realtime** notifications are coalesced (leading+trailing edge) to bound burst-write churn; **crash recovery** is proven (SIGKILL→restart→WAL durable to last committed id); the **bridge** resolves the project from roots→env→cwd so out-of-workspace launches still isolate. Status: **IMPLEMENTED** (29/29 package tests; repo `check`+`test` green); remaining: live per-host transport smoke (T2.5 runbook) and pending-target wiring (P3.4). Excluded: stdio-per-client ownership, watcher/poll, topic bus, presence/handshake, private visibility (deferred), `kind` enum.
 
 ## Source and Evidence Inventory
 
 | Source | Status | Used for | Notes |
 |---|---|---|---|
-| `mcps/synapse/concept-zero.md` | current | concept HLD (source of truth) | Candidate C selected; G/N/C/Q IDs reused here |
-| `mcps/synapse/architecture.md` | absent → this doc | prior decisions | first version |
-| `mcps/synapse/roadmap.md` | absent → companion | execution plan | written alongside |
-| root `package.json` | `VERIFIED_EXISTING` | repo is Node/ESM config-distribution tool (ajv, `.mjs`, node>=18); no root TS build | `synapse` is a self-contained TS subproject, own `package.json`/`tsconfig` |
-| `scripts/agent-surface.mjs`, `registry/optional-services.json` | `VERIFIED_EXISTING` | MCP distribution path | MCPs ship as optional-services → adapters render per-host `.mcp.json` pointing at a command (e.g. `~/.local/bin/agentmemory-mcp`) |
-| `external/agentmemory` @ v0.9.27 | `VERIFIED_EXISTING` | prior art / anti-pattern | rejected as base (concept E-01..E-03) |
-| MCP spec 2025-11-25; `node:sqlite`, SQLite WAL/FTS5 docs | `ADOPTED` | transport, storage | concept E-06..E-09 |
+| `concept-zero.md` | HISTORICAL | problem framing + evidence (E-01..E-10) + security stance | mechanism specifics (bus/stdio/event-log) superseded by this doc |
+| prior synapse impl + contract/model/tests/package files | `REMOVED` (git `8a761c5`) | reference only | re-create fresh in Phase 0 |
+| MCP spec 2025-11-25 (+ draft / 2026-07-28 RC) | `ADOPTED` | transport + realtime | Streamable HTTP multi-session; stdio universal; `resources/subscribe`→`resources/updated` (optional, client support uneven); `instructions` reaches the model; RC → per-subscription streams + caching |
+| `@modelcontextprotocol/sdk` GHSA-w48q-cv73-mx4w (DNS rebinding) | `ADOPTED` | security floor | pin **`>=1.24.0 <2`**, not just `<2` |
+| node:sqlite, SQLite WAL/FTS5 | `ADOPTED` | storage | single owner ⇒ one writer; WAL for durability + operator reads |
+| research 2026-06-28 (local-first sync, MCP realtime, agent ergonomics, MINJA) | evidence | design basis | SQLite has no cross-proc push → single-owner-pushes; `instructions` reaches model, resources don't; compact/progressive recall beats raw `limit`; budgeted recall counters poisoning/flooding |
+| `external/agentmemory` v0.9.27, MCP Agent Mail | reference / patterns | ergonomics | tool-desc quality, `privacy.ts` redaction, smart-search compact shape, in-band lock hints |
 
 ## Requirements Traceability
 
 | ID | Requirement | Architecture response | Verification / gate |
 |---|---|---|---|
-| G-01 | Real-time messages + topic pub/sub | `events` append + `bus_publish`/`bus_subscribe`/`bus_messages`; cross-process poll+fswatch → `notifications/resources/updated` | Q-01 latency test |
-| G-02 | Reservations, task claims, presence | `reservations` + `presence` projections, atomic over `events` | Q-02 concurrency test |
-| G-03 | Shared memory: provenance+scope, hybrid recall, no blind delete | `memory_remember`/`memory_recall` (FTS5/BM25) / `memory_supersede` (bi-temporal) | recall + supersede tests |
-| G-04 | Secure by default | stdio/process isolation, env identity, provenance rows, redaction, data-as-data | Q-03, Q-04 tests |
-| G-05 | Minimal, one server, one file | single process, one SQLite file, deps = SDK + node:sqlite + zod | dependency audit |
-| C-01 | Same-host SQLite-WAL | per-namespace file; no NFS; `busy_timeout` | Q-02, Q-05 |
-| C-02 | Stored content is untrusted data | typed/quoted rendering; static tool descriptions | Q-03 |
-| C-03 | No remote exec / `curl \| sh` / 0.0.0.0 | none in design; stdio only in v0.1 | review |
-| N-01..N-04 | No cross-vendor discovery / mesh / CRDT / providers / viewer | out of scope; not built | scope guard |
-| Q-01..Q-05 | notify latency, concurrent-append integrity, poison-render, redaction, crash recovery | see Quality Scenarios | Phase-1 gates |
+| G-01 | Concurrent agents share durable knowledge in real time | sidecar owner; write → commit hook → `resources/updated` dirty-bit; agent `recall({since})` the delta | A writes → B notified <1s; B pull-by-cursor returns it |
+| G-02 | Prevent concurrent-edit collisions, live | `lock_acquire` atomic; conflict → `{heldBy,expiresAt,suggestion}`; release/auto-reap pushes dirty-bit | concurrent acquire → one winner; release notifies |
+| G-03 | Conflict handling without loss | supersede via `memory_remember(supersedes)`; `memory_forget` redacts; append-only | superseded/redacted excluded from recall, kept for audit |
+| G-04 | Secure by default | 127.0.0.1 + bearer + Origin/Host; SDK `>=1.24.0`; auto-identity+provenance; ingest redaction; data-as-data | bind/Origin/redaction/poison tests |
+| G-05 | Minimal & self-describing | 7 tools; rich descriptions; server `instructions`; in-band hints | tool count == 7; `instructions` present; descriptions ≥3 sentences |
+| G-06 | Realtime without watcher; correct without push | commit hook → dirty-bit; **cursor pull is the floor** (`recall({since})`+`lock_list`) | works with push DISABLED via cursor |
+| G-07 | Context control (no flooding) | compact+budgeted `recall` default; `memory_get({ids})` for full | recall returns snippets+provenance under budget; full only on demand |
+| C-01 | Single shared owner + universal client reach | HTTP sidecar (sole writer) + stdio bridge (universal); HTTP-direct optional | one process opens DBs; bridge works on a stdio-only host |
+| C-02 | Default project isolation, explicit cross-project read | physical file per git-root hash; `recall(project:<ref>)` opens another file read-only | B absent by default, present when named |
+| N-01..N-05 | No stdio-per-client ownership / watcher-poll / topic bus / handshake / `scope` column / `kind` enum | not built | scope guard |
 
 ## System Context
 
 ```text
- agent A ─stdio─▶ synapse proc A ┐
- agent B ─stdio─▶ synapse proc B ┼─▶ one SQLite-WAL file  (per namespace)
- agent C ─stdio─▶ synapse proc C ┘        events (SoR)
-                                          ├─ FTS5(memory)  ─ projection
-   each proc: poll offset + fs.watch      ├─ reservations  ─ projection
-   tick → notifications/resources/updated └─ presence      ─ projection
-   to ITS OWN client
- operator ─▶ reads the SQLite file / event log directly (audit)
+ agent A (host) ─ stdio ─▶ synapse-bridge A ─┐
+ agent B (host) ─ stdio ─▶ synapse-bridge B ─┼─ HTTP/SSE (127.0.0.1+bearer) ─▶ ┌──────────────────────────┐
+ agent C (HTTP-native host) ── HTTP/SSE ──────┘                                  │ synapse-sidecar (1 proc) │
+        ▲                                                                        │ sole owner + writer      │
+        └─ resources/updated (dirty-bit) ◀── forwarded by bridge ◀── push ───────│  commit_hook → notify    │
+           + cursor pull via tools (floor)                                       │  ~/.synapse/<hash>.sqlite │
+                                                                                 │  ~/.synapse/global.sqlite │
+ operator ─▶ reads .sqlite files directly (audit)                               └──────────────────────────┘
 ```
 
-Trust boundary: the local user's machine. Each `synapse` process trusts only its launching agent's identity (env) and treats all *stored* content as untrusted. No network listener in v0.1.
+Trust boundary: the local machine (single user, cooperative concurrent agents). Sidecar authenticates by bearer, derives `agent_id` for provenance; all stored content is untrusted data.
 
 ## Selected Architecture
 
-**Candidate B — event log + synchronous SQLite projections, multi-process over one WAL file.**
-
-Components (all in one TS package, one process per client):
-
 | Component | Responsibility |
 |---|---|
-| `transport` | MCP stdio server via official SDK; registers tools + the subscribable resource(s); emits `notifications/resources/updated` |
-| `identity` | Resolve `agent_id` (env `SYNAPSE_AGENT_ID`, else MCP client info, else error for writes) and `namespace` (env `SYNAPSE_NAMESPACE`, else project-root hash); resolve DB path |
-| `store` | `node:sqlite` (WAL, `busy_timeout`, `synchronous=NORMAL`); one `appendEvent()` that writes the event row **and** updates affected projections in a single transaction |
-| `projections` | `events` (SoR) → `memory_fts` (FTS5), `reservations`, `presence`; rebuildable by replaying `events` |
-| `watcher` | Poll `events.id > lastSeen` on an interval; bump/watch a per-namespace tick-file (`fs.watch`) to wake immediately on another process's write; push `notifications/resources/updated` |
-| `tools.bus_*` / `tools.memory_*` | Zod-validated handlers; thin over `store` + `projections` |
-| `safety` | Ingest redaction; data-as-data rendering; scope/identity enforcement |
+| `sidecar` | Long-lived process; **sole** `node:sqlite` owner (WAL); Streamable HTTP on 127.0.0.1; N sessions; `commit_hook` → notifier; the realtime hub |
+| `bridge` | Tiny stdio MCP server per client; autostarts + health-checks the sidecar; proxies JSON-RPC to sidecar HTTP; forwards `resources/updated` to host stdout. Resolves the project key from `SYNAPSE_PROJECT` → host's first MCP root (`file://`) → cwd git-root (P4.3), so out-of-workspace launches still isolate. Universal-compat entry. |
+| `identity` | Per-session `agent_id`: `SYNAPSE_AGENT_ID` → MCP `clientInfo` → stable session id. Never throws; provenance only. |
+| `namespace` | Project DB = hash(`git rev-parse --show-toplevel` realpath) → realpath cwd → `SYNAPSE_NAMESPACE`. Global DB fixed. |
+| `store` | `memory`+FTS5, `locks`; monotonic cursor; atomic lock txn; redaction on ingest |
+| `notifier` | commit → `resources/updated` dirty-bit to that namespace's subscribers (inline in `sidecar.onCommit`); **leading+trailing-edge coalescer** bounds burst-write notifications (P4.2); best-effort, cursor pull is the floor |
+| `tools` | 7 tools; compact/budgeted recall; in-band hints |
+| `instructions` | Server `InitializeResult.instructions` (≤~2KB) — the manual that reaches the model |
+| `lifecycle` | **Default**: bridge first-client autostart (PID/token files mode 0600) + idle shutdown. **Optional**: `local.synapse` launchd agent for always-on. |
 
-Data flow (write): tool handler → validate (zod) → `store.appendEvent` (txn: insert event + update projection + bump tick-file) → return. (read): tool handler → query projection (bounded) → render as typed data. (realtime): `watcher` detects new `events.id` (own or other process) → emits resource-updated → client may re-read via `bus_messages`/`memory_recall` with a cursor.
+Data flow — **write**: auth+validate (zod, byte caps) → redact → append row in project (or global) DB → commit → commit-hook → push dirty-bit → return id+provenance. **recall**: FTS across project∪global (or named other project, read-only); `since` cursor is incremental for the **project** store only — the low-churn **global** store is always re-scanned (the returned `cursor` is the project MAX(id)), so clients dedupe already-seen global ids; **compact** projection (id, snippet, agentId, ts, tags, score, store) under `limit`/`maxBytes`; `mode:full` or `memory_get({ids})` for bodies. **realtime**: agent subscribes; on dirty-bit it `recall({since})`/`lock_list`; if the client ignores push, the same cursor pull at turn boundaries stays correct. **lock**: atomic reap→claim; conflict returns holder+suggestion.
 
-Deployment: `npm run build` in `mcps/synapse/` → bundled `dist/synapse-mcp.mjs`; later registered in `registry/optional-services.json` (kind `mcp`, command = the built entrypoint) so existing adapters generate per-host `.mcp.json`.
+## Source Tree and File Responsibilities
+
+All `src/*` files are IMPLEMENTED (compiled by `tsc`, exercised by `test/*`). Dependency direction: `sidecar`/`bridge` → `tools` → `store` → `model` → `contract`; `contract` imports nothing runtime-bound.
+
+```text
+mcps/synapse/
+  src/
+    contract.ts   - FROZEN tool I/O, zod inputs (.describe), DTOs, LIMITS, SERVER_INSTRUCTIONS, IStore. Pure; imports no sqlite/http/fs. Invariant: 7 tools, no scope/kind field.
+    model.ts      - Row entities + mappers + SCHEMA_SQL + external-id codec (global = BASE+rowid). Owns id encode/decode; no I/O.
+    store.ts      - SOLE node:sqlite owner: per-project + global DBs (WAL), FTS5/bm25 recall, byte budget, atomic lock reap+claim, ingest redaction, onCommit(channel). Must not know HTTP/MCP. Verified by test/store.test.ts.
+    tools.ts      - Transport-agnostic tool specs (tools/list) + validated dispatcher (tools/call); results are JSON-in-text (data, not instructions); lock denials carry hints.
+    sidecar.ts    - ONE process: low-level MCP Server per session over Streamable HTTP (127.0.0.1 + bearer + DNS-rebind), resources/subscribe handling, onCommit → coalesced resources/updated fan-out (P4.2), 2 MB body cap. Verified by test/sidecar.test.ts + test/coalescing.test.ts + test/recovery.test.ts.
+    bridge.ts     - Per-host stdio Server <-> upstream HTTP Client; proxies tools/resources; forwards resources/updated + list_changed downstream; autostarts the sidecar; resolves project key roots → SYNAPSE_PROJECT → cwd git-root (P4.3). Verified by test/bridge.test.ts + test/roots-routing.test.ts.
+    bootstrap.ts  - Zero-config: discovery file + persistent token (mode 600) + lock-elected sidecar spawn + /health poll. Owns ~/.synapse file lifecycle.
+    namespace.ts  - Canonical project key = git-root realpath hash (override -> git root -> cwd); fixed global path. Owns physical isolation routing.
+    identity.ts   - Derive agent_id (env -> clientInfo -> session) for provenance; never throws.
+    redactor.ts   - Secret regex floor (Bearer/sk-/gh_/glpat/...) applied on ingest.
+    clock.ts      - SystemClock / FakeClock seam for deterministic tests.
+  test/{store,sidecar,bridge,recovery,roots-routing,coalescing}.test.ts  - 29 tests: store invariants, forget-reason redaction, project-vs-global cursor; live-HTTP sidecar + S-01 realtime + oversized-body 413; bridge proxy/forward + autostart; kill→restart WAL recovery + concurrent writes; bridge roots routing; dirty-bit coalescing.
+  test/smoke/README.md  - per-target transport smoke runbook (T2.5): host matrix + the live per-host check procedure.
+  schema.sql            - Canonical DDL mirror of model.ts SCHEMA_SQL.
+  install.sh            - Build + link bins; deploy/restart launchd sidecar (npm run install:synapse).
+  deploy/launchd/local.synapse.plist  - Always-on sidecar service (RunAtLoad + KeepAlive).
+```
+
+Distribution lives in the parent repo, not here: `registry/optional-services.json` (first-party `synapse` entry), `schemas/optional-services.schema.json` (first-party path), and `scripts/agent-surface.mjs` (renders the stdio entry into owned-file targets and **non-destructively merges** into all 11 manual/secret-bearing hosts). The merge engine is IMPLEMENTED (roadmap P3).
 
 ## Data and State
 
-- **System of record:** `events(id INTEGER PK AUTOINCREMENT, ts INTEGER, agent_id TEXT, kind TEXT, topic TEXT, scope TEXT, payload JSON, supersedes INTEGER NULL)`. Total order = `id`. Append-only; corrections/deletes are tombstone events, not row deletes.
-- **Projections (derived, rebuildable):** `memory_fts` (FTS5 over memory content + metadata), `reservations(resource_glob, agent_id, expires_at, event_id)`, `presence(agent_id, last_seen, caps)`. Each is updated in the same txn as its source event; all can be dropped and replayed from `events`.
-- **Scopes (v0.1):** `private` (default, `agent_id`-bound) / `shared`; enforced on every read. `group:<id>` is reserved for a future version and is not an accepted input.
-- **Retention / forgetting:** v0.2 `memory_forget` scores importance×recency×frequency and writes tombstones; `events` may be compacted later behind an explicit op (not v0.1).
-- **Consistency:** single-writer per file (WAL); cross-process writes serialized by SQLite with `busy_timeout`; readers get snapshot isolation. Crash → recover to last committed event (WAL durability); projections re-derived on boot if a checksum/version mismatch is detected.
-- **Privacy:** secrets redacted before persist; no transcript auto-capture; file is user-local (`~/.synapse/<namespace>.sqlite`, mode 600).
+- **`memory`** (append-only): `id (monotonic = cursor), ts, agent_id, content, tags(json), supersedes(id?), status(live|superseded|redacted)`. FTS5 over `content`+`tags`. **No `scope`/`kind` column** — project vs global is *which file*; classification is `tags`.
+- **`locks`**: `glob PK, agent_id, acquired_at, expires_at`. TTL + lazy reap; atomic acquire.
+- **Single writer** (the sidecar) → no cross-process WAL contention, no cold-start race. WAL for durability + operator reads.
+- **Physical isolation**: project file (git-root hash) + global file, mode 600. Cross-project read = explicitly open another project's file, read-only; never implicit, no other-project writes. (Per-agent *private* visibility intentionally omitted; a future `visibility` column could add it without touching isolation.)
+- **Recovery**: restart sidecar → recover to last committed WAL row; clients reconnect and cursor-re-pull (`recall({since})`). Stream-level `Last-Event-ID` resume is **not yet wired** (no event store) — roadmap P4.1.
 
 ## Technology Decisions
 
 | Area | Decision | State | Rationale | Alternatives rejected |
 |---|---|---|---|---|
-| Language | TypeScript | `ADOPTED` (USER_DECISION) | Matches repo Node toolchain | Python/FastMCP (rejected at review) |
-| MCP SDK | `@modelcontextprotocol/sdk` pinned `<2` | `ADOPTED` | Official, MIT, stdio+resources+notifications | hand-rolled JSON-RPC |
-| Storage | `node:sqlite`, WAL, `busy_timeout`, `synchronous=NORMAL` | `ADOPTED` | Synchronous API simplifies txns; one file; cross-process WAL | node:sqlite (newer, less proven for WAL multi-proc); async drivers |
-| Validation | `zod` | `PROPOSED` | Ergonomic strict schemas (`.strict()`, size caps) for tool inputs | Ajv (repo root uses it, but zod is the MCP-TS norm) |
-| Persistence model | event log + synchronous projections | `PROPOSED` | SoR + fast bounded reads; rebuildable | pure compute-on-read; separate domain tables w/ secondary audit |
-| Realtime (v0.1, stdio multi-proc) | poll offset + `fs.watch` tick-file → `notifications/resources/updated` | `SPIKE_REQUIRED` (S-01) | In-proc `update_hook` can't see other processes' writes | broker (NATS/Redis) — over-built for one host |
-| Transport | stdio only (v0.1) | `ADOPTED` | One client/process, OS isolation, no auth needed | Streamable HTTP (v0.2, behind auth) |
-| Tool naming | underscores (`bus_publish`) | `ADOPTED` | Portable across host adapters | dotted names (host-dependent) |
-| Identity | env `SYNAPSE_AGENT_ID` / namespace resolver | `PROPOSED` | No god-token; per-process trust | shared bearer (no, footgun) |
-
-## Open Source / Service Adoption
-
-| Capability | Adopt / adapt / build | Selected route | Evidence | Risk |
-|---|---|---|---|---|
-| MCP protocol | adopt | official TS SDK `<2` | concept E-08/E-09 | SDK v2 churn → pinned, re-check |
-| Local store | adopt | SQLite via node:sqlite | concept E-07 | built-in, no native build; importable without flag from Node >=22.17.0 (ExperimentalWarning on 22.x; stable on 24+) |
-| Hybrid recall (later) | adopt | `sqlite-vec` (v0.2) | concept E-10 | pre-1.0; behind adapter |
-| Reservation pattern | adapt | MCP Agent Mail (advisory locks) | concept E-09 | advisory only — documented |
-| Memory conflict model | adapt | Zep/Graphiti bi-temporal invalidate | concept E-10 | more rows; compaction later |
-| Namespace resolver, status/heartbeat/export | adapt | folded in from former `agent-sync` concept (now removed) | cross-review | converged (checkpoint deferred to Later) |
-| Event log + projections core | build | this design | concept E-06 | small, ours |
+| Topology | one HTTP sidecar (sole owner) + stdio bridge (universal client) | `IMPLEMENTED` (USER_DECISION) | shared owner needed for realtime; stdio bridge = universal host compat; HTTP-direct free for capable hosts | HTTP-only (brittle host support); stdio-per-client (no cross-notify) |
+| Realtime | commit-hook → `resources/updated` dirty-bit; **cursor pull is the floor** | `IMPLEMENTED` | native MCP push; correctness never depends on push | watcher/poll (cut); `list_changed` as floor (wrong semantics); CRDT (overkill) |
+| Recall | compact+budgeted default; `since` cursor; `memory_get({ids})` full | `IMPLEMENTED` | `limit` ≠ context control; counters flooding/poisoning | full-by-default (floods); separate `sync_changes` tool (fold into `recall`) |
+| Storage | `node:sqlite` WAL single owner; `memory`+`locks`; no scope column | `IMPLEMENTED` | one writer = simple; physical isolation | logical scope column (agentmemory leak class) |
+| Identity | auto-derive per session, never gate writes | `IMPLEMENTED` | zero ceremony | handshake/`IDENTITY_REQUIRED` |
+| Usage delivery | server `instructions` + descriptions + in-band hints | `IMPLEMENTED` | reaches the model | guide resource (invisible to clients) |
+| Auth / SDK | static bearer (local) + Origin/Host; SDK `>=1.24.0 <2` | `IMPLEMENTED` | spec-acceptable local; DNS-rebind advisory patched ≥1.24.0 | `<2` alone (vulnerable); full OAuth (overkill local) |
+| Lifecycle | bridge autostart default; launchd always-on via `install.sh` | `IMPLEMENTED` | zero-setup default; always-on service | launchd-required (heavy default) |
+| Distribution | first-party registry entry → stdio `synapse-bridge`; **generated** for owned files (droid, deepagents), **non-destructive merge** for manual/secret-bearing hosts (Cursor, Codex, Gemini, Cline, Kilo, OpenCode, VS Code, Trae, Windsurf, Zed, Claude Code) | `IMPLEMENTED` | reuse agent-surface render path; never bake a per-project secret/path into a global config | wholesale write into secret-bearing configs (clobbers user servers) |
 
 ## Quality Scenarios and Fitness Gates
 
-| Scenario | Architecture mechanism | Evidence to collect | Gate |
-|---|---|---|---|
-| Q-01 publish → subscriber notified | poll+fswatch wake → resource-updated | measured p50/p95 cross-process latency at default interval | < ~300 ms p95 (revisit if S-01 says otherwise) |
-| Q-02 N agents append concurrently | WAL single-writer + `busy_timeout`; txn projections | integrity test: M writes from K processes, 0 lost, total order intact, no corruption | pass |
-| Q-03 poisoned record fetched | data-as-data render; static tool descriptions | test: stored injection string never surfaces as instruction/description; carries provenance | pass |
-| Q-04 secret in ingest | redaction before persist | unit tests over `Bearer`/`sk-proj-`/`sk-ant-`/`gh[pus]_`/`glpat` + custom | pass; floor = agentmemory v0.9.27 set |
-| Q-05 crash mid-write | WAL durability; projection rebuild on version mismatch | kill-during-write test → recover to last committed event; projections consistent | pass |
+| Scenario | Mechanism | Gate |
+|---|---|---|
+| A writes, B sees it live | commit hook → dirty-bit → B `recall({since})` | B notified <1s (push) AND B cursor-pull returns it (floor) |
+| Push-ignoring client | cursor pull at turn boundary | coordination correct with push disabled |
+| Recall doesn't flood | compact+budgeted default | result under `maxBytes`; full only via `memory_get` |
+| Two agents lock same glob | atomic reap+claim | one winner; loser gets `{heldBy,expiresAt,suggestion}` |
+| Project A vs B | separate files; explicit `project:` | B absent by default; present when named |
+| Stdio-only host | bridge → sidecar | tools + push work through the bridge |
+| Poisoned/secret record | redaction; quoted-data render | redaction suite; never surfaces as instruction |
+| Crash / reconnect | append-only WAL + reconnect cursor re-pull | recover to last row (proven: `test/recovery.test.ts` kill→restart→max(id) intact); client re-pulls via `recall({since})` (stream `Last-Event-ID` resume = not wired, stated) |
 
 ## Security, Privacy, and Compliance
 
-- **Assets:** shared memory + message log (may contain project context); agent identities.
-- **Trust boundary:** local machine; each process trusts its launching agent only.
-- **AuthZ:** scope checks on every read; cross-identity access on `private`/`group` rejected. No god-token. v0.1 needs no network auth (stdio). v0.2 HTTP adds bearer + Host validation + per-request identity binding (MCP best practices).
-- **Poisoning (primary risk, concept E-05):** stored content is rendered as typed/quoted data; tool descriptions are static and never interpolate stored data; every record carries authenticated writer id + ts; private-by-default limits blast radius.
-- **Secrets:** redaction on `memory_remember` ingest; no auto-capture; DB file mode 600.
-- **Dependency risk:** 3 runtime deps; pin SDK `<2`; CI audit; prefer prebuilt node:sqlite binaries.
-- **Auditability:** append-only `events` is the human-readable audit trail; tombstones, never silent deletes.
-- **Abuse cases handled:** fake-identity write (env-bound id + provenance), lock starvation (TTL expiry), oversized payload (size caps), replayed/poisoned recall (scope + provenance + data-as-data).
+- Sidecar binds **127.0.0.1 only**; validate `Origin`/`Host` (DNS-rebinding); **static bearer** (token file mode 0600); SDK **`>=1.24.0`**; no token passthrough; OAuth deferred. Bridge↔sidecar over localhost with the same bearer.
+- Identity auto-derived (provenance); `forget` works with derived identity; append-only = audit. Cooperative single-user trust.
+- Secrets redacted on ingest (Bearer/sk-proj/sk-ant/gh[pus]_/glpat floor); no transcript auto-capture; DB + token files mode 600.
+- Stored content rendered as quoted data, never instructions; static tool descriptions; strict zod (`additionalProperties:false`, UTF-8 byte caps); fail-open reads.
 
 ## Operations
 
-- **Deploy:** build to `dist/`; register as optional-service; adapters emit per-host MCP config. No daemon, no ports (v0.1).
-- **Config:** env — `SYNAPSE_AGENT_ID`, `SYNAPSE_NAMESPACE`, `SYNAPSE_DB_DIR`, `SYNAPSE_POLL_MS`, `SYNAPSE_STREAMS`(future).
-- **Observability:** structured logs to stderr only (never stdout — stdio transport owns stdout); `synapse_status` tool reports namespace, db path, counts, latest offset, active agents.
-- **Backup/restore:** copy the SQLite file; restore = drop file back. Projection rebuild on boot.
-- **Rollback:** versioned schema; projections rebuildable; events immutable.
-- **Cost:** local disk only; no external calls in core.
+- **Lifecycle**: the first client's bridge lock-elects and autostarts the sidecar (discovery + bearer token in `~/.synapse`, mode 0600); it stays resident (no idle-shutdown). `npm run install:synapse` additionally deploys the `local.synapse` launchd service (RunAtLoad + KeepAlive) and restarts it on every redistribute via bootout→bootstrap; the token + DBs persist.
+- Config: `SYNAPSE_DB_DIR` (default `~/.synapse`), `SYNAPSE_PORT` (default 4319), `SYNAPSE_TOKEN`/`SYNAPSE_URL` (auto if unset); per-session `SYNAPSE_AGENT_ID`/`SYNAPSE_PROJECT`/`SYNAPSE_NAMESPACE`. `SYNAPSE_SKIP_SERVICE=1` installs bins only.
+- Observability: sidecar stderr (launchd → `/tmp/local.synapse.{out,err}`); audit = read `.sqlite`. Backup = copy files. Cost: one small process + thin bridges.
 
 ## Risks, Debt, and Revisit Triggers
 
-| Item | Impact | Trigger | Owner / next proof |
+| Item | Impact | Trigger | Next proof |
 |---|---|---|---|
-| Cross-process realtime is poll-based | latency floor at poll interval | S-01 shows fswatch unreliable on a target OS | Phase-0 spike; fallback = lower interval |
-| stdio multi-process write contention | `SQLITE_BUSY` under many writers | >~dozen concurrent agents | Q-02 benchmark; then consider single HTTP server |
-| node:sqlite availability / experimental | startup failure on old Node; warning noise on 22.x | Node <22.17 (import fails) or 22.x ExperimentalWarning | engine floor `>=22.17.0`; prefer Node 24+ in prod |
-| ~~Two concept docs~~ | resolved | — | converged; `mcp/agent-sync/` removed |
-| BM25-only recall (v0.1) | weak semantic recall | measured recall failures | v0.2 sqlite-vec hybrid |
-| SDK v2 / spec change | breakage | SDK 2.x release | pinned `<2`; re-check at impl |
+| Client ignores `resources/updated` | no live push for that client | known-thin today | cursor pull floor (S-01 proven) |
+| MCP merge clobbers a host's own servers/secrets | data loss in user config | resolved | per-format read-modify-write + idempotent-merge fixture test for all 11 manual hosts (`tests/agent-surface.test.mjs`) |
+| Crash / many-session integrity unproven | possible lost write on kill | resolved | `test/recovery.test.ts` (SIGKILL mid-session → restart → all committed rows + max(id) intact; concurrent writes persist) |
+| Notification flooding on burst writes | host churn | resolved | leading+trailing-edge coalescer (`test/coalescing.test.ts`: 20-write burst → ≤2 notifications) |
+| Bridge cwd ≠ workspace | wrong project namespace | resolved | bridge roots routing (`test/roots-routing.test.ts`: roots → env → cwd) |
+| 2026-07-28 RC (stateless, `subscriptions/listen`) | transport churn | RC ships | cache-friendly reads; pin SDK `>=1.24.0 <2` |
+| Private visibility omitted | no agent-local scratch | a real need | additive `visibility` column later |
 
 ## ADR Index
 
 | Decision | Status | Section |
 |---|---|---|
-| ADR-01 Single MCP, two tool families over one event log | accepted | concept Candidate C / Selected Architecture |
-| ADR-02 Event log as SoR + synchronous projections | accepted | Data and State |
-| ADR-03 TypeScript + official SDK `<2` + node:sqlite | accepted (USER_DECISION) | Technology Decisions |
-| ADR-04 v0.1 stdio-only; HTTP+auth deferred to v0.2 | accepted | Technology Decisions |
-| ADR-05 Cross-process realtime via poll + fswatch (not in-proc hook) | proposed, `SPIKE_REQUIRED` S-01 | Realtime / Risks |
-| ADR-06 No god-token; per-process env identity + provenance | accepted | Security |
+| ADR-01 HTTP sidecar (sole owner) + stdio bridge (universal); HTTP-direct optional | accepted (USER_DECISION) | Topology |
+| ADR-02 Realtime = commit-hook dirty-bit push; **cursor pull is the correctness floor** | accepted | Realtime |
+| ADR-03 Compact+budgeted recall default + `memory_get({ids})`; `since` cursor folded into `recall` (no `sync_changes` tool) | accepted | Recall |
+| ADR-04 Physical isolation only (git-root file + global); **no scope/visibility column**; explicit cross-project read | accepted | Data and State |
+| ADR-05 Identity auto-derived per session; no handshake | accepted | Security |
+| ADR-06 Usage via server `instructions` + descriptions + in-band hints | accepted | Selected |
+| ADR-07 SDK `>=1.24.0 <2` (DNS-rebind); bearer + Origin/Host; bind 127.0.0.1 | accepted | Security |
+| ADR-08 Lifecycle: bridge autostart default, launchd always-on via `install.sh` | accepted | Operations |
+| ADR-09 (open) private visibility omitted per prior user decision; revisit if scratch needed | proposed | Data and State |
+| ADR-10 Distribution: first-party registry entry (no submodule pin); **generated** for agent-surface-owned MCP files (droid, deepagents); **non-destructive merge** for manual/secret-bearing hosts (all 11); never bake a per-project path/secret into a global config (bridge derives project at runtime, roots → env → cwd) | accepted | Technology Decisions · roadmap P3 |

@@ -11,5 +11,5 @@ Generates Poolside local skills and instruction files.
 ## Notes
 
 - Poolside scans local Agent Skills directories including `~/.config/poolside/skills/`, `.poolside/skills/`, and `.agents/skills/`.
-- MCP server configuration remains manual because it can expose live tools and credentials.
+- Synapse MCP wiring is pending: Poolside MCP support is documented through settings YAML, but agent-surface does not yet have a verified safe YAML merge path for Poolside settings.
 - Generated instructions bundle only always-on rules. Scoped language policies are reference files for project-aware commands.

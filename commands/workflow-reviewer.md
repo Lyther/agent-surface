@@ -67,6 +67,15 @@ After the per-task checklist, review the completed batch as a codebase change, n
 
 Specialist QA commands are helper functions, not mandatory serial phases and not a new workflow route. Use `qa-review`, `qa-trace`, or `qa-sec` when the BOSS route, touched surface, or reviewer findings need deeper domain coverage, and treat that specialist pass as the detailed review for that domain rather than stacking duplicate checklist work. `qa-review` covers broad code quality/regression risk, `qa-trace` covers root-cause/dataflow/race/security-path tracing, and `qa-sec` covers heavyweight security/supply-chain evidence. When a helper command is invoked from `workflow-reviewer`, its original output format is subordinate: record its findings as reviewer evidence, but still write `reviewer.json` and chat output in the `workflow-reviewer` format with the existing `workflow.next_command` choices.
 
+## READINESS CLAIM GATE
+
+If the BOSS goal, worker report, docs, release text, PR text, or chat handoff claims `stable`, `production-ready`, `release-ready`, `deployment-ready`, `E2E passed`, `100% implemented`, `all features supported`, or equivalent, require a scoped `verify-readiness` PASS artifact or an explicitly equivalent real-run proof artifact.
+
+- Treat `all tests passed`, `build passed`, unit/integration test success, mock-only proof, fixture-only proof, or source-tree-only smoke as insufficient for readiness by itself.
+- Check that the readiness proof names the exact scope, support matrix, real entry points, dependencies, artifacts or installed outputs, and unsupported/deferred/blocked paths.
+- If a readiness-critical matrix item is missing, not run, false, mocked, fixture-only, or blocked, the readiness claim is UNKNOWN or FAIL even if the code change itself may be otherwise acceptable.
+- Do not let a batch PASS while preserving an unsupported readiness claim in docs, generated config, release text, or worker output. Narrow the claim, require rework, or route to `verify-readiness`.
+
 After per-task review, also check **batch-level invariants**:
 
 - Worker handoff integrity: `worker.workflow.run_id` matches `boss.workflow.run_id`. Mismatch = stale worker = REJECT entire batch.

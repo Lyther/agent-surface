@@ -21,6 +21,23 @@ export function mergeKiloInstructionJsonc(text, addInstructions, removeInstructi
   return insertJsoncRootProperty(text, tokens, "instructions", addInstructions);
 }
 
+export function mergeJsoncRootObjectProperty(text, key, entries) {
+  const parsed = parseJsonc(text, key);
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${key}: root config must be an object`);
+  }
+  const current = parsed[key] ?? {};
+  if (current === null || typeof current !== "object" || Array.isArray(current)) {
+    throw new Error(`${key}: ${key} must be an object`);
+  }
+
+  const tokens = jsoncTokens(text);
+  const merged = { ...current, ...entries };
+  const range = findJsoncPropertyObject(tokens, key);
+  if (range) return replaceJsoncValue(text, range, merged);
+  return insertJsoncRootProperty(text, tokens, key, merged);
+}
+
 function stripJsonc(text) {
   return removeJsonTrailingCommas(removeJsoncComments(text));
 }
@@ -136,6 +153,12 @@ function insertJsoncRootProperty(text, tokens, key, value) {
   const rootOpen = tokens.find((token) => token.type === "{" && token.depth === 0);
   const rootClose = tokens.findLast((token) => token.type === "}" && token.depth === 0);
   if (!rootOpen || !rootClose) return `${JSON.stringify({ [key]: value }, null, 2)}\n`;
+  if (lineStart(text, rootOpen.start) === lineStart(text, rootClose.start)) {
+    const parsed = parseJsoncResult(text);
+    if (parsed.ok && parsed.value !== null && typeof parsed.value === "object" && !Array.isArray(parsed.value)) {
+      return `${JSON.stringify({ ...parsed.value, [key]: value }, null, 2)}\n`;
+    }
+  }
 
   const keyJson = JSON.stringify(key);
   const valueJson = JSON.stringify(value, null, 2)
@@ -160,6 +183,17 @@ function insertJsoncRootProperty(text, tokens, key, value) {
   return `${text.slice(0, lastToken.end)},${text.slice(lastToken.end, closeLineStart)}${property}${text.slice(closeLineStart)}`;
 }
 
+function replaceJsoncValue(text, range, value) {
+  const valueLineStart = lineStart(text, range.open.start);
+  const valuePrefix = text.slice(valueLineStart, range.open.start);
+  const indent = valuePrefix.match(/^\s*/)?.[0] ?? "";
+  const valueJson = JSON.stringify(value, null, 2)
+    .split("\n")
+    .map((line, index) => (index === 0 ? line : `${indent}${line}`))
+    .join("\n");
+  return `${text.slice(0, range.open.start)}${valueJson}${text.slice(range.close.end)}`;
+}
+
 function findJsoncPropertyArray(tokens, key) {
   for (let index = 0; index < tokens.length - 2; index += 1) {
     const keyToken = tokens[index];
@@ -173,6 +207,31 @@ function findJsoncPropertyArray(tokens, key) {
       const token = tokens[closeIndex];
       if (token.type === "[") depth += 1;
       if (token.type === "]") depth -= 1;
+      if (depth === 0) {
+        return {
+          open,
+          close: token,
+          tokens: tokens.slice(index + 3, closeIndex),
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function findJsoncPropertyObject(tokens, key) {
+  for (let index = 0; index < tokens.length - 2; index += 1) {
+    const keyToken = tokens[index];
+    const colon = tokens[index + 1];
+    const open = tokens[index + 2];
+    if (keyToken.type !== "string" || keyToken.value !== key || keyToken.depth !== 1) continue;
+    if (colon.type !== ":" || open.type !== "{") continue;
+
+    let depth = 0;
+    for (let closeIndex = index + 2; closeIndex < tokens.length; closeIndex += 1) {
+      const token = tokens[closeIndex];
+      if (token.type === "{") depth += 1;
+      if (token.type === "}") depth -= 1;
       if (depth === 0) {
         return {
           open,

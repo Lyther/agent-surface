@@ -13,9 +13,6 @@
         "type": "object",
         "required": [
           "status",
-          "source_url",
-          "path",
-          "commit",
           "kind",
           "optional",
           "local_wiring",
@@ -49,6 +46,9 @@
             ]
           },
           "optional": {
+            "type": "boolean"
+          },
+          "first_party": {
             "type": "boolean"
           },
           "skill_roots": {
@@ -175,6 +175,27 @@
             "then": {
               "required": [
                 "skill_roots"
+              ]
+            }
+          },
+          {
+            "if": {
+              "not": {
+                "properties": {
+                  "first_party": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "first_party"
+                ]
+              }
+            },
+            "then": {
+              "required": [
+                "source_url",
+                "path",
+                "commit"
               ]
             }
           }

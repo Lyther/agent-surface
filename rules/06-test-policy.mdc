@@ -17,4 +17,5 @@ alwaysApply: true
 
 - Never present a mock, fixture, synthetic data, local substitute, recorded response, or renamed equivalent as evidence for real end-to-end, production readiness, deployment readiness, security proof, or external-integration success.
 - Green tests are not E2E. `E2E passed` requires the real entry point, production implementation path, required real dependency instances, data created through that workflow, and an observed expected result.
+- Stable, production-ready, release-ready, deployment-ready, 100% implemented, and all-features-supported claims require a scoped readiness proof such as `verify-readiness`; otherwise state the narrower test/build/smoke result.
 - If a requested acceptance claim needs an unavailable dependency, credential, service, or environment, report that claim as `BLOCKED`. Narrower local checks may still be run and reported honestly.

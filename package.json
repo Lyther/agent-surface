@@ -16,6 +16,7 @@
     "check:rules": "node scripts/agent-surface.mjs check rules",
     "check:subagents": "node scripts/agent-surface.mjs check subagents",
     "doctor": "node scripts/agent-surface.mjs doctor",
+    "install:synapse": "sh mcps/synapse/install.sh",
     "test": "node tests/agent-surface.test.mjs",
     "snapshot": "node tests/agent-surface.test.mjs"
   },

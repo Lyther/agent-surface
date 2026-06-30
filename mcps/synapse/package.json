@@ -1,29 +1,29 @@
 {
   "name": "synapse-mcp",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
-  "description": "Local-first multi-agent coordination + shared memory MCP server (node:sqlite WAL, event-sourced).",
+  "description": "Local-first multi-agent memory + coordination MCP: one HTTP sidecar (sole node:sqlite owner) + stdio bridge.",
   "license": "MIT",
-  "main": "dist/server.js",
   "bin": {
-    "synapse-mcp": "dist/server.js"
+    "synapse-sidecar": "dist/src/sidecar.js",
+    "synapse-bridge": "dist/src/bridge.js"
   },
   "scripts": {
+    "prebuild": "node require-node.mjs",
     "build": "tsc",
-    "dev": "node --import tsx src/server.ts",
-    "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "tsc && node --import tsx --test tests/test-store.test.ts && node --import tsx tests/error-edge.test.ts && node --import tsx tests/crash-recovery.test.ts && node tests/multi-agent-coord.mjs && node tests/watcher-realtime.mjs && node tests/watcher-tick-builtin.mjs && node tests/fts5-bm25-recall.mjs && node tests/concurrent-write-integrity.mjs && node tests/cold-start-concurrent.mjs"
+    "pretest": "node require-node.mjs",
+    "test": "tsc && node --test dist/test/*.test.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "~1.27",
-    "zod": "~3.23"
+    "@modelcontextprotocol/sdk": ">=1.24.0 <2",
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
-    "@types/node": "~22.0",
-    "tsx": "^4.22.4",
-    "typescript": "~5.5"
+    "@types/node": "~22.17",
+    "typescript": "~5.6"
   },
   "engines": {
     "node": ">=22.17.0"

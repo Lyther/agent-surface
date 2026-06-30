@@ -1,36 +1,6 @@
 ---
 description: "Authorized offensive security: red-team, CTF/exploit-dev, AI/ML red-teaming, kernel security, bug bounty, and coordinated disclosure"
-globs:
-  - "**/exploit*"
-  - "**/exploits/**"
-  - "**/*poc*"
-  - "**/pwn*"
-  - "**/ctf/**"
-  - "**/ctf-*/**"
-  - "**/chall*"
-  - "**/solve*"
-  - "**/redteam*"
-  - "**/red-team*"
-  - "**/pentest*"
-  - "**/engagement*"
-  - "**/recon*"
-  - "**/security/**/*.patch"
-  - "**/*security*.patch"
-  - "**/*vuln*.patch"
-  - "**/*cve*.patch"
-  - "**/*exploit*.patch"
-  - "**/vuln*"
-  - "**/findings*"
-  - "**/disclosure*"
-  - "**/.garak*"
-  - "**/pyrit*"
-  - "**/*jailbreak*"
-  - "**/*prompt-injection*"
-  - "**/adversarial*"
-  - "**/fuzz*"
-  - "**/shellcode*"
-  - "**/payload*"
-alwaysApply: false
+alwaysApply: true
 ---
 # Cybersecurity
 

@@ -1,154 +1,76 @@
-// synapse MCP — internal data model: raw SQLite ROW entities + branded ids +
-// row->DTO mappers. The DTOs (the API boundary) live in contract.ts; this file
-// is the storage-facing side. Rows carry JSON-as-TEXT columns; mappers parse
-// them into the validated DTOs. No `any`; parse at the boundary.
-
-import { z } from "zod";
-import {
-  AgentId,
-  EventKind,
-  MemoryType,
-  Scope,
-  type EventRecord,
-  type MemoryRecord,
-  type MessageRecord,
-  type PresenceRecord,
-  type ReservationRecord,
-} from "./contract.js";
+// synapse — row entities + mappers + the canonical runtime schema (mirrors schema.sql).
+import type { CompactMemory, FullMemory, LockRecord, MemoryStatus, Store } from "./contract.js";
+import { LIMITS } from "./contract.js";
 
 export const SCHEMA_VERSION = 1;
 
-// ---------------------------------------------------------------------------
-// Branded ids (Anti-String Law). `events.id` is reused as the stable memory id
-// AND the cursor — brand it so a raw number can't be passed where an offset is
-// expected. AgentId is re-exported from the contract (already validated there).
-// ---------------------------------------------------------------------------
-export type EventId = number & { readonly __brand: "EventId" };
-export const EventId = (n: number): EventId => n as EventId;
+// External id codec: global ext-id = BASE + rowid; project ext-id = rowid. Keeps the
+// two physical id-spaces disjoint so recall -> get/forget round-trips across files.
+export const GLOBAL_BASE = 1_000_000_000_000;
+export const extId = (store: Store, rowid: number): number => (store === "global" ? GLOBAL_BASE + rowid : rowid);
+export const decId = (id: number): { store: Store; rowid: number } =>
+  id >= GLOBAL_BASE ? { store: "global", rowid: id - GLOBAL_BASE } : { store: "project", rowid: id };
 
-export type Namespace = string & { readonly __brand: "Namespace" };
-export const Namespace = (s: string): Namespace => s as Namespace;
+// Inlined so the compiled sidecar needs no file lookup. Keep in sync with schema.sql.
+export const SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS memory (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL,
+  agent_id TEXT NOT NULL,
+  content TEXT NOT NULL,
+  tags TEXT,
+  supersedes INTEGER REFERENCES memory(id),
+  status TEXT NOT NULL DEFAULT 'live' CHECK (status IN ('live','superseded','redacted'))
+);
+CREATE INDEX IF NOT EXISTS idx_memory_status_id ON memory(status, id);
+CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+  content, tags, content='memory', content_rowid='id', tokenize='porter unicode61'
+);
+CREATE TABLE IF NOT EXISTS locks (
+  glob TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  acquired_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_locks_expiry ON locks(expires_at);
+`;
 
-// JSON column helpers ---------------------------------------------------------
-const JsonStringArray = z
-  .string()
-  .nullable()
-  .transform((s): string[] | undefined =>
-    s == null ? undefined : z.array(z.string()).parse(JSON.parse(s)),
-  );
+export interface MemoryRow {
+  id: number; ts: number; agent_id: string; content: string;
+  tags: string | null; supersedes: number | null; status: string;
+}
+export interface LockRow { glob: string; agent_id: string; acquired_at: number; expires_at: number }
 
-// ---------------------------------------------------------------------------
-// ROW entities — exact column shapes as returned by node:sqlite.
-// SQLite has no boolean; `redacted` is 0|1.
-// ---------------------------------------------------------------------------
-export const EventRow = z.object({
-  id: z.number().int(),
-  ts: z.number().int(),
-  agent_id: z.string(),
-  kind: EventKind,
-  topic: z.string().nullable(),
-  to_agent: z.string().nullable(),
-  scope: z.string(),
-  payload: z.string(), // JSON
-  supersedes: z.number().int().nullable(),
-});
-export type EventRow = z.infer<typeof EventRow>;
-
-export const MemoryRow = z.object({
-  id: z.number().int(),
-  ts: z.number().int(),
-  agent_id: z.string(),
-  type: MemoryType,
-  scope: z.string(),
-  content: z.string(),
-  tags: z.string().nullable(),
-  evidence: z.string().nullable(),
-  confidence: z.number().nullable(),
-  valid_from: z.number().int(),
-  valid_to: z.number().int().nullable(),
-  superseded_by: z.number().int().nullable(),
-  redacted: z.union([z.literal(0), z.literal(1)]),
-});
-export type MemoryRow = z.infer<typeof MemoryRow>;
-
-export const ReservationRow = z.object({
-  resource_glob: z.string(),
-  agent_id: z.string(),
-  acquired_at: z.number().int(),
-  expires_at: z.number().int(),
-  event_id: z.number().int(),
-});
-export type ReservationRow = z.infer<typeof ReservationRow>;
-
-export const PresenceRow = z.object({
-  agent_id: z.string(),
-  last_seen: z.number().int(),
-  caps: z.string().nullable(),
-});
-export type PresenceRow = z.infer<typeof PresenceRow>;
-
-// message DM rows are just `events` rows of kind message|dm; payload = { body }.
-const MessagePayload = z.object({ body: z.string(), expiresAt: z.number().int().optional() });
-
-// ---------------------------------------------------------------------------
-// Mappers: ROW -> DTO. Never return a row to a caller; always map. Each parses
-// JSON columns and re-validates id/agent through the contract validators.
-// ---------------------------------------------------------------------------
-export function rowToEventRecord(r: EventRow): EventRecord {
-  return {
-    offset: r.id,
-    ts: r.ts,
-    agentId: AgentId.parse(r.agent_id),
-    kind: r.kind,
-    topic: r.topic ?? undefined,
-    scope: Scope.parse(r.scope),
-    payload: JSON.parse(r.payload) as unknown,
-  };
+function parseTags(raw: string | null): string[] | undefined {
+  if (raw == null) return undefined;
+  const v = JSON.parse(raw) as unknown;
+  if (!Array.isArray(v) || !v.every((t) => typeof t === "string")) return undefined;
+  return v as string[];
 }
 
-export function rowToMessageRecord(r: EventRow): MessageRecord {
-  const p = MessagePayload.parse(JSON.parse(r.payload));
-  return {
-    offset: r.id,
-    ts: r.ts,
-    agentId: AgentId.parse(r.agent_id),
-    topic: r.topic ?? undefined,
-    to: r.to_agent ?? undefined,
-    body: p.body,
-    expiresAt: p.expiresAt,
+export function rowToCompact(r: MemoryRow, store: Store, rank?: number): CompactMemory {
+  const out: CompactMemory = {
+    id: extId(store, r.id), ts: r.ts, agentId: r.agent_id, store,
+    snippet: r.content.length > LIMITS.SNIPPET_CHARS ? r.content.slice(0, LIMITS.SNIPPET_CHARS) + "…" : r.content,
   };
+  const tags = parseTags(r.tags);
+  if (tags) out.tags = tags;
+  if (rank !== undefined) out.rank = rank;
+  return out;
 }
 
-export function rowToMemoryRecord(r: MemoryRow, rank?: number): MemoryRecord {
-  return {
-    id: r.id,
-    ts: r.ts,
-    agentId: AgentId.parse(r.agent_id),
-    type: r.type,
-    scope: Scope.parse(r.scope),
-    content: r.content,
-    tags: JsonStringArray.parse(r.tags),
-    evidence: JsonStringArray.parse(r.evidence),
-    confidence: r.confidence ?? undefined,
-    supersededBy: r.superseded_by ?? undefined,
-    rank,
+export function rowToFull(r: MemoryRow, store: Store): FullMemory {
+  const out: FullMemory = {
+    id: extId(store, r.id), ts: r.ts, agentId: r.agent_id, store,
+    content: r.content, status: r.status as MemoryStatus,
   };
+  const tags = parseTags(r.tags);
+  if (tags) out.tags = tags;
+  if (r.supersedes != null) out.supersedes = extId(store, r.supersedes);
+  return out;
 }
 
-export function rowToReservationRecord(r: ReservationRow): ReservationRecord {
-  return {
-    resourceGlob: r.resource_glob,
-    agentId: AgentId.parse(r.agent_id),
-    acquiredAt: r.acquired_at,
-    expiresAt: r.expires_at,
-    offset: r.event_id,
-  };
-}
-
-export function rowToPresenceRecord(r: PresenceRow): PresenceRecord {
-  return {
-    agentId: AgentId.parse(r.agent_id),
-    lastSeen: r.last_seen,
-    caps: JsonStringArray.parse(r.caps),
-  };
+export function rowToLock(r: LockRow): LockRecord {
+  return { glob: r.glob, agentId: r.agent_id, acquiredAt: r.acquired_at, expiresAt: r.expires_at };
 }

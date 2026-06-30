@@ -16,7 +16,7 @@ Deep Agents Code target for `agent-surface`.
 - `subagents/worker.md` -> Deep Agents Code worker subagent:
   - user: `~/.deepagents/<agent>/agents/worker/AGENTS.md`
   - project: `.deepagents/agents/worker/AGENTS.md`
-- `registry/optional-services.json` MCP services -> `.deepagents/.mcp.json` when `--category mcps` is requested.
+- first-party Synapse MCP -> `.deepagents/.mcp.json` by default; external MCP services render only when explicitly requested with `--category mcps --service <id>`.
 
 `<agent>` defaults to `agent` and can be changed with `--agent <name>`.
 
@@ -24,7 +24,7 @@ Deep Agents Code target for `agent-surface`.
 
 Deep Agents Code subagent files support `name`, `description`, optional `model`, and a markdown system prompt. They do not support per-subagent tool restrictions in `AGENTS.md` frontmatter, so read-only roles are not emitted. The `worker` profile is emitted because its normalized access is `read-write-shell`, matching inherited Deep Agents Code tools.
 
-Generated instruction files bundle only `alwaysApply: true` rules. Scoped language policies are reference files for project-aware commands such as `boot-new`.
+Generated instruction files bundle only `alwaysApply: true` rules, including cybersecurity policy. Scoped language policies are reference files for project-aware commands such as `boot-new`.
 
 ## References
 

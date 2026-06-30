@@ -2,11 +2,12 @@
   "reviewed_at": "2026-06-19",
   "targets": {
     "claude-code": {
-      "summary": "Claude Code supports native slash commands, subagents, MCP, and skills; agent-surface generates commands and subagents and leaves MCP/skills manual to avoid duplicated command surfaces and secret-bearing config edits.",
+      "summary": "Claude Code supports native slash commands, subagents, MCP, and skills; agent-surface generates commands, subagents, first-party Synapse MCP wiring, and external skills.",
       "generated_render_tokens": [
         "commands",
         "subagents",
-        "external"
+        "external",
+        "mcps"
       ],
       "evidence": [
         {
@@ -51,13 +52,16 @@
         },
         "mcp": {
           "support": "native",
-          "generation": "manual",
+          "generation": "generated",
           "scope": [
             "user",
             "project"
           ],
-          "paths": [],
-          "notes": "MCP config can grant live tool access and may carry secrets; it is not auto-merged."
+          "paths": [
+            "~/.claude.json",
+            ".mcp.json"
+          ],
+          "notes": "First-party secretless MCP services are generated/merged; external or secret-bearing MCPs remain opt-in."
         },
         "skills": {
           "support": "native",
@@ -85,12 +89,13 @@
       }
     },
     "codex": {
-      "summary": "Codex supports skills, custom agent TOML files, AGENTS.md instructions, and MCP config; agent-surface generates explicit-invocation skills, custom agents, and global instructions while leaving MCP config manual.",
+      "summary": "Codex supports skills, custom agent TOML files, AGENTS.md instructions, and MCP config; agent-surface generates explicit-invocation skills, custom agents, global instructions, first-party Synapse MCP wiring, and external skills.",
       "generated_render_tokens": [
         "skills",
         "subagents",
         "rules",
-        "external"
+        "external",
+        "mcps"
       ],
       "evidence": [
         {
@@ -148,7 +153,7 @@
         },
         "mcp": {
           "support": "native",
-          "generation": "manual",
+          "generation": "generated",
           "scope": [
             "user",
             "project"
@@ -157,7 +162,7 @@
             "~/.codex/config.toml",
             ".codex/config.toml"
           ],
-          "notes": "MCP server entries can expose tools and secrets, so agent-surface does not auto-merge them."
+          "notes": "First-party secretless MCP services are merged into mcp_servers; external or secret-bearing MCPs remain opt-in."
         },
         "external": {
           "support": "native",
@@ -485,11 +490,12 @@
       }
     },
     "gemini-cli": {
-      "summary": "Gemini CLI is a legacy compatibility target. Google directs consumer users to Antigravity CLI, while enterprise/API-key access can remain usable; agent-surface still generates direct command, context, and agent files and keeps MCP settings manual.",
+      "summary": "Gemini CLI is a legacy compatibility target. Google directs consumer users to Antigravity CLI, while enterprise/API-key access can remain usable; agent-surface still generates direct command, context, agent files, and first-party Synapse MCP wiring.",
       "generated_render_tokens": [
         "commands",
         "subagents",
-        "rules"
+        "rules",
+        "mcps"
       ],
       "evidence": [
         {
@@ -540,13 +546,16 @@
         },
         "mcp": {
           "support": "native",
-          "generation": "manual",
+          "generation": "generated",
           "scope": [
             "user",
             "project"
           ],
-          "paths": [],
-          "notes": "MCP settings remain a reviewed host-config change."
+          "paths": [
+            "~/.gemini/settings.json",
+            ".gemini/settings.json"
+          ],
+          "notes": "Legacy Gemini CLI receives first-party secretless MCP wiring only; external or secret-bearing MCPs remain opt-in."
         },
         "skills": {
           "support": "native",
@@ -561,11 +570,12 @@
       }
     },
     "cline": {
-      "summary": "Cline supports workflows, rules, skills, MCP, and newer global configuration roots; agent-surface generates workflows, rules, and ignore files while leaving skills/MCP manual.",
+      "summary": "Cline supports workflows, rules, skills, MCP, and newer global configuration roots; agent-surface generates workflows, rules, ignore files, and first-party Synapse MCP wiring while leaving skills manual.",
       "generated_render_tokens": [
         "commands-as-workflows",
         "rules",
-        "ignores"
+        "ignores",
+        "mcps"
       ],
       "evidence": [
         {
@@ -631,13 +641,16 @@
         },
         "mcp": {
           "support": "native",
-          "generation": "manual",
+          "generation": "generated",
           "scope": [
             "user",
             "project"
           ],
-          "paths": [],
-          "notes": "MCP server definitions remain reviewed host config."
+          "paths": [
+            "~/.cline/mcp.json",
+            ".cline/mcp.json"
+          ],
+          "notes": "First-party secretless MCP services are generated/merged; external or secret-bearing MCPs remain opt-in."
         }
       }
     },
@@ -647,7 +660,8 @@
         "commands-as-workflows",
         "rules",
         "subagents",
-        "ignores"
+        "ignores",
+        "mcps"
       ],
       "evidence": [
         {
@@ -729,13 +743,16 @@
         },
         "mcp": {
           "support": "native",
-          "generation": "manual",
+          "generation": "generated",
           "scope": [
             "user",
             "project"
           ],
-          "paths": [],
-          "notes": "MCP server config remains a reviewed local configuration change."
+          "paths": [
+            "~/.config/kilo/kilo.jsonc",
+            "kilo.jsonc"
+          ],
+          "notes": "First-party secretless MCP services are merged into the existing mcp map; external or secret-bearing MCPs remain opt-in."
         }
       }
     },
@@ -862,11 +879,12 @@
       }
     },
     "opencode": {
-      "summary": "OpenCode supports AGENTS.md, commands, agents, skills, MCP, and plugins; agent-surface now generates rules, command files, and agent files and keeps MCP/skills/plugins manual.",
+      "summary": "OpenCode supports AGENTS.md, commands, agents, skills, MCP, and plugins; agent-surface generates rules, command files, agent files, and first-party Synapse MCP wiring while keeping skills/plugins manual.",
       "generated_render_tokens": [
         "commands",
         "subagents",
-        "rules"
+        "rules",
+        "mcps"
       ],
       "evidence": [
         {
@@ -934,13 +952,16 @@
         },
         "mcp": {
           "support": "native",
-          "generation": "manual",
+          "generation": "generated",
           "scope": [
             "user",
             "project"
           ],
-          "paths": [],
-          "notes": "MCP configuration remains manual because it can expose live tools."
+          "paths": [
+            "~/.config/opencode/opencode.json",
+            ".opencode/opencode.json"
+          ],
+          "notes": "First-party secretless MCP services are generated/merged under mcp; external or secret-bearing MCPs remain opt-in."
         },
         "plugins": {
           "support": "native",
@@ -955,10 +976,11 @@
       }
     },
     "vscode": {
-      "summary": "VS Code/Copilot supports instruction files, prompt files, MCP, and preview agent plugins; agent-surface generates the user instruction and prompt files only.",
+      "summary": "VS Code/Copilot supports instruction files, prompt files, MCP, and preview agent plugins; agent-surface generates user instruction and prompt files plus first-party Synapse MCP wiring.",
       "generated_render_tokens": [
         "instructions",
-        "prompts"
+        "prompts",
+        "mcps"
       ],
       "evidence": [
         {
@@ -995,13 +1017,15 @@
         },
         "mcp": {
           "support": "native",
-          "generation": "manual",
+          "generation": "generated",
           "scope": [
             "user",
             "project"
           ],
-          "paths": [],
-          "notes": "MCP configuration can be policy-gated and is not auto-merged."
+          "paths": [
+            "mcp.json"
+          ],
+          "notes": "First-party secretless MCP services are generated into the VS Code user MCP config; external or secret-bearing MCPs remain opt-in."
         },
         "plugins": {
           "support": "native",
@@ -1056,12 +1080,13 @@
       }
     },
     "cursor": {
-      "summary": "Cursor supports rules, commands, agents, MCP, and ignore files; agent-surface generates rules, commands, subagents, and ignore files while keeping MCP manual.",
+      "summary": "Cursor supports rules, commands, agents, MCP, and ignore files; agent-surface generates rules, commands, subagents, ignore files, and first-party Synapse MCP wiring.",
       "generated_render_tokens": [
         "rules",
         "commands",
         "subagents",
-        "ignores"
+        "ignores",
+        "mcps"
       ],
       "evidence": [
         {
@@ -1124,7 +1149,7 @@
         },
         "mcp": {
           "support": "native",
-          "generation": "manual",
+          "generation": "generated",
           "scope": [
             "user",
             "project"
@@ -1133,7 +1158,7 @@
             "~/.cursor/mcp.json",
             ".cursor/mcp.json"
           ],
-          "notes": "MCP config is never auto-merged because it can include secrets and live tool grants."
+          "notes": "First-party secretless MCP services are generated/merged; external or secret-bearing MCPs remain opt-in."
         }
       }
     },
@@ -1246,9 +1271,10 @@
       }
     },
     "trae": {
-      "summary": "Trae exposes user/project rules and MCP config; agent-surface generates the user rules file and leaves project rules/MCP manual until the current config shape is verified by local probes.",
+      "summary": "Trae exposes user/project rules and MCP config; agent-surface generates the user rules file and first-party Synapse MCP wiring.",
       "generated_render_tokens": [
-        "rules"
+        "rules",
+        "mcps"
       ],
       "evidence": [
         {
@@ -1274,7 +1300,7 @@
         },
         "mcp": {
           "support": "native",
-          "generation": "manual",
+          "generation": "generated",
           "scope": [
             "user",
             "project"
@@ -1282,16 +1308,17 @@
           "paths": [
             ".trae/mcp.json"
           ],
-          "notes": "MCP config remains manual until the live schema is verified again."
+          "notes": "First-party secretless MCP services are generated/merged; external or secret-bearing MCPs remain opt-in."
         }
       }
     },
     "windsurf": {
-      "summary": "Windsurf supports workflows, rule files, skills, and MCP configuration; agent-surface generates workflows, rules, and external skills while leaving MCP config manual.",
+      "summary": "Windsurf supports workflows, rule files, skills, and MCP configuration; agent-surface generates workflows, rules, external skills, and first-party Synapse MCP wiring.",
       "generated_render_tokens": [
         "commands-as-workflows",
         "rules",
-        "external"
+        "external",
+        "mcps"
       ],
       "evidence": [
         {
@@ -1349,23 +1376,25 @@
         },
         "mcp": {
           "support": "native",
-          "generation": "manual",
+          "generation": "generated",
           "scope": [
             "user"
           ],
           "paths": [
-            "~/.codeium/windsurf/mcp_config.json"
+            "~/.codeium/windsurf/mcp_config.json",
+            ".windsurf/mcp_config.json"
           ],
-          "notes": "MCP settings remain manual until safe merge behavior is implemented."
+          "notes": "First-party secretless MCP services are generated/merged; external or secret-bearing MCPs remain opt-in."
         }
       }
     },
     "zed": {
-      "summary": "Zed supports AGENTS.md instructions, Agent Skills, external agents, and MCP context servers; agent-surface generates skills, instructions, and external skill packs while leaving MCP settings manual.",
+      "summary": "Zed supports AGENTS.md instructions, Agent Skills, external agents, and MCP context servers; agent-surface generates skills, instructions, external skill packs, and first-party Synapse MCP wiring.",
       "generated_render_tokens": [
         "skills",
         "rules",
-        "external"
+        "external",
+        "mcps"
       ],
       "evidence": [
         {
@@ -1423,14 +1452,15 @@
         },
         "mcp": {
           "support": "native",
-          "generation": "manual",
+          "generation": "generated",
           "scope": [
             "user"
           ],
           "paths": [
-            "context_servers in Zed settings"
+            "~/.config/zed/settings.json",
+            ".zed/settings.json"
           ],
-          "notes": "Context-server settings remain manual until safe settings merge behavior is implemented."
+          "notes": "First-party secretless MCP services are generated/merged under context_servers; external or secret-bearing MCPs remain opt-in."
         }
       }
     }

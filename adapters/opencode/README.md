@@ -8,11 +8,13 @@ Implemented target paths:
 - user: `~/.config/opencode/agents/<name>.md`
 - user: `~/.config/opencode/AGENTS.md` for always-on rules
 - user: `~/.config/opencode/references/rules/<rule>.md`
+- user merge: `~/.config/opencode/opencode.json` `mcp.synapse`
 - project: `.opencode/commands/*.md`
 - project: `.opencode/agents/<name>.md`
 - project: `AGENTS.md` plus `.opencode/references/rules/<rule>.md`
+- project merge: `.opencode/opencode.json` `mcp.synapse`
 
-Native MCP and skill support is not currently generated; local user wiring for optional services belongs in the host config.
+First-party Synapse MCP wiring is generated and safely merged. External or secret-bearing MCPs remain opt-in.
 
 Native plugin packaging remains future generated-surface work:
 

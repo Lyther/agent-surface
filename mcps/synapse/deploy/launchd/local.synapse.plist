@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Always-on synapse sidecar. Deployed + (re)started by `sh install.sh` (npm run install:synapse);
+     the bridge also autostarts the sidecar on demand, so the service only pre-warms + KeepAlive-restarts it.
+     Remove:
+       launchctl bootout gui/$(id -u)/local.synapse ; rm ~/Library/LaunchAgents/local.synapse.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>local.synapse</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-lc</string>
+    <string>exec "$HOME/.local/bin/synapse-sidecar"</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/tmp/local.synapse.out</string>
+  <key>StandardErrorPath</key><string>/tmp/local.synapse.err</string>
+</dict>
+</plist>

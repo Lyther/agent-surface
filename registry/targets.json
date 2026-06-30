@@ -7,7 +7,8 @@
       "renders": [
         "commands",
         "subagents",
-        "external"
+        "external",
+        "mcps"
       ]
     },
     "codex": {
@@ -18,7 +19,8 @@
         "skills",
         "subagents",
         "rules",
-        "external"
+        "external",
+        "mcps"
       ]
     },
     "deepagents": {
@@ -78,7 +80,8 @@
       "renders": [
         "commands",
         "subagents",
-        "rules"
+        "rules",
+        "mcps"
       ]
     },
     "cline": {
@@ -88,7 +91,8 @@
       "renders": [
         "commands-as-workflows",
         "rules",
-        "ignores"
+        "ignores",
+        "mcps"
       ]
     },
     "kilo": {
@@ -99,7 +103,8 @@
         "commands-as-workflows",
         "rules",
         "subagents",
-        "ignores"
+        "ignores",
+        "mcps"
       ]
     },
     "antigravity": {
@@ -129,7 +134,8 @@
       "renders": [
         "commands",
         "subagents",
-        "rules"
+        "rules",
+        "mcps"
       ]
     },
     "vscode": {
@@ -138,7 +144,8 @@
       "install_supported": true,
       "renders": [
         "instructions",
-        "prompts"
+        "prompts",
+        "mcps"
       ]
     },
     "vscodium": {
@@ -158,7 +165,8 @@
         "rules",
         "commands",
         "subagents",
-        "ignores"
+        "ignores",
+        "mcps"
       ]
     },
     "droid": {
@@ -186,7 +194,8 @@
       "build_supported": true,
       "install_supported": true,
       "renders": [
-        "rules"
+        "rules",
+        "mcps"
       ]
     },
     "windsurf": {
@@ -196,7 +205,8 @@
       "renders": [
         "commands-as-workflows",
         "rules",
-        "external"
+        "external",
+        "mcps"
       ]
     },
     "zed": {
@@ -206,7 +216,8 @@
       "renders": [
         "skills",
         "rules",
-        "external"
+        "external",
+        "mcps"
       ]
     }
   },

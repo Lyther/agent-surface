@@ -8,5 +8,7 @@ Implemented target paths:
 - project: `.claude/commands/<group>/<name>.md`
 - user: `~/.claude/agents/<name>.md`
 - project: `.claude/agents/<name>.md`
+- user merge: `~/.claude.json` `mcpServers.synapse`
+- project merge: `.mcp.json` `mcpServers.synapse`
 
-The current subagent batch emits `subagents/{boss,researcher,analyzer,adversary,reviewer,worker}.md` to `.claude/agents/*.md`. MCP config is not currently generated; configure MCP servers through Claude Code's native commands or reviewed host config.
+The current subagent batch emits `subagents/{boss,researcher,analyzer,adversary,reviewer,worker}.md` to `.claude/agents/*.md`. First-party Synapse MCP wiring is generated and safely merged; external or secret-bearing MCPs remain opt-in.

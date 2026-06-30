@@ -7,6 +7,7 @@ Implemented user-profile surfaces:
 - `instructions/agent-surface.instructions.md`
 - `instructions/references/rules/<rule>.md`
 - `prompts/agent-surface.prompt.md`
+- `mcp.json` with `servers.synapse`
 
 These paths are relative to the VS Code user data directory:
 
@@ -14,8 +15,8 @@ These paths are relative to the VS Code user data directory:
 - Linux: `~/.config/Code/User`
 - Windows: `%APPDATA%/Code/User`
 
-Settings, keybindings, extension recommendations, and MCP config are not merged automatically.
+Settings, keybindings, and extension recommendations are not merged automatically. First-party Synapse MCP wiring is generated and safely merged into `mcp.json`; external or secret-bearing MCPs remain opt-in.
 
-VS Code and Copilot have native MCP support through `mcp.json` and `chat.mcp.*` settings, and preview agent plugins can bundle skills. These remain manual-only because VS Code trust and organization policy can gate activation.
+VS Code and Copilot have native MCP support through `mcp.json` and `chat.mcp.*` settings, and preview agent plugins can bundle skills. Policy-gated extension activation remains outside agent-surface.
 
 Generated instructions bundle only always-on rules. Scoped language policies are distributed as references for project-aware commands.

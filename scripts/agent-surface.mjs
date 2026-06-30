@@ -11,7 +11,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { approximateTokens, tomlMultilineString, tomlString, yamlString } from "./agent-surface/format.mjs";
-import { mergeKiloInstructionJsonc, parseJsoncResult } from "./agent-surface/jsonc.mjs";
+import { mergeJsoncRootObjectProperty, mergeKiloInstructionJsonc, parseJsoncResult } from "./agent-surface/jsonc.mjs";
 import {
   checkIgnores,
   checkSubagents,
@@ -38,6 +38,11 @@ const targets = {
     renderSubagent: renderClaudeSubagent,
     installRoot: installRootClaude,
     commandOutputName: groupedMarkdownCommandOutputName,
+    mcpConfig: {
+      relativeOutput: claudeMcpPath,
+      format: "mcpServers",
+      defaultEnabled: true,
+    },
   },
   codex: {
     label: "Codex skills, custom agents, and global instructions",
@@ -55,6 +60,11 @@ const targets = {
     commandOutputName: codexSkillOutputName,
     additionalCommandOutputs: [codexOpenAiAgentOutput],
     staticOutputs: codexStaticOutputs,
+    mcpConfig: {
+      relativeOutput: () => path.join(".codex", "config.toml"),
+      format: "codex-toml",
+      defaultEnabled: true,
+    },
   },
   deepagents: {
     label: "Deep Agents Code skills, instructions, subagents, and MCP",
@@ -73,7 +83,8 @@ const targets = {
     staticOutputs: deepagentsStaticOutputs,
     mcpConfig: {
       relativeOutput: deepagentsMcpPath,
-      defaultEnabled: false,
+      format: "mcpServers",
+      defaultEnabled: true,
     },
   },
   goose: {
@@ -126,6 +137,11 @@ const targets = {
     installRoot: installRootCline,
     ignoreFilename: ".clineignore",
     staticOutputs: clineStaticOutputs,
+    mcpConfig: {
+      relativeOutput: clineMcpPath,
+      format: "mcpServers",
+      defaultEnabled: true,
+    },
   },
   kilo: {
     label: "Kilo workflows, instructions, and subagents",
@@ -140,6 +156,12 @@ const targets = {
     installRoot: installRootKilo,
     ignoreFilename: ".kilocodeignore",
     staticOutputs: kiloStaticOutputs,
+    mcpConfig: {
+      relativeOutput: kiloConfigPath,
+      format: "local-command-map",
+      defaultEnabled: true,
+      emitOutput: false,
+    },
   },
   antigravity: {
     label: "Antigravity workflows",
@@ -176,6 +198,11 @@ const targets = {
     installRoot: installRootGemini,
     commandOutputName: geminiCommandOutputName,
     staticOutputs: geminiStaticOutputs,
+    mcpConfig: {
+      relativeOutput: () => path.join(".gemini", "settings.json"),
+      format: "mcpServers",
+      defaultEnabled: true,
+    },
   },
   cursor: {
     label: "Cursor global commands, rules, and subagents",
@@ -190,6 +217,11 @@ const targets = {
     installRoot: installRootHomeOnly,
     ignoreFilename: ".cursorignore",
     staticOutputs: cursorStaticOutputs,
+    mcpConfig: {
+      relativeOutput: () => path.join(".cursor", "mcp.json"),
+      format: "mcpServers",
+      defaultEnabled: true,
+    },
   },
   droid: {
     label: "Factory Droid commands, instructions, droids, and optional external assets",
@@ -206,6 +238,7 @@ const targets = {
     staticOutputs: droidStaticOutputs,
     mcpConfig: {
       relativeOutput: () => path.join(".factory", "mcp.json"),
+      format: "mcpServers",
       defaultEnabled: true,
     },
   },
@@ -220,6 +253,11 @@ const targets = {
     staticRenders: ["instructions", "prompts"],
     installRoot: installRootVsCode,
     staticOutputs: vscodeStaticOutputs,
+    mcpConfig: {
+      relativeOutput: () => "mcp.json",
+      format: "vscode-servers",
+      defaultEnabled: true,
+    },
   },
   vscodium: {
     label: "VSCodium user prompt and instruction files",
@@ -239,12 +277,22 @@ const targets = {
     staticRenders: ["rules"],
     installRoot: installRootOpencode,
     staticOutputs: opencodeStaticOutputs,
+    mcpConfig: {
+      relativeOutput: opencodeMcpPath,
+      format: "local-command-map",
+      defaultEnabled: true,
+    },
   },
   trae: {
     label: "Trae global user rules",
     staticRenders: ["rules"],
     installRoot: installRootHomeOnly,
     staticOutputs: traeStaticOutputs,
+    mcpConfig: {
+      relativeOutput: () => path.join(".trae", "mcp.json"),
+      format: "mcpServers",
+      defaultEnabled: true,
+    },
   },
   windsurf: {
     label: "Windsurf workflows, rules, and skills",
@@ -256,6 +304,11 @@ const targets = {
     renderCommand: renderWindsurfWorkflow,
     installRoot: installRootWindsurf,
     staticOutputs: windsurfStaticOutputs,
+    mcpConfig: {
+      relativeOutput: windsurfMcpPath,
+      format: "mcpServers",
+      defaultEnabled: true,
+    },
   },
   zed: {
     label: "Zed skills and instructions",
@@ -267,6 +320,11 @@ const targets = {
     renderCommand: renderSharedAgentSkill,
     installRoot: installRootZed,
     staticOutputs: zedStaticOutputs,
+    mcpConfig: {
+      relativeOutput: zedMcpPath,
+      format: "zed-context-servers",
+      defaultEnabled: true,
+    },
   },
 };
 
@@ -1146,8 +1204,8 @@ function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".factory", "droids", "boss.md"), /^---\nname: boss\n/);
     requireContains(path.join(".factory", "AGENTS.md"), /agent-surface Droid rules/);
     const mcp = requireJson(path.join(".factory", "mcp.json"));
-    if (mcp && mcp.mcpServers?.agentmemory?.command !== "~/.local/bin/agentmemory-mcp") {
-      errors.push("Droid agentmemory MCP must use the local patched binary");
+    if (mcp && mcp.mcpServers?.synapse?.command !== "~/.local/bin/synapse-bridge") {
+      errors.push("Droid synapse MCP must use the first-party local bridge binary");
     }
     if (outputs.some((output) => output.relativeOutput.startsWith(path.join(".factory", "skills") + path.sep))) {
       requireContains(path.join(".factory", "skills", "karpathy-guidelines", "SKILL.md"), skillFrontmatter);
@@ -1426,9 +1484,25 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     : [];
   const staleRemovals = staleManaged.map((item) => item.output);
   const staleRemovalActions = [];
-  const configMerges = target === "kilo" && (!categoryFilter || categoryFilter.has("rules"))
-    ? [await prepareKiloConfigMerge(await kiloConfigMerge(installRoot, scope))]
-    : [];
+  const configMerges = [];
+  if (target === "kilo" && (!categoryFilter || categoryFilter.has("rules") || categoryFilter.has("mcps"))) {
+    configMerges.push(await prepareKiloConfigMerge(await kiloConfigMerge(installRoot, scope, {
+      includeInstructions: !categoryFilter || categoryFilter.has("rules"),
+      includeMcp: !categoryFilter || categoryFilter.has("mcps"),
+      categoryFilter,
+      optionalServices,
+    })));
+  } else if (adapter.mcpConfig && (!categoryFilter || categoryFilter.has("mcps"))) {
+    const merge = await mcpConfigMerge(adapter, installRoot, scope, {
+      target,
+      scope,
+      mode: "install",
+      agentName: options.agentName ?? "agent",
+      categoryFilter,
+      optionalServices,
+    });
+    if (merge) configMerges.push(await prepareMcpConfigMerge(merge));
+  }
 
   for (const item of configMerges) {
     if (item.action === "blocked") blocked.push(item.error);
@@ -1543,15 +1617,24 @@ function printInstallPlan(plan) {
     console.log("  none");
   } else {
     for (const item of plan.configMerges) {
+      if (item.kind === "mcp") {
+        const addServers = item.addMcpServers ?? [];
+        console.log(`  ${item.relativeOutput} MCP += ${addServers.length > 0 ? addServers.join(", ") : "unchanged"}`);
+        continue;
+      }
       const addInstructions = item.addInstructions ?? item.instructions;
       const removeInstructions = item.removeInstructions ?? [];
+      const addMcpServers = item.addMcpServers ?? [];
       if (addInstructions.length > 0) {
         console.log(`  ${item.relativeOutput} instructions += ${addInstructions.join(", ")}`);
       }
       if (removeInstructions.length > 0) {
         console.log(`  ${item.relativeOutput} instructions -= ${removeInstructions.join(", ")}`);
       }
-      if (addInstructions.length === 0 && removeInstructions.length === 0) {
+      if (addMcpServers.length > 0) {
+        console.log(`  ${item.relativeOutput} MCP += ${addMcpServers.join(", ")}`);
+      }
+      if (addInstructions.length === 0 && removeInstructions.length === 0 && addMcpServers.length === 0) {
         console.log(`  ${item.relativeOutput} instructions unchanged`);
       }
     }
@@ -1601,6 +1684,7 @@ async function applyInstallPlan(plan) {
       continue;
     }
     if (item.action !== "remove") continue;
+    if (!(await exists(item.output))) continue;
     await backupExisting(plan.installRoot, backupRoot, item.output);
     backups += 1;
     await rm(item.output, { force: true });
@@ -1613,7 +1697,7 @@ async function applyInstallPlan(plan) {
   }
 
   for (const item of plan.configMerges) {
-    const result = await applyKiloConfigMerge(plan.installRoot, backupRoot, item);
+    const result = await applyConfigMerge(plan.installRoot, backupRoot, item);
     backups += result.backup ? 1 : 0;
     configMerges += result.changed ? 1 : 0;
   }
@@ -1632,23 +1716,148 @@ async function applyInstallPlan(plan) {
   console.log(`  backups: ${backups === 0 ? "none" : path.relative(plan.installRoot, backupRoot)}`);
 }
 
-async function kiloConfigMerge(installRoot, scope) {
+async function mcpConfigMerge(adapter, installRoot, scope, context) {
+  const entries = await selectedMcpServiceEntries(adapter.mcpConfig.defaultEnabled, context);
+  if (entries.length === 0) return null;
+  const relativeOutput = outputRootFor(adapter.mcpConfig.relativeOutput, { ...context, scope });
+  return {
+    kind: "mcp",
+    output: path.join(installRoot, relativeOutput),
+    relativeOutput,
+    format: adapter.mcpConfig.format,
+    entries,
+  };
+}
+
+async function prepareMcpConfigMerge(merge) {
+  if (!isSafeRelativePath(merge.relativeOutput)) {
+    return { ...merge, action: "blocked", error: `unsafe MCP config path: ${merge.relativeOutput}` };
+  }
+
+  const existing = await readFileIfExists(merge.output);
+  const addMcpServers = merge.entries.map(([id]) => id);
+  if (existing === null) {
+    return {
+      ...merge,
+      action: "write",
+      addMcpServers,
+      content: renderMcpConfig(merge.format, merge.entries),
+    };
+  }
+
+  const text = existing.toString("utf8");
+  let content;
+  try {
+    if (merge.format === "codex-toml") {
+      content = mergeCodexMcpToml(text, merge.entries);
+    } else {
+      content = mergeJsonMcpConfig(text, merge.format, merge.entries);
+    }
+  } catch (error) {
+    return { ...merge, action: "blocked", error: `${merge.relativeOutput}: ${error.message}` };
+  }
+  if (content === text) return { ...merge, action: "skip", addMcpServers: [], content };
+  return { ...merge, action: "merge", addMcpServers, content };
+}
+
+// Merge the agent-surface-owned MCP servers key into a JSON/JSONC host config. The merge
+// preserves all other top-level keys and their comments; the merged key's object value is
+// re-serialized (replaceJsoncValue), so comments INSIDE the merged key (e.g. inside an
+// existing mcpServers block) are dropped. This is an accepted tradeoff: the synapse entry
+// is agent-surface-owned and the merged value is fully regenerated, while user-owned
+// sibling servers under the same key are preserved by value. Bad config shapes block
+// rather than clobber.
+function mergeJsonMcpConfig(text, format, entries) {
+  const parsed = parseJsoncResult(text);
+  if (!parsed.ok) throw new Error(`invalid JSON/JSONC: ${parsed.error.message}`);
+  if (parsed.value === null || typeof parsed.value !== "object" || Array.isArray(parsed.value)) {
+    throw new Error("config must be an object");
+  }
+  const key = mcpConfigRootKey(format);
+  const current = parsed.value[key] ?? {};
+  if (current === null || typeof current !== "object" || Array.isArray(current)) {
+    throw new Error(`${key} must be an object`);
+  }
+  return mergeJsoncRootObjectProperty(text, key, optionalServiceMcpServers(entries, format));
+}
+
+function mcpConfigRootKey(format) {
+  if (format === "vscode-servers") return "servers";
+  if (format === "zed-context-servers") return "context_servers";
+  if (format === "local-command-map") return "mcp";
+  return "mcpServers";
+}
+
+function mergeCodexMcpToml(text, entries) {
+  const ids = entries.map(([id]) => id);
+  const cleaned = stripCodexMcpTomlBlocks(text, ids);
+  const block = entries.map(([id, service]) => renderCodexMcpServer(id, service)).join("\n").trimEnd();
+  const joiner = cleaned.trim().length === 0 ? "" : "\n\n";
+  return `${cleaned.trimEnd()}${joiner}${block}\n`;
+}
+
+function stripCodexMcpTomlBlocks(text, ids) {
+  const sections = new Set(ids.flatMap((id) => [`[mcp_servers.${id}]`, `[mcp_servers.${id}.env]`]));
+  const lines = text.split(/\r?\n/);
+  const out = [];
+  let skipping = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (sections.has(trimmed)) {
+      skipping = true;
+      // drop an orphan comment line sitting directly above the removed section header so
+      // a hand-commented synapse entry doesn't leave a dangling #comment after re-merge.
+      // Only comment lines are removed; blank lines are left (the \n{3,} cleanup below
+      // collapses any excess spacing).
+      while (out.length > 0 && out[out.length - 1].trim().startsWith("#")) out.pop();
+      continue;
+    }
+    if (skipping && /^\[.+\]$/.test(trimmed) && !sections.has(trimmed)) {
+      skipping = false;
+    }
+    if (!skipping) out.push(line);
+  }
+  return out.join("\n").replace(/\n{3,}$/u, "\n\n");
+}
+
+async function kiloConfigMerge(installRoot, scope, options = {}) {
   const relativeOutput = scope === "user" ? path.join(".config", "kilo", "kilo.jsonc") : "kilo.jsonc";
-  const instructions = await kiloRuleInstructionPaths(scope);
+  const includeInstructions = options.includeInstructions !== false;
+  const includeMcp = options.includeMcp === true;
+  const instructions = includeInstructions ? await kiloRuleInstructionPaths(scope) : [];
   const legacyRuleRoot = scope === "user" ? "./rules" : ".kilo/rules";
   const legacyScopedRuleInstructions = (await readRules())
     .filter((rule) => rule.alwaysApply === false)
     .map((rule) => `${legacyRuleRoot}/${path.basename(rule.file, ".mdc")}.md`);
-  const legacyInstructions = [`${legacyRuleRoot}/agent-surface.md`, `${legacyRuleRoot}/00-core.md`, ...legacyScopedRuleInstructions];
+  const legacyLanguageRuleInstructions = [
+    "10-lang-python",
+    "11-lang-rust",
+    "12-lang-go",
+    "13-lang-typescript",
+    "14-lang-shell",
+  ].map((name) => `${legacyRuleRoot}/${name}.md`);
+  const legacyInstructions = [
+    `${legacyRuleRoot}/agent-surface.md`,
+    `${legacyRuleRoot}/00-core.md`,
+    ...legacyScopedRuleInstructions,
+    ...legacyLanguageRuleInstructions,
+  ];
   return {
+    kind: "kilo",
     output: path.join(installRoot, relativeOutput),
     relativeOutput,
     instructions,
-    legacyInstructions,
+    legacyInstructions: includeInstructions ? legacyInstructions : [],
+    mcpEntries: includeMcp
+      ? await selectedMcpServiceEntries(true, {
+        categoryFilter: options.categoryFilter ?? null,
+        optionalServices: options.optionalServices ?? null,
+      })
+      : [],
   };
 }
 
-async function applyKiloConfigMerge(installRoot, backupRoot, merge) {
+async function applyConfigMerge(installRoot, backupRoot, merge) {
   if (merge.action === "skip") return { changed: false, backup: false };
   if (merge.action === "blocked") fail(merge.error);
   const existing = await readFileIfExists(merge.output);
@@ -1665,15 +1874,18 @@ async function prepareKiloConfigMerge(merge) {
 
   const existing = await readFileIfExists(merge.output);
   if (existing === null) {
+    const content = {
+      $schema: "https://app.kilo.ai/config.json",
+    };
+    if (merge.instructions.length > 0) content.instructions = merge.instructions;
+    if (merge.mcpEntries.length > 0) content.mcp = optionalServiceMcpServers(merge.mcpEntries, "local-command-map");
     return {
       ...merge,
       action: "write",
       addInstructions: merge.instructions,
       removeInstructions: [],
-      content: `${JSON.stringify({
-        $schema: "https://app.kilo.ai/config.json",
-        instructions: merge.instructions,
-      }, null, 2)}\n`,
+      addMcpServers: merge.mcpEntries.map(([id]) => id),
+      content: `${JSON.stringify(content, null, 2)}\n`,
     };
   }
 
@@ -1686,21 +1898,40 @@ async function prepareKiloConfigMerge(merge) {
     return { ...merge, action: "blocked", error: `${merge.relativeOutput}: config must be an object` };
   }
 
-  const instructions = parsed.value.instructions ?? [];
-  if (!Array.isArray(instructions)) {
-    return { ...merge, action: "blocked", error: `${merge.relativeOutput}: instructions must be an array` };
-  }
-  if (!instructions.every((item) => typeof item === "string")) {
-    return { ...merge, action: "blocked", error: `${merge.relativeOutput}: instructions must contain only strings` };
-  }
-  const missing = merge.instructions.filter((item) => !instructions.includes(item));
-  const remove = merge.legacyInstructions.filter((item) => instructions.includes(item));
-  if (missing.length === 0 && remove.length === 0) {
-    return { ...merge, action: "skip", addInstructions: [], removeInstructions: [] };
+  let content = text;
+  let missing = [];
+  let remove = [];
+  if (merge.instructions.length > 0) {
+    const instructions = parsed.value.instructions ?? [];
+    if (!Array.isArray(instructions)) {
+      return { ...merge, action: "blocked", error: `${merge.relativeOutput}: instructions must be an array` };
+    }
+    if (!instructions.every((item) => typeof item === "string")) {
+      return { ...merge, action: "blocked", error: `${merge.relativeOutput}: instructions must contain only strings` };
+    }
+    missing = merge.instructions.filter((item) => !instructions.includes(item));
+    remove = merge.legacyInstructions.filter((item) => instructions.includes(item));
+    if (missing.length > 0 || remove.length > 0) {
+      content = mergeKiloInstructionJsonc(content, missing, remove);
+    }
   }
 
-  const content = mergeKiloInstructionJsonc(text, missing, remove);
-  return { ...merge, action: "merge", addInstructions: missing, removeInstructions: remove, content };
+  const addMcpServers = merge.mcpEntries
+    .map(([id]) => id)
+    .filter((id) => parsed.value.mcp?.[id] === undefined);
+  if (merge.mcpEntries.length > 0) {
+    try {
+      content = mergeJsoncRootObjectProperty(content, "mcp", optionalServiceMcpServers(merge.mcpEntries, "local-command-map"));
+    } catch (error) {
+      return { ...merge, action: "blocked", error: `${merge.relativeOutput}: ${error.message}` };
+    }
+  }
+
+  if (content === text) {
+    return { ...merge, action: "skip", addInstructions: [], removeInstructions: [], addMcpServers: [] };
+  }
+
+  return { ...merge, action: "merge", addInstructions: missing, removeInstructions: remove, addMcpServers, content };
 }
 
 async function backupExisting(installRoot, backupRoot, file) {
@@ -2684,6 +2915,10 @@ async function kiloStaticOutputs(_commands, context) {
   const rules = await readRules();
   const alwaysApplyRules = rules.filter((rule) => rule.alwaysApply !== false);
   const scopedRules = rules.filter((rule) => rule.alwaysApply === false);
+  const firstPartyMcpEntries = await selectedMcpServiceEntries(true, {
+    categoryFilter: null,
+    optionalServices: null,
+  });
   const outputs = [
     ...alwaysApplyRules.map((rule) => ({
       source: rule.file,
@@ -2692,13 +2927,17 @@ async function kiloStaticOutputs(_commands, context) {
     })),
   ];
   if (context.mode !== "install") {
+    const kiloConfig = {
+      $schema: "https://app.kilo.ai/config.json",
+      instructions: await kiloRuleInstructionPaths(context.scope),
+    };
+    if (firstPartyMcpEntries.length > 0) {
+      kiloConfig.mcp = optionalServiceMcpServers(firstPartyMcpEntries, "local-command-map");
+    }
     outputs.unshift({
       source: "rules/*.mdc",
       relativeOutput: kiloConfigPath(context.scope),
-      content: `${JSON.stringify({
-        $schema: "https://app.kilo.ai/config.json",
-        instructions: await kiloRuleInstructionPaths(context.scope),
-      }, null, 2)}\n`,
+      content: `${JSON.stringify(kiloConfig, null, 2)}\n`,
     });
   }
   outputs.push(...scopedRules.map((rule) => ({
@@ -2868,44 +3107,84 @@ async function zedStaticOutputs(_commands, context) {
 }
 
 async function optionalMcpOutputs(adapter, context) {
-  if (!adapter.mcpConfig.defaultEnabled && !context.categoryFilter?.has("mcps")) return [];
+  if (adapter.mcpConfig.emitOutput === false) return [];
+  if (context.mode === "install" && adapter.mcpConfig.installMode !== "write") return [];
 
-  const registry = await readOptionalServices();
-  const entries = Object.entries(registry.services)
-    .filter(([, service]) => service.kind === "mcp")
-    .filter(([id]) => !context.optionalServices || context.optionalServices.has(id));
-  if (context.optionalServices) {
-    const known = new Set(entries.map(([id]) => id));
-    for (const id of context.optionalServices) {
-      if (!known.has(id)) fail(`missing optional MCP service: ${id}`);
-    }
-  }
+  const entries = await selectedMcpServiceEntries(adapter.mcpConfig.defaultEnabled, context);
   if (entries.length === 0) return [];
-
-  const mcpServers = {};
-  for (const [id, service] of entries.sort(([left], [right]) => left.localeCompare(right))) {
-    mcpServers[id] = optionalServiceMcpServer(service);
-  }
 
   return [{
     sourceKind: "external",
     renderKind: "mcps",
     source: "registry/optional-services.json",
     relativeOutput: outputRootFor(adapter.mcpConfig.relativeOutput, context),
-    content: `${JSON.stringify({ mcpServers }, null, 2)}\n`,
+    content: renderMcpConfig(adapter.mcpConfig.format, entries),
   }];
 }
 
-function optionalServiceMcpServer(service) {
+async function selectedMcpServiceEntries(defaultEnabled, context) {
+  const explicitMcp = context.categoryFilter?.has("mcps") || context.optionalServices;
+  if (!defaultEnabled && !explicitMcp) return [];
+
+  const registry = await readOptionalServices();
+  const entries = Object.entries(registry.services)
+    .filter(([, service]) => service.kind === "mcp")
+    .filter(([id]) => !context.optionalServices || context.optionalServices.has(id))
+    .filter(([, service]) => explicitMcp || service.first_party === true);
+  if (context.optionalServices) {
+    const known = new Set(entries.map(([id]) => id));
+    for (const id of context.optionalServices) {
+      if (!known.has(id)) fail(`missing optional MCP service: ${id}`);
+    }
+  }
+  return entries.sort(([left], [right]) => left.localeCompare(right));
+}
+
+function renderMcpConfig(format, entries) {
+  const servers = optionalServiceMcpServers(entries, format);
+  if (format === "codex-toml") {
+    return entries.map(([id, service]) => renderCodexMcpServer(id, service)).join("\n");
+  }
+  if (format === "vscode-servers") return `${JSON.stringify({ servers }, null, 2)}\n`;
+  if (format === "zed-context-servers") return `${JSON.stringify({ context_servers: servers }, null, 2)}\n`;
+  if (format === "local-command-map") return `${JSON.stringify({ mcp: servers }, null, 2)}\n`;
+  return `${JSON.stringify({ mcpServers: servers }, null, 2)}\n`;
+}
+
+function optionalServiceMcpServers(entries, format) {
+  const servers = {};
+  for (const [id, service] of entries) servers[id] = optionalServiceMcpServer(service, format);
+  return servers;
+}
+
+function optionalServiceMcpServer(service, format = "mcpServers") {
   const server = service.mcp?.server;
   if (!server || typeof server !== "object" || Array.isArray(server)) {
     fail(`optional service ${service.path} is missing an MCP server contract`);
+  }
+  if (format === "local-command-map") {
+    return {
+      type: "local",
+      command: [server.command, ...(server.args ?? [])],
+      enabled: true,
+    };
   }
   return {
     type: server.type,
     command: server.command,
     args: server.args ?? [],
   };
+}
+
+function renderCodexMcpServer(id, service) {
+  const server = optionalServiceMcpServer(service);
+  const lines = [
+    `[mcp_servers.${id}]`,
+    `command = "${tomlString(server.command)}"`,
+    `args = [${server.args.map((arg) => `"${tomlString(arg)}"`).join(", ")}]`,
+    "",
+  ];
+  return lines.join("\n");
 }
 
 const MAX_EXTERNAL_FILE_BYTES = 1_000_000;
@@ -3900,6 +4179,10 @@ function installRootZed(scope) {
   return scope === "user" ? os.homedir() : process.cwd();
 }
 
+function claudeMcpPath(context) {
+  return context.scope === "user" ? ".claude.json" : ".mcp.json";
+}
+
 async function kiloConfigStatus() {
   const configDir = path.join(os.homedir(), ".config", "kilo");
   if (!(await exists(configDir))) return "missing";
@@ -3982,6 +4265,10 @@ function clineRuleRoot(context) {
   return context.scope === "user" ? path.join(".cline", "rules") : ".clinerules";
 }
 
+function clineMcpPath(context) {
+  return context.scope === "user" ? path.join(".cline", "mcp.json") : path.join(".cline", "mcp.json");
+}
+
 function kiloWorkflowRoot(context) {
   return context.scope === "user" ? path.join(".config", "kilo", "commands") : path.join(".kilo", "commands");
 }
@@ -4024,12 +4311,22 @@ function opencodeConfigRoot(context) {
   return context.scope === "user" ? path.join(".config", "opencode") : ".opencode";
 }
 
+function opencodeMcpPath(context) {
+  return path.join(opencodeConfigRoot(context), "opencode.json");
+}
+
 function windsurfWorkflowRoot(context) {
   return context.scope === "user" ? path.join(".codeium", "windsurf", "global_workflows") : path.join(".windsurf", "workflows");
 }
 
 function windsurfConfigRoot(context) {
   return context.scope === "user" ? path.join(".codeium", "windsurf") : ".windsurf";
+}
+
+function windsurfMcpPath(context) {
+  return context.scope === "user"
+    ? path.join(".codeium", "windsurf", "mcp_config.json")
+    : path.join(".windsurf", "mcp_config.json");
 }
 
 function windsurfRulePath(context) {
@@ -4052,6 +4349,10 @@ function zedInstructionPath(context) {
 
 function zedConfigRoot(context) {
   return context.scope === "user" ? path.join(".config", "zed") : ".zed";
+}
+
+function zedMcpPath(context) {
+  return path.join(zedConfigRoot(context), "settings.json");
 }
 
 async function kiloRuleInstructionPaths(scope) {

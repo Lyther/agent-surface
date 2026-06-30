@@ -62,7 +62,7 @@ ship:
 Observe:   boot-context, ops-report, ops-learn, ops-swarm
 Decide:    ops-ask, arch-roadmap, workflow-boss
 Build:     dev-feature, dev-fix, dev-refactor, dev-chore
-Verify:    verify-test, verify-spec, verify-coverage, verify-performance, verify-edge, verify-prove
+Verify:    verify-test, verify-spec, verify-coverage, verify-performance, verify-edge, verify-prove, verify-readiness
 Review:    qa-review, qa-sec, qa-trace, workflow-reviewer
 Arbitrate: workflow-judger, workflow-rescue
 Ship:      ship-commit, ship-artifact, ship-cicd, ship-release, ship-deploy
@@ -90,6 +90,14 @@ High/critical triggers:
 ```text
 auth, crypto, payments, migrations, production data, deployment, secrets, dependency graph, CI release gates, security findings, workflow artifact repair
 ```
+
+Readiness triggers:
+
+```text
+stable, production-ready, release-ready, deployment-ready, E2E passed, 100% implemented, all features supported
+```
+
+When a task asks to certify one of those claims, route to `verify-readiness` after implementation and review evidence exists. Use `verify-prove` as an artifact/runtime proof primitive inside that path when there is a shipped artifact, generated output, install bundle, deployment, or live service.
 
 ## AUTONOMY
 

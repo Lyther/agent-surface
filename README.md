@@ -17,29 +17,29 @@ Compatibility is ranked from 1 to 5 based on how much of the `agent-surface` sou
 
 | Target | Build files | Commands / workflows | Rules / instructions | Agents / subagents | Skills / external packs | Config / ignores / prompts | Compatibility |
 |---|---:|---|---|---|---|---|---:|
-| Claude Code | 3720 | 65 native `.claude/commands/<group>/<name>.md` | None | 6 `.claude/agents/*.md` | External `.claude/skills/*` | None | 4/5 |
-| Codex | 3792 | 65 command skills in `.agents/skills/*` | `.codex/AGENTS.md` plus 6 scoped refs in `.codex/references/rules/*.md` | 6 `.codex/agents/*.toml` | External `.agents/skills/*` | None | 5/5 |
-| Deep Agents Code | 3722 | 65 command skills in `.deepagents/agent/skills/*` | `.deepagents/agent/AGENTS.md` plus 6 scoped refs | Worker only at `.deepagents/agent/agents/worker/AGENTS.md` | External `.deepagents/agent/skills/*` | MCP config via install only | 4/5 |
-| Cursor | 84 | 65 native `.cursor/commands/*.md` | 12 native scoped `.cursor/rules/*.mdc` | 6 `.cursor/agents/*.md` | None | `.cursorignore` | 5/5 |
-| Droid | 3728 | 65 native `.factory/commands/*.md` | `.factory/AGENTS.md` plus 6 scoped refs | 6 `.factory/droids/*.md` | External `.factory/skills/*` | `.factory/mcp.json` | 5/5 |
-| Cline | 73 | 65 workflows in `.cline/data/workflows/*.md` | `.cline/rules/agent-surface.md` plus 6 scoped refs | None | None | `.clineignore` | 4/5 |
-| Kilo | 85 | 65 workflows in `.config/kilo/commands/*.md` | 6 always-on `.config/kilo/rules/*.md` plus 6 scoped refs | 6 `.config/kilo/agents/*.md` | None | `.kilocodeignore`; `kilo.jsonc` merge during install | 5/5 |
-| Antigravity CLI | 3734 | 65 plugin skills in `config/plugins/agent-surface/skills/*.md` | 6 always-on `config/plugins/agent-surface/rules/*.md` plus 6 scoped refs | 6 `config/plugins/agent-surface/agents/*.md` | External plugin skills | `config/plugins/agent-surface/plugin.json` | 5/5 |
-| Antigravity (legacy workflows) | 65 | 65 `global_workflows/*.md` | None | None | None | None | 2/5 |
-| Gemini CLI (legacy) | 78 | 65 native `.gemini/commands/**/*.toml` | `.gemini/GEMINI.md` plus 6 scoped refs | 6 `.gemini/agents/*.md` | None | None | 5/5 |
-| GitHub Copilot | 7 | None | `instructions/agent-surface-copilot.instructions.md` plus 6 scoped refs | None | None | None | 2/5 |
-| VS Code | 8 | None | `instructions/agent-surface.instructions.md` plus 6 scoped refs | None | None | `prompts/agent-surface.prompt.md` | 2/5 |
-| VSCodium | 8 | None | `instructions/agent-surface.instructions.md` plus 6 scoped refs | None | None | `prompts/agent-surface.prompt.md` | 2/5 |
-| OpenCode | 78 | 65 native `.config/opencode/commands/*.md` | `.config/opencode/AGENTS.md` plus 6 scoped refs | 6 `.config/opencode/agents/*.md` | None | None | 5/5 |
-| Trae | 7 | None | `.trae/user_rules.md` plus 6 scoped refs | None | None | None | 2/5 |
-| Goose | 65 | 65 recipes in `recipes/*.yaml` | None | None | None | None | 3/5 |
-| Grok Build | 3714 | 65 command skills in `.grok/skills/*` | Project install emits `AGENTS.md`; default user build emits none | None | External `.grok/skills/*` | None | 4/5 |
-| Pi | 3721 | 65 command skills in `.pi/agent/skills/*` | `.pi/agent/AGENTS.md` plus 6 scoped refs | None | External `.pi/agent/skills/*` | None | 4/5 |
-| Poolside | 3721 | 65 command skills in `.config/poolside/skills/*` | `.config/poolside/.poolside` plus 6 scoped refs | None | External `.config/poolside/skills/*` | None | 4/5 |
-| Windsurf | 3721 | 65 workflows in `.codeium/windsurf/global_workflows/*.md` | `.codeium/windsurf/memories/global_rules.md` plus 6 scoped refs | None | External `.codeium/windsurf/skills/*` | None | 4/5 |
-| Zed | 3721 | 65 command skills in `.agents/skills/*` | `.config/zed/AGENTS.md` plus 6 scoped refs | None | External `.agents/skills/*` | None | 4/5 |
+| Claude Code | 3722 | 66 native `.claude/commands/<group>/<name>.md` | None | 6 `.claude/agents/*.md` | External `.claude/skills/*` | Synapse MCP in `.claude.json` | 4/5 |
+| Codex | 3794 | 66 command skills in `.agents/skills/*` | `.codex/AGENTS.md` plus 5 scoped language refs in `.codex/references/rules/*.md` | 6 `.codex/agents/*.toml` | External `.agents/skills/*` | Synapse MCP in `.codex/config.toml` | 5/5 |
+| Deep Agents Code | 3723 | 66 command skills in `.deepagents/agent/skills/*` | `.deepagents/agent/AGENTS.md` plus 5 scoped language refs | Worker only at `.deepagents/agent/agents/worker/AGENTS.md` | External `.deepagents/agent/skills/*` | `.deepagents/.mcp.json` | 4/5 |
+| Cursor | 86 | 66 native `.cursor/commands/*.md` | 12 native scoped `.cursor/rules/*.mdc` | 6 `.cursor/agents/*.md` | None | `.cursor/mcp.json`; `.cursorignore` | 5/5 |
+| Droid | 3728 | 66 native `.factory/commands/*.md` | `.factory/AGENTS.md` plus 5 scoped language refs | 6 `.factory/droids/*.md` | External `.factory/skills/*` | `.factory/mcp.json` | 5/5 |
+| Cline | 74 | 66 workflows in `.cline/data/workflows/*.md` | `.cline/rules/agent-surface.md` plus 5 scoped language refs | None | None | `.cline/mcp.json`; `.clineignore` | 4/5 |
+| Kilo | 86 | 66 workflows in `.config/kilo/commands/*.md` | 7 always-on `.config/kilo/rules/*.md` plus 5 scoped language refs | 6 `.config/kilo/agents/*.md` | None | Synapse MCP + instructions in `kilo.jsonc`; `.kilocodeignore` | 5/5 |
+| Antigravity CLI | 3735 | 66 plugin skills in `config/plugins/agent-surface/skills/*.md` | 7 always-on `config/plugins/agent-surface/rules/*.md` plus 5 scoped language refs | 6 `config/plugins/agent-surface/agents/*.md` | External plugin skills | `config/plugins/agent-surface/plugin.json` | 5/5 |
+| Antigravity (legacy workflows) | 66 | 66 `global_workflows/*.md` | None | None | None | None | 2/5 |
+| Gemini CLI (legacy) | 79 | 66 native `.gemini/commands/**/*.toml` | `.gemini/GEMINI.md` plus 5 scoped language refs | 6 `.gemini/agents/*.md` | None | Synapse MCP in `.gemini/settings.json` | 5/5 |
+| GitHub Copilot | 6 | None | `instructions/agent-surface-copilot.instructions.md` plus 5 scoped language refs | None | None | None | 2/5 |
+| VS Code | 8 | None | `instructions/agent-surface.instructions.md` plus 5 scoped language refs | None | None | `mcp.json`; `prompts/agent-surface.prompt.md` | 2/5 |
+| VSCodium | 7 | None | `instructions/agent-surface.instructions.md` plus 5 scoped language refs | None | None | `prompts/agent-surface.prompt.md` | 2/5 |
+| OpenCode | 79 | 66 native `.config/opencode/commands/*.md` | `.config/opencode/AGENTS.md` plus 5 scoped language refs | 6 `.config/opencode/agents/*.md` | None | Synapse MCP in `.config/opencode/opencode.json` | 5/5 |
+| Trae | 7 | None | `.trae/user_rules.md` plus 5 scoped language refs | None | None | `.trae/mcp.json` | 2/5 |
+| Goose | 66 | 66 recipes in `recipes/*.yaml` | None | None | None | None | 3/5 |
+| Grok Build | 3715 | 66 command skills in `.grok/skills/*` | Project install emits `AGENTS.md`; default user build emits none | None | External `.grok/skills/*` | None | 4/5 |
+| Pi | 3721 | 66 command skills in `.pi/agent/skills/*` | `.pi/agent/AGENTS.md` plus 5 scoped language refs | None | External `.pi/agent/skills/*` | None | 4/5 |
+| Poolside | 3721 | 66 command skills in `.config/poolside/skills/*` | `.config/poolside/.poolside` plus 5 scoped language refs | None | External `.config/poolside/skills/*` | None | 4/5 |
+| Windsurf | 3722 | 66 workflows in `.codeium/windsurf/global_workflows/*.md` | `.codeium/windsurf/memories/global_rules.md` plus 5 scoped language refs | None | External `.codeium/windsurf/skills/*` | `.codeium/windsurf/mcp_config.json` | 4/5 |
+| Zed | 3722 | 66 command skills in `.agents/skills/*` | `.config/zed/AGENTS.md` plus 5 scoped language refs | None | External `.agents/skills/*` | Synapse MCP in `.config/zed/settings.json` | 4/5 |
 
-Bundled instruction targets include only `alwaysApply: true` rules inline. Scoped cybersecurity and language rules (`04`, `10`-`14`) are emitted as separate reference files under each target's config tree and are selected by project-aware commands such as `boot-new`. Cursor keeps all 12 files as native scoped `.mdc` rules; Kilo config-merges only the 6 always-on rules and keeps the 6 scoped policies as references. No legacy compact core rule is emitted in source or generated target outputs.
+Bundled instruction targets include only `alwaysApply: true` rules inline. Cybersecurity (`04`) is always-on for security review and harness development; language rules (`10`-`14`) are emitted as separate reference files under each target's config tree and are selected by project-aware commands such as `boot-new`. Cursor keeps all 12 files as native `.mdc` rules; Kilo config-merges the 7 always-on rules and keeps the 5 scoped language policies as references. No legacy compact core rule is emitted in source or generated target outputs.
 
 Planned: none.
 
@@ -51,7 +51,7 @@ Out of scope: Roo Code (EoL), Xcode.
 commands/          User-invoked reusable procedures
 rules/             Always-on or scoped behavior policy
 subagents/         Normalized subagent definitions
-mcps/              Reserved for future MCP server definitions
+mcps/              First-party MCP services such as Synapse
 ignores/           Project ignore files (.cursorignore, .kilocodeignore, .clineignore)
 registry/          Target, capability, and source-kind policy
 schemas/           JSON schemas for registry and workflow artifacts
@@ -130,7 +130,8 @@ node scripts/agent-surface.mjs install --runtime pool,zed --category external --
 - `--category` accepts repeated or comma-separated output categories such as `skills`, `rules`, `subagents`, `commands`, `recipes`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, and `ignores`.
 - `--service <id>` narrows `--category mcps` to a specific optional MCP service from `registry/optional-services.json`.
 - Project-only artifacts (`ignores/`) are skipped on user-scope installs; use `--dest` to install them into a project.
-- Droid user installs write `.factory/commands/`, `.factory/droids/`, `.factory/skills/`, `.factory/mcp.json`, `.factory/AGENTS.md`, and `.factory/references/rules/` scoped rule references; project installs write project `AGENTS.md` plus project `.factory/` assets.
+- First-party secretless MCPs such as Synapse are generated by default for targets with verified MCP config surfaces and are merged into existing host config during install; external or secret-bearing MCPs remain opt-in through `--category mcps --service <id>`.
+- Droid user installs write `.factory/commands/`, `.factory/droids/`, `.factory/skills/`, `.factory/AGENTS.md`, and `.factory/references/rules/` scoped rule references, and merge Synapse into `.factory/mcp.json`; project installs write project `AGENTS.md` plus project `.factory/` assets.
 - Deep Agents user installs write `~/.deepagents/<agent>/`; project installs write `.deepagents/`. Use `--agent <name>` to select a non-default user agent directory.
 - Goose installs are project-oriented and render `recipes/<command>.yaml`.
 - Grok Build, Pi, Poolside, Windsurf, and Zed render command sources as native skills or workflows plus target-specific instruction files.
@@ -177,6 +178,7 @@ Multi-role workflow state lives under `.agent-surface/workflows/<run_id>/`.
 - `workflow-reviewer` — gates acceptance before `ship-commit`.
 - `workflow-doctor` — validates run state before acting on it.
 - `workflow-close` — archives metrics and unresolved risks.
+- `verify-readiness` — certifies scoped stable, production-ready, E2E, deployment-ready, and all-features-supported claims with real evidence.
 
 Maintenance commands:
 

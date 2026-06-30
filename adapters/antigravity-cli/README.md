@@ -22,4 +22,6 @@ The local `agy 1.0.12` validator accepts flat command skills, nested external sk
 
 The separate `antigravity` binary is a desktop-supervised surface unless current help/probe output proves a headless mode. Gemini CLI remains a legacy compatibility target and is generated separately by `gemini-cli`.
 
-Only `alwaysApply: true` rules are packaged under plugin `rules/`. Scoped language and cybersecurity policies are reference files and should be attached by project-aware commands only when applicable.
+Only `alwaysApply: true` rules are packaged under plugin `rules/`. Cybersecurity policy is always-on; scoped language policies are reference files and should be attached by project-aware commands only when applicable.
+
+Synapse MCP wiring is pending for this target. The current adapter packages an Antigravity CLI plugin; the plugin-level MCP declaration shape still needs live `agy` validation before agent-surface emits it. The desktop Antigravity app uses a separate `mcp_config.json` surface and should be researched independently from plugin packaging.

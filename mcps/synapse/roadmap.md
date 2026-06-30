@@ -1,89 +1,102 @@
 # Roadmap
 
-## Status
-
-Status: PROPOSED
+Status: IMPLEMENTED (v0.4 core + distribution + robustness) — remaining: live per-host transport smoke (T2.5) and pending-target wiring (P3.4)
 Source architecture: mcps/synapse/architecture.md
-Last updated: 2026-06-26
+Last updated: 2026-06-30
 
 ## Roadmap Principles
 
-- Preserve the selected concept (one MCP, event log + `bus_*`/`memory_*`).
-- Ship a production-shaped walking skeleton (≥2 real agents, one DB) before feature breadth.
-- Resolve the one irreversible-ish risk — cross-process realtime — with a spike before building on it.
-- Every task carries observable acceptance evidence (a test, command, or demo).
-- v0.1 is stdio-only; HTTP/auth, vector recall, and forgetting are later phases.
+- One HTTP sidecar owns writes + realtime; a stdio bridge gives universal host reach. Push accelerates; cursor pull is the correctness floor.
+- 7 tools, self-describing via server `instructions` + descriptions + in-band hints. No ritual/handshake.
+- Physical isolation; identity auto-derived, never gates writes. Compact/budgeted recall by default.
+- Every task carries observable acceptance evidence; nothing depends on push.
+- Distribution never clobbers a host's existing MCP config: agent-surface generates the files it owns and **merges** (read-modify-write) into shared/secret-bearing ones.
 
-## Phase 0: Decision Closure and Spikes
+## Status Snapshot
 
-| Task | Why now | Output | Acceptance evidence |
-|---|---|---|---|
-| S-01 Cross-process realtime spike | ADR-05 is the load-bearing unknown | throwaway script: 2 node procs, one WAL file, writer bumps tick-file, reader `fs.watch`+poll | measured p50/p95 wake latency on macOS+Linux; decision recorded (interval value, fswatch yes/no, fallback) |
-| S-02 node:sqlite WAL multi-writer probe | confirm C-01/Q-02 assumption | script: K procs append M rows w/ `busy_timeout` | 0 lost writes, contiguous `id` total order, no corruption; chosen `busy_timeout` |
-| S-03 Subproject scaffold decision | repo root has no TS build | `mcps/synapse/package.json`, `tsconfig.json`, bundler (tsup/tsdown), test runner (vitest or node:test) | `npm run build` + `npm test` green on an empty stub |
-| Concept convergence | DONE — `mcp/agent-sync/` removed; namespace-resolver + status/heartbeat/export folded into `synapse`; checkpoint deferred to Later | n/a | already reflected in concept/architecture/api |
+- **Done**: Phase 0 (spike + contract + model + namespace), Phase 1 (sidecar/bridge/store/identity/memory/locks/realtime/instructions), Phase 2 (autostart + launchd, security pass, threat-model README, first-party distribution, **concurrency + crash recovery**), Phase 3 (**non-destructive MCP merge engine** + flip of all 11 manual hosts to generated-merge; agentmemory opt-in policy reconciled), Phase 4 (**dirty-bit coalescing**, **bridge MCP-roots routing**, SSE-resume + idle-shutdown claims truth-stated). Proof: synapse `npm test` 29/29; repo `npm run check` + `npm test` green.
+- **Remaining**: live per-host transport smoke (T2.5 runbook landed; recorded live passes pending); pending-target wiring (P3.4: Antigravity/Poolside/Copilot CLI/VSCodium/Goose/Grok/Pi).
 
-Exit gate: S-01 + S-02 pass (or realtime mechanism re-decided); scaffold builds.
+## Phase 0–1: Core (DONE)
 
-## Phase 1: Production-Shaped Walking Skeleton
+- [x] `P0.1` Spike S-01 — realtime push + bridge-forward + cursor floor. Evidence: `test/sidecar.test.ts` "S-01 …", `test/bridge.test.ts` "forwards realtime resources/updated".
+- [x] `P0.2`–`P0.4` Contract / model / namespace — `src/contract.ts` (7 tools, `instructions`, DTOs), `src/model.ts` + `schema.sql` (no scope/kind column), `src/namespace.ts` (git-root realpath hash). Evidence: `tsc` clean; store tests.
+- [x] `P1.1` Sidecar transport — Streamable HTTP 127.0.0.1, sessions, bearer, DNS-rebind/Origin, SDK `>=1.24.0 <2`. Evidence: sidecar tests (bearer/init/isolation).
+- [x] `P1.2` stdio bridge — proxy JSON-RPC + forward `resources/updated`/`list_changed`. Evidence: bridge proxy + forward test.
+- [x] `P1.3`–`P1.6` Store, identity, `memory_*`, `lock_*` — single-owner WAL, FTS5/bm25, budgeted recall, atomic lock reap+claim. Evidence: 13 store tests incl. F001/F004.
+- [x] `P1.7` Realtime + cursor floor — commit hook → dirty-bit; `recall({since})`/`lock_list` floor. Evidence: S-01 + `since`-cursor tests.
+- [x] `P1.8` `instructions` + tool descriptions (≥3 sentences, "untrusted data"). Evidence: `SERVER_INSTRUCTIONS` + `TOOL_DESCRIPTIONS` in `src/contract.ts`.
 
-| Task | Scope | Acceptance evidence | Dependencies |
-|---|---|---|---|
-| T1.1 Store core | `events` table, WAL pragmas, `appendEvent()` txn, schema version | unit: append returns monotonic id; pragmas asserted | S-02, S-03 |
-| T1.2 Identity + namespace resolver | env `SYNAPSE_AGENT_ID`/`SYNAPSE_NAMESPACE`, project-root hash fallback, DB path (mode 600) | unit: resolution precedence; write without id → error | S-03 |
-| T1.3 MCP stdio server | SDK wiring, tool registration, stderr-only logging, `synapse_status` | integration: client lists tools; `synapse_status` returns counts/offset | T1.1 |
-| T1.4 `bus_publish` / `bus_messages` | append message event; bounded query by topic + since-offset | integration: publish then read-by-cursor returns it w/ provenance | T1.1, T1.3 |
-| T1.5 Realtime watcher | poll offset + fswatch tick → `notifications/resources/updated` | Q-01: 2 clients, publish on A, B notified < gate; cursor re-read works | S-01, T1.4 |
-| T1.6 `bus_reserve`/`bus_release`/`bus_reservations` | advisory locks w/ TTL over `reservations` projection | Q-02: concurrent reserve → exactly one holder; loser sees holder+expiry | T1.1 |
-| T1.7 `bus_presence` | heartbeat → `presence` projection | integration: two agents visible with last_seen | T1.1 |
-| T1.8 Walking-skeleton demo | end-to-end with two real coding agents on one namespace | demo: agent A reserves file + posts event; agent B sees both, avoids the file | T1.4–T1.7 |
+## Phase 2: Hardening + owned-file distribution
 
-Exit gate: Q-01 + Q-02 pass; two agents coordinate through the server with no manual state merge.
+- [x] `T2.1` Lifecycle autostart — `src/bootstrap.ts` lock-elected spawn + discovery/token (mode 600); `deploy/launchd/local.synapse.plist` deployed/restarted by `install.sh`. Evidence: bridge "zero-config autostart" test; `sh -n install.sh`.
+- [x] `T2.3` Security pass — bearer/Origin, ingest redaction, `forget` plaintext scrub (F004), 2 MB body cap → 413 (F005), mode-600 files (F007). Evidence: F002/F004/F005 + redaction tests.
+- [x] `T2.4` Threat model + README. Evidence: `README.md` Security section.
+- [x] `T2.6` Distribution (owned-file targets) — first-party `synapse` registry entry; `optional-services.schema.json` first-party path; renders stdio `synapse-bridge` into droid (`.factory/mcp.json`, default) + deepagents (`--category mcps`); `npm run install:synapse` builds+links bins and deploys/updates the launchd sidecar. Evidence: `check generated: ok`; droid `mcp.json` assertion in `tests/agent-surface.test.mjs`.
+- [x] `T2.2` Concurrency + crash recovery
+  - Files: `test/recovery.test.ts`.
+  - Scope: many concurrent sessions; kill sidecar mid-write (SIGKILL); restart; assert no lost committed writes and recovery to last committed row (WAL).
+  - Acceptance evidence: `T2.2: kill mid-session then restart recovers all committed rows and last id` + `T2.2: concurrent writes from many sessions all persist across a hard crash` (synapse `npm test` 29/29).
+  - Dependencies: none.
+- [x] `T2.5` Per-target transport smoke (runbook)
+  - Files: `test/smoke/README.md`.
+  - Scope: launch `synapse-bridge` under each registered host; confirm tools/list + a remember/recall round-trip + push arrives.
+  - Acceptance evidence: runbook landed with the per-host check procedure and a host matrix; config-merge proven for all 13 hosts via `tests/agent-surface.test.mjs`; in-process transport proven by `test/bridge.test.ts`; **live per-host passes are recorded in the matrix as they are run** (droid/deepagents wired via in-process bridge test; others config-verified, transport-pending).
+  - Dependencies: T2.6.
+  - Note: the live per-host smoke is operator-run evidence, not an automated test; the matrix records pass/fail per host before that host is documented as fully wired.
+- [x] `T2.7` Orchestrator seeding
+  - Files: `commands/workflow-orchestrator.md` (SYNAPSE AGENT SEEDING section).
+  - Scope: when the orchestrator fans out concurrent agents, pass `SYNAPSE_AGENT_ID` (per agent, distinct) and a shared `SYNAPSE_PROJECT`; single-agent runs untouched.
+  - Acceptance evidence: the orchestrator command now specifies the per-agent `SYNAPSE_AGENT_ID` + shared `SYNAPSE_PROJECT` seeding rule and the single-agent exemption; non-secret, process-local only, never persisted.
+  - Dependencies: T2.6.
 
-## Phase 2: Core Product Capability
+## Phase 3: MCP-merge distribution
 
-| Task | Scope | Acceptance evidence | Dependencies |
-|---|---|---|---|
-| T2.1 `memory_remember` | scoped write (private default), provenance, ingest redaction | Q-04: redaction unit suite passes (floor = agentmemory v0.9.27 patterns) | T1.1 |
-| T2.2 `memory_recall` (FTS5/BM25) | bounded hybrid lexical recall, scope-filtered, provenance in results | integration: seeded facts retrieved; cross-identity `private` excluded | T2.1 |
-| T2.3 `memory_supersede` + `memory_history` | bi-temporal invalidation (no blind delete); history view | unit: superseded fact hidden from default recall, present in history | T2.1 |
-| T2.4 Anti-poisoning rendering | typed/quoted data; static tool descriptions; provenance labels | Q-03: stored injection never surfaces as instruction/description | T2.2 |
-| T2.5 `synapse_export` | bounded, namespace-scoped export | export bounded + truncation flag honored | T2.1 |
-| T2.6 `synapse_record_delete` (tombstone) | destructive removal of poisoned/leaked records | tombstone event in `events`; target redacted + excluded from recall; preserved in history | T2.1 |
+Goal: deliver synapse to the hosts the user listed in `README.md` Distribution step 2 **without** clobbering user-owned servers/secrets.
 
-Exit gate: Q-03 + Q-04 pass; memory recall usable by agents with provenance and scope isolation.
+- [x] `P3.1` Non-destructive merge engine
+  - Files: `scripts/agent-surface.mjs` (`mcpConfigMerge`, `mergeJsonMcpConfig`, `mergeCodexMcpToml`, `mergeJsoncRootObjectProperty`), `scripts/agent-surface/jsonc.mjs`, `registry/target-capabilities.json`.
+  - Scope: read-modify-write helpers per config format — JSON `mcpServers`, TOML `mcp_servers` (Codex), JSONC `mcp` (Kilo/OpenCode), nested settings (`gemini settings.json`, Zed `context_servers`, VS Code `servers`), Claude Code (`~/.claude.json` / project `.mcp.json`). Merge adds/updates only the `synapse` key; preserves all other entries and comments where the format requires.
+  - Acceptance evidence: `tests/agent-surface.test.mjs` non-destructive merge loop for all 11 manual hosts (claude-code, cline, gemini-cli, kilo, opencode, trae, vscode, windsurf, zed) + explicit cursor/codex merge tests; idempotent re-merge is a no-op diff.
+  - Dependencies: T2.6.
+- [x] `P3.2` Flip manual MCP targets to generated-merge
+  - Files: `scripts/agent-surface.mjs` (per-target `mcpConfig` adapter), `registry/target-capabilities.json` (`mcp.generation: "generated"`), `tests/agent-surface.test.mjs`.
+  - Scope: Cursor, Codex, Gemini CLI, Cline, Kilo, OpenCode, VS Code, Trae, Windsurf, Zed, Claude Code — emit/merge the `synapse` stdio entry.
+  - Acceptance evidence: `check generated` asserts `synapse` present per target; synapse wired into all 13 hosts asserted in `tests/agent-surface.test.mjs` (lines ~484-500); non-destructive merge tests expect a merge, not a skip.
+  - Dependencies: P3.1.
+- [x] `P3.3` Reconcile `agentmemory` default vs opt-in
+  - Files: `scripts/agent-surface.mjs` (`selectedMcpServiceEntries` filters to `first_party === true` unless `--service` is explicit), `tests/agent-surface.test.mjs`, `registry/optional-services.json`.
+  - Scope: external/secret-bearing MCPs (agentmemory) are **opt-in** via `--category mcps --service <id>`; only first-party secretless MCPs (synapse) are default-on. This matches the README.
+  - Acceptance evidence: `tests/agent-surface.test.mjs` asserts `agentmemory` absent from droid default `mcp.json` while `synapse` present; merge tests assert `agentmemory` never auto-added. Decision: **opt-in** (resolved — the prior "default-on for droid" note was stale; code already excluded it).
+  - Dependencies: none.
+- [ ] `P3.4` Pending-target research/wiring
+  - Scope (from `README.md` "Pending target wiring"): Antigravity CLI plugin MCP shape (+ desktop `mcp_config.json`), Poolside settings-YAML safe merge, Copilot CLI MCP, VSCodium extension policy, Goose/Grok Build/Pi MCP surfaces.
+  - Acceptance evidence: per target, either a verified merge path lands or a recorded reason it stays out (see `test/smoke/README.md` Pending targets).
+  - Dependencies: P3.1.
 
-## Phase 3: Hardening and Launch Readiness
+## Phase 4: Robustness + doc reconciliation
 
-| Task | Scope | Acceptance evidence | Dependencies |
-|---|---|---|---|
-| T3.1 Crash/recovery + projection rebuild | kill-during-write; boot-time version check → replay | Q-05: recover to last committed event; projections consistent | Phase 2 |
-| T3.2 Concurrency stress | K-process write/read load at target N | benchmark: latency + integrity at N agents; documented ceiling | T1.5, T1.6 |
-| T3.3 Distribution wiring | `registry/optional-services.json` entry (kind mcp), adapter render | `node scripts/agent-surface.mjs check generated --target all` passes; `.mcp.json` emitted | Phase 2 |
-| T3.4 Docs + threat model | README, config/env reference, security model, operator runbook | docs present; security checklist mapped to Unacceptable Outcomes | Phase 2 |
-| T3.5 Dependency + build hardening | pin SDK `<2`, prebuilt node:sqlite, `npm audit` clean | CI green across supported Node; audit no high/critical | T3.3 |
-
-Exit gate: all Q-01..Q-05 pass; distributed via adapters; threat model documented.
+- [x] `P4.1` SSE resumability — the architecture truth-states this: stream-level `Last-Event-ID` resume is **not wired** (no event store); the correctness floor is reconnect + cursor re-pull (`recall({since})`). No doc claims stream resume. Acceptance: the doc no longer claims stream resume (architecture.md lines ~103, ~130).
+- [x] `P4.2` Dirty-bit coalescing — added a leading+trailing-edge per-channel coalescer in `src/sidecar.ts` (`NotificationCoalescer`, default 50ms window) so a burst of writes collapses to ≤2 notifications. Acceptance: `test/coalescing.test.ts` — a 20-write burst produces ≤2 notifications and all 20 rows stay cursor-retrievable; spaced writes each notify (no over-coalescing).
+- [x] `P4.3` Bridge MCP-roots routing — `src/bridge.ts` resolves the project key as `SYNAPSE_PROJECT` → host's first MCP root (`file://` URI) → cwd git-root, so hosts that launch the bridge outside the workspace still isolate. Acceptance: `test/roots-routing.test.ts` — a roots-provided workspace routes to the right DB without cwd reliance; override wins; no-roots host falls back to cwd.
+- [x] `P4.4` Doc/code drift sweep — `architecture.md`/`README.md`/`roadmap.md` truth-stated against the code; every IMPLEMENTED claim maps to a named test (synapse 29/29; repo check+test green). The three prior drift claims (SSE resume, dirty-bit rate-limit, idle-shutdown) are reconciled: SSE resume = not wired (stated); dirty-bit = coalesced now (was best-effort, never "rate-limited"); idle-shutdown = the sidecar stays resident (no idle-shutdown; `architecture.md` Operations states this).
 
 ## Later / Not Now
 
-| Idea | Revisit trigger | Reason deferred |
-|---|---|---|
-| Streamable HTTP transport + bearer/Host auth + OAuth | agents on separate hosts / single shared server wanted | adds auth+network surface; stdio suffices for one host |
-| `sqlite-vec` hybrid (vector+BM25 RRF) recall | measured BM25 recall failures | embeddings cost/complexity; BM25 first |
-| `memory_forget` (importance×recency×frequency) | store growth hurts recall | needs scoring heuristics + eviction policy |
-| Event-log compaction | file size pressure | premature before real volume |
-| Single shared HTTP server (in-proc notifications) | write contention at high N (T3.2) | only if stdio multi-proc hits limits |
-| Checkpoint primitive (human/external gate that blocks work) | orchestrations need explicit gating | scope creep for v0.1; expressible via bus/memory by convention meanwhile |
-| `group:<id>` scope | multi-team use on one host | private/shared cover v0.1; reserved, not accepted input |
+- Private (agent-local) visibility — additive `visibility` column; deferred per prior user decision (shared-only).
+- OAuth 2.1 resource-server auth — static bearer covers localhost.
+- 2026-07-28 stateless / `subscriptions/listen` migration — pin SDK `>=1.24.0 <2`; revisit when the RC + SDK ship.
+- CRDT document-merge / A2A peer messaging — out of scope; we append + lock, MCP gives shared-memory not peer messaging.
+- Linux/systemd service unit — macOS launchd is primary; add only if a Linux host needs always-on.
 
 ## Cross-Phase Gates
 
-| Gate | Required before | Evidence |
-|---|---|---|
-| Realtime mechanism decided | Phase 1 build of T1.5 | S-01 result recorded in ADR-05 |
-| WAL multi-writer safe | any concurrent-write feature | S-02 integrity result |
-| No-secret-in-store | any memory write ships | Q-04 redaction suite |
-| Data-as-data invariant | any recall ships | Q-03 poisoning test |
-| Durability | launch | Q-05 crash/recovery test |
-| Scope isolation | launch | cross-identity `private` exclusion test |
+- [x] Cursor pull correct without push — S-01 + `since` tests.
+- [x] Bridge forwards push + tools — bridge test.
+- [x] Cross-project isolation (+ explicit read) — isolation tests.
+- [x] Identity never blocks writes — F002 / no-env write test.
+- [x] Recall compact/budgeted — byte-budget + truncation test.
+- [x] No-secret-in-store — redaction suite.
+- [x] SDK security floor `>=1.24.0 <2` — `package.json` pin.
+- [x] Merge never clobbers — `tests/agent-surface.test.mjs` non-destructive merge loop for all 11 manual hosts + cursor/codex explicit merge tests (P3.1 done).
+- [ ] Per-target smoke passed — config-merge proven for all 13 hosts; live per-host transport smoke recorded in `test/smoke/README.md` as it is run (T2.5 runbook landed; droid/deepagents wired via in-process bridge test, others config-verified).

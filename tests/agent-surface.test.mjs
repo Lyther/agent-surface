@@ -230,15 +230,32 @@ try {
 }
 assert.equal(run(["check"]).trim(), "check: ok");
 
+// First-party MCP entries (synapse) are exempt from the external-submodule pins; dropping
+// the first_party flag must re-impose source_url/path/commit so external pins stay enforced.
+try {
+  const mutatedServices = JSON.parse(optionalServicesOriginal);
+  delete mutatedServices.services.synapse.first_party;
+  writeFileSync(optionalServicesPath, `${JSON.stringify(mutatedServices, null, 2)}\n`);
+  const demotedFirstParty = status(["check"]);
+  assert.equal(demotedFirstParty.status, 1);
+  assert.match(`${demotedFirstParty.stdout}${demotedFirstParty.stderr}`, /registry\/optional-services\.json/);
+} finally {
+  writeFileSync(optionalServicesPath, optionalServicesOriginal);
+}
+assert.equal(run(["check"]).trim(), "check: ok");
+
 const inventory = run(["inventory"]);
 assert.match(inventory, /^rules: 12$/m);
-assert.match(inventory, /^commands: 65$/m);
+assert.match(inventory, /^commands: 66$/m);
 assert.match(inventory, /^subagents: 6$/m);
 assert.match(inventory, /^external: 8$/m);
 assert.match(inventory, /^schemas: 15$/m);
 
 const registry = JSON.parse(run(["commands", "--json"]));
-assert.equal(registry.count, 65);
+assert.equal(registry.count, 66);
+const readinessCommand = registry.commands.find((command) => command.name === "verify-readiness");
+assert.ok(readinessCommand);
+assert.equal(readinessCommand.phase, "verify");
 const opsFlowCommand = registry.commands.find((command) => command.name === "ops-flow");
 assert.ok(opsFlowCommand);
 assert.equal(opsFlowCommand.phase, "decide");
@@ -310,8 +327,7 @@ for (const scenario of ["python-source", "python-tooling", "rust-source", "go-ci
   const output = run(["check", "rules", "--scenario", scenario]);
   assert.match(output, new RegExp(`^${scenario}:$`, "m"));
   assert.doesNotMatch(output, /^errors:$/m);
-  if (scenario === "security-exploit") assert.match(output, /rules\/04-cybersecurity\.mdc/);
-  if (scenario === "ordinary-patch") assert.doesNotMatch(output, /rules\/04-cybersecurity\.mdc/);
+  assert.match(output, /rules\/04-cybersecurity\.mdc/);
 }
 
 run(["build", "--target", "all"]);
@@ -325,12 +341,14 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-co
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "commands", "boot", "concept.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".claude", "agents", "boss.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "ops-flow", "SKILL.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "verify-readiness", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "ops-swarm", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "workflow-orchestrator", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "boot-concept", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".agents", "skills", "ops-flow", "agents", "openai.yaml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "AGENTS.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "references", "rules", "10-python.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "references", "rules", "04-cybersecurity.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "codex", ".codex", "agents", "boss.toml"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagents", ".deepagents", "agent", "skills", "ops-flow", "SKILL.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "deepagents", ".deepagents", "agent", "AGENTS.md"))), true);
@@ -353,12 +371,15 @@ assert.equal(generated.some((file) => file.endsWith(path.join("dist", "gemini-cl
 assert.equal(generated.some((file) => file.includes(`${path.sep}.gemini${path.sep}extensions${path.sep}agent-surface${path.sep}`)), false);
 assert.equal(generated.some((file) => file.includes(`${path.sep}.agent-surface${path.sep}claude-plugin${path.sep}`)), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cline", ".cline", "rules", "agent-surface.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cline", ".cline", "data", "workflows", "verify-readiness.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "commands", "ops-flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "agents", "boss.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "AGENTS.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "kilo.jsonc"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "rules", "00-precedence-and-safety.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "rules", "04-cybersecurity.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "references", "rules", "14-shell.md"))), true);
+assert.equal(generated.some((file) => file.endsWith(path.join("dist", "kilo", ".config", "kilo", "references", "rules", "04-cybersecurity.md"))), false);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity", "global_workflows", "ops-flow.md"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "config", "plugins", "agent-surface", "plugin.json"))), true);
 assert.equal(generated.some((file) => file.endsWith(path.join("dist", "antigravity-cli", "config", "plugins", "agent-surface", "skills", "ops-flow.md"))), true);
@@ -393,6 +414,7 @@ const cursorIgnore = readFileSync(path.join(root, "dist", "cursor", ".cursorigno
 assert.match(cursorIgnore, /agent-surface canonical AI-tool ignore baseline/);
 const codexInstructions = readFileSync(path.join(root, "dist", "codex", ".codex", "AGENTS.md"), "utf8");
 assert.match(codexInstructions, /## 00-precedence-and-safety\.mdc/);
+assert.match(codexInstructions, /## 04-cybersecurity\.mdc/);
 assert.doesNotMatch(codexInstructions, /## 10-python\.mdc/);
 const codexPythonReference = readFileSync(path.join(root, "dist", "codex", ".codex", "references", "rules", "10-python.md"), "utf8");
 assert.match(codexPythonReference, /Scoped agent-surface reference/);
@@ -403,6 +425,7 @@ assert.deepEqual(kiloPreviewConfig.instructions, [
   "./rules/01-response-style.md",
   "./rules/02-agent-workflow.md",
   "./rules/03-project-defaults.md",
+  "./rules/04-cybersecurity.md",
   "./rules/05-tooling.md",
   "./rules/06-test-policy.md",
 ]);
@@ -458,9 +481,28 @@ assert.equal(/^ {2}- Edit$/m.test(droidBossAgent), false);
 const droidWorkerAgent = readFileSync(path.join(root, "dist", "droid", ".factory", "droids", "worker.md"), "utf8");
 assert.match(droidWorkerAgent, /^ {2}- Execute$/m);
 const droidMcp = JSON.parse(readFileSync(path.join(root, "dist", "droid", ".factory", "mcp.json"), "utf8"));
-assert.equal(droidMcp.mcpServers.agentmemory.command, "~/.local/bin/agentmemory-mcp");
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "cursor", ".cursor", "mcp.json"))), false);
-assert.equal(generated.some((file) => file.endsWith(path.join("dist", "claude-code", ".mcp.json"))), false);
+assert.equal(Object.hasOwn(droidMcp.mcpServers, "agentmemory"), false);
+// First-party synapse MCP is auto-wired by default; external MCPs remain opt-in.
+assert.equal(droidMcp.mcpServers.synapse.command, "~/.local/bin/synapse-bridge");
+assert.equal(droidMcp.mcpServers.synapse.type, "stdio");
+assert.deepEqual(droidMcp.mcpServers.synapse.args, []);
+const claudeMcp = JSON.parse(readFileSync(path.join(root, "dist", "claude-code", ".claude.json"), "utf8"));
+assert.equal(claudeMcp.mcpServers.synapse.command, "~/.local/bin/synapse-bridge");
+const codexMcp = readFileSync(path.join(root, "dist", "codex", ".codex", "config.toml"), "utf8");
+assert.match(codexMcp, /\[mcp_servers\.synapse\]/);
+assert.match(codexMcp, /command = "~\/\.local\/bin\/synapse-bridge"/);
+const deepagentsMcp = JSON.parse(readFileSync(path.join(root, "dist", "deepagents", ".deepagents", ".mcp.json"), "utf8"));
+assert.equal(deepagentsMcp.mcpServers.synapse.command, "~/.local/bin/synapse-bridge");
+const cursorMcp = JSON.parse(readFileSync(path.join(root, "dist", "cursor", ".cursor", "mcp.json"), "utf8"));
+assert.equal(cursorMcp.mcpServers.synapse.command, "~/.local/bin/synapse-bridge");
+const kiloMcp = JSON.parse(readFileSync(path.join(root, "dist", "kilo", ".config", "kilo", "kilo.jsonc"), "utf8"));
+assert.deepEqual(kiloMcp.mcp.synapse.command, ["~/.local/bin/synapse-bridge"]);
+const opencodeMcp = JSON.parse(readFileSync(path.join(root, "dist", "opencode", ".config", "opencode", "opencode.json"), "utf8"));
+assert.deepEqual(opencodeMcp.mcp.synapse.command, ["~/.local/bin/synapse-bridge"]);
+const vscodeMcp = JSON.parse(readFileSync(path.join(root, "dist", "vscode", "mcp.json"), "utf8"));
+assert.equal(vscodeMcp.servers.synapse.command, "~/.local/bin/synapse-bridge");
+const zedMcp = JSON.parse(readFileSync(path.join(root, "dist", "zed", ".config", "zed", "settings.json"), "utf8"));
+assert.equal(zedMcp.context_servers.synapse.command, "~/.local/bin/synapse-bridge");
 const sourceKinds = JSON.parse(readFileSync(path.join(root, "registry", "source-kinds.json"), "utf8"));
 assert.equal(Object.hasOwn(sourceKinds.source_kinds, "mcps"), false);
 assert.equal(Object.hasOwn(sourceKinds.source_kinds, "subagents"), true);
@@ -553,7 +595,7 @@ assert.match(droidPlan, /\.factory\/commands\/workflow-boss\.md <- commands\/wor
 assert.match(droidPlan, /AGENTS\.md <- rules\/\*\.mdc/);
 assert.match(droidPlan, /\.factory\/references\/rules\/10-python\.md <- rules\/10-python\.mdc/);
 assert.match(droidPlan, /\.factory\/droids\/boss\.md <- subagents\/boss\.md/);
-assert.match(droidPlan, /\.factory\/mcp\.json <- registry\/optional-services\.json/);
+assert.match(droidPlan, /\.factory\/mcp\.json MCP \+= synapse/);
 assert.doesNotMatch(droidPlan, /\.factory\/skills\/karpathy-guidelines\/SKILL\.md/);
 
 const droidExternalPlan = run(["install", "--target", "droid", "--category", "external", "--dest", "/tmp/agent-surface-droid-external", "--dry-run"]);
@@ -570,7 +612,7 @@ assert.match(droidUserPlan, /\.factory\/commands\/workflow-boss\.md <- commands\
 assert.match(droidUserPlan, /\.factory\/AGENTS\.md <- rules\/\*\.mdc/);
 assert.match(droidUserPlan, /\.factory\/references\/rules\/10-python\.md <- rules\/10-python\.mdc/);
 assert.match(droidUserPlan, /\.factory\/droids\/boss\.md <- subagents\/boss\.md/);
-assert.match(droidUserPlan, /\.factory\/mcp\.json <- registry\/optional-services\.json/);
+assert.match(droidUserPlan, /\.factory\/mcp\.json MCP \+= synapse/);
 assert.doesNotMatch(droidUserPlan, /\.factory\/skills\/pua\/SKILL\.md/);
 
 const codexPlan = run(["install", "--target", "codex", "--dest", "/tmp/agent-surface-codex", "--dry-run"]);
@@ -586,7 +628,7 @@ assert.match(deepagentsPlan, /\.deepagents\/skills\/workflow-boss\/SKILL\.md <- 
 assert.match(deepagentsPlan, /\.deepagents\/AGENTS\.md <- rules\/\*\.mdc/);
 assert.match(deepagentsPlan, /\.deepagents\/references\/rules\/10-python\.md <- rules\/10-python\.mdc/);
 assert.match(deepagentsPlan, /\.deepagents\/agents\/worker\/AGENTS\.md <- subagents\/worker\.md/);
-assert.doesNotMatch(deepagentsPlan, /\.deepagents\/\.mcp\.json/);
+assert.match(deepagentsPlan, /\.deepagents\/\.mcp\.json MCP \+= synapse/);
 
 const goosePlan = run(["install", "--target", "goose", "--dest", "/tmp/agent-surface-goose", "--dry-run"]);
 assert.match(goosePlan, /^target: goose$/m);
@@ -638,7 +680,7 @@ const deepagentsMcpPlan = run([
 assert.match(deepagentsMcpPlan, /^target: deepagents$/m);
 assert.match(deepagentsMcpPlan, /^categories: mcps$/m);
 assert.match(deepagentsMcpPlan, /^services: agentmemory$/m);
-assert.match(deepagentsMcpPlan, /\.deepagents\/\.mcp\.json <- registry\/optional-services\.json/);
+assert.match(deepagentsMcpPlan, /\.deepagents\/\.mcp\.json MCP \+= agentmemory/);
 assert.doesNotMatch(deepagentsMcpPlan, /workflow-boss\/SKILL\.md/);
 
 const multiRuntimeRulesPlan = run([
@@ -722,6 +764,7 @@ const liveInstall = run(["install", "--target", "cline", "--dest", liveDest]);
 assert.match(liveInstall, /^installed:$/m);
 assert.match(liveInstall, /wrote: 73/);
 assert.match(readFileSync(path.join(liveDest, ".clinerules", "workflows", "workflow-boss.md"), "utf8"), /^## OBJECTIVE/);
+assert.match(readFileSync(path.join(liveDest, ".clinerules", "workflows", "verify-readiness.md"), "utf8"), /^## OBJECTIVE/);
 assert.match(readFileSync(path.join(liveDest, ".clineignore"), "utf8"), /agent-surface canonical AI-tool ignore baseline/);
 const liveManifest = JSON.parse(readFileSync(path.join(liveDest, ".agent-surface", "cline-manifest.json"), "utf8"));
 assert.equal(liveManifest.target, "cline");
@@ -762,6 +805,26 @@ assert.match(liveStaleInstall, /removed stale: 1/);
 assert.equal(existsSync(liveStaleFile), false);
 assert.equal(files(path.join(liveStaleDest, ".agent-surface", "backups")).some((file) => file.endsWith("removed.md")), true);
 rmSync(liveStaleDest, { recursive: true, force: true });
+
+const missingStaleDest = "/tmp/agent-surface-missing-stale";
+rmSync(missingStaleDest, { recursive: true, force: true });
+run(["install", "--target", "cline", "--dest", missingStaleDest]);
+const missingStaleManifestPath = path.join(missingStaleDest, ".agent-surface", "cline-manifest.json");
+const missingStaleManifest = JSON.parse(readFileSync(missingStaleManifestPath, "utf8"));
+missingStaleManifest.managed.push({
+  target: "cline",
+  scope: "project",
+  source: "commands/removed.md",
+  output: ".clinerules/workflows/already-gone.md",
+  sha256: sha256("old managed workflow\n"),
+  managed_by: "agent-surface",
+  version: "0.1.0",
+});
+writeFileSync(missingStaleManifestPath, `${JSON.stringify(missingStaleManifest, null, 2)}\n`);
+const missingStaleInstall = run(["install", "--target", "cline", "--dest", missingStaleDest]);
+assert.match(missingStaleInstall, /^installed:$/m);
+assert.match(missingStaleInstall, /removed stale: 0/);
+rmSync(missingStaleDest, { recursive: true, force: true });
 
 const scopeRootDest = "/tmp/agent-surface-scope-root";
 rmSync(scopeRootDest, { recursive: true, force: true });
@@ -1035,7 +1098,9 @@ writeFileSync(
     "    \".kilo/rules/agent-surface.md\",",
     "    \".kilo/rules/00-core.md\",",
     "    \".kilo/rules/10-python.md\",",
+    "    \".kilo/rules/10-lang-python.md\",",
     "    \".kilo/rules/14-shell.md\",",
+    "    \".kilo/rules/14-lang-shell.md\",",
     "  ],",
     "  \"marker\": \",]\"",
     "}",
@@ -1050,9 +1115,11 @@ assert.match(mergedKiloConfig, /"\.\/existing-rule\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/agent-surface\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/00-core\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/10-python\.md"/);
+assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/10-lang-python\.md"/);
 assert.match(mergedKiloConfig, /"\.kilo\/rules\/00-precedence-and-safety\.md"/);
 assert.match(mergedKiloConfig, /"\.kilo\/rules\/06-test-policy\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/14-shell\.md"/);
+assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/14-lang-shell\.md"/);
 rmSync(existingKiloDest, { recursive: true, force: true });
 
 const inlineKiloDest = "/tmp/agent-surface-kilo-inline";
@@ -1067,10 +1134,102 @@ assert.deepEqual(inlineKiloConfig.instructions, [
   ".kilo/rules/01-response-style.md",
   ".kilo/rules/02-agent-workflow.md",
   ".kilo/rules/03-project-defaults.md",
+  ".kilo/rules/04-cybersecurity.md",
   ".kilo/rules/05-tooling.md",
   ".kilo/rules/06-test-policy.md",
 ]);
+assert.deepEqual(inlineKiloConfig.mcp.synapse.command, ["~/.local/bin/synapse-bridge"]);
 rmSync(inlineKiloDest, { recursive: true, force: true });
+
+const existingCursorMcpDest = "/tmp/agent-surface-cursor-existing-mcp";
+rmSync(existingCursorMcpDest, { recursive: true, force: true });
+mkdirSync(path.join(existingCursorMcpDest, ".cursor"), { recursive: true });
+writeFileSync(
+  path.join(existingCursorMcpDest, ".cursor", "mcp.json"),
+  `${JSON.stringify({ mcpServers: { existing: { command: "local-existing", args: ["--ok"] } } }, null, 2)}\n`,
+);
+run(["install", "--target", "cursor", "--dest", existingCursorMcpDest, "--category", "mcps", "--service", "synapse"]);
+const mergedCursorMcp = JSON.parse(readFileSync(path.join(existingCursorMcpDest, ".cursor", "mcp.json"), "utf8"));
+assert.equal(mergedCursorMcp.mcpServers.existing.command, "local-existing");
+assert.equal(mergedCursorMcp.mcpServers.synapse.command, "~/.local/bin/synapse-bridge");
+assert.equal(Object.hasOwn(mergedCursorMcp.mcpServers, "agentmemory"), false);
+rmSync(existingCursorMcpDest, { recursive: true, force: true });
+
+const existingCodexMcpDest = "/tmp/agent-surface-codex-existing-mcp";
+rmSync(existingCodexMcpDest, { recursive: true, force: true });
+mkdirSync(path.join(existingCodexMcpDest, ".codex"), { recursive: true });
+writeFileSync(
+  path.join(existingCodexMcpDest, ".codex", "config.toml"),
+  [
+    "[profile.default]",
+    'model = "keep-me"',
+    "",
+    "[mcp_servers.existing]",
+    'command = "local-existing"',
+    "args = []",
+    "",
+  ].join("\n"),
+);
+run(["install", "--target", "codex", "--dest", existingCodexMcpDest, "--category", "mcps", "--service", "synapse"]);
+const mergedCodexMcp = readFileSync(path.join(existingCodexMcpDest, ".codex", "config.toml"), "utf8");
+assert.match(mergedCodexMcp, /\[profile\.default\]/);
+assert.match(mergedCodexMcp, /\[mcp_servers\.existing\]/);
+assert.match(mergedCodexMcp, /\[mcp_servers\.synapse\]/);
+assert.doesNotMatch(mergedCodexMcp, /\[mcp_servers\.agentmemory\]/);
+rmSync(existingCodexMcpDest, { recursive: true, force: true });
+
+// P3.1/P3.2 acceptance: non-destructive MCP merge into every manual/secret-bearing
+// host. Each fixture carries a pre-existing user server; the merge must keep it,
+// add the first-party synapse entry, never add external/secret-bearing MCPs, and a
+// second merge must be a no-op (idempotent). Cursor + Codex are covered explicitly
+// above; this loop closes the remaining nine (claude-code, cline, gemini-cli, kilo,
+// opencode, trae, vscode, windsurf, zed).
+const mergeFixtures = [
+  { target: "claude-code", rel: ".mcp.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } } },
+  { target: "cline", rel: ".cline/mcp.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } } },
+  {
+    target: "gemini-cli", rel: ".gemini/settings.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } }, theme: "dark" },
+    keep: (parsed) => assert.equal(parsed.theme, "dark", "gemini non-mcp settings preserved")
+  },
+  {
+    target: "kilo", rel: "kilo.jsonc", root: "mcp", pre: { $schema: "keep", mcp: { existing: { type: "local", command: ["local-existing"], enabled: true } } },
+    keep: (parsed) => assert.equal(parsed.$schema, "keep", "kilo $schema preserved")
+  },
+  {
+    target: "opencode", rel: ".opencode/opencode.json", root: "mcp", pre: { $schema: "keep", mcp: { existing: { type: "local", command: ["local-existing"], enabled: true } } },
+    keep: (parsed) => assert.equal(parsed.$schema, "keep", "opencode $schema preserved")
+  },
+  { target: "trae", rel: ".trae/mcp.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } } },
+  { target: "vscode", rel: "mcp.json", root: "servers", pre: { servers: { existing: { type: "stdio", command: "local-existing", args: ["--keep"] } } } },
+  { target: "windsurf", rel: ".windsurf/mcp_config.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } } },
+  {
+    target: "zed", rel: ".zed/settings.json", root: "context_servers", pre: { context_servers: { existing: { command: "local-existing", args: ["--keep"] } }, theme: "mono" },
+    keep: (parsed) => assert.equal(parsed.theme, "mono", "zed non-mcp settings preserved")
+  },
+];
+for (const fx of mergeFixtures) {
+  const dest = mkdtempSync(`/tmp/agent-surface-${fx.target}-merge-`);
+  try {
+    mkdirSync(path.join(dest, path.dirname(fx.rel)), { recursive: true });
+    writeFileSync(path.join(dest, fx.rel), `${JSON.stringify(fx.pre, null, 2)}\n`);
+    const firstPlan = run(["install", "--target", fx.target, "--dest", dest, "--category", "mcps", "--service", "synapse", "--dry-run"]);
+    assert.match(firstPlan, new RegExp(`${fx.rel.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")} MCP \\+= synapse`), `${fx.target}: dry-run announces synapse merge`);
+    run(["install", "--target", fx.target, "--dest", dest, "--category", "mcps", "--service", "synapse"]);
+    const merged = JSON.parse(readFileSync(path.join(dest, fx.rel), "utf8"));
+    assert.ok(merged[fx.root]?.existing, `${fx.target}: pre-existing user server preserved`);
+    const syn = merged[fx.root].synapse;
+    const synCmd = Array.isArray(syn.command) ? syn.command[0] : syn.command;
+    assert.equal(synCmd, "~/.local/bin/synapse-bridge", `${fx.target}: synapse merged`);
+    assert.equal(Object.hasOwn(merged[fx.root], "agentmemory"), false, `${fx.target}: external/secret-bearing MCP not auto-added`);
+    if (fx.keep) fx.keep(merged);
+    const beforeRe = readFileSync(path.join(dest, fx.rel), "utf8");
+    run(["install", "--target", fx.target, "--dest", dest, "--category", "mcps", "--service", "synapse"]);
+    const afterRe = readFileSync(path.join(dest, fx.rel), "utf8");
+    assert.equal(afterRe, beforeRe, `${fx.target}: re-merge is idempotent (no-op diff)`);
+  } finally {
+    rmSync(dest, { recursive: true, force: true });
+  }
+}
 
 for (const target of [
   "cursor",
@@ -1103,6 +1262,7 @@ for (const target of [
       ".kilo/rules/01-response-style.md",
       ".kilo/rules/02-agent-workflow.md",
       ".kilo/rules/03-project-defaults.md",
+      ".kilo/rules/04-cybersecurity.md",
       ".kilo/rules/05-tooling.md",
       ".kilo/rules/06-test-policy.md",
     ]);

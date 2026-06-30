@@ -1,55 +1,37 @@
-// synapse MCP — Redactor: strip secrets from text BEFORE persistence.
-// Implements IRedactor. Patterns cover the agentmemory v0.9.27 set as the
-// floor, plus common dev/token formats. Deterministic (no randomness).
-
+// synapse — secret redaction on ingest. Best-effort floor matching agentmemory's
+// v0.9.27 pattern set, plus generic key=secret. Defense-in-depth: also keep records
+// short and never auto-capture transcripts.
 import type { IRedactor } from "./contract.js";
 
-interface RedactPattern {
-  name: string;
-  // Either a single-line regex or a multiline block matcher.
-  re: RegExp;
-  replacement: string;
-}
-
-const PATTERNS: RedactPattern[] = [
-  // Bearer tokens
-  { name: "bearer", re: /Bearer\s+[A-Za-z0-9\-._~+\/]+=*/g, replacement: "Bearer [REDACTED]" },
-  // OpenAI keys
-  { name: "openai-project", re: /sk-proj-[A-Za-z0-9_\-]{20,}/g, replacement: "sk-proj-[REDACTED]" },
-  { name: "openai-ant", re: /sk-ant-[A-Za-z0-9_\-]{20,}/g, replacement: "sk-ant-[REDACTED]" },
-  { name: "openai-generic", re: /sk-[A-Za-z0-9]{20,}/g, replacement: "sk-[REDACTED]" },
-  // GitHub tokens
-  { name: "github-pat", re: /gh[pousr]_[A-Za-z0-9]{36,}/g, replacement: "gh[pousr]_[REDACTED]" },
-  // GitLab PAT
-  { name: "gitlab-pat", re: /glpat-[A-Za-z0-9_\-]{20,}/g, replacement: "glpat-[REDACTED]" },
-  // Slack tokens
-  { name: "slack", re: /xox[bpoas]-[A-Za-z0-9\-]{10,}/g, replacement: "xox-[REDACTED]" },
-  // AWS access key id
-  { name: "aws-akid", re: /AKIA[0-9A-Z]{16}/g, replacement: "AKIA[REDACTED]" },
-  // Private key blocks (multiline)
-  { name: "private-key", re: /-----BEGIN (?:RSA |EC |OPENSSH |)PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH |)PRIVATE KEY-----/g, replacement: "[REDACTED:private-key]" },
-  // Password / secret / token / api_key assignments
-  { name: "password-assign", re: /((?:password|passwd|pwd)\s*[:=]\s*["']?)[^\s"']{4,}/gi, replacement: "$1[REDACTED]" },
-  { name: "apikey-assign", re: /(?:api[_-]?key)\s*[:=]\s*["']?[^\s"']{8,}/gi, replacement: "[REDACTED]" },
-  { name: "secret-assign", re: /(?:secret)\s*[:=]\s*["']?[^\s"']{8,}/gi, replacement: "[REDACTED]" },
-  { name: "token-assign", re: /(?:token)\s*[:=]\s*["']?[^\s"']{12,}/gi, replacement: "[REDACTED]" },
+const PATTERNS: RegExp[] = [
+  /Bearer\s+[A-Za-z0-9._\-+/=]{20,}/gi,
+  /\b(?:sk-proj|sk-ant)-[A-Za-z0-9\-_]{20,}/g,
+  /\bsk-[A-Za-z0-9]{20,}/g,
+  /\bgh[pousr]_[A-Za-z0-9]{36,}/g,
+  /\bglpat-[A-Za-z0-9\-_]{20,}/g,
+  /\bAKIA[0-9A-Z]{16}\b/g,
+  /\bAIza[0-9A-Za-z\-_]{35}\b/g,
+  /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
+  /\b(?:api[_-]?key|secret|token|password|passwd|credential)\b\s*[:=]\s*["']?[A-Za-z0-9_\-./+]{12,}["']?/gi,
 ];
 
 export function createRedactor(): IRedactor {
   return {
     redact(text: string): { text: string; count: number } {
-      let result = text;
       let count = 0;
-      for (const p of PATTERNS) {
-        const matches = result.match(p.re);
-        if (matches) {
-          count += matches.length;
-          result = result.replace(p.re, p.replacement);
-        }
+      let out = text;
+      for (const re of PATTERNS) {
+        out = out.replace(re, (m) => {
+          count += 1;
+          // preserve a key= prefix when present so context stays readable
+          const eq = m.search(/[:=]/);
+          if (eq > 0 && /^(?:api|secret|token|password|passwd|credential)/i.test(m)) {
+            return `${m.slice(0, eq + 1)} [REDACTED]`;
+          }
+          return "[REDACTED]";
+        });
       }
-      return { text: result, count };
+      return { text: out, count };
     },
   };
 }
-
-export { PATTERNS };
