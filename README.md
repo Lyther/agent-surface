@@ -17,14 +17,14 @@ Compatibility is ranked from 1 to 5 based on how much of the `agent-surface` sou
 
 | Target | Build files | Commands / workflows | Rules / instructions | Agents / subagents | Skills / external packs | Config / ignores / prompts | Compatibility |
 |---|---:|---|---|---|---|---|---:|
-| Claude Code | 3722 | 66 native `.claude/commands/<group>/<name>.md` | None | 6 `.claude/agents/*.md` | External `.claude/skills/*` | Synapse MCP in `.claude.json` | 4/5 |
-| Codex | 3794 | 66 command skills in `.agents/skills/*` | `.codex/AGENTS.md` plus 5 scoped language refs in `.codex/references/rules/*.md` | 6 `.codex/agents/*.toml` | External `.agents/skills/*` | Synapse MCP in `.codex/config.toml` | 5/5 |
-| Deep Agents Code | 3723 | 66 command skills in `.deepagents/agent/skills/*` | `.deepagents/agent/AGENTS.md` plus 5 scoped language refs | Worker only at `.deepagents/agent/agents/worker/AGENTS.md` | External `.deepagents/agent/skills/*` | `.deepagents/.mcp.json` | 4/5 |
+| Claude Code | 317 | 66 native `.claude/commands/<group>/<name>.md` | None | 6 `.claude/agents/*.md` | External `.claude/skills/*` (Anthropic excluded) | Synapse MCP in `.claude.json` | 4/5 |
+| Codex | 389 | 66 command skills in `.agents/skills/*` | `.codex/AGENTS.md` plus 5 scoped language refs in `.codex/references/rules/*.md` | 6 `.codex/agents/*.toml` | External `.agents/skills/*` (Anthropic excluded) | Synapse MCP in `.codex/config.toml` | 5/5 |
+| Deep Agents Code | 318 | 66 command skills in `.deepagents/agent/skills/*` | `.deepagents/agent/AGENTS.md` plus 5 scoped language refs | Worker only at `.deepagents/agent/agents/worker/AGENTS.md` | External `.deepagents/agent/skills/*` (Anthropic excluded) | `.deepagents/.mcp.json` | 4/5 |
 | Cursor | 86 | 66 native `.cursor/commands/*.md` | 12 native scoped `.cursor/rules/*.mdc` | 6 `.cursor/agents/*.md` | None | `.cursor/mcp.json`; `.cursorignore` | 5/5 |
-| Droid | 3728 | 66 native `.factory/commands/*.md` | `.factory/AGENTS.md` plus 5 scoped language refs | 6 `.factory/droids/*.md` | External `.factory/skills/*` | `.factory/mcp.json` | 5/5 |
+| Droid | 323 | 66 native `.factory/commands/*.md` | `.factory/AGENTS.md` plus 5 scoped language refs | 6 `.factory/droids/*.md` | External `.factory/skills/*` (Anthropic excluded) | `.factory/mcp.json` | 5/5 |
 | Cline | 74 | 66 workflows in `.cline/data/workflows/*.md` | `.cline/rules/agent-surface.md` plus 5 scoped language refs | None | None | `.cline/mcp.json`; `.clineignore` | 4/5 |
 | Kilo | 86 | 66 workflows in `.config/kilo/commands/*.md` | 7 always-on `.config/kilo/rules/*.md` plus 5 scoped language refs | 6 `.config/kilo/agents/*.md` | None | Synapse MCP + instructions in `kilo.jsonc`; `.kilocodeignore` | 5/5 |
-| Antigravity CLI | 3735 | 66 plugin skills in `config/plugins/agent-surface/skills/*.md` | 7 always-on `config/plugins/agent-surface/rules/*.md` plus 5 scoped language refs | 6 `config/plugins/agent-surface/agents/*.md` | External plugin skills | `config/plugins/agent-surface/plugin.json` | 5/5 |
+| Antigravity CLI | 330 | 66 plugin skills in `config/plugins/agent-surface/skills/*.md` | 7 always-on `config/plugins/agent-surface/rules/*.md` plus 5 scoped language refs | 6 `config/plugins/agent-surface/agents/*.md` | External plugin skills (Anthropic excluded) | `config/plugins/agent-surface/plugin.json` | 5/5 |
 | Antigravity (legacy workflows) | 66 | 66 `global_workflows/*.md` | None | None | None | None | 2/5 |
 | GitHub Copilot | 6 | None | `instructions/agent-surface-copilot.instructions.md` plus 5 scoped language refs | None | None | None | 2/5 |
 | VS Code | 8 | None | `instructions/agent-surface.instructions.md` plus 5 scoped language refs | None | None | `mcp.json`; `prompts/agent-surface.prompt.md` | 2/5 |
@@ -32,11 +32,11 @@ Compatibility is ranked from 1 to 5 based on how much of the `agent-surface` sou
 | OpenCode | 79 | 66 native `.config/opencode/commands/*.md` | `.config/opencode/AGENTS.md` plus 5 scoped language refs | 6 `.config/opencode/agents/*.md` | None | Synapse MCP in `.config/opencode/opencode.json` | 5/5 |
 | Trae | 7 | None | `.trae/user_rules.md` plus 5 scoped language refs | None | None | `.trae/mcp.json` | 2/5 |
 | Goose | 66 | 66 recipes in `recipes/*.yaml` | None | None | None | None | 3/5 |
-| Grok Build | 3715 | 66 command skills in `.grok/skills/*` | Project install emits `AGENTS.md`; default user build emits none | None | External `.grok/skills/*` | None | 4/5 |
-| Pi | 3721 | 66 command skills in `.pi/agent/skills/*` | `.pi/agent/AGENTS.md` plus 5 scoped language refs | None | External `.pi/agent/skills/*` | None | 4/5 |
-| Poolside | 3721 | 66 command skills in `.config/poolside/skills/*` | `.config/poolside/.poolside` plus 5 scoped language refs | None | External `.config/poolside/skills/*` | None | 4/5 |
-| Windsurf | 3722 | 66 workflows in `.codeium/windsurf/global_workflows/*.md` | `.codeium/windsurf/memories/global_rules.md` plus 5 scoped language refs | None | External `.codeium/windsurf/skills/*` | `.codeium/windsurf/mcp_config.json` | 4/5 |
-| Zed | 3722 | 66 command skills in `.agents/skills/*` | `.config/zed/AGENTS.md` plus 5 scoped language refs | None | External `.agents/skills/*` | Synapse MCP in `.config/zed/settings.json` | 4/5 |
+| Grok Build | 310 | 66 command skills in `.grok/skills/*` | Project install emits `AGENTS.md`; default user build emits none | None | External `.grok/skills/*` (Anthropic excluded) | None | 4/5 |
+| Pi | 316 | 66 command skills in `.pi/agent/skills/*` | `.pi/agent/AGENTS.md` plus 5 scoped language refs | None | External `.pi/agent/skills/*` (Anthropic excluded) | None | 4/5 |
+| Poolside | 316 | 66 command skills in `.config/poolside/skills/*` | `.config/poolside/.poolside` plus 5 scoped language refs | None | External `.config/poolside/skills/*` (Anthropic excluded) | None | 4/5 |
+| Windsurf | 317 | 66 workflows in `.codeium/windsurf/global_workflows/*.md` | `.codeium/windsurf/memories/global_rules.md` plus 5 scoped language refs | None | External `.codeium/windsurf/skills/*` (Anthropic excluded) | `.codeium/windsurf/mcp_config.json` | 4/5 |
+| Zed | 317 | 66 command skills in `.agents/skills/*` | `.config/zed/AGENTS.md` plus 5 scoped language refs | None | External `.agents/skills/*` (Anthropic excluded) | Synapse MCP in `.config/zed/settings.json` | 4/5 |
 
 Bundled instruction targets include only `alwaysApply: true` rules inline. Cybersecurity (`04`) is always-on for security review and harness development; language rules (`10`-`14`) are emitted as separate reference files under each target's config tree and are selected by project-aware commands such as `boot-new`. Cursor keeps all 12 files as native `.mdc` rules; Kilo config-merges the 7 always-on rules and keeps the 5 scoped language policies as references. No legacy compact core rule is emitted in source or generated target outputs.
 
@@ -46,19 +46,28 @@ Out of scope: Gemini CLI (EoL; use Antigravity CLI), Roo Code (EoL), Xcode.
 
 ## Project layout
 
+This repository is a **source compiler**, not an application with `src/`. Canonical primitives live in the directories below; per-target install docs live in `adapters/`.
+
 ```text
 commands/          User-invoked reusable procedures
 rules/             Always-on or scoped behavior policy
 subagents/         Normalized subagent definitions
-mcps/              First-party MCP services such as Synapse
-ignores/           Project ignore files (.cursorignore, .kilocodeignore, .clineignore)
-registry/          Target, capability, and source-kind policy
+mcps/              First-party MCP services (for example Synapse) and concept packs (Grimoire)
+ignores/           Project ignore templates (.cursorignore, .kilocodeignore, .clineignore)
+hooks/             Shared shell hooks referenced by install/check (for example attribution stripping)
+registry/          Target, capability, optional-service, and source-kind policy
 schemas/           JSON schemas for registry and workflow artifacts
 scripts/           CLI compiler and helper modules
 tests/             Integration tests
 adapters/          Per-target READMEs and context
 external/          Optional git-submodule skill/service packs
+skills/            Reserved extension slot; not an active source kind in `registry/source-kinds.json`
+modes/             Reserved extension slot (.gitkeep)
+plugins/           Reserved extension slot (.gitkeep)
+settings/          Reserved extension slot (.gitkeep)
 ```
+
+Local IDE and assistant overlays (`.cursor/`, `.vscode/`, `.claude/`, `.kilo/`, and similar) stay **gitignored** on maintainer machines. Use `npm run build` / `install` to render committed source into host-native surfaces.
 
 ## Quick start
 
@@ -134,8 +143,9 @@ node scripts/agent-surface.mjs install --runtime pool,zed --category external --
 - Deep Agents user installs write `~/.deepagents/<agent>/`; project installs write `.deepagents/`. Use `--agent <name>` to select a non-default user agent directory.
 - Goose installs are project-oriented and render `recipes/<command>.yaml`.
 - Grok Build, Pi, Poolside, Windsurf, and Zed render command sources as native skills or workflows plus target-specific instruction files.
-- Required external skill packs are `ctf-skills`, `anthropic-cybersecurity-skills`, `claude-osint`, and `codex-redteam-mode`; optional/caution packs remain registered for `sanyuan-skills`, `andrej-karpathy-skills`, and `pua`.
+- Required external skill packs emitted by default are `ctf-skills`, `claude-osint`, and `codex-redteam-mode`; optional/caution packs remain registered for `sanyuan-skills`, `andrej-karpathy-skills`, and `pua`.
 - External skill packs are built and checked with each capable target, but live installs require an explicit `--category external` to avoid surprise writes of thousands of upstream files.
+- `anthropic-cybersecurity-skills` is kept as a pinned required source asset but is not emitted into any target skill root for now. Future access should be explicit command/workflow conversion or a just-in-time MCP service, not default mirroring of the upstream skill tree.
 - DeepAudit is not registered as an MCP asset until an upstream MCP server contract is available; process-boundary tooling without MCP config is intentionally not emitted as `mcps`.
 - Manifests track generated files so stale outputs can be removed on the next install.
 - Backups are written to `.agent-surface/backups/` before overwrite or removal.

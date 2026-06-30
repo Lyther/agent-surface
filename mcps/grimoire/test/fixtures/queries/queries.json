@@ -1,0 +1,50 @@
+[
+  {
+    "query": "detect cobalt strike beacon in pcap",
+    "expect": [
+      "fixture:detecting-cobalt-strike-beacons"
+    ],
+    "negatives": [
+      "fixture:implementing-mfa-enforcement"
+    ]
+  },
+  {
+    "query": "c2 jittered http check-in named pipe",
+    "expect": [
+      "fixture:detecting-cobalt-strike-beacons"
+    ],
+    "negatives": []
+  },
+  {
+    "query": "reverse engineer malware binary ghidra decompile",
+    "expect": [
+      "fixture:analyzing-malware-with-ghidra"
+    ],
+    "negatives": [
+      "fixture:implementing-mfa-enforcement"
+    ]
+  },
+  {
+    "query": "unpacking stub strings imports triage sample",
+    "expect": [
+      "fixture:analyzing-malware-with-ghidra"
+    ],
+    "negatives": []
+  },
+  {
+    "query": "enforce multi-factor authentication conditional access webauthn",
+    "expect": [
+      "fixture:implementing-mfa-enforcement"
+    ],
+    "negatives": [
+      "fixture:detecting-cobalt-strike-beacons"
+    ]
+  },
+  {
+    "query": "break-glass account mfa rollout report-only",
+    "expect": [
+      "fixture:implementing-mfa-enforcement"
+    ],
+    "negatives": []
+  }
+]
