@@ -2085,9 +2085,37 @@ async function doctor() {
   checks.push(["opencode", commandVersion("opencode", ["--version"])]);
   checks.push(["gh", commandVersion("gh", ["--version"])]);
 
+  // First-party MCP health (binaries linked, index/sidecar present, grimoire index fresh vs pin).
+  const bin = path.join(os.homedir(), ".local", "bin");
+  checks.push(["grimoire-server", (await exists(path.join(bin, "grimoire-server"))) ? "linked" : "missing (npm run install:grimoire)"]);
+  checks.push(["grimoire-index", await grimoireIndexStatus()]);
+  checks.push(["synapse-bridge", (await exists(path.join(bin, "synapse-bridge"))) ? "linked" : "missing (npm run install:synapse)"]);
+  checks.push(["synapse-sidecar", (await exists(path.join(os.homedir(), ".synapse", "sidecar.json"))) ? "present" : "missing (autostarts on first use)"]);
+
   for (const [name, result] of checks) {
     console.log(`${name}: ${result}`);
   }
+}
+
+// grimoire index freshness: the runtime compares against the installed manifest (it can't see
+// the repo), so doctor closes the loop by comparing the installed manifest's pinned commit
+// against the repo registry pin and flagging drift before runtime use.
+async function grimoireIndexStatus() {
+  const dir = path.join(os.homedir(), ".grimoire");
+  if (!(await exists(path.join(dir, "index.sqlite"))) || !(await exists(path.join(dir, "manifest.json")))) {
+    return "missing (npm run install:grimoire)";
+  }
+  let manifest;
+  try { manifest = JSON.parse(await readFile(path.join(dir, "manifest.json"), "utf8")); }
+  catch { return "stale: unreadable manifest (npm run install:grimoire)"; }
+  const registry = await readOptionalServices();
+  for (const pack of manifest.packs ?? []) {
+    const pin = registry.services?.[pack.serviceId]?.commit;
+    if (pin && pack.commit !== pin) {
+      return `stale: ${pack.serviceId} installed ${String(pack.commit).slice(0, 8)} but repo pins ${String(pin).slice(0, 8)} (npm run install:grimoire)`;
+    }
+  }
+  return `ok (${String(manifest.packs?.[0]?.commit ?? "").slice(0, 8) || "no packs"})`;
 }
 
 async function runEvidence(args) {
