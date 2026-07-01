@@ -1,8 +1,8 @@
 # Roadmap — grimoire
 
-Status: P0–P3 DONE (v0.1 core + distribution) · production-readiness = P4 remaining · Source: mcps/grimoire/architecture.md · Last updated: 2026-07-01
+Status: SHIPPED (v0.1 — PR #14 merged to `main`) · Source: mcps/grimoire/architecture.md · Last updated: 2026-07-01
 
-Small build. Phases are checkpoints, not ceremony; each box names its acceptance proof. P0–P3 are done and proven by the test suites (`mcps/grimoire` package tests incl. a spawned-process stdio test + the real-pack eval gate, plus repo `check`/`test`). **P4 lists the honest blockers before an unqualified "production-ready" claim.**
+Small build. Phases are checkpoints, not ceremony; each box names its acceptance proof. P0–P4 are done and proven by the test suites (`mcps/grimoire` package tests incl. a spawned-process stdio test + the real-pack eval gate, plus repo `check`/`test`). Two items stay open by nature: `P4.2` per-host in-app smoke (operator-recorded continuously during use — `[~]`) and the `P4.6` git tag (maintainer go). Everything under **Later** is deferred-by-design.
 
 ## P0 — eval baseline (do first)
 
@@ -38,12 +38,12 @@ MCP-host coverage is **honest, not blanket**. Three groups (see `registry/target
 
 The honest blockers before an unqualified "production-ready" claim. Items marked **(shared)** are tracked in `mcps/synapse/roadmap.md` too — they cover the agent-surface MCP plumbing both services ride.
 
-- [ ] `P4.1` **(shared)** Ship the distribution work — branch + commit + PR + merge: the new MCP-target wiring (VSCodium / Grok Build / Antigravity CLI), the honest `target-capabilities.json` matrix, and the docs (README, `docs/reference/targets.md`, adapter READMEs). Acceptance: merged to `main`; `check` + `test` green on the tip.
-- [ ] `P4.2` Per-host live launch smoke (the acceptance floor) — launch each of the 17 generated MCP hosts, confirm `tools/list` exposes the 4 `grimoire_*` tools and `grimoire_search` returns `ok`; record pass/fail per host. **Especially validate the 3 just-added formats** (VSCodium `mcp.json`, Grok `.grok/settings.json`, Antigravity `mcp_config.json`) actually load in the real tool — they came from doc research, not a live load. Acceptance: a recorded host matrix (operator-run, not automated).
-- [ ] `P4.3` **(shared)** CI gate — CI runs the `mcps/grimoire` suite (incl. the real-pack eval gate) + `npm audit` on every PR; fails on eval-floor regression. Acceptance: green CI workflow.
+- [x] `P4.1` **(shared)** Ship the distribution work — merged in PR #14: MCP-target wiring (VSCodium / Grok Build / Antigravity CLI + Goose/Poolside YAML), honest `target-capabilities.json` matrix, docs. `check` + `test` green on `main`.
+- [~] `P4.2` Per-host live launch smoke — **deferred, operator-recorded continuously during use** (GUI/CLI apps are human-launched, not automatable). Living matrix: `test/smoke/README.md`. Already proven by automation: spawned-process stdio (`test/packaging.test.ts`) + config-merge presence per host (repo `test`). Priority rows: the 5 doc-derived formats (VSCodium/Grok/Antigravity CLI/Goose/Poolside).
+- [x] `P4.3` **(shared)** CI gate — `.github/workflows/ci.yml` `mcp` job (Node 22) runs the grimoire suite incl. the real-pack eval gate + `npm audit` on every PR.
 - [x] `P4.4` **(shared)** Goose + Poolside MCP — **done**: a safe non-destructive YAML block-merge (`mergeYamlMcpConfig`) was added and both flipped to `generated` (17 total). Merge preserves keys/comments/sibling servers, is idempotent, and refuses (blocks, never corrupts) on tabs or flow-style. Acceptance: verified non-destructive + idempotent merge on a seeded `config.yaml`; covered by tests.
-- [ ] `P4.5` `agent-surface doctor` index-freshness — compare the installed `~/.grimoire/manifest.json` pin against the repo's `registry/optional-services.json` commit/hash and warn on drift (runtime `indexStatus` can't see the repo); also assert `grimoire-server` is linked and wired in host configs. Acceptance: `doctor` flags a stale or unwired grimoire.
-- [ ] `P4.6` **(shared)** Release — cut `grimoire 0.1` with a `CHANGELOG`; tag. Clear `NODE_TLS_REJECT_UNAUTHORIZED=0` from the release shell. Acceptance: tagged release + notes.
+- [x] `P4.5` `agent-surface doctor` index-freshness — `doctor` compares the installed `~/.grimoire/manifest.json` pin against the repo registry pin and reports linked/wired state (`grimoire-index: ok (<commit>)`).
+- [ ] `P4.6` **(shared)** Release — `CHANGELOG.md` landed; **remaining**: cut the `grimoire-v0.1.0` git tag (maintainer go) and clear `NODE_TLS_REJECT_UNAUTHORIZED=0` in the launching env.
 
 ## Later (deferred-by-design — open only if a trigger fires)
 
