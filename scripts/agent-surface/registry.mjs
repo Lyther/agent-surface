@@ -7,6 +7,11 @@ import { fileURLToPath } from "node:url";
 // Two levels up from scripts/agent-surface/ = the repo root.
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
+// Repo-root-relative path for display.
+export function relative(file) {
+  return path.relative(root, file);
+}
+
 let sourceKindsCache;
 export async function readSourceKinds() {
   if (sourceKindsCache !== undefined) return sourceKindsCache;
