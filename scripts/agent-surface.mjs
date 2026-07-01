@@ -8,15 +8,16 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
-import { approximateTokens, tomlMultilineString, tomlString, yamlString } from "./agent-surface/format.mjs";
 import { readCommands } from "./agent-surface/commands.mjs";
+import { approximateTokens, tomlMultilineString, tomlString, yamlString } from "./agent-surface/format.mjs";
 import { directDirectories, directories, files, filesUnder } from "./agent-surface/fs-tree.mjs";
-import { readRules } from "./agent-surface/rules.mjs";
 import { mergeJsoncRootObjectProperty, mergeKiloInstructionJsonc, parseJsoncResult } from "./agent-surface/jsonc.mjs";
 import { YAML_MCP_FORMATS, mergeCodexMcpToml, mergeJsonMcpConfig, mergeYamlMcpConfig, optionalServiceMcpServers, renderMcpConfig } from "./agent-surface/merge.mjs";
 import { normalizeExternalSkillFile } from "./agent-surface/postprocess.mjs";
 import { commandVersion, gitLines, gitOutput, gitStagedGitlinkMap, gitSubmoduleStatusMap, gitValue } from "./agent-surface/proc.mjs";
 import { readOptionalServices, readSourceKinds, relative, root } from "./agent-surface/registry.mjs";
+import { antigravityCliSkillOutputName, claudeMcpPath, clineMcpPath, clineRuleRoot, clineWorkflowRoot, codexSkillOutputName, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, flatMarkdownCommandOutputName, gooseRecipeOutputName, grokBuildSkillRoot, groupedMarkdownCommandOutputName, installRootAntigravity, installRootAntigravityCli, installRootClaude, installRootCline, installRootCodex, installRootDeepagents, installRootDroid, installRootGoose, installRootGrokBuild, installRootHomeOnly, installRootKilo, installRootOpencode, installRootPi, installRootPool, installRootVsCode, installRootVscodium, installRootWindsurf, installRootZed, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloWorkflowRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, piConfigRoot, piInstructionPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./agent-surface/roots.mjs";
+import { readRules } from "./agent-surface/rules.mjs";
 import {
   checkIgnores,
   checkSubagents,
@@ -2878,10 +2879,6 @@ async function codexOpenAiAgentOutput(source) {
   };
 }
 
-function antigravityCliSkillOutputName(source) {
-  return `${source.name}.md`;
-}
-
 async function renderAntigravityCliSkill(source) {
   return renderSkillMarkdown(source, {
     invocationPrefix: "/",
@@ -3038,14 +3035,6 @@ async function droidStaticOutputs(_commands, context) {
     },
     ...await scopedRuleReferenceOutputs(context, path.join(droidConfigRoot(context), "references", "rules")),
   ];
-}
-
-function droidInstructionPath(context) {
-  return context.scope === "user" ? path.join(".factory", "AGENTS.md") : "AGENTS.md";
-}
-
-function droidConfigRoot(_context) {
-  return ".factory";
 }
 
 async function grokBuildStaticOutputs(_commands, context) {
@@ -3406,23 +3395,6 @@ function stripFrontmatter(text) {
   if (!text.startsWith("---\n")) return text;
   const end = text.indexOf("\n---\n", 4);
   return end === -1 ? text : text.slice(end + 5);
-}
-
-function groupedMarkdownCommandOutputName(source) {
-  const [category, ...rest] = source.name.split("-");
-  return path.join(category, `${rest.join("-") || category}.md`);
-}
-
-function flatMarkdownCommandOutputName(source) {
-  return `${source.name}.md`;
-}
-
-function gooseRecipeOutputName(source) {
-  return `${source.name}.yaml`;
-}
-
-function codexSkillOutputName(source) {
-  return path.join(source.name, "SKILL.md");
 }
 
 function parseJsonc(text, label) {
@@ -3828,93 +3800,6 @@ async function packageVersion() {
   return metadata.version;
 }
 
-function installRootGoose(scope) {
-  // user → ~ (so MCP reaches ~/.config/goose/config.yaml); project → cwd (recipes in ./recipes).
-  return scope === "user" ? os.homedir() : process.cwd();
-}
-
-function installRootHomeOnly(scope) {
-  if (scope !== "user") fail("this target supports --scope user only unless --dest is supplied");
-  return os.homedir();
-}
-
-function installRootClaude(scope) {
-  return scope === "user" ? os.homedir() : process.cwd();
-}
-
-function installRootCodex(scope) {
-  if (scope !== "user") fail("codex install supports --scope user only unless --dest is supplied");
-  return os.homedir();
-}
-
-function installRootDeepagents(scope) {
-  return scope === "user" ? os.homedir() : process.cwd();
-}
-
-function installRootGrokBuild(scope) {
-  return scope === "user" ? os.homedir() : process.cwd();
-}
-
-function installRootPi(scope) {
-  return scope === "user" ? os.homedir() : process.cwd();
-}
-
-function installRootPool(scope) {
-  return scope === "user" ? os.homedir() : process.cwd();
-}
-
-function installRootOpencode(scope) {
-  return scope === "user" ? os.homedir() : process.cwd();
-}
-
-function installRootCline(scope) {
-  return scope === "user" ? os.homedir() : process.cwd();
-}
-
-function installRootKilo(scope) {
-  return scope === "user" ? os.homedir() : process.cwd();
-}
-
-function installRootDroid(scope) {
-  return scope === "user" ? os.homedir() : process.cwd();
-}
-
-function installRootAntigravity(scope) {
-  if (scope !== "user") fail("antigravity install supports --scope user only unless --dest is supplied");
-  return path.join(os.homedir(), ".gemini", "antigravity");
-}
-
-function installRootAntigravityCli(scope) {
-  if (scope !== "user") fail("antigravity-cli install supports --scope user only unless --dest is supplied");
-  return path.join(os.homedir(), ".gemini");
-}
-
-function installRootVsCode(scope) {
-  if (scope !== "user") fail("vscode install supports --scope user only unless --dest is supplied");
-  if (process.platform === "darwin") return path.join(os.homedir(), "Library", "Application Support", "Code", "User");
-  if (process.platform === "win32") return path.join(process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"), "Code", "User");
-  return path.join(os.homedir(), ".config", "Code", "User");
-}
-
-function installRootVscodium(scope) {
-  if (scope !== "user") fail("vscodium install supports --scope user only unless --dest is supplied");
-  if (process.platform === "darwin") return path.join(os.homedir(), "Library", "Application Support", "VSCodium", "User");
-  if (process.platform === "win32") return path.join(process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"), "VSCodium", "User");
-  return path.join(os.homedir(), ".config", "VSCodium", "User");
-}
-
-function installRootWindsurf(scope) {
-  return scope === "user" ? os.homedir() : process.cwd();
-}
-
-function installRootZed(scope) {
-  return scope === "user" ? os.homedir() : process.cwd();
-}
-
-function claudeMcpPath(context) {
-  return context.scope === "user" ? ".claude.json" : ".mcp.json";
-}
-
 async function kiloConfigStatus() {
   const configDir = path.join(os.homedir(), ".config", "kilo");
   if (!(await exists(configDir))) return "missing";
@@ -3929,162 +3814,6 @@ async function kiloConfigStatus() {
   if (await exists(path.join(configDir, "commands"))) markers.push("commands");
   if (instructions.includes("./rules/00-precedence-and-safety.md")) markers.push("rules configured");
   return markers.length > 0 ? `present (${markers.join(", ")})` : "present";
-}
-
-function clineWorkflowRoot(context) {
-  return context.scope === "user" ? path.join(".cline", "data", "workflows") : path.join(".clinerules", "workflows");
-}
-
-function deepagentsSkillRoot(context) {
-  return context.scope === "user"
-    ? path.join(".deepagents", context.agentName ?? "agent", "skills")
-    : path.join(".deepagents", "skills");
-}
-
-function deepagentsInstructionPath(context) {
-  return context.scope === "user"
-    ? path.join(".deepagents", context.agentName ?? "agent", "AGENTS.md")
-    : path.join(".deepagents", "AGENTS.md");
-}
-
-function deepagentsAgentRoot(context) {
-  return context.scope === "user"
-    ? path.join(".deepagents", context.agentName ?? "agent", "agents")
-    : path.join(".deepagents", "agents");
-}
-
-function deepagentsConfigRoot(context) {
-  return context.scope === "user" ? path.join(".deepagents", context.agentName ?? "agent") : ".deepagents";
-}
-
-function deepagentsSubagentOutputName(source) {
-  return path.join(source.metadata.name, "AGENTS.md");
-}
-
-function deepagentsMcpPath() {
-  return path.join(".deepagents", ".mcp.json");
-}
-
-function grokBuildSkillRoot() {
-  return path.join(".grok", "skills");
-}
-
-function piSkillRoot(context) {
-  return context.scope === "user" ? path.join(".pi", "agent", "skills") : path.join(".pi", "skills");
-}
-
-function piInstructionPath(context) {
-  return context.scope === "user" ? path.join(".pi", "agent", "AGENTS.md") : "AGENTS.md";
-}
-
-function piConfigRoot(context) {
-  return context.scope === "user" ? path.join(".pi", "agent") : ".pi";
-}
-
-function poolSkillRoot(context) {
-  return context.scope === "user" ? path.join(".config", "poolside", "skills") : path.join(".poolside", "skills");
-}
-
-function poolInstructionPath(context) {
-  return context.scope === "user" ? path.join(".config", "poolside", ".poolside") : "AGENTS.md";
-}
-
-function poolConfigRoot(context) {
-  return context.scope === "user" ? path.join(".config", "poolside") : ".poolside";
-}
-
-function clineRuleRoot(context) {
-  return context.scope === "user" ? path.join(".cline", "rules") : ".clinerules";
-}
-
-function clineMcpPath(context) {
-  return context.scope === "user" ? path.join(".cline", "mcp.json") : path.join(".cline", "mcp.json");
-}
-
-function kiloWorkflowRoot(context) {
-  return context.scope === "user" ? path.join(".config", "kilo", "commands") : path.join(".kilo", "commands");
-}
-
-function kiloConfigPath(scope) {
-  return scope === "user" ? path.join(".config", "kilo", "kilo.jsonc") : "kilo.jsonc";
-}
-
-function kiloInstructionPath(context) {
-  return context.scope === "user" ? path.join(".config", "kilo", "AGENTS.md") : "AGENTS.md";
-}
-
-function kiloRuleRoot(context) {
-  return context.scope === "user" ? path.join(".config", "kilo", "rules") : path.join(".kilo", "rules");
-}
-
-function kiloRuleReferenceRoot(context) {
-  return context.scope === "user"
-    ? path.join(".config", "kilo", "references", "rules")
-    : path.join(".kilo", "references", "rules");
-}
-
-function kiloAgentRoot(context) {
-  return context.scope === "user" ? path.join(".config", "kilo", "agents") : path.join(".kilo", "agents");
-}
-
-function opencodeCommandRoot(context) {
-  return context.scope === "user" ? path.join(".config", "opencode", "commands") : path.join(".opencode", "commands");
-}
-
-function opencodeAgentRoot(context) {
-  return context.scope === "user" ? path.join(".config", "opencode", "agents") : path.join(".opencode", "agents");
-}
-
-function opencodeInstructionPath(context) {
-  return context.scope === "user" ? path.join(".config", "opencode", "AGENTS.md") : "AGENTS.md";
-}
-
-function opencodeConfigRoot(context) {
-  return context.scope === "user" ? path.join(".config", "opencode") : ".opencode";
-}
-
-function opencodeMcpPath(context) {
-  return path.join(opencodeConfigRoot(context), "opencode.json");
-}
-
-function windsurfWorkflowRoot(context) {
-  return context.scope === "user" ? path.join(".codeium", "windsurf", "global_workflows") : path.join(".windsurf", "workflows");
-}
-
-function windsurfConfigRoot(context) {
-  return context.scope === "user" ? path.join(".codeium", "windsurf") : ".windsurf";
-}
-
-function windsurfMcpPath(context) {
-  return context.scope === "user"
-    ? path.join(".codeium", "windsurf", "mcp_config.json")
-    : path.join(".windsurf", "mcp_config.json");
-}
-
-function windsurfRulePath(context) {
-  return context.scope === "user"
-    ? path.join(".codeium", "windsurf", "memories", "global_rules.md")
-    : path.join(".devin", "rules", "agent-surface.md");
-}
-
-function windsurfSkillRoot(context) {
-  return context.scope === "user" ? path.join(".codeium", "windsurf", "skills") : path.join(".windsurf", "skills");
-}
-
-function zedSkillRoot() {
-  return path.join(".agents", "skills");
-}
-
-function zedInstructionPath(context) {
-  return context.scope === "user" ? path.join(".config", "zed", "AGENTS.md") : "AGENTS.md";
-}
-
-function zedConfigRoot(context) {
-  return context.scope === "user" ? path.join(".config", "zed") : ".zed";
-}
-
-function zedMcpPath(context) {
-  return path.join(zedConfigRoot(context), "settings.json");
 }
 
 async function kiloRuleInstructionPaths(scope) {
