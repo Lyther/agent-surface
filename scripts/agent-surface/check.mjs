@@ -10,6 +10,7 @@ import process from "node:process";
 import { readCommands } from "./commands.mjs";
 import { approximateTokens } from "./format.mjs";
 import { directDirectories, directories, files, filesUnder } from "./fs-tree.mjs";
+import { readFileIfExists } from "./io.mjs";
 import { readOptionalServices, readSourceKinds, relative, root } from "./registry.mjs";
 import { gitStagedGitlinkMap, gitSubmoduleStatusMap } from "./proc.mjs";
 import { readRules } from "./rules.mjs";
@@ -259,6 +260,17 @@ export function checkBossArtifactCoherence(data, source, errors) {
       errors.push(`${prefix}: subagent_suitable=true requires a concrete suggested_runtime`);
     }
   }
+}
+
+// Load commands and fail hard on invalid metadata. The build and install paths
+// use this instead of readCommands directly so every generated surface starts
+// from a validated command set.
+export async function exportableCommands() {
+  const commands = await readCommands();
+  const errors = [];
+  checkCommandMetadata(commands, errors);
+  if (errors.length > 0) fail(`command metadata invalid:\n${errors.join("\n")}`);
+  return commands;
 }
 
 export function checkCommandMetadata(commands, errors) {
@@ -628,6 +640,24 @@ export function formatAjvErrors(errors) {
   return (errors ?? [])
     .map((error) => `${error.instancePath || "/"} ${error.message}`)
     .join("; ");
+}
+
+// Read a workflow artifact and validate it against its ajv schema, collecting
+// (never throwing) parse/schema failures into `errors`. Shared by the check
+// validators and the workflow doctor/apply paths.
+export async function readWorkflowJson(file, validate, errors) {
+  let data;
+  try {
+    data = JSON.parse(await readFile(file, "utf8"));
+  } catch (error) {
+    errors.push(`${path.relative(process.cwd(), file)}: invalid JSON: ${error.message}`);
+    return null;
+  }
+
+  if (validate && !validate(data)) {
+    errors.push(`${path.relative(process.cwd(), file)}: ${formatAjvErrors(validate.errors)}`);
+  }
+  return data;
 }
 
 export function validateGeneratedOutputCount(target, outputs) {

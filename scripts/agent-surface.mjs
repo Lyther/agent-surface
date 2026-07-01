@@ -6,10 +6,10 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
-import { check, checkBossArtifactCoherence, checkCommandMetadata, checkCommands, checkGenerated, checkRules, commandPhases, createAjv, formatAjvErrors, outputSourceKindError, requireKnownSourceKind, validateWorkflowJson, validateWorkflowPatchManifests, workflowSchemaFiles } from "./agent-surface/check.mjs";
-import { readCommands } from "./agent-surface/commands.mjs";
+import { check, checkBossArtifactCoherence, checkCommands, checkGenerated, checkRules, commandPhases, createAjv, exportableCommands, formatAjvErrors, outputSourceKindError, readWorkflowJson, requireKnownSourceKind, validateWorkflowJson, validateWorkflowPatchManifests, workflowSchemaFiles } from "./agent-surface/check.mjs";
 import { approximateTokens } from "./agent-surface/format.mjs";
 import { directDirectories, directories, files, filesUnder } from "./agent-surface/fs-tree.mjs";
+import { readFileIfExists, readJsonIfExists, readJsoncIfExists, removeTree } from "./agent-surface/io.mjs";
 import { mergeJsoncRootObjectProperty, mergeKiloInstructionJsonc, parseJsoncResult } from "./agent-surface/jsonc.mjs";
 import { YAML_MCP_FORMATS, mergeCodexMcpToml, mergeJsonMcpConfig, mergeYamlMcpConfig, optionalServiceMcpServers, renderMcpConfig } from "./agent-surface/merge.mjs";
 import { normalizeExternalSkillFile } from "./agent-surface/postprocess.mjs";
@@ -141,10 +141,6 @@ async function inventory() {
 // Recursive removal of large generated trees (tens of thousands of files) can hit
 // transient ENOTEMPTY/EBUSY/EPERM on some filesystems; retry with backoff so a
 // build/install is not flaky on the dist cleanup step.
-async function removeTree(target) {
-  await rm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-}
-
 // served_by links a large source-pack to the first-party MCP(s) that serve it just-in-time.
 // Invariant: a served pack stays a pinned source-pack with NO skill_roots, so it is never
 // mirrored into a host startup catalog (externalSkillRoots only emits skill/behavior packs);
@@ -1337,21 +1333,6 @@ function parseNameStatusFiles(text) {
   return uniqueStrings(files.filter(Boolean));
 }
 
-async function readWorkflowJson(file, validate, errors) {
-  let data;
-  try {
-    data = JSON.parse(await readFile(file, "utf8"));
-  } catch (error) {
-    errors.push(`${path.relative(process.cwd(), file)}: invalid JSON: ${error.message}`);
-    return null;
-  }
-
-  if (validate && !validate(data)) {
-    errors.push(`${path.relative(process.cwd(), file)}: ${formatAjvErrors(validate.errors)}`);
-  }
-  return data;
-}
-
 function workflowRunDir(runId) {
   return path.join(process.cwd(), ".agent-surface", "workflows", runId);
 }
@@ -1392,20 +1373,6 @@ async function lastWorkflowEventHash(eventsPath) {
 }
 
 
-function parseJsonc(text, label) {
-  const result = parseJsoncResult(text);
-  if (result.ok) return result.value;
-  fail(`${label}: invalid JSONC: ${result.error.message}`);
-}
-
-async function exportableCommands() {
-  const commands = await readCommands();
-  const errors = [];
-  checkCommandMetadata(commands, errors);
-  if (errors.length > 0) fail(`command metadata invalid:\n${errors.join("\n")}`);
-  return commands;
-}
-
 function commandRegistry(commands) {
   return {
     count: commands.length,
@@ -1433,34 +1400,6 @@ function commandRegistryEntry(command) {
     ),
   };
 }
-
-// Each adapter renders through an ordered list of producers. `commands` covers
-// per-command outputs plus any additionalCommandOutputs; `static` is the opaque
-// non-command bucket (rules, instructions, prompts, plugin packages, context
-// docs). New source primitives append their own producer here in later phases.
-async function readJsonIfExists(file) {
-  if (!(await exists(file))) return null;
-  try {
-    return JSON.parse(await readFile(file, "utf8"));
-  } catch (error) {
-    fail(`failed to parse JSON at ${relative(file)}: ${error.message}`);
-  }
-}
-
-async function readJsoncIfExists(file) {
-  if (!(await exists(file))) return null;
-  return parseJsonc(await readFile(file, "utf8"), path.relative(root, file));
-}
-
-async function readFileIfExists(file) {
-  try {
-    return await readFile(file);
-  } catch (error) {
-    if (error?.code === "ENOENT") return null;
-    throw error;
-  }
-}
-
 
 function redactEvidenceText(value) {
   const patterns = [];
