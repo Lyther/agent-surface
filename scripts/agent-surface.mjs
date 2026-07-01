@@ -19,6 +19,7 @@ import {
   subagentOutputs,
   subagentValidationErrors,
 } from "./agent-surface/source-primitives.mjs";
+import { commandVersion, gitLines, gitOutput, gitStagedGitlinkMap, gitSubmoduleStatusMap, gitValue } from "./agent-surface/proc.mjs";
 import { readOptionalServices, readSourceKinds, root } from "./agent-surface/registry.mjs";
 import { exists, fail, sha256 } from "./agent-surface/util.mjs";
 
@@ -561,28 +562,6 @@ async function inventory() {
   for (const [type, count] of Object.entries(counts)) {
     console.log(`${type}: ${count}`);
   }
-}
-
-function gitSubmoduleStatusMap() {
-  const result = spawnSync("git", ["submodule", "status"], { encoding: "utf8", cwd: root });
-  if (result.status !== 0 || !result.stdout) return new Map();
-  const map = new Map();
-  for (const line of result.stdout.split("\n")) {
-    const match = line.match(/^[+\-U ]?([0-9a-f]{40})\s+(\S+)/);
-    if (match) map.set(match[2], match[1]);
-  }
-  return map;
-}
-
-function gitStagedGitlinkMap() {
-  const result = spawnSync("git", ["ls-files", "--stage", "external"], { encoding: "utf8", cwd: root });
-  if (result.status !== 0 || !result.stdout) return new Map();
-  const map = new Map();
-  for (const line of result.stdout.split("\n")) {
-    const match = line.match(/^160000 ([0-9a-f]{40}) \d+\t(.+)$/);
-    if (match) map.set(match[2], match[1]);
-  }
-  return map;
 }
 
 // Recursive removal of large generated trees (tens of thousands of files) can hit
@@ -4330,36 +4309,6 @@ async function kiloRuleInstructionPaths(scope) {
     .map((rule) => path.basename(rule.file, ".mdc"));
   const prefix = scope === "user" ? "./rules" : ".kilo/rules";
   return ruleNames.map((name) => `${prefix}/${name}.md`);
-}
-
-function commandVersion(command, args) {
-  const result = spawnSync(command, args, { encoding: "utf8" });
-  if (result.error) return "missing";
-  const output = `${result.stdout}${result.stderr}`.trim().split(/\r?\n/)[0];
-  return output || `exit ${result.status}`;
-}
-
-function gitValue(args) {
-  const result = spawnSync("git", args, { encoding: "utf8" });
-  if (result.status !== 0) return null;
-  return result.stdout.trim() || null;
-}
-
-function gitOutput(args, env = process.env) {
-  const result = spawnSync("git", args, {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    env,
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  if (result.status !== 0) {
-    fail(`git ${args.join(" ")} failed:\n${result.stdout}${result.stderr}`);
-  }
-  return result.stdout;
-}
-
-async function gitLines(args) {
-  return gitOutput(args).split(/\r?\n/).filter(Boolean);
 }
 
 function argValue(args, name) {
