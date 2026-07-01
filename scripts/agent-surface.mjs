@@ -10,7 +10,6 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { approximateTokens, tomlMultilineString, tomlString, yamlString } from "./agent-surface/format.mjs";
-import { exists, fail, sha256 } from "./agent-surface/util.mjs";
 import { mergeJsoncRootObjectProperty, mergeKiloInstructionJsonc, parseJsoncResult } from "./agent-surface/jsonc.mjs";
 import {
   checkIgnores,
@@ -19,6 +18,8 @@ import {
   subagentOutputs,
   subagentValidationErrors,
 } from "./agent-surface/source-primitives.mjs";
+import { normalizeExternalSkillFile } from "./agent-surface/postprocess.mjs";
+import { exists, fail, sha256 } from "./agent-surface/util.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const commandMetadataFields = new Set(["name", "aliases", "phase", "description"]);
@@ -3415,7 +3416,7 @@ async function externalSkillOutputs(adapter, context) {
         renderKind: "external",
         source: relative(file),
         relativeOutput: path.join(outputRoot, skillName, relativeFile),
-        content: await readFile(file, "utf8"),
+        content: normalizeExternalSkillFile(relativeFile, await readFile(file, "utf8"), skillName),
       });
     }
   }
