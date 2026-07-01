@@ -7,11 +7,11 @@ import { copyFile, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFil
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
 
 import { approximateTokens, tomlMultilineString, tomlString, yamlString } from "./agent-surface/format.mjs";
 import { mergeJsoncRootObjectProperty, mergeKiloInstructionJsonc, parseJsoncResult } from "./agent-surface/jsonc.mjs";
 import { YAML_MCP_FORMATS, mergeCodexMcpToml, mergeJsonMcpConfig, mergeYamlMcpConfig, optionalServiceMcpServers, renderMcpConfig } from "./agent-surface/merge.mjs";
+import { normalizeExternalSkillFile } from "./agent-surface/postprocess.mjs";
 import {
   checkIgnores,
   checkSubagents,
@@ -19,10 +19,9 @@ import {
   subagentOutputs,
   subagentValidationErrors,
 } from "./agent-surface/source-primitives.mjs";
-import { normalizeExternalSkillFile } from "./agent-surface/postprocess.mjs";
+import { readOptionalServices, readSourceKinds, root } from "./agent-surface/registry.mjs";
 import { exists, fail, sha256 } from "./agent-surface/util.mjs";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const commandMetadataFields = new Set(["name", "aliases", "phase", "description"]);
 const commandPrefixes = new Set(["arch", "boot", "dev", "lint", "ops", "qa", "ship", "stellaris", "verify", "workflow"]);
 const commandPhases = new Set(["observe", "decide", "build", "verify", "review", "arbitrate", "ship", "improve", "bootstrap", "game", "misc"]);
@@ -745,20 +744,6 @@ async function check() {
   }
 
   console.log("check: ok");
-}
-
-let sourceKindsCache;
-async function readSourceKinds() {
-  if (sourceKindsCache !== undefined) return sourceKindsCache;
-  sourceKindsCache = JSON.parse(await readFile(path.join(root, "registry", "source-kinds.json"), "utf8"));
-  return sourceKindsCache;
-}
-
-let optionalServicesCache;
-async function readOptionalServices() {
-  if (optionalServicesCache !== undefined) return optionalServicesCache;
-  optionalServicesCache = JSON.parse(await readFile(path.join(root, "registry", "optional-services.json"), "utf8"));
-  return optionalServicesCache;
 }
 
 function sourceKindPolicy(sourceKindsConfig, sourceKind) {
