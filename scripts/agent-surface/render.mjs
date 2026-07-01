@@ -2,8 +2,7 @@
 // Pure text transforms (+ small format/access helpers); no fs, no producers.
 import path from "node:path";
 import { readCommands } from "./commands.mjs";
-import { approximateTokens, tomlMultilineString, tomlString, yamlString } from "./format.mjs";
-import { relative } from "./registry.mjs";
+import { tomlMultilineString, tomlString, yamlString } from "./format.mjs";
 import { readRules } from "./rules.mjs";
 import { fail } from "./util.mjs";
 

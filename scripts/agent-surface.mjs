@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { check, checkCommands, checkGenerated, checkRules, commandPhases, exportableCommands } from "./agent-surface/check.mjs";
@@ -8,11 +7,11 @@ import { doctor } from "./agent-surface/doctor.mjs";
 import { runEvidence } from "./agent-surface/evidence.mjs";
 import { directDirectories, files } from "./agent-surface/fs-tree.mjs";
 import { build, install } from "./agent-surface/install.mjs";
-import { commandRelativeOutput, targets } from "./agent-surface/targets.mjs";
-import { checkIgnores, checkSubagents } from "./agent-surface/source-primitives.mjs";
-import { workflow } from "./agent-surface/workflow.mjs";
-import { argValue, fail } from "./agent-surface/util.mjs";
 import { root } from "./agent-surface/registry.mjs";
+import { checkIgnores, checkSubagents } from "./agent-surface/source-primitives.mjs";
+import { commandRelativeOutput, targets } from "./agent-surface/targets.mjs";
+import { argValue, fail } from "./agent-surface/util.mjs";
+import { workflow } from "./agent-surface/workflow.mjs";
 
 async function main() {
   const [command, ...args] = process.argv.slice(2);
