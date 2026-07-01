@@ -896,6 +896,10 @@ export function collectRuleReferenceFindings(rule, commandNames, errors, warning
   }
 }
 
+function lineNumberAt(text, index) {
+  return text.slice(0, index).split(/\r?\n/).length;
+}
+
 export function commandReferences(text) {
   const references = [];
   const patterns = [

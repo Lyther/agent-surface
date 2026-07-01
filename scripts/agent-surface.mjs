@@ -1438,10 +1438,6 @@ function commandRegistryEntry(command) {
 // per-command outputs plus any additionalCommandOutputs; `static` is the opaque
 // non-command bucket (rules, instructions, prompts, plugin packages, context
 // docs). New source primitives append their own producer here in later phases.
-function lineNumberAt(text, index) {
-  return text.slice(0, index).split(/\r?\n/).length;
-}
-
 async function readJsonIfExists(file) {
   if (!(await exists(file))) return null;
   try {
