@@ -3,7 +3,7 @@
 import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
 import { spawnSync } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -12,6 +12,9 @@ import { approximateTokens, tomlMultilineString, tomlString, yamlString } from "
 import { mergeJsoncRootObjectProperty, mergeKiloInstructionJsonc, parseJsoncResult } from "./agent-surface/jsonc.mjs";
 import { YAML_MCP_FORMATS, mergeCodexMcpToml, mergeJsonMcpConfig, mergeYamlMcpConfig, optionalServiceMcpServers, renderMcpConfig } from "./agent-surface/merge.mjs";
 import { normalizeExternalSkillFile } from "./agent-surface/postprocess.mjs";
+import { directDirectories, directories, files, filesUnder } from "./agent-surface/fs-tree.mjs";
+import { commandVersion, gitLines, gitOutput, gitStagedGitlinkMap, gitSubmoduleStatusMap, gitValue } from "./agent-surface/proc.mjs";
+import { readOptionalServices, readSourceKinds, root } from "./agent-surface/registry.mjs";
 import {
   checkIgnores,
   checkSubagents,
@@ -19,8 +22,6 @@ import {
   subagentOutputs,
   subagentValidationErrors,
 } from "./agent-surface/source-primitives.mjs";
-import { commandVersion, gitLines, gitOutput, gitStagedGitlinkMap, gitSubmoduleStatusMap, gitValue } from "./agent-surface/proc.mjs";
-import { readOptionalServices, readSourceKinds, root } from "./agent-surface/registry.mjs";
 import { exists, fail, sha256 } from "./agent-surface/util.mjs";
 
 const commandMetadataFields = new Set(["name", "aliases", "phase", "description"]);
@@ -3422,30 +3423,6 @@ function codexSkillOutputName(source) {
   return path.join(source.name, "SKILL.md");
 }
 
-async function files(dir, extensions) {
-  const base = path.join(root, dir);
-  if (!(await exists(base))) return [];
-
-  return filesUnder(base, extensions);
-}
-
-async function filesUnder(base, extensions) {
-  const out = [];
-  const entries = await readdir(base, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.name === ".git" || entry.name === "dist" || entry.name === "node_modules" || entry.name === ".agent-surface") continue;
-    const full = path.join(base, entry.name);
-    if (entry.isDirectory()) {
-      out.push(...(await filesUnder(full, extensions)));
-      continue;
-    }
-    if (entry.isFile() && (extensions.includes(path.extname(full)) || extensions.includes(path.basename(full)))) {
-      out.push(full);
-    }
-  }
-  return out.sort();
-}
-
 async function readCommands() {
   const commandFiles = await files("commands", [".md"]);
   const commands = [];
@@ -3777,31 +3754,6 @@ function commandPhaseFromName(name) {
   };
   return map[prefix] ?? "misc";
 }
-
-async function directories(base) {
-  if (!(await exists(base))) return [];
-
-  const out = [];
-  const entries = await readdir(base, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    if (entry.name === ".git" || entry.name === "dist" || entry.name === "node_modules") continue;
-    const full = path.join(base, entry.name);
-    out.push(full, ...(await directories(full)));
-  }
-  return out;
-}
-
-async function directDirectories(base) {
-  if (!(await exists(base))) return [];
-
-  const entries = await readdir(base, { withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(base, entry.name))
-    .sort();
-}
-
 
 async function readJsonIfExists(file) {
   if (!(await exists(file))) return null;
