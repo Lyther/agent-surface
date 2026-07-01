@@ -25,3 +25,8 @@ export async function readOptionalServices() {
   optionalServicesCache = JSON.parse(await readFile(path.join(root, "registry", "optional-services.json"), "utf8"));
   return optionalServicesCache;
 }
+
+export async function packageVersion() {
+  const metadata = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+  return metadata.version;
+}
