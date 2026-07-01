@@ -4,7 +4,7 @@
 // emit itself (which decides *which* files go where); this only shapes their bytes.
 import path from "node:path";
 
-const BOM = "﻿";
+const BOM = "\uFEFF";
 
 // Strip a leading UTF-8 BOM and, for a SKILL.md that lost its frontmatter, synthesize a
 // minimal valid one from the skill slug. Everything else passes through untouched.
