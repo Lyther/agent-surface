@@ -3,7 +3,6 @@
 import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -11,6 +10,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { approximateTokens, tomlMultilineString, tomlString, yamlString } from "./agent-surface/format.mjs";
+import { exists, fail, sha256 } from "./agent-surface/util.mjs";
 import { mergeJsoncRootObjectProperty, mergeKiloInstructionJsonc, parseJsoncResult } from "./agent-surface/jsonc.mjs";
 import {
   checkIgnores,
@@ -4022,15 +4022,6 @@ async function directDirectories(base) {
     .sort();
 }
 
-async function exists(file) {
-  try {
-    await stat(file);
-    return true;
-  } catch (error) {
-    if (error.code === "ENOENT") return false;
-    throw error;
-  }
-}
 
 async function readJsonIfExists(file) {
   if (!(await exists(file))) return null;
@@ -4188,10 +4179,6 @@ function yamlLiteralBlock(value, indent) {
   const lines = String(value).replace(/\s+$/u, "").split(/\r?\n/);
   if (lines.length === 0 || (lines.length === 1 && lines[0] === "")) return `${indent}`;
   return lines.map((line) => `${indent}${line}`).join("\n");
-}
-
-function sha256(value) {
-  return createHash("sha256").update(value).digest("hex");
 }
 
 function isSafeRelativePath(file) {
@@ -4597,11 +4584,6 @@ function requiredArgValue(args, name) {
 
 function relative(file) {
   return path.relative(root, file);
-}
-
-function fail(message) {
-  console.error(`ERROR: ${message}`);
-  process.exit(1);
 }
 
 main().catch((error) => {
