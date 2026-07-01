@@ -8,13 +8,13 @@ Implemented target paths:
 - user: `~/.config/opencode/agents/<name>.md`
 - user: `~/.config/opencode/AGENTS.md` for always-on rules
 - user: `~/.config/opencode/references/rules/<rule>.md`
-- user merge: `~/.config/opencode/opencode.json` `mcp.synapse`
+- user merge: `~/.config/opencode/opencode.json` `mcp.{synapse,grimoire}`
 - project: `.opencode/commands/*.md`
 - project: `.opencode/agents/<name>.md`
 - project: `AGENTS.md` plus `.opencode/references/rules/<rule>.md`
-- project merge: `.opencode/opencode.json` `mcp.synapse`
+- project merge: `.opencode/opencode.json` `mcp.{synapse,grimoire}`
 
-First-party Synapse MCP wiring is generated and safely merged. External or secret-bearing MCPs remain opt-in.
+First-party MCP wiring (Synapse and Grimoire) is generated and safely merged. External or secret-bearing MCPs remain opt-in.
 
 Native plugin packaging remains future generated-surface work:
 

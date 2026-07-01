@@ -56,7 +56,12 @@
         "VS Code MCP: mcp.json servers.synapse in the VS Code user data root (auto-generated/merged)",
         "Trae MCP: ~/.trae/mcp.json mcpServers.synapse (auto-generated/merged)",
         "Windsurf MCP: ~/.codeium/windsurf/mcp_config.json mcpServers.synapse (auto-generated/merged)",
-        "Zed MCP: ~/.config/zed/settings.json context_servers.synapse (auto-generated/merged)"
+        "Zed MCP: ~/.config/zed/settings.json context_servers.synapse (auto-generated/merged)",
+        "VSCodium MCP: mcp.json servers.synapse in the VSCodium user data root (auto-generated/merged)",
+        "Grok Build MCP: ~/.grok/settings.json mcpServers.synapse (auto-generated/merged)",
+        "Antigravity CLI MCP: ~/.gemini/config/plugins/agent-surface/mcp_config.json mcpServers.synapse (auto-generated/merged)",
+        "Goose MCP: ~/.config/goose/config.yaml extensions.synapse (auto-generated/merged, user-scope)",
+        "Poolside MCP: ~/.config/poolside/settings.yaml mcp_servers.synapse (auto-generated/merged)"
       ],
       "notes": [
         "First-party MCP built from mcps/synapse; not an external submodule, so it carries no source_url/path/commit pin.",
@@ -91,7 +96,12 @@
         "VS Code MCP: mcp.json servers.grimoire in the VS Code user data root (auto-generated/merged)",
         "Trae MCP: ~/.trae/mcp.json mcpServers.grimoire (auto-generated/merged)",
         "Windsurf MCP: ~/.codeium/windsurf/mcp_config.json mcpServers.grimoire (auto-generated/merged)",
-        "Zed MCP: ~/.config/zed/settings.json context_servers.grimoire (auto-generated/merged)"
+        "Zed MCP: ~/.config/zed/settings.json context_servers.grimoire (auto-generated/merged)",
+        "VSCodium MCP: mcp.json servers.grimoire in the VSCodium user data root (auto-generated/merged)",
+        "Grok Build MCP: ~/.grok/settings.json mcpServers.grimoire (auto-generated/merged)",
+        "Antigravity CLI MCP: ~/.gemini/config/plugins/agent-surface/mcp_config.json mcpServers.grimoire (auto-generated/merged)",
+        "Goose MCP: ~/.config/goose/config.yaml extensions.grimoire (auto-generated/merged, user-scope)",
+        "Poolside MCP: ~/.config/poolside/settings.yaml mcp_servers.grimoire (auto-generated/merged)"
       ],
       "notes": [
         "First-party read-only MCP built from mcps/grimoire; not an external submodule, so it carries no source_url/path/commit pin.",

@@ -1,202 +1,98 @@
 # agent-surface
 
-Typed source and adapter compiler for coding-agent surfaces.
+Write your coding-agent setup **once**, render it into **every** agent host.
 
-Write commands, rules, subagents, external packs, and ignore files once in the repo source tree, then render them into the native formats used by Claude Code, Codex, Deep Agents Code, Cursor, Droid, Cline, Kilo, Antigravity, Goose, Grok Build, Pi, Poolside, Windsurf, Zed, and other agent hosts.
+Commands, rules, subagents, external skill packs, ignore files, and first-party MCP services live once in this repo's source tree. `agent-surface` compiles them into the native formats of twenty host targets — Claude Code, Codex, Cursor, Droid, Kilo, Zed, OpenCode, and more — so you maintain one source instead of twenty bespoke configs.
 
-## What it does
-
-- **Source primitive compiler**: `commands/`, `rules/`, `subagents/`, external packs, and `ignores/` are rendered per target by explicit producers.
-- **Target adapter outputs**: each target receives the files it natively understands (commands, workflows, skills, instructions, plugins, rules, subagents, MCP config, or ignore files).
-- **Optional external wiring**: selected upstream packs in `external/` can be rendered into native target surfaces instead of remaining inert submodules.
-- **Sync-aware install**: dry-run previews, project-only gating for project-scoped artifacts, manifest tracking, and backups.
-
-## Supported targets
-
-Compatibility is ranked from 1 to 5 based on how much of the `agent-surface` source model is represented by native or close-native target surfaces. Counts are from the current default user-scope `npm run build -- --target all` output; project-only or install-only surfaces are noted explicitly.
-
-| Target | Build files | Commands / workflows | Rules / instructions | Agents / subagents | Skills / external packs | Config / ignores / prompts | Compatibility |
-|---|---:|---|---|---|---|---|---:|
-| Claude Code | 317 | 66 native `.claude/commands/<group>/<name>.md` | None | 6 `.claude/agents/*.md` | External `.claude/skills/*` (Anthropic excluded) | Synapse MCP in `.claude.json` | 4/5 |
-| Codex | 389 | 66 command skills in `.agents/skills/*` | `.codex/AGENTS.md` plus 5 scoped language refs in `.codex/references/rules/*.md` | 6 `.codex/agents/*.toml` | External `.agents/skills/*` (Anthropic excluded) | Synapse MCP in `.codex/config.toml` | 5/5 |
-| Deep Agents Code | 318 | 66 command skills in `.deepagents/agent/skills/*` | `.deepagents/agent/AGENTS.md` plus 5 scoped language refs | Worker only at `.deepagents/agent/agents/worker/AGENTS.md` | External `.deepagents/agent/skills/*` (Anthropic excluded) | `.deepagents/.mcp.json` | 4/5 |
-| Cursor | 86 | 66 native `.cursor/commands/*.md` | 12 native scoped `.cursor/rules/*.mdc` | 6 `.cursor/agents/*.md` | None | `.cursor/mcp.json`; `.cursorignore` | 5/5 |
-| Droid | 323 | 66 native `.factory/commands/*.md` | `.factory/AGENTS.md` plus 5 scoped language refs | 6 `.factory/droids/*.md` | External `.factory/skills/*` (Anthropic excluded) | `.factory/mcp.json` | 5/5 |
-| Cline | 74 | 66 workflows in `.cline/data/workflows/*.md` | `.cline/rules/agent-surface.md` plus 5 scoped language refs | None | None | `.cline/mcp.json`; `.clineignore` | 4/5 |
-| Kilo | 86 | 66 workflows in `.config/kilo/commands/*.md` | 7 always-on `.config/kilo/rules/*.md` plus 5 scoped language refs | 6 `.config/kilo/agents/*.md` | None | Synapse MCP + instructions in `kilo.jsonc`; `.kilocodeignore` | 5/5 |
-| Antigravity CLI | 330 | 66 plugin skills in `config/plugins/agent-surface/skills/*.md` | 7 always-on `config/plugins/agent-surface/rules/*.md` plus 5 scoped language refs | 6 `config/plugins/agent-surface/agents/*.md` | External plugin skills (Anthropic excluded) | `config/plugins/agent-surface/plugin.json` | 5/5 |
-| Antigravity (legacy workflows) | 66 | 66 `global_workflows/*.md` | None | None | None | None | 2/5 |
-| GitHub Copilot | 6 | None | `instructions/agent-surface-copilot.instructions.md` plus 5 scoped language refs | None | None | None | 2/5 |
-| VS Code | 8 | None | `instructions/agent-surface.instructions.md` plus 5 scoped language refs | None | None | `mcp.json`; `prompts/agent-surface.prompt.md` | 2/5 |
-| VSCodium | 7 | None | `instructions/agent-surface.instructions.md` plus 5 scoped language refs | None | None | `prompts/agent-surface.prompt.md` | 2/5 |
-| OpenCode | 79 | 66 native `.config/opencode/commands/*.md` | `.config/opencode/AGENTS.md` plus 5 scoped language refs | 6 `.config/opencode/agents/*.md` | None | Synapse MCP in `.config/opencode/opencode.json` | 5/5 |
-| Trae | 7 | None | `.trae/user_rules.md` plus 5 scoped language refs | None | None | `.trae/mcp.json` | 2/5 |
-| Goose | 66 | 66 recipes in `recipes/*.yaml` | None | None | None | None | 3/5 |
-| Grok Build | 310 | 66 command skills in `.grok/skills/*` | Project install emits `AGENTS.md`; default user build emits none | None | External `.grok/skills/*` (Anthropic excluded) | None | 4/5 |
-| Pi | 316 | 66 command skills in `.pi/agent/skills/*` | `.pi/agent/AGENTS.md` plus 5 scoped language refs | None | External `.pi/agent/skills/*` (Anthropic excluded) | None | 4/5 |
-| Poolside | 316 | 66 command skills in `.config/poolside/skills/*` | `.config/poolside/.poolside` plus 5 scoped language refs | None | External `.config/poolside/skills/*` (Anthropic excluded) | None | 4/5 |
-| Windsurf | 317 | 66 workflows in `.codeium/windsurf/global_workflows/*.md` | `.codeium/windsurf/memories/global_rules.md` plus 5 scoped language refs | None | External `.codeium/windsurf/skills/*` (Anthropic excluded) | `.codeium/windsurf/mcp_config.json` | 4/5 |
-| Zed | 317 | 66 command skills in `.agents/skills/*` | `.config/zed/AGENTS.md` plus 5 scoped language refs | None | External `.agents/skills/*` (Anthropic excluded) | Synapse MCP in `.config/zed/settings.json` | 4/5 |
-
-Bundled instruction targets include only `alwaysApply: true` rules inline. Cybersecurity (`04`) is always-on for security review and harness development; language rules (`10`-`14`) are emitted as separate reference files under each target's config tree and are selected by project-aware commands such as `boot-new`. Cursor keeps all 12 files as native `.mdc` rules; Kilo config-merges the 7 always-on rules and keeps the 5 scoped language policies as references. No legacy compact core rule is emitted in source or generated target outputs.
-
-Planned: none.
-
-Out of scope: Gemini CLI (EoL; use Antigravity CLI), Roo Code (EoL), Xcode.
-
-## Project layout
-
-This repository is a **source compiler**, not an application with `src/`. Canonical primitives live in the directories below; per-target install docs live in `adapters/`.
-
-```text
-commands/          User-invoked reusable procedures
-rules/             Always-on or scoped behavior policy
-subagents/         Normalized subagent definitions
-mcps/              First-party MCP services (for example Synapse) and concept packs (Grimoire)
-ignores/           Project ignore templates (.cursorignore, .kilocodeignore, .clineignore)
-hooks/             Shared shell hooks referenced by install/check (for example attribution stripping)
-registry/          Target, capability, optional-service, and source-kind policy
-schemas/           JSON schemas for registry and workflow artifacts
-scripts/           CLI compiler and helper modules
-tests/             Integration tests
-adapters/          Per-target READMEs and context
-external/          Optional git-submodule skill/service packs
-skills/            Reserved extension slot; not an active source kind in `registry/source-kinds.json`
-modes/             Reserved extension slot (.gitkeep)
-plugins/           Reserved extension slot (.gitkeep)
-settings/          Reserved extension slot (.gitkeep)
-```
-
-Local IDE and assistant overlays (`.cursor/`, `.vscode/`, `.claude/`, `.kilo/`, and similar) stay **gitignored** on maintainer machines. Use `npm run build` / `install` to render committed source into host-native surfaces.
+It is a **source compiler**, not an app: there is no `src/`. Typed source primitives in → host-native surfaces out, validated by `check` and tracked by per-target manifests.
 
 ## Quick start
 
 ```bash
 npm ci
-npm run inventory   # Show source counts
-npm run check       # Validate source, registry, and generated outputs
-npm test            # Run integration tests
-npm run build -- --target all
+npm run check                      # validate source, registry, generated output
+npm test                           # integration tests
+npm run build -- --target all      # render every target into dist/
 ```
 
-Dry-run an install before writing anything live:
+Preview an install before touching disk, then apply it:
 
 ```bash
 node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
-node scripts/agent-surface.mjs install --target cursor --scope user --dry-run
-node scripts/agent-surface.mjs install --target deepagents --scope user --dry-run
-node scripts/agent-surface.mjs install --target droid --scope user --dry-run
+node scripts/agent-surface.mjs install --target claude-code --scope user --allow-scope-root
 ```
 
-Project-scope artifacts such as ignore files must be installed with `--dest`:
+## What it does
+
+- **Compiles source primitives** — `commands/`, `rules/`, `subagents/`, external packs, `ignores/` → per-target outputs via explicit producers.
+- **Speaks each host natively** — each target gets the surfaces it understands: commands, workflows, skills, instructions, plugins, rules, subagents, MCP config, or ignore files.
+- **Wires first-party MCP** — Synapse (shared memory) and Grimoire (just-in-time skill retrieval) auto-merge, secretlessly and non-destructively, into all 17 MCP-capable hosts (JSON, TOML, and YAML config families).
+- **Installs safely** — dry-run previews, project-scope gating, manifest tracking, and backups before every overwrite.
+
+## Supported targets
+
+Twenty targets, ranked 1–5 by how much of the source model maps to native surfaces. Six score 5/5 (Codex, Cursor, Droid, Kilo, Antigravity CLI, OpenCode); instruction-only hosts (Copilot, VS Code, Trae) score 2/5.
+
+**Full matrix — per-target surfaces, file counts, and MCP wiring: [docs/reference/targets.md](docs/reference/targets.md).**
+
+Out of scope: Gemini CLI (EoL — use Antigravity CLI), Roo Code (EoL), Xcode.
+
+## Project layout
+
+```text
+commands/    User-invoked reusable procedures
+rules/       Always-on or scoped behavior policy
+subagents/   Normalized subagent definitions
+mcps/        First-party MCP services (synapse, grimoire)
+ignores/     Project ignore templates
+registry/    Target, capability, optional-service, and source-kind policy
+schemas/     JSON schemas for registry and workflow artifacts
+scripts/     CLI compiler and helpers
+adapters/    Per-target install docs (one README each)
+external/    Optional git-submodule skill/service packs
+```
+
+Local IDE overlays (`.cursor/`, `.claude/`, `.kilo/`, …) stay gitignored on maintainer machines; `build`/`install` render committed source into them.
+
+## Commands
 
 ```bash
-node scripts/agent-surface.mjs install --target cursor --dest /path/to/project --dry-run
-node scripts/agent-surface.mjs install --target cursor --dest /path/to/project
+node scripts/agent-surface.mjs inventory          # source counts
+node scripts/agent-surface.mjs check              # full validation (commands, rules, generated, registry)
+node scripts/agent-surface.mjs doctor             # repo health summary
+node scripts/agent-surface.mjs commands --json    # registry inspection (add --phase <phase> to filter)
+node scripts/agent-surface.mjs build --target <t> --dry-run
+node scripts/agent-surface.mjs install --target <t> --scope user --dry-run
 ```
 
-## Checks
-
-```bash
-npm run check              # Full validation
-npm run check:commands     # Command metadata and references
-npm run check:generated    # Generated output correctness
-npm run check:rules        # Rule scenario budgets
-npm test                   # Integration tests
-npm run doctor             # Project health summary
-```
-
-## CLI essentials
-
-Registry and phase inspection:
-
-```bash
-node scripts/agent-surface.mjs commands --json
-node scripts/agent-surface.mjs commands --phase ship --json
-```
-
-Build a target:
-
-```bash
-node scripts/agent-surface.mjs build --target antigravity-cli --dry-run
-node scripts/agent-surface.mjs build --target cline --dry-run
-```
-
-Install selected runtimes and categories:
-
-```bash
-node scripts/agent-surface.mjs install --runtime codex,kilo --category rules --dest /path/to/project --dry-run
-node scripts/agent-surface.mjs install --runtime deepagents --category skills --category subagents --dest /path/to/project --dry-run
-node scripts/agent-surface.mjs install --runtime deepagents --category mcps --service agentmemory --dest /path/to/project --dry-run
-node scripts/agent-surface.mjs install --runtime pool,zed --category external --dest /path/to/project --dry-run
-```
+`install` accepts repeated/comma-separated `--target` (or `--runtime`) IDs and `--category` outputs (`commands`, `rules`, `subagents`, `skills`, `recipes`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, `ignores`). `--service <id>` narrows `--category mcps` to one service.
 
 ## Install behavior
 
-- Install is sync-oriented: existing files are overwritten by default.
-- `--target` and `--runtime` accept repeated or comma-separated runtime IDs.
-- `--category` accepts repeated or comma-separated output categories such as `skills`, `rules`, `subagents`, `commands`, `recipes`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, and `ignores`.
-- `--service <id>` narrows `--category mcps` to a specific optional MCP service from `registry/optional-services.json`.
-- Project-only artifacts (`ignores/`) are skipped on user-scope installs; use `--dest` to install them into a project.
-- First-party secretless MCPs such as Synapse are generated by default for targets with verified MCP config surfaces and are merged into existing host config during install; external or secret-bearing MCPs remain opt-in through `--category mcps --service <id>`.
-- Droid user installs write `.factory/commands/`, `.factory/droids/`, `.factory/skills/`, `.factory/AGENTS.md`, and `.factory/references/rules/` scoped rule references, and merge Synapse into `.factory/mcp.json`; project installs write project `AGENTS.md` plus project `.factory/` assets.
-- Deep Agents user installs write `~/.deepagents/<agent>/`; project installs write `.deepagents/`. Use `--agent <name>` to select a non-default user agent directory.
-- Goose installs are project-oriented and render `recipes/<command>.yaml`.
-- Grok Build, Pi, Poolside, Windsurf, and Zed render command sources as native skills or workflows plus target-specific instruction files.
-- Required external skill packs emitted by default are `ctf-skills`, `claude-osint`, and `codex-redteam-mode`; optional/caution packs remain registered for `sanyuan-skills`, `andrej-karpathy-skills`, and `pua`.
-- External skill packs are built and checked with each capable target, but live installs require an explicit `--category external` to avoid surprise writes of thousands of upstream files.
-- `anthropic-cybersecurity-skills` is kept as a pinned required source asset but is not emitted into any target skill root for now. Future access should be explicit command/workflow conversion or a just-in-time MCP service, not default mirroring of the upstream skill tree.
-- DeepAudit is not registered as an MCP asset until an upstream MCP server contract is available; process-boundary tooling without MCP config is intentionally not emitted as `mcps`.
-- Manifests track generated files so stale outputs can be removed on the next install.
-- Backups are written to `.agent-surface/backups/` before overwrite or removal.
+- Sync-oriented: existing managed files are overwritten; manifests let stale outputs be pruned on the next install.
+- Project-only artifacts (`ignores/`) are skipped on user-scope installs — pass `--dest <project>` to write them.
+- A live write to the real scope root needs `--allow-scope-root` (or an explicit `--dest`) after a dry-run.
+- First-party secretless MCPs (Synapse, Grimoire) are generated by default for MCP-capable targets and **merged** into existing host config; external/secret-bearing MCPs stay opt-in via `--category mcps --service <id>`.
+- External skill packs (the in-scope optional packs) are included in a full install and pruned by strict-sync when they leave scope; `--category external` narrows an install to external packs only. The 754-skill `anthropic-cybersecurity-skills` pack is deliberately **not** emitted (it is a `source-pack` with no `skill_roots`) and is served just-in-time by Grimoire instead.
+- Backups land in `.agent-surface/backups/` before any overwrite or removal.
 
-## Source-kind policy
+## First-party MCP services
 
-`registry/source-kinds.json` records each active primitive's `load_mode`, `install_scopes`, and `source_dir`. `check` validates the registry, and `install` uses source-kind install scopes instead of per-output special cases.
+Built from `mcps/`, installed once, then auto-wired (non-destructive merge) into all 17 MCP-capable hosts across JSON/TOML/YAML config families — see [docs/reference/targets.md](docs/reference/targets.md):
 
-`registry/target-capabilities.json` records the researched native surfaces for each implemented target and the generated render tokens that are intentionally active. `check` fails if that capability registry drifts from `registry/targets.json`.
+- **Synapse** — shared multi-agent memory + file-lock coordination. `npm run install:synapse`.
+- **Grimoire** — read-only, just-in-time retrieval over large Agent-Skill packs (serves the 754-skill `anthropic-cybersecurity-skills` pack so the model searches for a skill instead of loading a 750-entry catalog). `npm run install:grimoire`.
 
-## Subagents
-
-`subagents/` contains the first workflow-oriented subagent batch: `boss`, `researcher`, `analyzer`, `adversary`, `reviewer`, and `worker`. They emit to:
-
-- Claude Code: `.claude/agents/<name>.md`
-- Codex: `.codex/agents/<name>.toml`
-- Deep Agents Code: `.deepagents/agents/worker/AGENTS.md` for the worker profile; read-only roles are not emitted because Deep Agents Code files cannot represent per-subagent tool restrictions.
-- Cursor: `.cursor/agents/<name>.md`
-- Kilo user installs: `~/.config/kilo/agents/<name>.md`
-- Kilo project installs: `.kilo/agents/<name>.md`
-- Antigravity CLI plugin target: `~/.gemini/config/plugins/agent-surface/agents/<name>.md`
-- OpenCode user installs: `~/.config/opencode/agents/<name>.md`
-- OpenCode project installs: `.opencode/agents/<name>.md`
-
-Cursor runtime launches must use the full `cursor agent ...` command shape; do not treat a bare `agent` command as Cursor because Grok Build also uses an `agent`-named surface. Desktop Antigravity remains a supervised UI surface; the Antigravity CLI target is a validated `agy` plugin package.
-
-## Upgrade notes
-
-- Gemini CLI is EoL in this project. Use `antigravity-cli`, the current Google CLI target; it emits the Antigravity CLI plugin under `~/.gemini/config/plugins/agent-surface`. Validate it with `agy plugin validate ~/.gemini/config/plugins/agent-surface`.
+Each `install:*` builds the binary and links it into `~/.local/bin`; the agent-surface `install` step merges the server into each host's MCP config. Details: [mcps/synapse/README.md](mcps/synapse/README.md), [mcps/grimoire/README.md](mcps/grimoire/README.md).
 
 ## Workflow kernel (optional)
 
-Multi-role workflow state lives under `.agent-surface/workflows/<run_id>/`.
+A multi-role pipeline whose state lives under `.agent-surface/workflows/<run_id>/`: `workflow-orchestrator` routes BOSS → worker → reviewer → judger → rescue → close; `workflow-doctor` validates run state; `verify-readiness` certifies production-ready claims with real evidence.
 
-- `workflow-orchestrator` — long-running monitor that routes BOSS, worker, reviewer, judger, rescue, QA, and close roles.
-- `workflow-boss` — plans the next coherent batch.
-- `workflow-reviewer` — gates acceptance before `ship-commit`.
-- `workflow-doctor` — validates run state before acting on it.
-- `workflow-close` — archives metrics and unresolved risks.
-- `verify-readiness` — certifies scoped stable, production-ready, E2E, deployment-ready, and all-features-supported claims with real evidence.
+## More
 
-Maintenance commands:
-
-- `ops-doctor` — health check for source, registry, generated surfaces, and local manifests.
-- `ops-clean` — evidence-driven repository hygiene for docs, scripts, assets, naming, structure, generated debris, and stale maintenance residue.
-
-Use `agent-surface run` and `agent-surface workflow patch begin/end/verify` to capture evidence mechanically.
-
-## Adapter READMEs
-
-Per-target details live in `adapters/<target>/README.md`.
+- Per-target install detail: `adapters/<target>/README.md`.
+- Source-kind and capability policy: `registry/source-kinds.json`, `registry/target-capabilities.json`.
 
 ## License
 

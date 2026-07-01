@@ -40,7 +40,8 @@
       "build_supported": true,
       "install_supported": true,
       "renders": [
-        "recipes"
+        "recipes",
+        "mcps"
       ]
     },
     "grok-build": {
@@ -50,7 +51,8 @@
       "renders": [
         "skills",
         "rules",
-        "external"
+        "external",
+        "mcps"
       ]
     },
     "pi": {
@@ -70,7 +72,8 @@
       "renders": [
         "skills",
         "rules",
-        "external"
+        "external",
+        "mcps"
       ]
     },
     "cline": {
@@ -113,7 +116,8 @@
         "skills",
         "subagents",
         "rules",
-        "external"
+        "external",
+        "mcps"
       ]
     },
     "opencode": {
@@ -143,7 +147,8 @@
       "install_supported": true,
       "renders": [
         "instructions",
-        "prompts"
+        "prompts",
+        "mcps"
       ]
     },
     "cursor": {

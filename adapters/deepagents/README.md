@@ -16,7 +16,7 @@ Deep Agents Code target for `agent-surface`.
 - `subagents/worker.md` -> Deep Agents Code worker subagent:
   - user: `~/.deepagents/<agent>/agents/worker/AGENTS.md`
   - project: `.deepagents/agents/worker/AGENTS.md`
-- first-party Synapse MCP -> `.deepagents/.mcp.json` by default; external MCP services render only when explicitly requested with `--category mcps --service <id>`.
+- first-party Synapse and Grimoire MCP -> `.deepagents/.mcp.json` by default; external MCP services render only when explicitly requested with `--category mcps --service <id>`.
 
 `<agent>` defaults to `agent` and can be changed with `--agent <name>`.
 

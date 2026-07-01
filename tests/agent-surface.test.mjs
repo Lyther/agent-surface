@@ -549,6 +549,29 @@ assert.deepEqual(kiloMcp.mcp.grimoire.command, ["~/.local/bin/grimoire-server"])
 assert.deepEqual(opencodeMcp.mcp.grimoire.command, ["~/.local/bin/grimoire-server"]);
 assert.equal(vscodeMcp.servers.grimoire.command, "~/.local/bin/grimoire-server");
 assert.equal(zedMcp.context_servers.grimoire.command, "~/.local/bin/grimoire-server");
+// Newly-generated JSON MCP hosts (VSCodium / Grok Build / Antigravity CLI).
+const vscodiumMcp = JSON.parse(readFileSync(path.join(root, "dist", "vscodium", "mcp.json"), "utf8"));
+assert.equal(vscodiumMcp.servers.grimoire.command, "~/.local/bin/grimoire-server");
+const grokMcp = JSON.parse(readFileSync(path.join(root, "dist", "grok-build", ".grok", "settings.json"), "utf8"));
+assert.equal(grokMcp.mcpServers.grimoire.command, "~/.local/bin/grimoire-server");
+const antigravityCliMcp = JSON.parse(readFileSync(path.join(root, "dist", "antigravity-cli", "config", "plugins", "agent-surface", "mcp_config.json"), "utf8"));
+assert.equal(antigravityCliMcp.mcpServers.synapse.command, "~/.local/bin/synapse-bridge");
+// Generated YAML MCP hosts (Goose extensions; Poolside mcp_servers) — non-destructive block merge.
+const gooseMcp = readFileSync(path.join(root, "dist", "goose", ".config", "goose", "config.yaml"), "utf8");
+assert.match(gooseMcp, /^extensions:/m);
+assert.match(gooseMcp, /^ {2}grimoire:/m);
+assert.match(gooseMcp, /cmd: ~\/\.local\/bin\/grimoire-server/);
+assert.match(gooseMcp, /type: stdio/);
+const poolMcp = readFileSync(path.join(root, "dist", "pool", ".config", "poolside", "settings.yaml"), "utf8");
+assert.match(poolMcp, /^mcp_servers:/m);
+assert.match(poolMcp, /^ {2}synapse:/m);
+assert.match(poolMcp, /command: ~\/\.local\/bin\/grimoire-server/);
+// F001: `--category mcps` without `--service` selects first-party only; external (agentmemory) needs explicit --service.
+const mcpsDefaultPlan = run(["install", "--target", "vscodium", "--dest", "/tmp/agent-surface-f001", "--category", "mcps", "--dry-run"]);
+assert.match(mcpsDefaultPlan, /MCP \+= grimoire, synapse/);
+assert.doesNotMatch(mcpsDefaultPlan, /agentmemory/);
+const mcpsServicePlan = run(["install", "--target", "vscodium", "--dest", "/tmp/agent-surface-f001", "--category", "mcps", "--service", "agentmemory", "--dry-run"]);
+assert.match(mcpsServicePlan, /MCP \+= agentmemory/);
 const sourceKinds = JSON.parse(readFileSync(path.join(root, "registry", "source-kinds.json"), "utf8"));
 assert.equal(Object.hasOwn(sourceKinds.source_kinds, "mcps"), false);
 assert.equal(Object.hasOwn(sourceKinds.source_kinds, "subagents"), true);
@@ -677,6 +700,30 @@ assert.match(deepagentsPlan, /\.deepagents\/\.mcp\.json MCP \+= grimoire, synaps
 const goosePlan = run(["install", "--target", "goose", "--dest", "/tmp/agent-surface-goose", "--dry-run"]);
 assert.match(goosePlan, /^target: goose$/m);
 assert.match(goosePlan, /recipes\/workflow-boss\.yaml <- commands\/workflow-boss\.md/);
+// F001: a user-scope Goose install wires only the user-global MCP config — it must NEVER
+// write project recipes into $HOME. Recipes remain project-scoped (--dest / project scope).
+const gooseUserPlan = run(["install", "--target", "goose", "--scope", "user", "--allow-scope-root", "--dry-run"]);
+assert.doesNotMatch(gooseUserPlan, /recipes\//, "goose user-scope install must not write recipes into $HOME");
+assert.match(gooseUserPlan, /\.config\/goose\/config\.yaml MCP/, "goose user-scope install wires the MCP config");
+// F005: `--target all --category mcps` must succeed (exit 0), wiring every generated MCP host
+// and reporting the non-MCP targets (pi/antigravity/copilot) as non-applicable, not blockers.
+const mcpsAllHome = mkdtempSync("/tmp/agent-surface-mcps-all-");
+try {
+  const mcpsAllPlan = run(["install", "--target", "all", "--scope", "user", "--allow-scope-root", "--category", "mcps", "--dry-run"], {
+    env: { ...process.env, HOME: mcpsAllHome },
+  });
+  assert.equal((mcpsAllPlan.match(/not applicable: no installable outputs for categories: mcps/g) ?? []).length, 3,
+    "exactly pi/antigravity/copilot are non-applicable under --target all --category mcps");
+  for (const t of ["pi", "antigravity", "copilot"]) assert.match(mcpsAllPlan, new RegExp(`^target: ${t}$`, "m"));
+  assert.match(mcpsAllPlan, /MCP \+= grimoire, synapse/, "generated MCP hosts are still wired");
+} finally {
+  rmSync(mcpsAllHome, { recursive: true, force: true });
+}
+// F006: a multi-target MCP install where NO selected target is applicable must FAIL, not
+// succeed as a no-op (pi+copilot have no MCP surface; pi,copilot,goose would pass via goose).
+const piCopilotStatus = status(["install", "--target", "pi,copilot", "--scope", "user", "--allow-scope-root", "--category", "mcps", "--dry-run"]);
+assert.equal(piCopilotStatus.status, 1, "pi,copilot --category mcps must fail (no installable outputs anywhere)");
+assert.match(`${piCopilotStatus.stdout}${piCopilotStatus.stderr}`, /no selected targets have installable outputs/);
 
 const grokBuildPlan = run(["install", "--target", "grok-build", "--dest", "/tmp/agent-surface-grok-build", "--dry-run"]);
 assert.match(grokBuildPlan, /^target: grok-build$/m);
@@ -1298,6 +1345,28 @@ for (const fx of mergeFixtures) {
     run(["install", "--target", fx.target, "--dest", dest, "--category", "mcps", "--service", "synapse"]);
     const afterRe = readFileSync(path.join(dest, fx.rel), "utf8");
     assert.equal(afterRe, beforeRe, `${fx.target}: re-merge is idempotent (no-op diff)`);
+  } finally {
+    rmSync(dest, { recursive: true, force: true });
+  }
+}
+
+// YAML MCP merge (Goose extensions) is non-destructive + idempotent: preserves the user's
+// provider/model, sibling extensions, and comments; adds grimoire+synapse; re-merge is a no-op.
+{
+  const dest = mkdtempSync("/tmp/agent-surface-goose-yaml-");
+  try {
+    mkdirSync(path.join(dest, ".config", "goose"), { recursive: true });
+    const seed = "# my goose config\nGOOSE_PROVIDER: openrouter\nextensions:\n  developer:\n    name: developer\n    type: builtin\n    enabled: true\n";
+    writeFileSync(path.join(dest, ".config", "goose", "config.yaml"), seed);
+    run(["install", "--target", "goose", "--scope", "user", "--category", "mcps", "--dest", dest]);
+    const merged = readFileSync(path.join(dest, ".config", "goose", "config.yaml"), "utf8");
+    assert.match(merged, /# my goose config/, "comment preserved");
+    assert.match(merged, /GOOSE_PROVIDER: openrouter/, "provider preserved");
+    assert.match(merged, /^ {2}developer:/m, "sibling extension preserved");
+    assert.match(merged, /^ {2}grimoire:/m, "grimoire added");
+    assert.match(merged, /^ {2}synapse:/m, "synapse added");
+    run(["install", "--target", "goose", "--scope", "user", "--category", "mcps", "--dest", dest]);
+    assert.equal(readFileSync(path.join(dest, ".config", "goose", "config.yaml"), "utf8"), merged, "goose YAML re-merge is idempotent");
   } finally {
     rmSync(dest, { recursive: true, force: true });
   }
