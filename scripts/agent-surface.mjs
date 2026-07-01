@@ -9,7 +9,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { readCommands } from "./agent-surface/commands.mjs";
-import { approximateTokens, tomlMultilineString, tomlString, yamlString } from "./agent-surface/format.mjs";
+import { approximateTokens } from "./agent-surface/format.mjs";
 import { directDirectories, directories, files, filesUnder } from "./agent-surface/fs-tree.mjs";
 import { mergeJsoncRootObjectProperty, mergeKiloInstructionJsonc, parseJsoncResult } from "./agent-surface/jsonc.mjs";
 import { YAML_MCP_FORMATS, mergeCodexMcpToml, mergeJsonMcpConfig, mergeYamlMcpConfig, optionalServiceMcpServers, renderMcpConfig } from "./agent-surface/merge.mjs";
@@ -26,7 +26,7 @@ import {
   subagentOutputs,
   subagentValidationErrors,
 } from "./agent-surface/source-primitives.mjs";
-import { exists, fail, sha256 } from "./agent-surface/util.mjs";
+import { exists, fail, isSafeRelativePath, sha256 } from "./agent-surface/util.mjs";
 
 const commandMetadataFields = new Set(["name", "aliases", "phase", "description"]);
 const commandPrefixes = new Set(["arch", "boot", "dev", "lint", "ops", "qa", "ship", "stellaris", "verify", "workflow"]);
@@ -3304,10 +3304,6 @@ function globMatches(glob, file) {
 
 function yamlBlockString(value) {
   return value.replace(/\s+/g, " ").trim().replaceAll('"', '\\"');
-}
-
-function isSafeRelativePath(file) {
-  return file !== "" && !path.isAbsolute(file) && !file.split(/[\\/]+/).includes("..");
 }
 
 function isSafeTargetName(target) {
