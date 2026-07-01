@@ -94,6 +94,9 @@ const targets = {
     commandOutputName: gooseRecipeOutputName,
     renderCommand: renderGooseRecipe,
     installRoot: installRootGoose,
+    // Recipes are project-oriented (./recipes) and must never land in $HOME on a user
+    // install; user scope installs only the user-global MCP config. Build still emits recipes.
+    commandInstallScopes: ["project"],
     mcpConfig: {
       // Goose MCP lives in the user-global config.yaml (`extensions:`), so it is user-scope
       // only; recipes stay project-oriented. Use `--category mcps` for a clean user wire.
@@ -3849,6 +3852,12 @@ function producerDefaultRenderKind(producer) {
 }
 
 async function produceCommandOutputs(adapter, commands, context) {
+  // Some adapters restrict where their command artifacts may be *installed* (e.g. Goose
+  // recipes are project-only) even though the adapter also has a user-global surface (MCP).
+  // Build (dist inspection) is never gated; only live install writes are.
+  if (adapter.commandInstallScopes && context.mode === "install" && !adapter.commandInstallScopes.includes(context.scope)) {
+    return [];
+  }
   const outputs = [];
   for (const command of commands) {
     if (adapter.renderCommand) {

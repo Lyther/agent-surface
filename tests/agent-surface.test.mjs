@@ -700,6 +700,11 @@ assert.match(deepagentsPlan, /\.deepagents\/\.mcp\.json MCP \+= grimoire, synaps
 const goosePlan = run(["install", "--target", "goose", "--dest", "/tmp/agent-surface-goose", "--dry-run"]);
 assert.match(goosePlan, /^target: goose$/m);
 assert.match(goosePlan, /recipes\/workflow-boss\.yaml <- commands\/workflow-boss\.md/);
+// F001: a user-scope Goose install wires only the user-global MCP config — it must NEVER
+// write project recipes into $HOME. Recipes remain project-scoped (--dest / project scope).
+const gooseUserPlan = run(["install", "--target", "goose", "--scope", "user", "--allow-scope-root", "--dry-run"]);
+assert.doesNotMatch(gooseUserPlan, /recipes\//, "goose user-scope install must not write recipes into $HOME");
+assert.match(gooseUserPlan, /\.config\/goose\/config\.yaml MCP/, "goose user-scope install wires the MCP config");
 
 const grokBuildPlan = run(["install", "--target", "grok-build", "--dest", "/tmp/agent-surface-grok-build", "--dry-run"]);
 assert.match(grokBuildPlan, /^target: grok-build$/m);
