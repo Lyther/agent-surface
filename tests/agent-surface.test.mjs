@@ -719,6 +719,11 @@ try {
 } finally {
   rmSync(mcpsAllHome, { recursive: true, force: true });
 }
+// F006: a multi-target MCP install where NO selected target is applicable must FAIL, not
+// succeed as a no-op (pi+copilot have no MCP surface; pi,copilot,goose would pass via goose).
+const piCopilotStatus = status(["install", "--target", "pi,copilot", "--scope", "user", "--allow-scope-root", "--category", "mcps", "--dry-run"]);
+assert.equal(piCopilotStatus.status, 1, "pi,copilot --category mcps must fail (no installable outputs anywhere)");
+assert.match(`${piCopilotStatus.stdout}${piCopilotStatus.stderr}`, /no selected targets have installable outputs/);
 
 const grokBuildPlan = run(["install", "--target", "grok-build", "--dest", "/tmp/agent-surface-grok-build", "--dry-run"]);
 assert.match(grokBuildPlan, /^target: grok-build$/m);

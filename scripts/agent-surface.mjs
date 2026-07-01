@@ -1352,16 +1352,22 @@ async function install(args) {
       agentName,
       categoryFilter,
       optionalServices,
-      multiTarget: selectedTargets.length > 1,
     }));
   }
   addCrossPlanInstallConflicts(plans);
 
   const blocked = plans.flatMap((plan) => plan.blocked.map((item) => `${plan.target}: ${item}`));
+  // A category-filtered install must do real work across the selection: if no selected target
+  // has any writes or config merges, the whole run is a no-op and fails (individual
+  // non-applicable targets are informational, but "nothing installable anywhere" is an error).
+  const runBlocker = categoryFilter && plans.every((plan) => plan.writes.length === 0 && plan.configMerges.length === 0)
+    ? `no selected targets have installable outputs for categories: ${[...categoryFilter].sort().join(", ")}`
+    : null;
   for (const plan of plans) {
     printInstallPlan(plan);
   }
-  if (blocked.length > 0) {
+  if (runBlocker) console.log(`install blocked: ${runBlocker}`);
+  if (blocked.length > 0 || runBlocker) {
     process.exitCode = 1;
     return;
   }
@@ -1575,14 +1581,11 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     staleRemovalActions.push({ output, relativeOutput: item.output, action: "remove" });
   }
 
+  // Per-target: record non-applicability as informational. Whether the *run* fails is decided
+  // at the call site (a run with no installable outputs anywhere is the error, not one target).
   let notApplicableCategories = null;
   if (categoryFilter && writes.length === 0 && configMerges.length === 0 && nonApplicable.length === 0) {
-    const message = `no installable outputs for categories: ${[...categoryFilter].sort().join(", ")}`;
-    // In a multi-target install (e.g. `--target all --category mcps`) a target with no
-    // applicable surface is non-applicable, not a failure — only the whole run's generated
-    // targets need to succeed. A single explicit target keeps the informative hard error.
-    if (options.multiTarget) notApplicableCategories = message;
-    else blocked.push(message);
+    notApplicableCategories = `no installable outputs for categories: ${[...categoryFilter].sort().join(", ")}`;
   }
 
   const retainedManaged = partialInstall && Array.isArray(previousManifest?.managed)
