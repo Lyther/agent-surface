@@ -705,6 +705,20 @@ assert.match(goosePlan, /recipes\/workflow-boss\.yaml <- commands\/workflow-boss
 const gooseUserPlan = run(["install", "--target", "goose", "--scope", "user", "--allow-scope-root", "--dry-run"]);
 assert.doesNotMatch(gooseUserPlan, /recipes\//, "goose user-scope install must not write recipes into $HOME");
 assert.match(gooseUserPlan, /\.config\/goose\/config\.yaml MCP/, "goose user-scope install wires the MCP config");
+// F005: `--target all --category mcps` must succeed (exit 0), wiring every generated MCP host
+// and reporting the non-MCP targets (pi/antigravity/copilot) as non-applicable, not blockers.
+const mcpsAllHome = mkdtempSync("/tmp/agent-surface-mcps-all-");
+try {
+  const mcpsAllPlan = run(["install", "--target", "all", "--scope", "user", "--allow-scope-root", "--category", "mcps", "--dry-run"], {
+    env: { ...process.env, HOME: mcpsAllHome },
+  });
+  assert.equal((mcpsAllPlan.match(/not applicable: no installable outputs for categories: mcps/g) ?? []).length, 3,
+    "exactly pi/antigravity/copilot are non-applicable under --target all --category mcps");
+  for (const t of ["pi", "antigravity", "copilot"]) assert.match(mcpsAllPlan, new RegExp(`^target: ${t}$`, "m"));
+  assert.match(mcpsAllPlan, /MCP \+= grimoire, synapse/, "generated MCP hosts are still wired");
+} finally {
+  rmSync(mcpsAllHome, { recursive: true, force: true });
+}
 
 const grokBuildPlan = run(["install", "--target", "grok-build", "--dest", "/tmp/agent-surface-grok-build", "--dry-run"]);
 assert.match(grokBuildPlan, /^target: grok-build$/m);

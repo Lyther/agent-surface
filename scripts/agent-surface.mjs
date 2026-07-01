@@ -1352,6 +1352,7 @@ async function install(args) {
       agentName,
       categoryFilter,
       optionalServices,
+      multiTarget: selectedTargets.length > 1,
     }));
   }
   addCrossPlanInstallConflicts(plans);
@@ -1574,8 +1575,14 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     staleRemovalActions.push({ output, relativeOutput: item.output, action: "remove" });
   }
 
+  let notApplicableCategories = null;
   if (categoryFilter && writes.length === 0 && configMerges.length === 0 && nonApplicable.length === 0) {
-    blocked.push(`no installable outputs for categories: ${[...categoryFilter].sort().join(", ")}`);
+    const message = `no installable outputs for categories: ${[...categoryFilter].sort().join(", ")}`;
+    // In a multi-target install (e.g. `--target all --category mcps`) a target with no
+    // applicable surface is non-applicable, not a failure — only the whole run's generated
+    // targets need to succeed. A single explicit target keeps the informative hard error.
+    if (options.multiTarget) notApplicableCategories = message;
+    else blocked.push(message);
   }
 
   const retainedManaged = partialInstall && Array.isArray(previousManifest?.managed)
@@ -1607,6 +1614,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     staleRemovalActions,
     configMerges,
     blocked,
+    notApplicableCategories,
     nonApplicable: nonApplicable.sort((left, right) => left.localeCompare(right)),
     manifest,
   };
@@ -1687,6 +1695,9 @@ function printInstallPlan(plan) {
   if (plan.nonApplicable && plan.nonApplicable.length > 0) {
     console.log("non-applicable at this scope:");
     for (const item of plan.nonApplicable) console.log(`  ${item} (project-scope only)`);
+  }
+  if (plan.notApplicableCategories) {
+    console.log(`not applicable: ${plan.notApplicableCategories}`);
   }
   console.log("blocked:");
   if (plan.blocked.length === 0) {
