@@ -98,6 +98,14 @@ PY
 
 # 1f. Secrets scan
 grep -rnEi 'password\s*=|api_key\s*=|secret\s*=|token\s*=.*['\''\"]\w{8,}' {{target}}
+
+# 1g. Formatter/lint drift on YOUR changes (editor-vs-gate). Run the repo's own
+#     formatter/linter in --check mode on the changed files — an editor's format-on-save
+#     can have re-touched them with an ungated style (wrong line length, reordered
+#     imports, re-indented shell). Use the repo's config, not ad-hoc flags. Examples:
+#       ruff format --check <files> && ruff check <files>
+#       gofumpt -l <files> ; shfmt -d <files> ; prettier --check <files>
+#     If anything is flagged, that is a drift finding — re-run the formatter and fix.
 ```
 
 **If you do NOT have tool access:** Skip Pass 1. Proceed to Pass 2 with visual inspection only, and note that your coverage is reduced.

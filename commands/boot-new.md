@@ -101,6 +101,9 @@ This command creates the **context infrastructure** that enables smooth vibe cod
     - **Env shape**: use `.env.example`. If real env shape is required, inspect key names only with explicit user approval and redact values.
 3. **`<project-name>.code-workspace`**:
     - Analyze the project’s code and manifests, then auto-generate or update a VS Code `.code-workspace` with: folders, search/files excludes, `formatOnSave`, per-language default formatters/linters, common build/test/lint tasks, and required launch configurations.
+    - **Editor must match the gate (single source of truth — see rule `05-tooling`)**: point each language's default formatter at the SAME tool + config the CI gate uses (e.g. `charliermarsh.ruff` reading `pyproject.toml`, `shfmt` reading `.editorconfig`), and make it read the repo config rather than editor defaults (e.g. `ruff.importStrategy: fromEnvironment`). Do not duplicate a setting the config already owns (line length lives in `pyproject.toml`, not here).
+    - Keep `editor.formatOnSave` **on**, and make every language it formats use that language's gate tool + config. For a file type the editor formats but CI does not yet gate (YAML/JSON/Markdown/etc.), add its formatter (e.g. Prettier) to pre-commit so editor and gate agree — do not turn save-formatting off. Disable generic `source.organizeImports`/`source.fixAll` in favor of the language tool's own action (e.g. `source.organizeImports.ruff`) so a second organizer cannot fight it.
+    - Each folder in the workspace is its own root so tools resolve that folder's config; do not nest one repo's config under another's root.
     - Output valid JSONC only.
 4. **Agentic Rules (`.cursor/rules/` scaffolding)**:
     - **MANDATORY**: Scaffold `.cursor/rules/` in the target project with `.mdc` files.

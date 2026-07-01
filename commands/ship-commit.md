@@ -44,11 +44,16 @@ State the detected mode in one line before proceeding (e.g., `Mode: kernel — c
 *Don't wait for hooks to fail. Fix first.*
 
 1. **Format & Lint** (mode-aware):
-    - `oss-pr` / `internal-trunk` / `solo`: project formatter/linter (`npm run format`, `cargo fmt`, `ruff format`, `gofumpt`, etc.).
+    - `oss-pr` / `internal-trunk` / `solo`: project formatter/linter (`npm run format`, `cargo fmt`, `ruff format`, `gofumpt`, etc.). Use the repo's own config (see rule `05-tooling`); do not pass ad-hoc style flags.
     - `kernel`: do **not** run blanket reformatters. Delegate to `lint:kernel` (full toolchain: `checkpatch.pl --strict`, `make C=2 W=1`, `smatch`, `coccicheck`, kernel-doc warnings). `lint:kernel` also previews the `git send-email` recipient list without sending.
     - If formatting changes files → fix and re-stage now. Never roll formatter churn into a feature commit.
 
-2. **Untracked Files**:
+2. **Verify the STAGED snapshot, not just the working tree** (the drift that keeps recurring):
+    - An editor's format-on-save / organize-imports can silently re-touch a file between your last check and `git add`, so a tree that "passed earlier" can still be committed dirty (wrong line length, reordered imports, re-indented shell). The gate you ran on the working tree is not proof about what you are about to commit.
+    - After staging, prefer `pre-commit run` (staged-scoped and version-pinned) — it runs the gated formatters/linters on the staged snapshot, which is exactly what you are about to commit. If pre-commit is not configured, re-run the formatter/linter `--check` on the staged files (`ruff format --check` + `ruff check`, `gofumpt -l`, `shfmt -d`, `prettier --check`). If anything is flagged or rewritten, re-stage and re-check; only commit once the staged snapshot is clean.
+    - Never `--no-verify`. This is the single reliable defense against editor-vs-gate drift.
+
+3. **Untracked Files**:
 
     ```bash
     git status
@@ -56,7 +61,7 @@ State the detected mode in one line before proceeding (e.g., `Mode: kernel — c
 
     New files? Decide: keep (add) or trash (delete/ignore). Do not let unrelated debris ride along.
 
-3. **Tests / Builds**:
+4. **Tests / Builds**:
     - Run focused tests for touched areas; ensure green.
     - `kernel`: build the affected subsystem with `make` and resolve new warnings. If the patch touches concurrency, locking, or hot paths, treat the next phase's `/qa:trace` step as **non-optional**.
 
