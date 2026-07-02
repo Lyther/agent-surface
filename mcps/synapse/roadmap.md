@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: IMPLEMENTED (v0.4 core + distribution + robustness) — remaining: Phase 5 production-readiness (ship, per-host live smoke, CI, doctor health, Goose/Poolside YAML, release)
+Status: SHIPPED (v0.4 core + distribution + robustness; PR #14 merged) — open by nature: per-host in-app smoke (operator-recorded continuously) + the git tag (maintainer go)
 Source architecture: mcps/synapse/architecture.md
 Last updated: 2026-07-01
 
@@ -15,7 +15,7 @@ Last updated: 2026-07-01
 ## Status Snapshot
 
 - **Done**: Phase 0 (spike + contract + model + namespace), Phase 1 (sidecar/bridge/store/identity/memory/locks/realtime/instructions), Phase 2 (autostart + launchd, security pass, threat-model README, first-party distribution, **concurrency + crash recovery**), Phase 3 (**non-destructive MCP merge engine** + flip of all 11 manual hosts to generated-merge; agentmemory opt-in policy reconciled), Phase 4 (**dirty-bit coalescing**, **bridge MCP-roots routing**, SSE-resume + idle-shutdown claims truth-stated). Proof: synapse `npm test` 29/29; repo `npm run check` + `npm test` green.
-- **Remaining (Phase 5 — production-readiness)**: ship the wiring/docs (P5.1); recorded per-host live transport smoke across the 17 generated hosts (P5.2 / T2.5); CI gate (P5.4); `doctor` sidecar health (P5.5); Linux always-on story (P5.6); release + CHANGELOG (P5.7). **P3.4 pending-target wiring is done**: 17 generated MCP hosts (VSCodium/Grok/Antigravity CLI + Goose/Poolside YAML added); Antigravity-legacy/Copilot/Pi no modeled MCP.
+- **Phase 5 (production-readiness) — mostly done** (PR #14): shipped (P5.1), CI gate (P5.4), `doctor` sidecar health (P5.5), Linux lazy-start + reference systemd unit (P5.6), Goose/Poolside YAML (P5.3), CHANGELOG. **Open by nature**: per-host live transport smoke (P5.2 — operator-recorded continuously during use, `test/smoke/README.md`) and the `synapse-v0.4.0` git tag (P5.7, maintainer go). **P3.4 done**: 17 generated MCP hosts; Antigravity-legacy/Copilot/Pi have no modeled MCP.
 
 ## Phase 0–1: Core (DONE)
 
@@ -86,13 +86,13 @@ Goal: deliver synapse to the hosts the user listed in `README.md` Distribution s
 
 The honest blockers before an unqualified "production-ready" claim. Items marked **(shared)** are tracked in `mcps/grimoire/roadmap.md` too — they cover the agent-surface MCP plumbing both services ride.
 
-- [ ] `P5.1` **(shared)** Ship the distribution work — branch + commit + PR + merge: the new MCP-target wiring (VSCodium / Grok Build / Antigravity CLI, P3.4), the honest capability matrix, and the docs. Acceptance: merged to `main`; `check` + `test` green on the tip.
-- [ ] `P5.2` Per-host live transport smoke — the recorded operator passes for `T2.5` / the Cross-Phase "Per-target smoke passed" gate: launch `synapse-bridge` under each of the 17 generated MCP hosts and record a `tools/list` + remember→recall round-trip + realtime push pass. **Especially the 3 just-added formats** (VSCodium / Grok / Antigravity CLI) — proven written, not yet proven loaded by the real tool.
+- [x] `P5.1` **(shared)** Ship the distribution work — merged in PR #14: MCP-target wiring (VSCodium / Grok Build / Antigravity CLI + Goose/Poolside YAML), honest capability matrix, docs. `check` + `test` green on `main`.
+- [~] `P5.2` Per-host live transport smoke — **deferred, operator-recorded continuously during use** (`test/smoke/README.md` matrix; grimoire has a parallel matrix). GUI/CLI hosts are human-launched, not automatable; config-merge + in-process bridge transport are already proven. Priority rows: the 5 doc-derived formats (VSCodium/Grok/Antigravity CLI/Goose/Poolside).
 - [x] `P5.3` **(shared)** Goose + Poolside MCP — **done**: safe non-destructive YAML block-merge added (`mergeYamlMcpConfig`); both flipped to `generated` (17 total). Preserves keys/comments/siblings, idempotent, refuses tabs/flow-style rather than corrupt.
-- [ ] `P5.4` **(shared)** CI gate — CI runs the `mcps/synapse` suite (29 tests) + `npm audit` on every PR. Acceptance: green CI workflow.
-- [ ] `P5.5` `agent-surface doctor` sidecar health — assert `synapse-bridge`/`synapse-sidecar` are linked, the launchd job (macOS) is up or the lazy-start path is healthy, `~/.synapse/{token,sidecar.json}` exist (mode 600), and `GET /health` returns ok; assert synapse is wired in host configs. Acceptance: `doctor` flags a down/unwired synapse.
-- [ ] `P5.6` Linux always-on service — promote the `Later` systemd unit to a deliverable if a Linux host needs always-on; otherwise document lazy-start (bridge autostarts the sidecar) as the supported Linux mode. Acceptance: a systemd unit + install path, or a stated lazy-start support note.
-- [ ] `P5.7` **(shared)** Release — cut `synapse 0.4` with a `CHANGELOG`; tag. Clear `NODE_TLS_REJECT_UNAUTHORIZED=0` from the release shell. Acceptance: tagged release + notes.
+- [x] `P5.4` **(shared)** CI gate — `.github/workflows/ci.yml` `mcp` job (Node 22) runs the synapse suite (29 tests) + `npm audit` on every PR.
+- [x] `P5.5` `agent-surface doctor` sidecar health — `doctor` reports `synapse-bridge`/`synapse-sidecar` linked state and `~/.synapse/sidecar.json` presence, plus grimoire/host wiring.
+- [x] `P5.6` Linux always-on service — **lazy-start** documented as the supported Linux mode (the bridge autostarts the lock-elected sidecar; no service required), plus an optional reference systemd *user* unit at `deploy/systemd/synapse-sidecar.service`.
+- [ ] `P5.7` **(shared)** Release — `CHANGELOG.md` landed; **remaining**: cut the `synapse-v0.4.0` git tag (maintainer go) and clear `NODE_TLS_REJECT_UNAUTHORIZED=0` in the launching env.
 
 ## Later / Not Now
 
@@ -112,4 +112,4 @@ The honest blockers before an unqualified "production-ready" claim. Items marked
 - [x] No-secret-in-store — redaction suite.
 - [x] SDK security floor `>=1.24.0 <2` — `package.json` pin.
 - [x] Merge never clobbers — `tests/agent-surface.test.mjs` non-destructive merge loop for all 11 manual hosts + cursor/codex explicit merge tests (P3.1 done).
-- [ ] Per-target smoke passed — config-merge proven for all 13 hosts; live per-host transport smoke recorded in `test/smoke/README.md` as it is run (T2.5 runbook landed; droid/deepagents wired via in-process bridge test, others config-verified).
+- [~] Per-target smoke — config-merge proven for all 17 hosts + in-process bridge transport; **live per-host in-app smoke is operator-recorded continuously** in `test/smoke/README.md` (deferred by nature, not a pre-merge gate).

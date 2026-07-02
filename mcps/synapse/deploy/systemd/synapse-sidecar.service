@@ -1,0 +1,25 @@
+# Reference systemd *user* unit for the synapse sidecar (Linux, optional).
+#
+# On Linux the stdio bridge already autostarts the lock-elected sidecar on demand, so this
+# unit is NOT required — it only pre-warms the sidecar and restarts it (the launchd equivalent
+# of RunAtLoad + KeepAlive). Use it only if you want an always-on sidecar independent of a host.
+#
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp mcps/synapse/deploy/systemd/synapse-sidecar.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now synapse-sidecar
+# Remove:
+#   systemctl --user disable --now synapse-sidecar ; rm ~/.config/systemd/user/synapse-sidecar.service
+
+[Unit]
+Description=synapse sidecar (agent-surface first-party MCP shared memory)
+After=default.target
+
+[Service]
+ExecStart=%h/.local/bin/synapse-sidecar
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target
