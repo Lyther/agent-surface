@@ -109,6 +109,18 @@ export async function install(args) {
     for (const plan of plans) {
       await applyInstallPlan(plan);
     }
+    // The compiler only wires MCP *config* (the stdio entry points at ~/.local/bin/<bin>);
+    // it never builds/links the server binaries (that stays in each MCP's install.sh, which
+    // runs npm + build and, for synapse, a launchd service). Close the loop with an explicit
+    // next step so a freshly wired host config never silently points at a missing binary.
+    const wiredServers = uniqueStrings(
+      plans.flatMap((plan) => plan.configMerges.flatMap((merge) => merge.addMcpServers ?? [])),
+    );
+    if (wiredServers.length > 0) {
+      console.log(`MCP servers wired into host configs: ${wiredServers.join(", ")}`);
+      console.log("  These run as stdio binaries from ~/.local/bin. If not linked yet, build + link them:");
+      console.log("    npm run install:mcps   # first-party: synapse, grimoire");
+    }
   }
 }
 
