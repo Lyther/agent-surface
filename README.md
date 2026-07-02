@@ -20,7 +20,10 @@ Preview an install before touching disk, then apply it:
 ```bash
 node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
 node scripts/agent-surface.mjs install --target claude-code --scope user --allow-scope-root
+npm run install:mcps               # build + link the Synapse/Grimoire binaries the wired MCP configs point at
 ```
+
+The `install` step wires each host's MCP *config* to point at `~/.local/bin/synapse-bridge` and `~/.local/bin/grimoire-server`; `npm run install:mcps` builds and links those binaries (and deploys the Synapse sidecar service). Run it once — the two steps together are what makes MCP actually connect.
 
 ## What it does
 
@@ -80,10 +83,10 @@ node scripts/agent-surface.mjs install --target <t> --scope user --dry-run
 
 Built from `mcps/`, installed once, then auto-wired (non-destructive merge) into all 17 MCP-capable hosts across JSON/TOML/YAML config families — see [docs/reference/targets.md](docs/reference/targets.md):
 
-- **Synapse** — shared multi-agent memory + file-lock coordination. `npm run install:synapse`.
-- **Grimoire** — read-only, just-in-time retrieval over large Agent-Skill packs (serves the 754-skill `anthropic-cybersecurity-skills` pack so the model searches for a skill instead of loading a 750-entry catalog). `npm run install:grimoire`.
+- **Synapse** — shared multi-agent memory + file-lock coordination.
+- **Grimoire** — read-only, just-in-time retrieval over large Agent-Skill packs (serves the 754-skill `anthropic-cybersecurity-skills` pack so the model searches for a skill instead of loading a 750-entry catalog).
 
-Each `install:*` builds the binary and links it into `~/.local/bin`; the agent-surface `install` step merges the server into each host's MCP config. Details: [mcps/synapse/README.md](mcps/synapse/README.md), [mcps/grimoire/README.md](mcps/grimoire/README.md).
+`npm run install:mcps` builds both binaries and links them into `~/.local/bin` (Synapse also deploys its sidecar service); the agent-surface `install` step merges each server into every host's MCP config. Both steps are required — one wires the config, the other provides the binary it points at. (`npm run install:synapse` / `install:grimoire` install just one.) Details: [mcps/synapse/README.md](mcps/synapse/README.md), [mcps/grimoire/README.md](mcps/grimoire/README.md).
 
 ## Workflow kernel (optional)
 
