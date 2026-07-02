@@ -49,6 +49,7 @@ For each entry in `worker.tasks_processed`, run this checklist independently:
 - Reject lazy patterns: `assert True`, empty tests, mock-only tests, deleted tests, TODO placeholders.
 - Reviewer independence: worker self-audit can guide inspection, but it is never proof.
 - Independent verification: rerun each completed task's verify commands when safe. If rerun is impossible, set `review_mode: "log_only"` with a concrete reason and validate hashes/tree binding.
+- Formatter/lint gate: the task's patched files must pass the repo's own formatter/linter on the patched (staged) content — `ruff format --check` + `ruff check`, `gofumpt -l`, `shfmt -d`, `prettier --check` as the stack dictates. Drift a worker committed from editor format-on-save (wrong line length, reordered imports, re-indented shell) = REJECT; judge the staged snapshot, not an earlier clean tree.
 - Evidence binding: verify command evidence records `cmd`, `cwd`, command class, timeout, exit code, start time, duration, tree hash, stdout/stderr refs, hashes, and redaction status.
 - Patch isolation: verify each completed task has `patch_ref`, `patch_hash`, `pre_tree_hash`, `post_tree_hash`, `name_status_ref`, and `applies_cleanly: true` from `agent-surface workflow patch verify`.
 

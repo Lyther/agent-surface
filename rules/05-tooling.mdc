@@ -20,6 +20,16 @@ These are [P2] defaults. Existing manifests, lockfiles, tool configs, and CI scr
 - Run narrow checks first; run broad checks before final when the change touches shared behavior, public APIs, security, data, or build tooling.
 - If a tool is missing, report `not available`; do not pretend it passed.
 
+## Formatting and linters (single source of truth)
+
+- The repo's own config is authoritative for style: `pyproject.toml`/`ruff.toml`, `.editorconfig`, `.golangci.yml`, `rustfmt.toml`, `.prettierrc`, `.shellcheckrc`. The editor, pre-commit, and CI all read these same files — never a personal editor default. Keep each setting (e.g. line length) in ONE place and let the tools read it.
+- Make pre-commit the enforcement spine: `pre-commit install` so the same formatters/linters that gate CI also run on every commit, against the staged snapshot. Never `--no-verify`.
+- Format-on-save stays ON, but each language must format with the SAME tool and config the gate uses (e.g. ruff reading the repo's `pyproject.toml`, shfmt reading `.editorconfig`). Point each language's default formatter at its gate tool and let it read the repo config; never run a second formatter or a generic "organize imports" alongside the tool's own — they fight and churn. If the editor formats a file type that has no gated formatter yet, add that formatter to pre-commit so editor and gate agree rather than turning save-formatting off.
+- Editor auto-format resolves config from the window's root: open each repo as its own root (or a multi-root workspace) so the tool finds THAT repo's config, not a parent or a built-in default. Symptom of a misconfigured root: the editor wraps at 88 while the repo pins 100, or strips an import blank line the linter keeps.
+- Pin the SAME tool version across the editor extension, the pre-commit rev, and CI so none disagree.
+- Never lint or reformat generated code or test fixtures — `extend-exclude` them; modernizing an intentionally-old fixture defeats its purpose.
+- If the editor's output differs from the gate, the editor is misconfigured — fix the config once; do not hand-fix the same file repeatedly. Treat recurring formatter drift as a config bug, not a chore.
+
 ## Git
 
 - Use atomic commits with imperative messages when committing.

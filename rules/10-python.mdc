@@ -46,3 +46,8 @@ pytest -v
 ```
 
 Use Ruff, Pyright, pytest only when present or required by the repository. If a tool is missing, report `not available` — do not pretend it passed. Security: `pip-audit` or `safety check`.
+
+## Ruff config
+
+- Config lives in `pyproject.toml`/`ruff.toml` as the single source of truth (the editor reads it too). Pin `line-length` and `target-version`.
+- Prefer a curated, correctness-focused `select` — not `["ALL"]` (floods the editor with noise) nor the bare `E/F` default. Strict-but-sane base: `E, W, F, I, UP, B, C4, SIM, PIE, PT, TID, PGH, PLE, DTZ, RUF`; exclude the pedantic rules (`S`/assert-nagging, `PLR2004` magic numbers, `ANN` — Pyright covers types, `D` docstrings, formatter-owned `COM`/`ISC001`, stylistic `PT011`/`PT018`/`SIM102`). `extend-exclude` generated code and test fixtures.

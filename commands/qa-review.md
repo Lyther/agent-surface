@@ -160,6 +160,7 @@ If `--focus` is set, only run the specified domains. Otherwise run all in order.
 - [ ] Dead code, commented-out code, TODO/FIXME without issue tracking
 - [ ] Language idioms: code written in the style of the language, or fighting it?
 - [ ] API design: consistent naming, proper HTTP methods, sensible status codes, pagination
+- [ ] **Formatter/lint drift**: does the staged diff match the repo's gate? If you have tool access, run the repo's formatter/linter `--check` on the changed files (`ruff format --check` + `ruff check`, `gofumpt -l`, `shfmt -d`, `prettier --check`). Drift (wrong line length, reordered imports, re-indented shell from a mis-set editor) is a 🟡 MUST-FIX — flag it and point at the editor/config mismatch, not just the file.
 
 #### 5. Performance
 
