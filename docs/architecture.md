@@ -1,10 +1,10 @@
 # Architecture — agent-surface
 
-Status: IMPLEMENTED · Last updated: 2026-07-01 · Scope: the compiler in `scripts/agent-surface.mjs` and the registries/schemas that drive it. The two first-party MCP services have their own architecture docs: [../mcps/synapse/architecture.md](../mcps/synapse/architecture.md), [../mcps/grimoire/architecture.md](../mcps/grimoire/architecture.md).
+Status: IMPLEMENTED · Last updated: 2026-07-02 · Scope: the compiler under `scripts/` (the `agent-surface.mjs` CLI entry + the `agent-surface/` modules) and the registries/schemas that drive it. The two first-party MCP services have their own architecture docs: [../mcps/synapse/architecture.md](../mcps/synapse/architecture.md), [../mcps/grimoire/architecture.md](../mcps/grimoire/architecture.md).
 
 ## What it is
 
-agent-surface is a **source-to-native compiler**. Author each surface once — commands, rules, subagents, external skill packs, ignore files, and first-party MCP services — and it renders them into the native formats of **20 agent-host targets**, then installs them non-destructively. One source tree instead of twenty bespoke configs. It is a single Node script with no runtime dependencies; **registries are the source of truth**, JSON Schemas validate them, and `check` gates every invariant.
+agent-surface is a **source-to-native compiler**. Author each surface once — commands, rules, subagents, external skill packs, ignore files, and first-party MCP services — and it renders them into the native formats of **20 agent-host targets**, then installs them non-destructively. One source tree instead of twenty bespoke configs. It is a set of zero-dependency Node ES modules behind one CLI entry point; **registries are the source of truth**, JSON Schemas validate them, and `check` gates every invariant.
 
 ## System context
 
@@ -38,10 +38,15 @@ Each adapter declares a set of **producers**; every producer `emits` render toke
 ## Source tree (key files)
 
 ```text
-scripts/agent-surface.mjs   - the whole compiler: adapters (per-target render/merge/roots), producers,
-                              install planner (writes + config merge + strict-sync + manifest), check gates,
-                              doctor, and the workflow-ledger subcommands. No runtime deps.
-scripts/agent-surface/jsonc.mjs - minimal JSONC parse + surgical root-property merge (Kilo/OpenCode/Zed/VS Code).
+scripts/agent-surface.mjs   - CLI entry: arg dispatch over the command modules (main, help, inventory, commands registry). No runtime deps.
+scripts/agent-surface/      - the compiler, split into focused zero-dependency ES modules:
+  targets.mjs               - the engine: the per-target adapter table + producers + output planning.
+  render.mjs · merge.mjs · postprocess.mjs · jsonc.mjs - emit: per-target renderers; non-destructive MCP merge (JSON/TOML/YAML); JSONC parse + surgical root-property merge (Kilo/OpenCode/Zed/VS Code); external-skill normalization.
+  install.mjs               - build (→ dist/) + install (planner, config merges, strict-sync, backups, manifest).
+  check.mjs                 - the validators behind `check` (registry/schema/producer coherence, generated output, references, workflow fixtures).
+  workflow.mjs · evidence.mjs · doctor.mjs - workflow-ledger subcommands; `run` evidence capture (redaction/approval); environment + MCP health.
+  commands.mjs · rules.mjs · source-primitives.mjs - source readers (commands + frontmatter, rules, subagents/ignores).
+  registry.mjs · roots.mjs · io.mjs · proc.mjs · fs-tree.mjs · util.mjs · format.mjs - foundations: registry loaders; install roots + path/naming; FS read/parse; git/proc; dir listing; primitives; token formatting.
 registry/
   targets.json              - the 20 in-scope targets + their render tokens + build/install support.
   target-capabilities.json  - per-target surface matrix (support/generation/scope/paths/notes) + generated_render_tokens.
@@ -79,13 +84,12 @@ MCP services declared `first_party kind:"mcp"` in `optional-services.json` are a
 ## Decisions
 
 - **Registry-driven, schema-validated** — behaviour lives in data, not code branches; `check` makes the three registries agree with the producers.
-- **Single zero-dependency script** — portability and auditability over modularity; the one large file is the accepted tradeoff.
+- **Zero-dependency ES modules** — portability and auditability with no runtime deps; the former single ~4k-line script was decomposed into cohesive modules (CLI entry + engine + emit + command domains + foundations), verified byte-identical against the pre-refactor `build` output.
 - **Merge, never clobber** — host configs are shared/secret-bearing; the compiler owns only its own keys and blocks on ambiguous shapes.
 - **Strict-sync via manifest** — de-scoped assets self-prune on the next full install without tracking deletions by hand.
 - **First-party MCP on shared rails** — synapse and grimoire ride the same generate+merge path; adding a service is a registry entry, not new plumbing.
 
 ## Risks
 
-- The compiler is one ~4k-line file — mitigated by the exhaustive `check`/`test` gates; revisit modularization only if change velocity demands it.
 - New host MCP formats may need new merge logic (YAML added most recently) — each new format needs a non-destructive merge + block-on-ambiguity path and tests before a target is marked `generated`.
 - External submodule pins can drift from a served index — surfaced by `doctor` (grimoire index freshness) and `check` (required-pack pins).
