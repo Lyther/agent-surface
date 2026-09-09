@@ -11,6 +11,11 @@ mcps/*/dist/
 # Local-only command source (gitignored); keep it out of the pack payload too.
 commands/ops-server.md
 
+# MCP credential files must never enter the package payload.
+.env
+.env.*
+!.env.example
+
 # Candidate source repositories stay in Git; package only registered runtime/index inputs.
 external/**
 

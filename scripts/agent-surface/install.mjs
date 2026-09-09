@@ -3,15 +3,24 @@
 // and MCP/Kilo config merges) into a host root. Both drive the shared producer
 // engine in targets.mjs; neither owns rendering or validation.
 import { randomUUID } from "node:crypto";
-import { lstat, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { createInterface } from "node:readline";
+import { fileURLToPath } from "node:url";
 
 import { exportableCatalog, outputSourceKindError, requireKnownSourceKind } from "./check.mjs";
+import {
+  collectMissingRequired, CredentialPromptCancelled, credentialStatus, ensureSecretIgnored,
+  envExampleContent, formatCredentialPlan, formatMissingCredentialError, missingRequiredKeys,
+  readEnvFile, resolveEnvFilePath, secretIgnorePatterns, writeEnvValues,
+} from "./credentials.mjs";
 import { readFileIfExists, readJsonIfExists, removeTree } from "./io.mjs";
 import { mergeKiloInstructionJsonc, parseJsoncResult, setJsoncRootProperty } from "./jsonc.mjs";
-import { YAML_MCP_FORMATS, assertJsonPropertyType, mergeCodexMcpToml, mergeJsonMcpConfig, mergeKiroPermissions, mergeYamlMcpConfig, optionalServiceMcpServers, renderMcpConfig } from "./merge.mjs";
+import { provisioningDecision, runProvisioning } from "./provision-exec.mjs";
+import { formatProvisioningPlan, launchNameOf, PLATFORM, provisioningActions, provisioningStatus, unrecipedRequired } from "./provision.mjs";
+import { assertJsonPropertyType, isMcpLauncherCommand, MCP_ENV_LAUNCHER, mcpLauncherInvocation, mergeCodexMcpToml, mergeJsonMcpConfig, mergeKiroPermissions, mergeYamlMcpConfig, optionalServiceMcpServers, renderMcpConfig, YAML_MCP_FORMATS } from "./merge.mjs";
 import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { readRules } from "./rules.mjs";
 import { adapterMcpConfigs, kiloRuleInstructionPaths, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets } from "./targets.mjs";
@@ -68,6 +77,18 @@ export async function install(args) {
   const categoryFilter = installCategoryFilter(args);
   const optionalServices = optionalServiceFilter(args);
   const agentName = argValue(args, "--agent") ?? "agent";
+  // Resolve the credential env-file ONCE so the installer validates and the launcher loads exactly
+  // the same file, independent of the launch working directory. Project scope keeps it beside the
+  // target (dest or cwd); user scope uses the per-user config path; --credentials-file overrides
+  // (NOT --env-file: Node claims that flag during bootstrap before the CLI can parse it). This
+  // absolute path is both classified against (below) and baked into each wrapped server's launch
+  // args, so install-validated credentials are the credentials the MCP process actually receives.
+  const credentialEnvRoot = dest ? path.resolve(dest) : process.cwd();
+  const envFilePath = resolveEnvFilePath({
+    scope,
+    installRoot: credentialEnvRoot,
+    envFileArg: argValue(args, "--credentials-file"),
+  });
 
   if (!["project", "user"].includes(scope)) fail(`unsupported install scope: ${scope}`);
   if (!isSafeTargetName(agentName)) fail(`unsafe --agent: ${agentName}`);
@@ -78,30 +99,18 @@ export async function install(args) {
     fail("live install requires explicit --dest or --allow-scope-root after reviewing --dry-run");
   }
 
-  const plans = [];
-  if (allTargetsSelected && scope === "user" && categoryFilter === null && optionalServices === null) {
-    for (const [target, adapter] of Object.entries(retiredInstallTargets)) {
-      const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
-      plans.push(await installPlan(target, adapter, installRoot, scope, dest ? "explicit --dest" : "scope-derived root", {
-        agentName,
-        categoryFilter,
-        optionalServices,
-      }));
-    }
-  }
-  for (const target of selectedTargets) {
-    const adapter = targets[target];
-    if (!adapter) fail(`unsupported install target: ${target}`);
-    const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
-    if (installRoot === path.parse(installRoot).root) fail("install root cannot be filesystem root");
-    plans.push(await installPlan(target, adapter, installRoot, scope, dest ? "explicit --dest" : "scope-derived root", {
-      agentName,
-      categoryFilter,
-      optionalServices,
-    }));
-  }
-  addCrossPlanInstallConflicts(plans);
-  protectCrossPlanLiveOutputs(plans);
+  const planContext = { selectedTargets, allTargetsSelected, scope, dest, agentName, categoryFilter, optionalServices, envFilePath };
+  const plans = await buildInstallPlans(planContext);
+
+  // One credential plan drives interactive and headless installs. Reads existing values
+  // (process env, then the scope's .env), classifies each selected MCP service's keys, and
+  // never surfaces values — only names and the file path reach the plan/logs.
+  const credentials = await resolveInstallCredentials({ args, scope, categoryFilter, optionalServices, agentName, envFilePath, installRoot: credentialEnvRoot });
+
+  // Detect (read-only) each selected MCP service's executable prerequisites and runtime floors, so
+  // the plan shows what would be installed and the install can establish anything missing before it
+  // wires config. Shares the credential service selection — the same services that get wired.
+  const provisioning = resolveProvisioning({ serviceEntries: credentials.serviceEntries, args });
 
   const blocked = plans.flatMap((plan) => plan.blocked.map((item) => `${plan.target}: ${item}`));
   // A category-filtered install must do real work across the selection: if no selected target
@@ -110,32 +119,110 @@ export async function install(args) {
   const runBlocker = categoryFilter && plans.every((plan) => plan.writes.length === 0 && plan.configMerges.length === 0)
     ? `no selected targets have installable outputs for categories: ${[...categoryFilter].sort().join(", ")}`
     : null;
+  // Headless installs never prompt: a missing REQUIRED credential is an explicit failure that
+  // names the variables and the expected file. Interactive installs prompt instead (below).
+  const credentialBlocker = credentials.interactive ? null : formatMissingCredentialError(credentials.status, credentials.envFilePath);
+  // A required prerequisite with no recipe for this platform can never be provisioned here — a hard
+  // blocker in every mode (unlike a missing-but-installable prerequisite, which the apply phase
+  // establishes). Optional gaps never block.
+  const provisioningBlocker = provisioning.blockers.length > 0
+    ? `missing required prerequisites with no ${PLATFORM} recipe: ${provisioning.blockers.map((item) => `${item.service}/${item.id}`).join(", ")}`
+    : null;
   for (const plan of plans) {
     printInstallPlan(plan);
   }
+  printCredentialPlan(credentials);
+  printProvisioningPlan(provisioning);
   if (runBlocker) console.log(`install blocked: ${runBlocker}`);
-  if (blocked.length > 0 || runBlocker) {
+  if (credentialBlocker) console.log(`install blocked: ${credentialBlocker}`);
+  if (provisioningBlocker) console.log(`install blocked: ${provisioningBlocker}`);
+  if (blocked.length > 0 || runBlocker || credentialBlocker || provisioningBlocker) {
     process.exitCode = 1;
     return;
   }
 
   if (!dryRun) {
-    for (const plan of plans) {
+    const credentialResult = await applyInteractiveCredentials(credentials, { scope });
+    if (!credentialResult.ok) {
+      console.log(`install blocked: ${credentialResult.error}`);
+      process.exitCode = 1;
+      return;
+    }
+    // Establish prerequisites BEFORE writing any config, so a host config is never wired against a
+    // missing binary. A service whose required prerequisite cannot be established is excluded from
+    // wiring (its existing config is preserved); the run then reports non-zero.
+    const established = await establishPrerequisites({ provisioning, planContext });
+    if (!established.proceed) {
+      console.log(`install blocked: ${established.error}`);
+      process.exitCode = 1;
+      return;
+    }
+    const applyPlans = established.plans;
+    // Materialize the shared env wrapper BEFORE writing any config that launches through it, so a
+    // wrapped server is never switched onto a launcher that does not exist yet. Keyless-only
+    // installs skip this entirely, preserving their existing direct launch path untouched — as does
+    // Windows, where the wrapper is the pinned node.exe itself and there is no stub to write.
+    if (installUsesEnvLauncher(applyPlans)) {
+      try {
+        const launcher = await materializeMcpLauncher();
+        console.log(`mcp launcher: materialized ${launcher} (install Node pinned)`);
+      } catch (error) {
+        console.log(`install blocked: could not materialize the MCP env launcher (${error.message}); existing config left unchanged`);
+        process.exitCode = 1;
+        return;
+      }
+    }
+    for (const plan of applyPlans) {
       await applyInstallPlan(plan);
     }
-    // The compiler only wires MCP *config* (the stdio entry points at ~/.local/bin/<bin>);
-    // it never builds/links the server binaries (that stays in each MCP's install.sh, which
-    // runs npm + build and, for synapse, a launchd service). Close the loop with an explicit
-    // next step so a freshly wired host config never silently points at a missing binary.
+    // The compiler wires MCP *config* and can now provision the *binaries* those configs launch
+    // (the prerequisites established above). Report the wired servers so a freshly wired host config
+    // is never silently pointing at something the user did not expect.
     const wiredServers = uniqueStrings(
-      plans.flatMap((plan) => plan.configMerges.flatMap((merge) => merge.addMcpServers ?? [])),
+      applyPlans.flatMap((plan) => plan.configMerges.flatMap((merge) => merge.addMcpServers ?? [])),
     );
     if (wiredServers.length > 0) {
       console.log(`MCP servers wired into host configs: ${wiredServers.join(", ")}`);
-      console.log("  These run as stdio binaries from ~/.local/bin. If not linked yet, build + link them:");
-      console.log("    npm run install:mcps   # first-party: synapse, grimoire");
+      // Wired servers WITHOUT a provisioning recipe are not auto-installed — name them explicitly so a
+      // freshly wired config never silently points at a stdio binary the user still has to install.
+      const provisionedIds = new Set(provisioning.status.map((service) => service.id));
+      const manualServers = wiredServers.filter((id) => !provisionedIds.has(id));
+      if (manualServers.length > 0) {
+        console.log(`  Install these stdio binaries onto PATH yourself (no provisioning recipe): ${manualServers.join(", ")}`);
+      }
+    }
+    // A partial provisioning failure preserves the successful services' wiring but signals non-zero
+    // so callers (CI, scripts) notice the requested services were not all completed.
+    if (established.failed && established.failed.size > 0) process.exitCode = 1;
+  }
+}
+
+// Build every selected target's plan (retired cleanup adapters first on a full user-scope run), then
+// apply cross-plan conflict + live-output protection. `excludeServices` drops the given MCP service
+// ids from all config merges — used to skip wiring a service whose prerequisites could not be
+// provisioned, without disturbing any other service or the failed service's existing config.
+async function buildInstallPlans(context) {
+  const { selectedTargets, allTargetsSelected, scope, dest, agentName, categoryFilter, optionalServices, envFilePath } = context;
+  const excludeServices = context.excludeServices ?? null;
+  const launchWiring = context.launchWiring ?? null;
+  const options = { agentName, categoryFilter, optionalServices, envFilePath, excludeServices, launchWiring };
+  const plans = [];
+  if (allTargetsSelected && scope === "user" && categoryFilter === null && optionalServices === null) {
+    for (const [target, adapter] of Object.entries(retiredInstallTargets)) {
+      const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
+      plans.push(await installPlan(target, adapter, installRoot, scope, dest ? "explicit --dest" : "scope-derived root", options));
     }
   }
+  for (const target of selectedTargets) {
+    const adapter = targets[target];
+    if (!adapter) fail(`unsupported install target: ${target}`);
+    const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
+    if (installRoot === path.parse(installRoot).root) fail("install root cannot be filesystem root");
+    plans.push(await installPlan(target, adapter, installRoot, scope, dest ? "explicit --dest" : "scope-derived root", options));
+  }
+  addCrossPlanInstallConflicts(plans);
+  protectCrossPlanLiveOutputs(plans);
+  return plans;
 }
 
 function installTargetsIncludeAll(args) {
@@ -222,9 +309,238 @@ function optionalServiceFilter(args) {
   return values.length > 0 ? new Set(values) : null;
 }
 
+async function resolveInstallCredentials({ args, scope, categoryFilter, optionalServices, agentName, envFilePath, installRoot }) {
+  // Classify against the SAME env-file the wrapper will load at launch (resolved once by the
+  // caller), so install-validated credentials are exactly the ones the MCP process receives.
+  const serviceEntries = await selectedMcpServiceEntries(true, {
+    mode: "install", scope, categoryFilter, optionalServices, agentName,
+  });
+  const status = credentialStatus(serviceEntries, { fileValues: await readEnvFile(envFilePath), processEnv: process.env });
+  // Interactive only when a real TTY is attached and the caller did not pass -y.
+  const interactive = process.stdin.isTTY === true && !args.includes("-y");
+  return { status, serviceEntries, envFilePath, installRoot, interactive };
+}
+
+function printCredentialPlan(credentials) {
+  if (credentials.status.length === 0) return; // no credentialed MCP service selected
+  console.log("mcp credentials:");
+  console.log(`  file: ${credentials.envFilePath}`);
+  for (const line of formatCredentialPlan(credentials.status)) console.log(line);
+}
+
+// Read-only prerequisite detection for the selected MCP services (shares the credential service
+// selection). `blockers` are missing REQUIRED prerequisites with no recipe for this platform; the
+// rest are surfaced as an install plan the apply phase can act on. Never runs anything.
+function resolveProvisioning({ serviceEntries, args }) {
+  const status = provisioningStatus(serviceEntries);
+  return {
+    serviceEntries,
+    status,
+    blockers: unrecipedRequired(status),
+    actions: provisioningActions(status),
+    interactive: process.stdin.isTTY === true && !args.includes("-y"),
+    authorized: args.includes("-y"),
+  };
+}
+
+function printProvisioningPlan(provisioning) {
+  if (provisioning.status.length === 0) return; // no provisioned MCP service selected
+  console.log("mcp prerequisites:");
+  for (const line of formatProvisioningPlan(provisioning.status)) console.log(line);
+}
+
+// Ask once (interactive only) before running any recipe. Names sources + elevation; never a secret.
+// Ctrl+C is treated as "no" so an unattended abort never authorizes installs.
+function confirmProvisioning(actions) {
+  const sources = uniqueStrings(actions.map((action) => action.source));
+  const elevated = actions.some((action) => action.elevation);
+  console.log(`provisioning: ${actions.length} prerequisite step(s) to install: ${sources.join(", ")}${elevated ? " (requires elevation/sudo)" : ""}`);
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const finish = (value) => { rl.close(); resolve(value); };
+    rl.question("proceed with prerequisite installation? [y/N] ", (answer) => finish(/^y(es)?$/i.test(answer.trim())));
+    rl.on("SIGINT", () => finish(false));
+  });
+}
+
+// Map each wired service to the absolute path provisioning resolved for its launch binary — matched
+// Build the launch wiring per wired service from provisioning's resolved paths — the same "carry
+// resolved paths into the launch config" principle used for the command, extended to launch args:
+//   - `command`: when the service's ORIGINAL launch command is a bare name, the absolute path of the
+//     prerequisite whose resolved binary matches it (by basename), so the config points at the real
+//     executable regardless of the host's PATH. Service entries are already env-wrapped for
+//     credentialed services (command = launcher, real command after "--"), so the original command is
+//     read back out of the wrapper args.
+//   - `args`: for each prerequisite that declares `launch_arg` (e.g. the browser → `--executablePath`),
+//     the flag followed by that prerequisite's resolved absolute path, so a server that must be told
+//     which binary to drive (e.g. chrome-devtools-mcp against system Chromium) gets it.
+// targets.mjs substitutes the command only for a bare command and appends the args; a path command is
+// a harmless no-op. Returns null when there is nothing to wire.
+function resolveLaunchWiring(status, serviceEntries) {
+  const byId = new Map(serviceEntries);
+  const invocation = mcpLauncherInvocation();
+  const wiring = {};
+  for (const service of status) {
+    const server = byId.get(service.id)?.mcp?.server;
+    if (!server || typeof server.command !== "string") continue;
+    const original = isMcpLauncherCommand(server.command, invocation) && Array.isArray(server.args)
+      ? server.args[server.args.indexOf("--") + 1]
+      : server.command;
+    if (typeof original !== "string") continue;
+    const commandBase = launchNameOf(original);
+    const entry = {};
+    // Match on the launch NAME so a Windows binary (npx.cmd, uv.exe) still matches its registry
+    // command; on POSIX this is a plain basename comparison.
+    const cmdMatch = service.prerequisites.find(
+      (prereq) => prereq.resolvedPath && launchNameOf(prereq.resolvedPath) === commandBase,
+    );
+    if (cmdMatch) entry.command = cmdMatch.resolvedPath;
+    const args = [];
+    for (const prereq of service.prerequisites) {
+      if (prereq.launchArg && prereq.resolvedPath) args.push(prereq.launchArg, prereq.resolvedPath);
+    }
+    if (args.length > 0) entry.args = args;
+    if (entry.command || entry.args) wiring[service.id] = entry;
+  }
+  return Object.keys(wiring).length > 0 ? wiring : null;
+}
+
+// Establish missing prerequisites before any config is written, then rebuild the plans so the wired
+// config carries the resolved absolute launch paths. Returns { proceed, plans, failed }.
+// `proceed:false` means nothing was applied (existing config preserved): a no-recipe blocker,
+// headless without -y, or an interactive decline of required prerequisites. When recipes run and some
+// service is still unsatisfied, its wiring is dropped (that service is excluded) and `failed` names it.
+async function establishPrerequisites({ provisioning, planContext }) {
+  const decision = provisioningDecision({
+    actions: provisioning.actions,
+    blockers: provisioning.blockers,
+    interactive: provisioning.interactive,
+    authorized: provisioning.authorized,
+    dryRun: false,
+  });
+  if (decision.kind === "block") {
+    const reason = decision.reason === "needs-authorization"
+      ? `prerequisites missing; re-run with -y to install them, or install manually: ${formatProvisioningPlan(provisioning.status).join("; ").trim()}`
+      : `missing required prerequisites with no ${PLATFORM} recipe`;
+    return { proceed: false, error: reason };
+  }
+
+  // finalStatus is the detection the wiring is proven against: the post-recipe re-detection when
+  // recipes run, else the initial (already-satisfied) detection. Its resolved absolute paths are what
+  // the launch config carries, so a freshly installed binary is launched by path, not by bare name.
+  let finalStatus = provisioning.status;
+  let failed = null;
+  const runRecipes = () => {
+    const result = runProvisioning(provisioning.serviceEntries, { repoRoot: root, onLog: (line) => console.log(line) });
+    finalStatus = result.after;
+    if (result.failed.size > 0) failed = result.failed;
+  };
+  if (decision.kind === "confirm") {
+    const authorized = await confirmProvisioning(provisioning.actions);
+    if (!authorized && decision.mustAuthorize) {
+      return { proceed: false, error: "prerequisite installation declined; required prerequisites remain missing" };
+    }
+    if (authorized) runRecipes(); // declined-but-only-optional falls through and wires as-is
+  } else if (decision.kind === "install") {
+    runRecipes();
+  }
+  // decision.kind === "proceed": nothing to run; finalStatus stays the initial detection.
+
+  if (failed) {
+    console.log(`provisioning: could not establish prerequisites for ${[...failed].sort().join(", ")}; skipping their config (existing config preserved)`);
+  }
+  const launchWiring = resolveLaunchWiring(finalStatus, provisioning.serviceEntries);
+  const rebuilt = await buildInstallPlans({ ...planContext, excludeServices: failed ?? undefined, launchWiring });
+  return { proceed: true, plans: rebuilt, failed };
+}
+
+async function applyInteractiveCredentials(credentials, { scope }) {
+  if (!credentials.interactive || missingRequiredKeys(credentials.status).length === 0) return { ok: true };
+  let collected = {};
+  try {
+    collected = await collectMissingRequired(credentials.status);
+  } catch (err) {
+    if (!(err instanceof CredentialPromptCancelled)) throw err;
+    // Ctrl+C during entry: collect nothing and fall through to the missing-required gate below,
+    // which blocks the install consistently (rather than wiring a service without its secrets).
+    console.log("credentials: entry cancelled");
+  }
+  if (Object.keys(collected).length > 0) {
+    const written = await writeEnvValues(credentials.envFilePath, collected);
+    // Project secrets live inside the checkout, so keep the ACTUAL secret file (default .env or a
+    // custom --credentials-file) out of Git and the package.
+    if (scope === "project") {
+      const patterns = secretIgnorePatterns(credentials.envFilePath, credentials.installRoot);
+      if (patterns.length > 0) await ensureSecretIgnored(credentials.installRoot, patterns);
+    }
+    const saved = [...written.appended, ...written.filled];
+    if (saved.length > 0) console.log(`credentials: saved ${saved.join(", ")} to ${credentials.envFilePath}`);
+    if (written.unencodable.length > 0) {
+      console.log(`credentials: could not encode ${written.unencodable.join(", ")}; set them in the environment or edit ${credentials.envFilePath}`);
+    }
+    credentials.status = credentialStatus(credentials.serviceEntries, {
+      fileValues: await readEnvFile(credentials.envFilePath),
+      processEnv: process.env,
+    });
+  }
+  const stillMissing = formatMissingCredentialError(credentials.status, credentials.envFilePath);
+  if (stillMissing) {
+    // Leave a fillable template, then fail rather than wire a service missing its required keys.
+    await writeFile(`${credentials.envFilePath}.example`, envExampleContent(credentials.status)).catch(() => { /* best effort */ });
+    return { ok: false, error: stillMissing };
+  }
+  return { ok: true };
+}
+
+// A wrapped server's config launches through the shared env wrapper. Detect whether any wired
+// server actually uses it, so the POSIX launcher stub is materialized only when it is genuinely
+// needed (keyless synapse/grimoire installs never touch it). On Windows the wrapper is the pinned
+// node.exe already on disk, so nothing is materialized and this reports false.
+function installUsesEnvLauncher(plans, invocation = mcpLauncherInvocation()) {
+  if (invocation.command !== MCP_ENV_LAUNCHER) return false;
+  for (const plan of plans) {
+    for (const merge of plan.configMerges ?? []) {
+      const entries = merge.kind === "kilo" ? merge.mcpEntries : merge.entries;
+      for (const [, service] of entries ?? []) {
+        if (isMcpLauncherCommand(service?.mcp?.server?.command, invocation)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+const shQuote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
+
+// POSIX only (see mcpLauncherInvocation): materialize the shared env-loader wrapper into
+// ~/.local/bin as a tiny shell script that PINS the
+// Node executable validated at install time (process.execPath). An IDE launches MCP servers with a
+// minimal PATH, so a `#!/usr/bin/env node` wrapper would fail to find Node (exit 127); the pinned
+// absolute path avoids that. The wrapper execs the shipped, self-contained launcher .mjs.
+// Regenerated every install so a moved package or upgraded Node is picked up. The destination
+// tracks os.homedir() — the same $HOME the generated config's "~" resolves against — so the wrapper
+// always lands exactly where the config points (tests isolate via a disposable HOME, not an override).
+async function materializeMcpLauncher() {
+  const binDir = path.join(os.homedir(), ".local", "bin");
+  const target = path.join(binDir, "agent-surface-mcp-env");
+  const launcherJs = path.join(path.dirname(fileURLToPath(import.meta.url)), "mcp-env-launch.mjs");
+  const content = [
+    "#!/bin/sh",
+    "# agent-surface MCP env-loader wrapper — pins the Node validated at install so an IDE-launched",
+    "# MCP (minimal PATH) still resolves it. Regenerated on each install.",
+    `exec ${shQuote(process.execPath)} ${shQuote(launcherJs)} "$@"`,
+    "",
+  ].join("\n");
+  await mkdir(binDir, { recursive: true });
+  await writeFile(target, content, { mode: 0o755 });
+  await chmod(target, 0o755).catch(() => { /* best effort on platforms without POSIX modes */ });
+  return target;
+}
+
 async function installPlan(target, adapter, installRoot, scope, rootSource, options = {}) {
   const categoryFilter = options.categoryFilter ?? null;
   const optionalServices = options.optionalServices ?? null;
+  const excludeServices = options.excludeServices ?? null;
+  const launchWiring = options.launchWiring ?? null;
   const catalog = await exportableCatalog();
   const sourceKindsConfig = await readSourceKinds();
   const version = await packageVersion();
@@ -242,6 +558,9 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     agentName: options.agentName ?? "agent",
     categoryFilter,
     optionalServices,
+    excludeServices,
+    launchWiring,
+    envFilePath: options.envFilePath ?? null,
   })).filter((output) => outputAppliesToCategory(output, categoryFilter));
   const writes = [];
   const managed = [];
@@ -335,6 +654,9 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     relocateExternalRoutes: rootSource === "explicit --dest",
     categoryFilter,
     optionalServices,
+    excludeServices,
+    launchWiring,
+    envFilePath: options.envFilePath ?? null,
   };
   // Only exact adapter-declared paths and formats authorize config cleanup.
   const declaredConfigRoutes = [
@@ -360,6 +682,8 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       includeRootProperties: !categoryFilter,
       categoryFilter,
       optionalServices,
+      excludeServices,
+      launchWiring,
     });
     liveConfigRoutes.add(configEntryKey(merge.relativeOutput, merge.format));
     declaredConfigRoutes.push(merge);
@@ -904,6 +1228,7 @@ async function mcpConfigMerge(mcpConfig, installRoot, scope, context) {
     rootProperties: context.categoryFilter ? {} : mcpConfigRootProperties(mcpConfig, { ...context, scope }),
     replaceRootProperties: mcpConfig.replaceRootProperties ?? [],
     allowAbsoluteOutput: mcpConfig.allowAbsoluteOutput === true,
+    excludeServices: context.excludeServices ?? null,
     safetyRoot,
   };
 }
@@ -917,7 +1242,9 @@ async function prepareMcpConfigMerge(merge, previousConfigEntries, pruneCategori
 
   const currentIds = merge.entries.map(([id]) => id).sort();
   const previousIds = previousConfigIds(previousConfigEntries, merge.relativeOutput, merge.format, pruneCategories, categories);
-  const removeIds = previousIds.filter((id) => !currentIds.includes(id));
+  // A service excluded because its prerequisites failed this run is a pure no-op: not added (it is
+  // already absent from currentIds) and never pruned, so its existing config survives untouched.
+  const removeIds = previousIds.filter((id) => !currentIds.includes(id) && !merge.excludeServices?.has(id));
   const existing = await readFileIfExists(merge.output);
   const addMcpServers = currentIds;
   const removeMcpServers = removeIds;
@@ -1065,6 +1392,9 @@ async function kiloConfigMerge(installRoot, scope, options = {}) {
       mode: "install",
       categoryFilter: options.categoryFilter ?? null,
       optionalServices: options.optionalServices ?? null,
+      excludeServices: options.excludeServices ?? null,
+      launchWiring: options.launchWiring ?? null,
+      envFilePath: options.envFilePath ?? null,
     })
     : [];
   return {
@@ -1080,6 +1410,7 @@ async function kiloConfigMerge(installRoot, scope, options = {}) {
       ? { permission: { "*": "allow" }, share: "disabled" }
       : {},
     mcpEntries,
+    excludeServices: options.excludeServices ?? null,
     assetCategories: mcpEntryAssetCategories(mcpEntries, await readAssetCategories()),
     safetyRoot: installRoot,
   };
@@ -1106,7 +1437,8 @@ async function prepareKiloConfigMerge(merge, previousConfigEntries, pruneCategor
 
   const currentMcpIds = merge.mcpEntries.map(([id]) => id).sort();
   const previousMcpIds = previousConfigIds(previousConfigEntries, merge.relativeOutput, merge.format, pruneCategories, categories);
-  const removeMcpIds = previousMcpIds.filter((id) => !currentMcpIds.includes(id));
+  // Never prune a service excluded for failed provisioning — leave its existing entry untouched.
+  const removeMcpIds = previousMcpIds.filter((id) => !currentMcpIds.includes(id) && !merge.excludeServices?.has(id));
   const existing = await readFileIfExists(merge.output);
   if (existing === null) {
     const content = {

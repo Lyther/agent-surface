@@ -1,11 +1,12 @@
 // The heart of the compiler: the per-target adapter table + the producers that turn source
 // (commands/rules/subagents/skills/mcp) into per-target outputs. Imports render/roots/merge/
 // postprocess; the install + check layers import targets/targetOutputs/producers from here.
+import { closeSync, openSync, readSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { directDirectories, filesUnder } from "./fs-tree.mjs";
-import { optionalServiceMcpServers, renderMcpConfig } from "./merge.mjs";
+import { MCP_ENV_LAUNCHER, mcpLauncherInvocation, optionalServiceMcpServers, renderMcpConfig } from "./merge.mjs";
 import { normalizeExternalSkillFile } from "./postprocess.mjs";
 import { assetCategoryAllowed, assetCategoryFor, readAssetCategories, readOptionalServices, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityCliSubagent, renderAntigravityWorkflow, renderClaudeSubagent, renderClineSubagent, renderClineWorkflow, renderCodexSubagent, renderCopilotSubagent, renderCursorCommand, renderCursorSubagent, renderDeepAgentsSubagent, renderDroidCommand, renderDroidSubagent, renderGooseRecipe, renderInstructionDocument, renderKiloRuleDocument, renderKiloSubagent, renderKiloWorkflow, renderKimiCodeSubagent, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderQwenCodeSubagent, renderScopedRuleReferenceDocument, renderTraeSubagent, renderVanillaSkill, renderVsCodeInstructionDocument, renderVsCodePromptDocument, renderWindsurfWorkflow } from "./render.mjs";
@@ -962,26 +963,132 @@ export async function selectedMcpServiceEntries(defaultEnabled, context) {
       }
       return service.first_party === true && assetCategoryFor(categories, "services", id) === null;
     });
+  // Validate the requested set against the FULL selection before excluding anything, so a service the
+  // user explicitly asked for is never reported "missing" merely because its prerequisites failed.
   if (context.optionalServices) {
     const known = new Set(entries.map(([id]) => id));
     for (const id of context.optionalServices) {
       if (!known.has(id)) fail(`missing optional MCP service: ${id}`);
     }
   }
-  const sorted = entries.sort(([left], [right]) => left.localeCompare(right));
-  // Hosts posix_spawn the stdio MCP command directly (no shell), so a literal "~" is never
-  // expanded and the server fails to launch (ENOENT). At install time, resolve a leading "~/"
-  // to an absolute $HOME path. dist/build keeps "~" so generated output stays machine-agnostic
-  // and reproducible. Clone the service so the cached registry object is never mutated.
-  if (context.mode !== "install") return sorted;
-  return sorted.map(([id, service]) => {
-    const command = service.mcp?.server?.command;
-    if (typeof command !== "string" || !command.startsWith("~/")) return [id, service];
+  // A service whose prerequisites could not be provisioned this run is dropped from every config
+  // merge at once (this is the single chokepoint), so it is never wired against a missing binary.
+  const included = context.excludeServices
+    ? entries.filter(([id]) => !context.excludeServices.has(id))
+    : entries;
+  const sorted = included.sort(([left], [right]) => left.localeCompare(right));
+  // Only servers that declare credentials launch through the shared env-loader wrapper: it loads
+  // the resolved credential env-file (ambient env wins) then execs the real command with stdio +
+  // working directory preserved. Keyless servers (synapse, grimoire) keep their direct launch path
+  // unchanged. The real command moves into args after "--"; a literal "~" there is resolved by the
+  // launcher at runtime. At install time the installer-resolved env-file path is baked in as an
+  // absolute --as-env-file so the launcher loads exactly the file the installer validated,
+  // independent of the launch working directory. Clone so the cached registry object is never
+  // mutated.
+  // Build/dist keeps the machine-agnostic stub path so generated output never embeds a host's Node
+  // (or its platform); only an install resolves the platform's real invocation — on Windows the
+  // pinned node.exe plus the launcher module, since there is no shebang there and hosts cannot
+  // spawn a .cmd stub.
+  const launcher = context.mode === "install"
+    ? mcpLauncherInvocation({ platform: context.platform ?? process.platform })
+    : { command: MCP_ENV_LAUNCHER, argsPrefix: [] };
+  const wrapped = sorted.map(([id, service]) => {
+    const server = service.mcp?.server;
+    if (!server || typeof server.command !== "string") return [id, service];
+    // Wrap when the server carries credentials (env delivery) OR when its resolved launch binary
+    // defers to `/usr/bin/env <interp>`: that entire process chain resolves the interpreter through
+    // PATH, which a host's minimal PATH breaks (an absolute npx is not enough — npx then spawns the
+    // server's own `#!/usr/bin/env node` bin). Servers launching a real binary or an absolute-
+    // interpreter script (synapse/grimoire are `#!/bin/sh`) keep their direct launch path.
+    if (!serviceHasCredentials(service) && !launchNeedsRuntimePath(id, context)) return [id, service];
+    // Only a server that DECLARES credentials is handed the env-file: a server wrapped purely to get
+    // the validated Node on PATH must not receive the project's secrets.
+    const envArgs = serviceHasCredentials(service) && context.mode === "install" && context.envFilePath
+      ? ["--as-env-file", context.envFilePath]
+      : [];
+    // Launch the real binary by the ABSOLUTE path provisioning resolved (when the registry command is
+    // a bare name), so the wrapper never depends on the launch environment's PATH to find a tool
+    // installed into a directory the host does not have on PATH.
+    const launchCommand = launchCommandFor(id, server.command, context);
     return [id, {
       ...service,
-      mcp: { ...service.mcp, server: { ...service.mcp.server, command: path.join(os.homedir(), command.slice(2)) } },
+      mcp: { ...service.mcp, server: { ...server, command: launcher.command, args: [...launcher.argsPrefix, ...envArgs, "--", launchCommand, ...(server.args ?? []), ...launchArgsFor(id, context)] } },
     }];
   });
+  // Hosts posix_spawn the stdio command directly (no shell), so a literal "~" in the command the
+  // host launches is never expanded and fails (ENOENT). At install time resolve a bare command to
+  // the provisioning-resolved absolute path, then resolve a leading "~/" to an absolute $HOME path;
+  // dist/build keeps "~" so generated output stays machine-agnostic and reproducible. (A wrapped
+  // server's command is the launcher — its inner command was already resolved above.)
+  if (context.mode !== "install") return wrapped;
+  return wrapped.map(([id, service]) => {
+    const server = service.mcp?.server;
+    if (!server || typeof server.command !== "string") return [id, service];
+    // Note the wrapper BEFORE tilde expansion — expanding it to an absolute path would otherwise make
+    // the "already wrapped" test below fail and append the launch args a second time.
+    const isWrapped = server.command === launcher.command;
+    let command = server.command;
+    if (!isWrapped) command = launchCommandFor(id, command, context);
+    if (command.startsWith("~/")) command = path.join(os.homedir(), command.slice(2));
+    // A wrapped server already had its args augmented above; a non-wrapped server appends its
+    // provisioning launch args (e.g. --executablePath <browser>) to its own args here.
+    const extraArgs = isWrapped ? [] : launchArgsFor(id, context);
+    const args = extraArgs.length > 0 ? [...(server.args ?? []), ...extraArgs] : null;
+    if (command === server.command && !args) return [id, service];
+    return [id, { ...service, mcp: { ...service.mcp, server: { ...server, command, ...(args ? { args } : {}) } } }];
+  });
+}
+
+// A resolved absolute launch path from provisioning replaces a BARE registry command (no "/" or
+// "~"), so the generated config points at the actual executable rather than relying on PATH. A
+// command that already carries a path is left untouched (its own "~/" is expanded by the caller).
+function launchCommandFor(id, command, context) {
+  if (typeof command !== "string" || command.includes("/") || command.includes("\\") || command.startsWith("~")) return command;
+  return context.launchWiring?.[id]?.command ?? command;
+}
+
+// Launch args a prerequisite contributed (e.g. --executablePath <resolved browser>), appended to the
+// real command's args so the server is told which provisioned binary to drive.
+function launchArgsFor(id, context) {
+  return context.launchWiring?.[id]?.args ?? [];
+}
+
+// True when a file begins with a `#!/usr/bin/env <interp>` shebang — it can only start when <interp>
+// is on PATH. Only the first bytes are read, so a real (large) binary is never slurped.
+function usesEnvShebang(file) {
+  let fd;
+  try {
+    fd = openSync(file, "r");
+    const buffer = Buffer.alloc(128);
+    const bytes = readSync(fd, buffer, 0, 128, 0);
+    return /^#!\s*\/usr\/bin\/env\s+\S/.test(buffer.subarray(0, bytes).toString("utf8").split("\n", 1)[0]);
+  } catch {
+    return false;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+// Only meaningful at install time, where provisioning has resolved the launch binary's real path.
+// POSIX: a `#!/usr/bin/env <interp>` script (and everything it spawns) needs the interpreter on
+// PATH. Windows: npm installs console entry points as `.cmd`/`.bat` shims that fall back to a bare
+// `node` whenever node.exe is not adjacent (true for every npx cache dir), and a Node-based host
+// cannot spawn a batch file directly at all — both are resolved by going through the wrapper.
+function launchNeedsRuntimePath(id, context) {
+  if (context.mode !== "install") return false;
+  const resolved = context.launchWiring?.[id]?.command;
+  if (typeof resolved !== "string") return false;
+  const platform = context.platform ?? process.platform;
+  const isAbsolute = platform === "win32" ? path.win32.isAbsolute : path.isAbsolute;
+  if (!isAbsolute(resolved)) return false;
+  return platform === "win32" ? /\.(cmd|bat)$/i.test(resolved) : usesEnvShebang(resolved);
+}
+
+// A server needs the env-loader wrapper only if it declares credential keys (required or optional).
+function serviceHasCredentials(service) {
+  const credentials = service.credentials;
+  if (!credentials) return false;
+  return (credentials.required?.length ?? 0) + (credentials.optional?.length ?? 0) > 0;
 }
 
 export async function externalSkillRoots({ includeOptional = true, context = { mode: "build", categoryFilter: null } } = {}) {

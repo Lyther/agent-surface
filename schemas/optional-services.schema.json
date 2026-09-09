@@ -118,6 +118,52 @@
             },
             "additionalProperties": false
           },
+          "credentials": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "required": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "name"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[A-Z][A-Z0-9_]*$"
+                    },
+                    "description": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              },
+              "optional": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "name"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[A-Z][A-Z0-9_]*$"
+                    },
+                    "description": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
           "local_wiring": {
             "type": "array",
             "minItems": 1,
@@ -132,6 +178,163 @@
             "items": {
               "type": "string",
               "minLength": 1
+            }
+          },
+          "provisioning": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Executable prerequisites + per-platform install recipes. `install` detects existing setup (read-only) and provisions only what is missing.",
+            "required": [
+              "prerequisites"
+            ],
+            "properties": {
+              "runtime": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Version floors this service's own binaries need, distinct from the root CLI's floor.",
+                "properties": {
+                  "node": {
+                    "type": "string",
+                    "pattern": "^>=\\d+\\.\\d+\\.\\d+$"
+                  }
+                }
+              },
+              "prerequisites": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "kind",
+                    "detect",
+                    "recipes"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]*$"
+                    },
+                    "kind": {
+                      "enum": [
+                        "launch-binary",
+                        "tool",
+                        "runtime",
+                        "browser"
+                      ]
+                    },
+                    "optional": {
+                      "type": "boolean",
+                      "description": "A missing optional prerequisite is reported but does not fail the install."
+                    },
+                    "launch_arg": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "When set, the service's launch command receives this flag followed by this prerequisite's resolved absolute path (e.g. \"--executablePath\" for a browser), so the server is told which provisioned binary to drive."
+                    },
+                    "detect": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "description": "Read-only presence check. `paths` are resolved for the launch command; `command` is looked up on PATH; `node` asserts a version floor.",
+                      "properties": {
+                        "paths": {
+                          "type": "array",
+                          "minItems": 1,
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "command": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "node": {
+                          "type": "string",
+                          "pattern": "^>=\\d+\\.\\d+\\.\\d+$"
+                        },
+                        "python": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "interpreter",
+                            "modules"
+                          ],
+                          "description": "Assert that Python modules are importable inside a specific interpreter's environment (e.g. a uv tool venv), so an installed console script does not mask missing library extras. Candidates are tried in order: `interpreter_root` + `interpreter_subpaths` first (ask the tool manager where it keeps environments — its layout is platform- and config-dependent), then the literal `interpreter` fallbacks. The first executable candidate wins; `modules` are import names.",
+                          "properties": {
+                            "interpreter_root": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "prerequisite",
+                                "run"
+                              ],
+                              "description": "Ask an EARLIER prerequisite of this service (by id; registry order is dependency order) for a directory: its resolved binary is run with `run` and the first line of stdout is used as the root for `interpreter_subpaths`. Failure falls back to `interpreter`.",
+                              "properties": {
+                                "prerequisite": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "run": {
+                                  "type": "array",
+                                  "minItems": 1,
+                                  "items": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                }
+                              }
+                            },
+                            "interpreter_subpaths": {
+                              "type": "array",
+                              "minItems": 1,
+                              "description": "Interpreter locations relative to the resolved `interpreter_root`, covering each platform's venv layout (POSIX `bin/python`, Windows `Scripts/python.exe`).",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "interpreter": {
+                              "type": "array",
+                              "minItems": 1,
+                              "items": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "modules": {
+                              "type": "array",
+                              "minItems": 1,
+                              "items": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "recipes": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "minProperties": 1,
+                      "description": "Per-platform install recipes (node os.platform() keys). Each platform is an ordered list of ALTERNATIVES; the planner runs the first whose `requires` command is present (or that declares none), so Linux selects the real package manager instead of assuming apt.",
+                      "properties": {
+                        "darwin": {
+                          "$ref": "#/$defs/recipeSteps"
+                        },
+                        "linux": {
+                          "$ref": "#/$defs/recipeSteps"
+                        },
+                        "win32": {
+                          "$ref": "#/$defs/recipeSteps"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         },
@@ -293,6 +496,47 @@
           }
         ],
         "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "recipeSteps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "run",
+          "source"
+        ],
+        "properties": {
+          "requires": {
+            "type": "string",
+            "minLength": 1,
+            "description": "This alternative is only used when this command resolves on PATH (typically the platform's package manager). The planner selects the first applicable alternative in order."
+          },
+          "run": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "cwd": {
+            "enum": [
+              "repo"
+            ]
+          },
+          "elevation": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
       }
     }
   },

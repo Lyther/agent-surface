@@ -1,11 +1,52 @@
 // MCP config render + non-destructive merge, per host config format. Format
 // libraries own parsing and syntax; agent-surface owns only declared keys and IDs.
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import * as TOML from "@decimalturn/toml-patch";
 import { isMap, isSeq, parseDocument, stringify as stringifyYaml } from "yaml";
 import { parseJsoncResult, setJsoncRootObjectProperty, setJsoncRootProperty } from "./jsonc.mjs";
 import { fail } from "./util.mjs";
 
 export const YAML_MCP_FORMATS = new Set(["goose-extensions", "poolside-mcp"]);
+
+// Every wired MCP server launches through this shared env-loader wrapper (linked at
+// ~/.local/bin/agent-surface-mcp-env). It loads the credential env-file (ambient env wins), then
+// execs the real command with stdio + working directory preserved. Secrets live only in the
+// env-file; host config references solely the launcher, the `--` terminator, and the real command
+// + args — never a value. The wrap is applied once at the entry source (selectedMcpServiceEntries),
+// so the renderers below just serialize the already-wrapped command/args per host format.
+export const MCP_ENV_LAUNCHER = "~/.local/bin/agent-surface-mcp-env";
+
+// The launcher module the wrapper runs. On POSIX the ~/.local/bin stub execs it; on Windows the
+// generated config invokes it directly (see below), so the path is needed in both places.
+export const MCP_ENV_LAUNCH_SCRIPT = fileURLToPath(new URL("./mcp-env-launch.mjs", import.meta.url));
+
+// How a wrapped server is actually invoked on a given platform.
+//   POSIX  — the materialized ~/.local/bin stub (a `#!/bin/sh` script that execs the pinned Node).
+//   win32  — there is no shebang, and a `.cmd`/`.bat` stub is worse than useless: Node-based hosts
+//            (which is nearly all of them) refuse to spawn one without a shell and fail EINVAL. So
+//            the config invokes the install-pinned `node.exe` — a real executable every host can
+//            spawn — with the launcher module as its first argument. No stub file, no PATHEXT
+//            question, no PATH dependency.
+// Only used at INSTALL time; build/dist keeps the machine-agnostic POSIX constant so generated
+// output never embeds a host's Node path (or its platform).
+export function mcpLauncherInvocation({ platform = process.platform, execPath = process.execPath, launchScript = MCP_ENV_LAUNCH_SCRIPT } = {}) {
+  if (platform !== "win32") return { command: MCP_ENV_LAUNCHER, argsPrefix: [] };
+  return { command: execPath, argsPrefix: [launchScript] };
+}
+
+// True when `command` is the wrapper for the given invocation — the single place that knows how a
+// wrapped server is recognized, so targets (which wraps) and install (which unwraps to resolve
+// launch paths, and materializes the stub) never drift apart across platforms.
+export function isMcpLauncherCommand(command, invocation) {
+  invocation ??= mcpLauncherInvocation();
+  if (typeof command !== "string") return false;
+  if (command === invocation.command) return true;
+  // An install rewrites the POSIX stub's leading "~/" to an absolute $HOME path before it reaches a
+  // host config, so accept both spellings of that one file.
+  return command === MCP_ENV_LAUNCHER || command === path.join(os.homedir(), MCP_ENV_LAUNCHER.slice(2));
+}
 
 export function renderMcpConfig(format, entries, rootProperties = {}) {
   if (format === "kiro-permissions") return renderKiroPermissions(rootProperties);
