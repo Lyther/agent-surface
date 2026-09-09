@@ -110,17 +110,20 @@ try {
   // npx is `#!/usr/bin/env node`, and so is the MCP bin npx spawns: under a host's minimal PATH the
   // chain dies at `env: node`. Such a server launches through the wrapper (which puts the validated
   // Node on the child's PATH) — but must NOT receive the credential env-file, since it declares none.
-  const envShebangCmd = path.join(dir, "npx-like");
-  writeFileSync(envShebangCmd, "#!/usr/bin/env node\n", { mode: 0o755 });
-  const shebangWired = await selectedMcpServiceEntries(true, {
-    mode: "install", scope: "project", optionalServices: new Set(["chrome-devtools"]), envFilePath: path.join(dir, "proj.env"),
-    launchWiring: { "chrome-devtools": { command: envShebangCmd, args: ["--executablePath", "/usr/bin/chromium"] } },
-  });
-  const [, shebangSvc] = shebangWired.find(([id]) => id === "chrome-devtools");
-  assert.equal(path.basename(shebangSvc.mcp.server.command), "agent-surface-mcp-env", "an env-shebang launch binary is routed through the runtime wrapper");
-  assert.ok(!shebangSvc.mcp.server.args.includes("--as-env-file"), "a keyless server wrapped only for the runtime PATH is NOT handed the credential env-file");
-  assert.equal(shebangSvc.mcp.server.args.filter((a) => a === "--executablePath").length, 1, "the browser path is appended exactly once");
-  assert.equal(shebangSvc.mcp.server.args[shebangSvc.mcp.server.args.indexOf("--") + 1], envShebangCmd, "the real command follows the -- terminator");
+  // Shebangs are a POSIX mechanism; the Windows equivalent (a .cmd shim) is asserted above.
+  if (process.platform !== "win32") {
+    const envShebangCmd = path.join(dir, "npx-like");
+    writeFileSync(envShebangCmd, "#!/usr/bin/env node\n", { mode: 0o755 });
+    const shebangWired = await selectedMcpServiceEntries(true, {
+      mode: "install", scope: "project", optionalServices: new Set(["chrome-devtools"]), envFilePath: path.join(dir, "proj.env"),
+      launchWiring: { "chrome-devtools": { command: envShebangCmd, args: ["--executablePath", "/usr/bin/chromium"] } },
+    });
+    const [, shebangSvc] = shebangWired.find(([id]) => id === "chrome-devtools");
+    assert.equal(path.basename(shebangSvc.mcp.server.command), "agent-surface-mcp-env", "an env-shebang launch binary is routed through the runtime wrapper");
+    assert.ok(!shebangSvc.mcp.server.args.includes("--as-env-file"), "a keyless server wrapped only for the runtime PATH is NOT handed the credential env-file");
+    assert.equal(shebangSvc.mcp.server.args.filter((a) => a === "--executablePath").length, 1, "the browser path is appended exactly once");
+    assert.equal(shebangSvc.mcp.server.args[shebangSvc.mcp.server.args.indexOf("--") + 1], envShebangCmd, "the real command follows the -- terminator");
+  }
 
   // ---- native Windows: the wrapper is the pinned node.exe, and .cmd shims route through it ----
   // npm installs console entry points as .cmd shims that fall back to a bare `node` (no node.exe is
