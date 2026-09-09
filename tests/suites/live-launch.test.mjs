@@ -147,20 +147,30 @@ if (enabled) {
     writeFileSync(pagePath, `<!doctype html><title>${marker}</title><h1>${marker}</h1>\n`);
     const pageUrl = pathToFileURL(pagePath).href;
 
-    // The acceptance itself: a different working directory, a minimal PATH, a real MCP session, and a
-    // real page rendered by the browser the installer wired via --executablePath.
+    // ---- the acceptance proper: the EXACT generated command, nothing added ----------------
+    // A different working directory and a minimal PATH, never repaired. No flag is appended here —
+    // this is precisely what a host launches.
     const session = await mcpSession(entry.command, args, { cwd: os.tmpdir(), env: minimalEnv(home) }, async ({ call, serverInfo }) => {
       const tools = (await call("tools/list", {})).tools;
-      const pages = await callTool(call, "new_page", { url: pageUrl });
-      const pageId = selectedPageId(pages);
-      assert.ok(pageId !== null, `could not identify the opened page: ${pages}`);
-      const rendered = await callTool(call, "take_snapshot", { pageId });
-      return { serverInfo, tools: tools.length, rendered };
+      return { serverInfo, tools: tools.length };
     });
     assert.equal(session.serverInfo.name, "chrome_devtools", `unexpected server identity: ${JSON.stringify(session.serverInfo)}`);
     assert.ok(session.tools > 0, "the server advertised its tools");
-    assert.ok(session.rendered.includes(marker), `the provisioned browser rendered the page (marker "${marker}" missing from the snapshot)`);
-    console.log(`live-launch: initialize=${session.serverInfo.name} ${session.serverInfo.version}, tools=${session.tools}, page rendered=yes, platform=${process.platform}`);
+
+    // ---- browser qualification: drive the provisioned browser through a real page ----------
+    // HARNESS-ONLY FLAGS, recorded explicitly: `--headless` because a CI runner has no interactive
+    // desktop, and `--isolated` so each run gets its own profile instead of contending for a shared
+    // one. They are appended HERE, for this check only — the installed configuration asserted above
+    // carries neither, and the browser sandbox is not touched.
+    const qualifyArgs = [...args, "--headless", "--isolated"];
+    const page = await mcpSession(entry.command, qualifyArgs, { cwd: os.tmpdir(), env: minimalEnv(home) }, async ({ call }) => {
+      const pages = await callTool(call, "new_page", { url: pageUrl });
+      const pageId = selectedPageId(pages);
+      assert.ok(pageId !== null, `could not identify the opened page: ${pages}`);
+      return callTool(call, "take_snapshot", { pageId });
+    });
+    assert.ok(page.includes(marker), `the provisioned browser rendered the page (marker "${marker}" missing from the snapshot)`);
+    console.log(`live-launch: initialize=${session.serverInfo.name} ${session.serverInfo.version}, tools=${session.tools}, page rendered=yes (headless+isolated harness flags), platform=${process.platform}`);
   } finally {
     // Windows keeps handles open briefly after a process exits — the browser profile the MCP server
     // created is still locked here. Retry, then REPORT rather than throw: a temp-directory lock is
