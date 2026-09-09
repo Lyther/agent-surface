@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import os, { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough, Writable } from "node:stream";
 import {
@@ -70,7 +71,19 @@ try {
   const first = await writeEnvValues(envPath, { TOKEN: "abc123", SECRET: "two words#x", PEM: "a\nb" });
   assert.deepEqual(first.appended.sort(), ["SECRET", "TOKEN"]);
   assert.deepEqual(first.unencodable, ["PEM"], "unencodable secret reported, not written");
-  assert.equal(statSync(envPath).mode & 0o777, 0o600, "secret file is user-only (0600)");
+  // The secrets file must be owner-only. POSIX enforces that with mode bits; Windows ignores them
+  // entirely (chmod there only toggles the read-only attribute), so the ACL is the real control —
+  // assert the mechanism that actually applies on the host running this.
+  if (process.platform === "win32") {
+    assert.equal(first.restricted, "acl", "on Windows the secrets file is restricted by ACL, not mode bits");
+    const acl = spawnSync("icacls", [envPath], { encoding: "utf8" });
+    assert.equal(acl.status, 0, "icacls can read the resulting ACL");
+    assert.doesNotMatch(acl.stdout, /\bBUILTIN\\Users\b|\bEveryone\b/, "no broad principal retains access to the secrets file");
+    assert.match(acl.stdout, new RegExp(`\\\\${os.userInfo().username}:`, "i"), "the owning user is granted access");
+  } else {
+    assert.equal(first.restricted, "mode", "on POSIX the mode bits are the control");
+    assert.equal(statSync(envPath).mode & 0o777, 0o600, "secret file is user-only (0600)");
+  }
   const readBack = await readEnvFile(envPath);
   assert.equal(readBack.TOKEN, "abc123");
   assert.equal(readBack.SECRET, "two words#x", "single-quoted value round-trips exactly");

@@ -3,6 +3,7 @@
 // gather + persist missing required secrets. Pure/injectable so the install planner can call
 // it in both interactive and headless modes off one code path. Values never appear in plan
 // output, logs, or generated host config — only key NAMES and the env-file PATH do.
+import { spawnSync } from "node:child_process";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -144,7 +145,24 @@ export async function writeEnvValues(filePath, values, { homedir = os.homedir() 
   }
   await writeFile(filePath, out, { mode: 0o600 });
   await chmod(filePath, 0o600).catch(() => { /* best effort on platforms without POSIX modes */ });
-  return { path: filePath, appended, filled, unencodable, homedir };
+  const restricted = await restrictToOwner(filePath);
+  return { path: filePath, appended, filled, unencodable, homedir, restricted };
+}
+
+// Windows ignores POSIX mode bits — `chmod(0o600)` only toggles the read-only attribute there, so a
+// secrets file would otherwise keep whatever ACL it inherited from its directory and stay readable
+// by other accounts on the machine. Drop inheritance and grant the owning user alone, which is the
+// Windows equivalent of 0600. Returns how the file was restricted; POSIX is already done by chmod.
+async function restrictToOwner(filePath, platform = process.platform) {
+  if (platform !== "win32") return "mode";
+  const user = os.userInfo().username;
+  // icacls parses its own command line; the path and principal are quoted and neither may contain a
+  // quote (a Windows path cannot, and a username cannot), so this cannot break out of its argument.
+  const result = spawnSync("icacls", [filePath, "/inheritance:r", "/grant:r", `${user}:(R,W)`], { encoding: "utf8", windowsHide: true });
+  if (result.status === 0) return "acl";
+  // Never silently leave secrets under an inherited ACL: say so, naming the file, not its contents.
+  process.stderr.write(`warning: could not restrict ${filePath} to ${user} (icacls ${result.status ?? result.error?.message}); it may be readable by other accounts on this machine\n`);
+  return "unrestricted";
 }
 
 // Replace an existing empty assignment (KEY=, KEY="", KEY='') with a real value in place,
