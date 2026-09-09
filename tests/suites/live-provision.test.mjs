@@ -105,7 +105,14 @@ if (enabled) {
     assert.equal(launched.stdout.trim(), "SHODAN_API_KEY=installer-collected", "the installer-collected credential reaches the launched process under a minimal PATH from another directory");
     console.log(`live-provision: uv bootstrapped, openosint wired at ${inner}, credential delivered, platform=${process.platform}`);
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    // Windows keeps handles open briefly after a process exits — the browser profile the MCP server
+    // created is still locked here. Retry, then REPORT rather than throw: a temp-directory lock is
+    // not what this acceptance tests, and throwing from `finally` would replace the real failure.
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    } catch (error) {
+      console.log(`live-provision: could not remove the temporary directory ${dir} (${error.code})`);
+    }
   }
 
   console.log("live-provision: ok");

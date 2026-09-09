@@ -162,7 +162,14 @@ if (enabled) {
     assert.ok(session.rendered.includes(marker), `the provisioned browser rendered the page (marker "${marker}" missing from the snapshot)`);
     console.log(`live-launch: initialize=${session.serverInfo.name} ${session.serverInfo.version}, tools=${session.tools}, page rendered=yes, platform=${process.platform}`);
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    // Windows keeps handles open briefly after a process exits — the browser profile the MCP server
+    // created is still locked here. Retry, then REPORT rather than throw: a temp-directory lock is
+    // not what this acceptance tests, and throwing from `finally` would replace the real failure.
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    } catch (error) {
+      console.log(`live-launch: could not remove the temporary directory ${dir} (${error.code})`);
+    }
   }
 
   console.log("live-launch: ok");
