@@ -75,8 +75,9 @@ jobs:
           AGENT_SURFACE_LIVE_LAUNCH: "1"
         run: node tests/suites/live-launch.test.mjs
       # Closes the other Windows gap: a credentialed external MCP, provisioned from nothing (uv
-      # bootstrap -> uv tool install -> extras) and launched with the collected credential.
-      - name: native provisioning acceptance (uv bootstrap -> openosint -> credential delivery)
+      # bootstrap -> uv tool install -> extras), then started through the UNCHANGED generated command
+      # and required to serve a real MCP session.
+      - name: native provisioning acceptance (uv bootstrap -> openosint -> real MCP session)
         env:
           AGENT_SURFACE_LIVE_PROVISION: "1"
         run: node tests/suites/live-provision.test.mjs
