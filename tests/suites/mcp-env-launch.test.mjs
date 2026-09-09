@@ -87,19 +87,23 @@ try {
   assert.equal(pathProbe.stdout.split(path.delimiter)[0], path.dirname(process.execPath), "the child's PATH starts with the validated Node's directory");
 
   // The real defect: a `#!/usr/bin/env node` child (npx, and everything npx spawns) cannot start when
-  // the host launches with a minimal PATH. Through the wrapper it must start.
-  const envShebang = path.join(dir, "env-shebang-child");
-  writeFileSync(envShebang, "#!/usr/bin/env node\nprocess.stdout.write('started');\n", { mode: 0o755 });
-  const wrappedRun = spawnSync(process.execPath, [launcher, "--", envShebang], {
-    encoding: "utf8",
-    env: { PATH: "/usr/bin:/bin", HOME: process.env.HOME },
-  });
-  assert.equal(wrappedRun.status, 0, `a #!/usr/bin/env node child starts under a minimal PATH via the wrapper: ${wrappedRun.stderr}`);
-  assert.equal(wrappedRun.stdout, "started", "the env-shebang child actually ran");
-  if (!existsSync("/usr/bin/node")) {
-    // Control (only where /usr/bin/node does not mask the dependency): the same child fails directly.
-    const direct = spawnSync(envShebang, [], { encoding: "utf8", env: { PATH: "/usr/bin:/bin" } });
-    assert.notEqual(direct.status, 0, "control: the same child fails under a minimal PATH without the wrapper");
+  // the host launches with a minimal PATH. Through the wrapper it must start. Shebangs are a POSIX
+  // mechanism — Windows has none, and its equivalent (npm's .cmd shims) is covered by launchSpec
+  // above and by the native launch acceptance in the live-launch suite.
+  if (process.platform !== "win32") {
+    const envShebang = path.join(dir, "env-shebang-child");
+    writeFileSync(envShebang, "#!/usr/bin/env node\nprocess.stdout.write('started');\n", { mode: 0o755 });
+    const wrappedRun = spawnSync(process.execPath, [launcher, "--", envShebang], {
+      encoding: "utf8",
+      env: { PATH: "/usr/bin:/bin", HOME: process.env.HOME },
+    });
+    assert.equal(wrappedRun.status, 0, `a #!/usr/bin/env node child starts under a minimal PATH via the wrapper: ${wrappedRun.stderr}`);
+    assert.equal(wrappedRun.stdout, "started", "the env-shebang child actually ran");
+    if (!existsSync("/usr/bin/node")) {
+      // Control (only where /usr/bin/node does not mask the dependency): the same child fails directly.
+      const direct = spawnSync(envShebang, [], { encoding: "utf8", env: { PATH: "/usr/bin:/bin" } });
+      assert.notEqual(direct.status, 0, "control: the same child fails under a minimal PATH without the wrapper");
+    }
   }
 
   // ---- Windows: PATH is spelled `Path`, and must be EXTENDED, not shadowed ----
