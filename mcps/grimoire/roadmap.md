@@ -19,7 +19,7 @@ Small build. Phases are checkpoints, not ceremony; each box names its acceptance
 
 ## P2 — real pack + install
 
-- [x] `install.sh` + `install:grimoire`: link bins (derived from `package.json#bin`, no path drift) then build index + `~/.grimoire/manifest.json`; a required pack absent → **install exits 1** (never a silent success); temp artifacts protect the pre-publication path, and an interrupted two-file publish fails closed as `INDEX_STALE`; a **clean machine reports `INDEX_MISSING`**; `indexStatus` reads the installed manifest, not the repo.
+- [x] `install.mjs` + `install:grimoire`: link bins (derived from `package.json#bin`, no path drift) then build index + `~/.grimoire/manifest.json`; a required pack absent → **install exits 1** (never a silent success); temp artifacts protect the pre-publication path, and an interrupted two-file publish fails closed as `INDEX_STALE`; a **clean machine reports `INDEX_MISSING`**; `indexStatus` reads the installed manifest, not the repo.
 - [x] `eval.test.ts`: `hit@5`/`MRR` meet the P0 thresholds, gated on the pinned pack (CI-gated; skips on a submodule-less checkout).
 
 ## P3 — distribution (reach every generated MCP host modeled by agent-surface)

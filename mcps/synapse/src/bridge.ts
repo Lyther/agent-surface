@@ -107,7 +107,7 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
   // not surface as an unhandled rejection. The thrown error from startBridge is the real
   // signal; this just prevents a stray process warning in embedded/test callers.
   upstreamReady.catch(() => { });
-  // Sidecar restarts (install.sh redistribution) empty the session map; the first call
+  // Sidecar restarts (install.mjs redistribution) empty the session map; the first call
   // after a restart then fails HTTP 400 "no valid session". Policy: re-initialize the
   // upstream session once and retry the request once. Concurrent callers share one
   // reconnect; a second failure propagates (sidecar down or token changed).

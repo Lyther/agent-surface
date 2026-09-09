@@ -4,7 +4,7 @@ Goal: before documenting a host as "synapse wired", prove `synapse-bridge` actua
 
 ## Prerequisites
 
-- `sh install.sh` has run: `~/.local/bin/synapse-bridge` and `~/.local/bin/synapse-sidecar` exist, the launchd sidecar is up, and `curl http://127.0.0.1:4319/health` returns `{"ok":true}`.
+- `node install.mjs` has run: `~/.local/bin/synapse-bridge` and `~/.local/bin/synapse-sidecar` exist, the launchd sidecar is up, and `curl http://127.0.0.1:4319/health` returns `{"ok":true}`.
 - The host's MCP config has been generated/merged by `node scripts/agent-surface.mjs install --target <host> --category mcps` (first-party `synapse` entry only; external/secret-bearing MCPs stay opt-in).
 
 ## Per-host check (run once per target before marking it wired)

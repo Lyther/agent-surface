@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { installEnv, run } from "../../scripts/agent-surface/mcp-build.mjs";
 import { root } from "../lib/helpers.mjs";
 
 const lockfiles = [
@@ -72,38 +74,32 @@ assert.deepEqual(
   `dependency advisory floors violated:\n${violations.map((item) => `- ${item}`).join("\n")}`,
 );
 
-function assertTlsInstallSafe(source, label) {
-  const commands = source
-    .split(/\r?\n/)
-    .filter((line) => !/^\s*#/.test(line))
-    .flatMap((line) => line.split(";"))
-    .map((command) => command.trim())
-    .filter(Boolean);
-  const clearTlsOverrideAt = commands.findIndex((command) => /^unset\s+NODE_TLS_REJECT_UNAUTHORIZED$/.test(command));
-  const dependencyInstallAt = commands.findIndex((command) => /^(?:then|else)\s+npm\s+(?:ci|install)\b|^npm\s+(?:ci|install)\b/.test(command));
-  assert.ok(dependencyInstallAt >= 0, `${label}: must contain an npm dependency install command`);
-  assert.ok(clearTlsOverrideAt >= 0, `${label}: must clear NODE_TLS_REJECT_UNAUTHORIZED`);
-  assert.ok(clearTlsOverrideAt < dependencyInstallAt, `${label}: must clear NODE_TLS_REJECT_UNAUTHORIZED before npm resolves dependencies`);
-  assert.equal(
-    commands.some((command) => /(?:^|\s)(?:export\s+)?NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*0(?=\s|$)/.test(command)),
-    false,
-    `${label}: must not disable npm TLS verification`,
-  );
+// ---- the first-party MCP installers must never resolve dependencies with TLS disabled ----
+// The installers are Node programs, so this is checked by RUNNING the path that launches npm rather
+// than by reading the source for a shell command: a child is spawned with the override deliberately
+// set in this process's environment, and it reports what it actually received.
+const overrideEnv = { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: "0" };
+assert.equal(installEnv(overrideEnv).NODE_TLS_REJECT_UNAUTHORIZED, undefined, "the install environment drops a disabled TLS check");
+assert.equal(installEnv(overrideEnv).PATH, overrideEnv.PATH, "unrelated variables are preserved");
+
+const probeDir = mkdtempSync(path.join(os.tmpdir(), "as-tls-probe-"));
+try {
+  const report = path.join(probeDir, "seen.txt");
+  const probe = path.join(probeDir, "probe.mjs");
+  writeFileSync(probe, "import { writeFileSync } from 'node:fs';\nwriteFileSync(process.argv[2], String(process.env.NODE_TLS_REJECT_UNAUTHORIZED));\n");
+  // run() is the single door every installer command goes through, including npm.
+  run(process.execPath, [probe, report], { env: installEnv(overrideEnv), label: "tls probe" });
+  assert.equal(readFileSync(report, "utf8"), "undefined", "a command launched by the installer never inherits a disabled TLS check");
+} finally {
+  rmSync(probeDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
 
-for (const relativePath of ["mcps/synapse/install.sh", "mcps/grimoire/install.sh"]) {
-  assertTlsInstallSafe(readFileSync(path.join(root, relativePath), "utf8"), relativePath);
+// A future installer must not reach around that door by spawning the package manager itself; both
+// delegate to the shared build step, so neither names npm at all.
+for (const relativePath of ["mcps/synapse/install.mjs", "mcps/grimoire/install.mjs"]) {
+  const source = readFileSync(path.join(root, relativePath), "utf8");
+  assert.doesNotMatch(source, /\bnpm\b/, `${relativePath}: must reach npm through the shared install step, not directly`);
+  assert.match(source, /installAndBuild\(/, `${relativePath}: must build through the shared install step`);
 }
-
-// SUBSTITUTE_JUSTIFICATION
-// - substitute: inline unsafe shell snippets
-// - replaces: destructive mutation of the repository installer scripts
-// - necessity: the static gate must prove it rejects missing, commented, late, and disabling commands
-// - real-option: the real scripts provide the positive case but cannot provide invalid cases without being corrupted
-// - proof-limit: proves static command recognition, not npm network behavior
-// - real-proof: both real install scripts are checked above and exercised by their live installer runs
-assert.throws(() => assertTlsInstallSafe("unset NODE_TLS_REJECT_UNAUTHORIZED\n# npm ci\n", "comment-only"));
-assert.throws(() => assertTlsInstallSafe("npm ci\nunset NODE_TLS_REJECT_UNAUTHORIZED\n", "late-clear"));
-assert.throws(() => assertTlsInstallSafe("unset NODE_TLS_REJECT_UNAUTHORIZED\nNODE_TLS_REJECT_UNAUTHORIZED=0\nnpm ci\n", "disabled"));
 
 console.log("dependency-security: ok");
