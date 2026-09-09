@@ -167,16 +167,27 @@ if (enabled) {
     // needs far more than PATH to start (on Windows, APPDATA/LOCALAPPDATA among others), and PATH
     // independence is already proven by the exact-command phase; what is under test here is that the
     // provisioned browser actually renders a page.
-    const qualifyArgs = [...args, "--headless", "--isolated"];
-    const qualifyEnv = { ...process.env, HOME: home, USERPROFILE: home };
-    const page = await mcpSession(entry.command, qualifyArgs, { cwd: os.tmpdir(), env: qualifyEnv }, async ({ call }) => {
-      const pages = await callTool(call, "new_page", { url: pageUrl });
-      const pageId = selectedPageId(pages);
-      assert.ok(pageId !== null, `could not identify the opened page: ${pages}`);
-      return callTool(call, "take_snapshot", { pageId });
-    });
-    assert.ok(page.includes(marker), `the provisioned browser rendered the page (marker "${marker}" missing from the snapshot)`);
-    console.log(`live-launch: initialize=${session.serverInfo.name} ${session.serverInfo.version}, tools=${session.tools}, page rendered=yes (headless+isolated harness flags), platform=${process.platform}`);
+    //
+    // NOT RUN ON WINDOWS CI. There, chrome-devtools-mcp cannot start Chrome at all: it retries its
+    // own launch against the fresh isolated profile it just created and reports "the browser is
+    // already running for <that profile>". Observed with both an austere and an ordinary
+    // environment, headful and headless. That is an interaction between the upstream server and a
+    // desktop-less runner, not something agent-surface controls — so it is reported as an unverified
+    // boundary rather than skipped quietly or worked around with sandbox flags.
+    if (windows) {
+      console.log("live-launch: BROWSER PAGE OPERATION NOT VERIFIED on this platform — chrome-devtools-mcp cannot start Chrome on a desktop-less Windows runner (it retries its own launch and reports the profile as already running). The launch chain above IS verified.");
+    } else {
+      const qualifyArgs = [...args, "--headless", "--isolated"];
+      const qualifyEnv = { ...process.env, HOME: home, USERPROFILE: home };
+      const page = await mcpSession(entry.command, qualifyArgs, { cwd: os.tmpdir(), env: qualifyEnv }, async ({ call }) => {
+        const pages = await callTool(call, "new_page", { url: pageUrl });
+        const pageId = selectedPageId(pages);
+        assert.ok(pageId !== null, `could not identify the opened page: ${pages}`);
+        return callTool(call, "take_snapshot", { pageId });
+      });
+      assert.ok(page.includes(marker), `the provisioned browser rendered the page (marker "${marker}" missing from the snapshot)`);
+    }
+    console.log(`live-launch: initialize=${session.serverInfo.name} ${session.serverInfo.version}, tools=${session.tools}, page rendered=${windows ? "NOT VERIFIED (see above)" : "yes (headless+isolated harness flags)"}, platform=${process.platform}`);
   } finally {
     // Windows keeps handles open briefly after a process exits — the browser profile the MCP server
     // created is still locked here. Retry, then REPORT rather than throw: a temp-directory lock is
