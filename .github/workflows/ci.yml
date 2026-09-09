@@ -70,10 +70,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - name: native launch acceptance (real install -> generated command -> MCP session)
+      - name: native launch acceptance (real install -> generated command -> rendered page)
         env:
           AGENT_SURFACE_LIVE_LAUNCH: "1"
         run: node tests/suites/live-launch.test.mjs
+      # Closes the other Windows gap: a credentialed external MCP, provisioned from nothing (uv
+      # bootstrap -> uv tool install -> extras) and launched with the collected credential.
+      - name: native provisioning acceptance (uv bootstrap -> openosint -> credential delivery)
+        env:
+          AGENT_SURFACE_LIVE_PROVISION: "1"
+        run: node tests/suites/live-provision.test.mjs
       # Suites that must hold on every platform: launch-command construction, credential handling
       # (where Windows uses ACLs, not mode bits), and prerequisite detection under PATHEXT.
       # ONE STEP PER SUITE — the shell reports only the LAST command's exit status, so chaining them
