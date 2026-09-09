@@ -193,6 +193,32 @@ try {
   });
   assert.equal(winExeWired.find(([id]) => id === "chrome-devtools")[1].mcp.server.command, "C:\\tools\\thing.exe", "a Windows .exe keeps its direct launch path");
 
+  // ---- a HOME-relative registry command still takes the resolved path ----------------------
+  // The first-party servers name their launcher as `~/.local/bin/<name>`, but the installed FILE is
+  // not spelled that way on every platform: Windows has no shebang, so the launcher is `<name>.cmd`.
+  // Expanding the registry text would point at a file that does not exist there, so the path
+  // provisioning actually detected must win over the registry spelling.
+  const winShim = "C:\\Users\\dev\\.local\\bin\\synapse-bridge.cmd";
+  const fpWin = await selectedMcpServiceEntries(true, {
+    mode: "install", scope: "project", platform: "win32", // no optionalServices: the default first-party selection
+    launchWiring: { synapse: { command: winShim } },
+  });
+  const [, synapseWin] = fpWin.find(([id]) => id === "synapse");
+  assert.equal(synapseWin.mcp.server.command, process.execPath, "a .cmd launcher is routed through the pinned node.exe wrapper, which no host can spawn a batch file without");
+  assert.equal(synapseWin.mcp.server.args[synapseWin.mcp.server.args.indexOf("--") + 1], winShim, "the resolved .cmd shim follows the -- terminator, not the registry's extensionless spelling");
+  assert.ok(!synapseWin.mcp.server.args.includes("--as-env-file"), "a keyless first-party server receives no credential env-file");
+
+  if (process.platform !== "win32") {
+    const posixShim = path.join(dir, "synapse-bridge");
+    writeFileSync(posixShim, "#!/bin/sh\n", { mode: 0o755 });
+    const fpPosix = await selectedMcpServiceEntries(true, {
+      mode: "install", scope: "project",
+      launchWiring: { synapse: { command: posixShim } },
+    });
+    const [, synapsePosix] = fpPosix.find(([id]) => id === "synapse");
+    assert.equal(synapsePosix.mcp.server.command, posixShim, "on POSIX the same rule yields the resolved path on a direct launch (no wrapper)");
+  }
+
   // dist/build must stay machine-agnostic: no host Node path and no platform baked in.
   const built = await selectedMcpServiceEntries(true, { mode: "build", scope: "project", platform: "win32", optionalServices: new Set(["openosint"]) });
   assert.equal(built.find(([id]) => id === "openosint")[1].mcp.server.command, MCP_ENV_LAUNCHER, "build output keeps the portable launcher path (never a host's node.exe)");

@@ -1040,10 +1040,15 @@ export async function selectedMcpServiceEntries(defaultEnabled, context) {
 }
 
 // A resolved absolute launch path from provisioning replaces a BARE registry command (no "/" or
-// "~"), so the generated config points at the actual executable rather than relying on PATH. A
-// command that already carries a path is left untouched (its own "~/" is expanded by the caller).
+// "~") and a HOME-relative one ("~/…"): in both cases the registry names a binary whose real
+// location provisioning just determined by detecting it. The HOME-relative case matters because the
+// installed FILENAME is not always the registry spelling — the first-party launchers are
+// `synapse-bridge` on POSIX and `synapse-bridge.cmd` on Windows — so expanding the registry text
+// would point at a file that does not exist there. A command carrying a real path is left untouched.
 function launchCommandFor(id, command, context) {
-  if (typeof command !== "string" || command.includes("/") || command.includes("\\") || command.startsWith("~")) return command;
+  if (typeof command !== "string") return command;
+  const homeRelative = command.startsWith("~/");
+  if (!homeRelative && (command.includes("/") || command.includes("\\") || command.startsWith("~"))) return command;
   return context.launchWiring?.[id]?.command ?? command;
 }
 
