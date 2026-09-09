@@ -4,14 +4,19 @@
 // require a working MCP session. This is the shape a host actually uses, and the only check that
 // proves the whole npx → MCP chain starts without the operator's interactive-shell PATH.
 //
+// A second phase drives the provisioned browser through a real page. Where that fails, the cause is
+// established by comparison against the upstream invocation rather than asserted: only a failure the
+// upstream server does NOT share is attributed to what agent-surface generates.
+//
 // Opt-in (needs network: `npx -y` fetches the pinned MCP package): AGENT_SURFACE_LIVE_LAUNCH=1.
 // Without it this skips, so the default suite stays hermetic and offline.
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { callTool, mcpSession, minimalLaunchEnv } from "../lib/mcp-session.mjs";
 
 // Opt-in guard. NOT process.exit(): these suites are imported by the shared runner, so
 // exiting here would silently end the whole run and report success for suites never run.
@@ -22,83 +27,6 @@ if (enabled) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
   const cli = path.join(root, "scripts", "agent-surface.mjs");
   const windows = process.platform === "win32";
-
-  // A minimal-but-valid launch environment: the system directories a process is always given, and
-  // NOTHING else. The runtime's own directory is deliberately absent — that is the defect under test,
-  // so the harness must not add it back. On Windows the OS itself requires SystemRoot/ComSpec to
-  // create a process at all; supplying those is not a PATH repair.
-  function minimalEnv(home) {
-    if (!windows) return { PATH: "/usr/bin:/bin", HOME: home };
-    return {
-      Path: `${process.env.SystemRoot ?? "C:\\Windows"}\\system32;${process.env.SystemRoot ?? "C:\\Windows"}`,
-      SystemRoot: process.env.SystemRoot ?? "C:\\Windows",
-      ComSpec: process.env.ComSpec ?? "C:\\Windows\\system32\\cmd.exe",
-      TEMP: process.env.TEMP ?? os.tmpdir(),
-      TMP: process.env.TMP ?? os.tmpdir(),
-      USERPROFILE: home,
-      HOME: home,
-    };
-  }
-
-  // An MCP stdio session over the launched process. `steps` is an async driver that receives a
-  // `call(method, params)` function; the session resolves with whatever the driver returns, or
-  // rejects with why the chain failed to start.
-  function mcpSession(command, args, { cwd, env, timeoutMs = 300000 }, steps) {
-    return new Promise((resolve, reject) => {
-      const child = spawn(command, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
-      const pending = new Map();
-      let buffer = "";
-      let stderr = "";
-      let started = false;
-      let nextId = 1;
-      const settle = (fn, value) => { clearTimeout(timer); child.kill(); fn(value); };
-      const timer = setTimeout(() => settle(reject, new Error(`timed out; stderr: ${stderr.slice(-1200)}`)), timeoutMs);
-      const notify = (method, params) => child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method, params })}\n`);
-      const call = (method, params) => new Promise((ok, fail) => {
-        const id = nextId += 1;
-        pending.set(id, { ok, fail });
-        child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
-      });
-      child.on("error", (error) => settle(reject, new Error(`${error.message}; stderr: ${stderr.slice(-1200)}`)));
-      child.on("exit", (code) => { if (!started) settle(reject, new Error(`exited ${code} before initialize; stderr: ${stderr.slice(-1200)}`)); });
-      child.stderr.on("data", (chunk) => { stderr += chunk; });
-      child.stdout.on("data", (chunk) => {
-        buffer += chunk;
-        let index;
-        while ((index = buffer.indexOf("\n")) >= 0) {
-          const line = buffer.slice(0, index).trim();
-          buffer = buffer.slice(index + 1);
-          if (!line) continue;
-          const message = JSON.parse(line);
-          if (message.id === 1) {
-            if (message.error) { settle(reject, new Error(`initialize failed: ${JSON.stringify(message.error)}`)); return; }
-            started = true;
-            notify("notifications/initialized");
-            steps({ call, serverInfo: message.result.serverInfo }).then((value) => settle(resolve, value), (error) => settle(reject, error));
-            continue;
-          }
-          const waiter = pending.get(message.id);
-          if (!waiter) continue;
-          pending.delete(message.id);
-          if (message.error) waiter.fail(new Error(`rpc error: ${JSON.stringify(message.error)}`));
-          else waiter.ok(message.result);
-        }
-      });
-      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "live-launch", version: "0" } } })}\n`);
-    });
-  }
-
-  // Flatten an MCP tool result's content blocks to text.
-  const resultText = (result) => (result?.content ?? []).map((block) => block.text ?? "").join("\n");
-
-  // A failed tool call comes back as a normal result carrying isError, not as a JSON-RPC error, so it
-  // has to be checked explicitly — otherwise a failure reads as an empty success.
-  async function callTool(call, name, args) {
-    const result = await call("tools/call", { name, arguments: args });
-    const text = resultText(result);
-    if (result?.isError) throw new Error(`${name} failed: ${text}`);
-    return text;
-  }
 
   // new_page answers with the browser's page list, marking the new one [selected]; take_snapshot
   // addresses a page by that id. Parse it rather than guessing an index.
@@ -150,7 +78,7 @@ if (enabled) {
     // ---- the acceptance proper: the EXACT generated command, nothing added ----------------
     // A different working directory and a minimal PATH, never repaired. No flag is appended here —
     // this is precisely what a host launches.
-    const session = await mcpSession(entry.command, args, { cwd: os.tmpdir(), env: minimalEnv(home) }, async ({ call, serverInfo }) => {
+    const session = await mcpSession(entry.command, args, { cwd: os.tmpdir(), env: minimalLaunchEnv(home) }, async ({ call, serverInfo }) => {
       const tools = (await call("tools/list", {})).tools;
       return { serverInfo, tools: tools.length };
     });
@@ -167,27 +95,44 @@ if (enabled) {
     // needs far more than PATH to start (on Windows, APPDATA/LOCALAPPDATA among others), and PATH
     // independence is already proven by the exact-command phase; what is under test here is that the
     // provisioned browser actually renders a page.
-    //
-    // NOT RUN ON WINDOWS CI. There, chrome-devtools-mcp cannot start Chrome at all: it retries its
-    // own launch against the fresh isolated profile it just created and reports "the browser is
-    // already running for <that profile>". Observed with both an austere and an ordinary
-    // environment, headful and headless. That is an interaction between the upstream server and a
-    // desktop-less runner, not something agent-surface controls — so it is reported as an unverified
-    // boundary rather than skipped quietly or worked around with sandbox flags.
-    if (windows) {
-      console.log("live-launch: BROWSER PAGE OPERATION NOT VERIFIED on this platform — chrome-devtools-mcp cannot start Chrome on a desktop-less Windows runner (it retries its own launch and reports the profile as already running). The launch chain above IS verified.");
-    } else {
-      const qualifyArgs = [...args, "--headless", "--isolated"];
-      const qualifyEnv = { ...process.env, HOME: home, USERPROFILE: home };
-      const page = await mcpSession(entry.command, qualifyArgs, { cwd: os.tmpdir(), env: qualifyEnv }, async ({ call }) => {
-        const pages = await callTool(call, "new_page", { url: pageUrl });
-        const pageId = selectedPageId(pages);
-        assert.ok(pageId !== null, `could not identify the opened page: ${pages}`);
-        return callTool(call, "take_snapshot", { pageId });
-      });
-      assert.ok(page.includes(marker), `the provisioned browser rendered the page (marker "${marker}" missing from the snapshot)`);
+    const qualifyEnv = { ...process.env, HOME: home, USERPROFILE: home };
+    const renderPage = (command, launchArgs) => mcpSession(command, launchArgs, { cwd: os.tmpdir(), env: qualifyEnv, timeoutMs: 180000 }, async ({ call }) => {
+      const pages = await callTool(call, "new_page", { url: pageUrl });
+      const pageId = selectedPageId(pages);
+      assert.ok(pageId !== null, `could not identify the opened page: ${pages}`);
+      const snapshot = await callTool(call, "take_snapshot", { pageId });
+      assert.ok(snapshot.includes(marker), `marker "${marker}" missing from the snapshot`);
+      return true;
+    }).then(() => ({ rendered: true }), (error) => ({ rendered: false, error: error.message }));
+
+    const generatedRender = await renderPage(entry.command, [...args, "--headless", "--isolated"]);
+
+    // On a runner where the generated launch cannot render, the cause is NOT assumed. Run a CONTROL
+    // outside agent-surface's launch path entirely — the registry's own upstream invocation, no
+    // wrapper, no wired --executablePath, upstream browser discovery — and compare. If the control
+    // renders while the generated command does not, the wiring is at fault and this suite fails; if
+    // both fail the same way, the failure is reproduced outside anything agent-surface generates.
+    let control = null;
+    if (!generatedRender.rendered) {
+      const upstream = JSON.parse(readFileSync(path.join(root, "registry", "optional-services.json"), "utf8")).services["chrome-devtools"].mcp.server;
+      const upstreamArgs = [...upstream.args, "--headless", "--isolated"];
+      // `npx` is a batch shim on Windows, which Node will not spawn directly; route it through
+      // cmd.exe here rather than reusing the product's launcher, so the control stays independent.
+      control = windows
+        ? await renderPage(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", [upstream.command, ...upstreamArgs].join(" ")])
+        : await renderPage(upstream.command, upstreamArgs);
+      console.log(`live-launch: generated launch did not render (${generatedRender.error})`);
+      console.log(`live-launch: control (upstream ${upstream.command} ${upstreamArgs.join(" ")}, no agent-surface wiring) rendered=${control.rendered}${control.rendered ? "" : ` (${control.error})`}`);
+      assert.ok(!control.rendered, `the upstream invocation rendered the page but the generated launch did not — the generated wiring is at fault: ${generatedRender.error}`);
     }
-    console.log(`live-launch: initialize=${session.serverInfo.name} ${session.serverInfo.version}, tools=${session.tools}, page rendered=${windows ? "NOT VERIFIED (see above)" : "yes (headless+isolated harness flags)"}, platform=${process.platform}`);
+
+    // Both paths failed identically: the page operation is unverified here, and the failure is not
+    // specific to what agent-surface generates. Reported rather than skipped quietly, and never
+    // worked around by relaxing the browser sandbox.
+    const rendered = generatedRender.rendered
+      ? "yes (headless+isolated harness flags)"
+      : "NOT VERIFIED — also fails with the upstream invocation on this machine";
+    console.log(`live-launch: initialize=${session.serverInfo.name} ${session.serverInfo.version}, tools=${session.tools}, page rendered=${rendered}, platform=${process.platform}`);
   } finally {
     // Windows keeps handles open briefly after a process exits — the browser profile the MCP server
     // created is still locked here. Retry, then REPORT rather than throw: a temp-directory lock is

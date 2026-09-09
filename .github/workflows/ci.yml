@@ -70,7 +70,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - name: native launch acceptance (real install -> generated command -> rendered page)
+      - name: native launch acceptance (real install -> generated command -> MCP session -> page render)
         env:
           AGENT_SURFACE_LIVE_LAUNCH: "1"
         run: node tests/suites/live-launch.test.mjs
