@@ -18,7 +18,9 @@ import path from "node:path";
 // literal stands in for a string separator, and the comparison operators are inert inside cmd's
 // quotes. Keep it that way — adding a quote breaks one of the two shims silently.
 const FLOOR_CHECK = "const v=process.versions.node.split(/\\./).map(Number);process.exit(v[0]>22||(v[0]===22&&v[1]>=17)?0:1)";
-const FLOOR_TEXT = "Node 22.17 or newer (node:sqlite)";
+// No parentheses: cmd.exe treats them as block delimiters, and an unescaped one inside a batch
+// message ends the enclosing block while the file is PARSED — long before the branch is taken.
+const FLOOR_TEXT = "Node 22.17 or newer for node:sqlite";
 
 function posixShim({ name, nodeBin, entry, override }) {
   return `#!/bin/sh
@@ -34,8 +36,13 @@ exec "$NODE" "${entry}" "$@"
 }
 
 // CRLF throughout: cmd.exe misparses a batch file with bare LF line endings on some Windows builds.
-// `if defined` guards the override expansion — an undefined %VAR% stays literal inside a batch file,
-// so assigning it unconditionally would set NODE to the text "%VAR%".
+//
+// Branching is done with a label rather than a parenthesised `if (…)` block. cmd parses a block in
+// full when it reaches the `if`, so a single unescaped parenthesis anywhere inside it — in a
+// message, in a path — breaks the file even on the branch that is never taken. A label has no such
+// trap. `if defined` guards the override expansion: an undefined %VAR% stays literal inside a batch
+// file, so assigning it unconditionally would set NODE to the text "%VAR%". The override is expected
+// to name a real executable; a batch file there would transfer control instead of returning.
 function windowsShim({ name, nodeBin, entry, override }) {
   return [
     "@echo off",
@@ -44,12 +51,12 @@ function windowsShim({ name, nodeBin, entry, override }) {
     `set "NODE=${nodeBin}"`,
     `if defined ${override} set "NODE=%${override}%"`,
     `"%NODE%" -e "${FLOOR_CHECK}" 2>nul`,
-    "if errorlevel 1 (",
-    `  echo ${name}: needs ${FLOOR_TEXT}; %NODE% is unusable 1>&2`,
-    "  exit /b 1",
-    ")",
+    "if errorlevel 1 goto floor",
     `"%NODE%" "${entry}" %*`,
     "exit /b %ERRORLEVEL%",
+    ":floor",
+    `echo ${name}: needs ${FLOOR_TEXT}; %NODE% is unusable 1>&2`,
+    "exit /b 1",
     "",
   ].join("\r\n");
 }

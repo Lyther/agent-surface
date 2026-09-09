@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // The first-party MCP launcher shims, in both platform idioms. These are generated files that no
 // other test reads, and a broken one only shows up when a host tries to start the server — so the
-// shape is asserted here, and the POSIX shim is additionally EXECUTED where a shell exists.
+// shape is asserted here, and the generated shim is additionally EXECUTED on this platform.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { launchSpec } from "../../scripts/agent-surface/mcp-env-launch.mjs";
 import { shimContent, shimFileName, writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
 
 const spec = { name: "synapse-bridge", nodeBin: "/opt/node/bin/node", entry: "/repo/mcps/synapse/dist/src/bridge.js", override: "SYNAPSE_NODE" };
@@ -39,6 +40,10 @@ assert.match(windows, /if defined SYNAPSE_NODE set "NODE=%SYNAPSE_NODE%"/, "the 
 assert.match(windows, /"%NODE%" "C:\\repo\\mcps\\synapse\\dist\\src\\bridge\.js" %\*/, "every token that can contain a space is quoted, and arguments are forwarded");
 assert.match(windows, /exit \/b %ERRORLEVEL%/, "the server's exit status is propagated");
 assert.doesNotMatch(windows, /needs .*>=/, "the message avoids characters cmd would treat as redirection");
+// cmd parses a parenthesised block IN FULL when it reaches the `if`, so one unescaped parenthesis
+// anywhere inside breaks the file even on the branch never taken. Outside quotes there must be none.
+const unquoted = windows.replaceAll(/"[^"]*"/g, '""');
+assert.doesNotMatch(unquoted, /[()]/, `no unquoted parenthesis reaches cmd's parser: ${unquoted}`);
 
 // ---- writing ---------------------------------------------------------------------
 const dir = mkdtempSync(path.join(os.tmpdir(), "as-shims-"));
@@ -48,18 +53,19 @@ try {
   assert.equal(written.length, 1);
   assert.equal(path.basename(written[0]), shimFileName("probe-tool"));
 
+  // EXECUTE the generated shim on this platform. A batch file that cmd cannot parse, or a shell
+  // script with a broken guard, otherwise only shows up when a host tries to start the server.
+  const entry = path.join(dir, "entry.mjs");
+  writeFileSync(entry, "process.stdout.write(`entry:${process.argv.slice(2).join(',')}`);\n");
+  const invocation = launchSpec(written[0], ["one", "two words"]);
+  const ran = spawnSync(invocation.file, invocation.args, { encoding: "utf8", ...invocation.options });
+  assert.equal(ran.status, 0, `the generated shim runs: ${ran.stderr || ran.stdout}`);
+  assert.equal(ran.stdout.trim(), "entry:one,two words", "arguments survive the shim, including one containing a space");
+
   if (process.platform === "win32") {
-    console.log("mcp-shims: POSIX execution case skipped on win32 (no mode bits; the .cmd shim is exercised by the first-party acceptance)");
+    console.log("mcp-shims: the floor-refusal case runs on POSIX — a Windows stand-in runtime would have to be a batch file, which transfers control instead of returning");
   } else {
     assert.equal(statSync(written[0]).mode & 0o111, 0o111, "POSIX shims are executable");
-    // Execute it: the shim must reach the entry with its arguments, through the pinned Node.
-    const entry = path.join(dir, "entry.mjs");
-    rmSync(entry, { force: true });
-    writeFileSync(entry, "process.stdout.write(`entry:${process.argv.slice(2).join(',')}`);\n");
-    const ran = spawnSync(written[0], ["one", "two words"], { encoding: "utf8" });
-    assert.equal(ran.status, 0, `the generated shim runs: ${ran.stderr}`);
-    assert.equal(ran.stdout, "entry:one,two words", "arguments survive the shim, including one containing a space");
-
     // The floor guard must refuse a runtime below the floor rather than crash inside node:sqlite.
     const fake = path.join(dir, "fake-node");
     writeFileSync(fake, "#!/bin/sh\nif [ \"$1\" = \"-e\" ]; then exit 1; fi\nexit 0\n", { mode: 0o755 });
