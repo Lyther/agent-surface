@@ -32,6 +32,7 @@ const suites = [
   "install.test.mjs",
   "install-live.test.mjs",
   "workflow.test.mjs",
+  "live-launch.test.mjs", // opt-in (AGENT_SURFACE_LIVE_LAUNCH=1); skips by default so the suite stays offline
 ];
 
 wipeDist();

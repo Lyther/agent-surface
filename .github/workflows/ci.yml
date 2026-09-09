@@ -26,6 +26,30 @@ jobs:
       - run: npm run build -- --target all
       - run: npm pack --dry-run --json
 
+  # Native Windows acceptance. The Windows launch path cannot be proven from POSIX: batch-shim
+  # spawning, PATHEXT resolution and the node.exe wrapper are all decided by the OS, so this job
+  # runs the real installer and then launches the EXACT command it generated under a minimal PATH.
+  windows:
+    runs-on: windows-2025
+    steps:
+      - name: allow long paths (submodule checkout)
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22" # the MCP package floor; the root CLI floor is lower
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      # Acceptance first, so it is never masked by an unrelated suite failure.
+      - name: native launch acceptance (real install -> generated command -> MCP session)
+        env:
+          AGENT_SURFACE_LIVE_LAUNCH: "1"
+        run: node tests/suites/live-launch.test.mjs
+      - run: npm test
+
   mcp:
     runs-on: ubuntu-24.04
     steps:
