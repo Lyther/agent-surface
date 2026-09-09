@@ -162,8 +162,14 @@ if (enabled) {
     // desktop, and `--isolated` so each run gets its own profile instead of contending for a shared
     // one. They are appended HERE, for this check only — the installed configuration asserted above
     // carries neither, and the browser sandbox is not touched.
+    //
+    // This phase also uses an ORDINARY environment rather than the austere one above. A browser
+    // needs far more than PATH to start (on Windows, APPDATA/LOCALAPPDATA among others), and PATH
+    // independence is already proven by the exact-command phase; what is under test here is that the
+    // provisioned browser actually renders a page.
     const qualifyArgs = [...args, "--headless", "--isolated"];
-    const page = await mcpSession(entry.command, qualifyArgs, { cwd: os.tmpdir(), env: minimalEnv(home) }, async ({ call }) => {
+    const qualifyEnv = { ...process.env, HOME: home, USERPROFILE: home };
+    const page = await mcpSession(entry.command, qualifyArgs, { cwd: os.tmpdir(), env: qualifyEnv }, async ({ call }) => {
       const pages = await callTool(call, "new_page", { url: pageUrl });
       const pageId = selectedPageId(pages);
       assert.ok(pageId !== null, `could not identify the opened page: ${pages}`);
