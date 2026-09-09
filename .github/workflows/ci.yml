@@ -76,14 +76,14 @@ jobs:
         run: node tests/suites/live-launch.test.mjs
       # Suites that must hold on every platform: launch-command construction, credential handling
       # (where Windows uses ACLs, not mode bits), and prerequisite detection under PATHEXT.
-      - name: portable suites
-        run: |
-          node tests/suites/credentials.test.mjs
-          node tests/suites/mcp-env-launch.test.mjs
-          node tests/suites/mcp-credential-launch.test.mjs
-          node tests/suites/provision.test.mjs
-          node tests/suites/provision-exec.test.mjs
-          node tests/suites/provision-install.test.mjs
+      # ONE STEP PER SUITE — the shell reports only the LAST command's exit status, so chaining them
+      # in a single step would let an earlier failure pass as green.
+      - run: node tests/suites/credentials.test.mjs
+      - run: node tests/suites/mcp-env-launch.test.mjs
+      - run: node tests/suites/mcp-credential-launch.test.mjs
+      - run: node tests/suites/provision.test.mjs
+      - run: node tests/suites/provision-exec.test.mjs
+      - run: node tests/suites/provision-install.test.mjs
 
   mcp:
     runs-on: ubuntu-24.04
