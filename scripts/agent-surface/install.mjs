@@ -124,10 +124,12 @@ export async function install(args) {
   // Headless installs never prompt: a missing REQUIRED credential is an explicit failure that
   // names the variables and the expected file. Interactive installs prompt instead (below).
   const credentialBlocker = credentials.interactive ? null : formatMissingCredentialError(credentials.status, credentials.envFilePath);
-  // A required prerequisite with no recipe for this platform can never be provisioned here — a hard
-  // blocker in every mode (unlike a missing-but-installable prerequisite, which the apply phase
-  // establishes). Optional gaps never block.
-  const provisioningBlocker = provisioning.blockers.length > 0
+  // A required prerequisite with no recipe for this platform can never be provisioned here (e.g.
+  // Synapse/Grimoire on native Windows, whose installers need a POSIX shell). That drops the
+  // affected SERVICE from wiring and makes the run report non-zero — it does not stop the install,
+  // which would let one unavailable MCP server block a user's skills and rules. Optional gaps never
+  // affect anything.
+  const unprovisionable = provisioning.blockers.length > 0
     ? `missing required prerequisites with no ${PLATFORM} recipe: ${provisioning.blockers.map((item) => `${item.service}/${item.id}`).join(", ")}`
     : null;
   for (const plan of plans) {
@@ -137,8 +139,11 @@ export async function install(args) {
   printProvisioningPlan(provisioning);
   if (runBlocker) console.log(`install blocked: ${runBlocker}`);
   if (credentialBlocker) console.log(`install blocked: ${credentialBlocker}`);
-  if (provisioningBlocker) console.log(`install blocked: ${provisioningBlocker}`);
-  if (blocked.length > 0 || runBlocker || credentialBlocker || provisioningBlocker) {
+  if (unprovisionable) {
+    console.log(`mcp prerequisites unmet: ${unprovisionable}`);
+    process.exitCode = 1; // reported here; the apply phase drops those services and continues
+  }
+  if (blocked.length > 0 || runBlocker || credentialBlocker) {
     process.exitCode = 1;
     return;
   }
@@ -154,10 +159,11 @@ export async function install(args) {
     // missing binary. A service whose required prerequisite cannot be established is excluded from
     // wiring (its existing config is preserved); the run then reports non-zero.
     const established = await establishPrerequisites({ provisioning, planContext });
-    if (!established.proceed) {
-      console.log(`install blocked: ${established.error}`);
+    // A service whose prerequisites could not be established is dropped from wiring, not fatal to
+    // the run: the rest of the install still applies and the run reports non-zero.
+    if (established.error) {
+      console.log(`mcp prerequisites unmet: ${established.error}`);
       process.exitCode = 1;
-      return;
     }
     const applyPlans = established.plans;
     // Materialize the shared env wrapper BEFORE writing any config that launches through it, so a
@@ -422,10 +428,12 @@ function resolveLaunchWiring(status, serviceEntries) {
 }
 
 // Establish missing prerequisites before any config is written, then rebuild the plans so the wired
-// config carries the resolved absolute launch paths. Returns { proceed, plans, failed }.
-// `proceed:false` means nothing was applied (existing config preserved): a no-recipe blocker,
-// headless without -y, or an interactive decline of required prerequisites. When recipes run and some
-// service is still unsatisfied, its wiring is dropped (that service is excluded) and `failed` names it.
+// config carries the resolved absolute launch paths. Returns { plans, failed, error }.
+//
+// An unestablished prerequisite drops THAT service's wiring (its existing config is preserved) and
+// reports a non-zero run — it never fails the whole install. One MCP server whose binary is absent
+// must not stop a user's skills and rules from installing, and on a platform with no recipe at all
+// (Synapse/Grimoire on native Windows) the opposite policy would make the tool refuse to run.
 async function establishPrerequisites({ provisioning, planContext }) {
   const decision = provisioningDecision({
     actions: provisioning.actions,
@@ -434,11 +442,19 @@ async function establishPrerequisites({ provisioning, planContext }) {
     authorized: provisioning.authorized,
     dryRun: false,
   });
+  // The services that cannot be wired right now, and why — computed from detection rather than the
+  // decision so it covers both "no recipe here" and "not authorized to run one".
+  const unestablished = () => new Set(
+    provisioning.status
+      .filter((service) => service.prerequisites.some((prereq) => !prereq.satisfied && !prereq.optional))
+      .map((service) => service.id),
+  );
   if (decision.kind === "block") {
-    const reason = decision.reason === "needs-authorization"
-      ? `prerequisites missing; re-run with -y to install them, or install manually: ${formatProvisioningPlan(provisioning.status).join("; ").trim()}`
-      : `missing required prerequisites with no ${PLATFORM} recipe`;
-    return { proceed: false, error: reason };
+    const skipped = await skipUnestablished(planContext, unestablished());
+    // A no-recipe blocker was already named in the plan phase (which also set the exit code); only
+    // the "not authorized to install" case adds information here.
+    if (decision.reason !== "needs-authorization") return skipped;
+    return { ...skipped, error: `prerequisites missing; re-run with -y to install them, or install manually: ${formatProvisioningPlan(provisioning.status).join("; ").trim()}` };
   }
 
   // finalStatus is the detection the wiring is proven against: the post-recipe re-detection when
@@ -454,7 +470,10 @@ async function establishPrerequisites({ provisioning, planContext }) {
   if (decision.kind === "confirm") {
     const authorized = await confirmProvisioning(provisioning.actions);
     if (!authorized && decision.mustAuthorize) {
-      return { proceed: false, error: "prerequisite installation declined; required prerequisites remain missing" };
+      return {
+        ...(await skipUnestablished(planContext, unestablished())),
+        error: "prerequisite installation declined; required prerequisites remain missing",
+      };
     }
     if (authorized) runRecipes(); // declined-but-only-optional falls through and wires as-is
   } else if (decision.kind === "install") {
@@ -467,7 +486,17 @@ async function establishPrerequisites({ provisioning, planContext }) {
   }
   const launchWiring = resolveLaunchWiring(finalStatus, provisioning.serviceEntries);
   const rebuilt = await buildInstallPlans({ ...planContext, excludeServices: failed ?? undefined, launchWiring });
-  return { proceed: true, plans: rebuilt, failed };
+  return { plans: rebuilt, failed };
+}
+
+// Rebuild the plans without the services whose prerequisites could not be established, so the rest
+// of the install still applies and their existing config is left exactly as it was. No launch
+// wiring is resolved: nothing here was provisioned.
+async function skipUnestablished(planContext, skipped) {
+  if (skipped.size > 0) {
+    console.log(`provisioning: skipping config for ${[...skipped].sort().join(", ")} (existing config preserved)`);
+  }
+  return { plans: await buildInstallPlans({ ...planContext, excludeServices: skipped }), failed: skipped };
 }
 
 async function applyInteractiveCredentials(credentials, { scope }) {
