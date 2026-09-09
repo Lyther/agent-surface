@@ -33,7 +33,9 @@ function install(home, dest, env, extra) {
   mkdirSync(dest, { recursive: true });
   return spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", "--service", "openosint", ...extra], {
     encoding: "utf8",
-    env: { ...env, HOME: home },
+    // os.homedir() reads USERPROFILE on Windows and HOME elsewhere; set both so the disposable
+    // home applies on every platform.
+    env: { ...env, HOME: home, USERPROFILE: home },
   });
 }
 
@@ -47,16 +49,21 @@ try {
   const browserPrereq = registry["chrome-devtools"].provisioning.prerequisites.find((p) => p.id === "google-chrome");
   assert.equal(browserPrereq.launch_arg, "--executablePath", "the browser prerequisite wires its resolved path into the launch command");
   assert.ok(browserPrereq.detect.paths.includes("/usr/bin/chromium"), "chromium is a detected browser location, so an Arch/openSUSE install resolves after provisioning");
-  const pickLinuxRecipe = (manager) => {
-    const bin = path.join(dir, `${manager}-bin`);
-    mkdirSync(bin, { recursive: true });
-    writeFileSync(path.join(bin, manager), "#!/bin/sh\n", { mode: 0o755 });
-    return selectRecipe(browserPrereq.recipes.linux, { platform: "linux", env: { PATH: bin } });
-  };
-  assert.deepEqual(pickLinuxRecipe("pacman").run, ["sudo", "pacman", "-S", "--noconfirm", "chromium"], "Arch installs chromium via pacman");
-  assert.deepEqual(pickLinuxRecipe("zypper").run, ["sudo", "zypper", "--non-interactive", "install", "chromium"], "openSUSE installs chromium via zypper");
-  assert.deepEqual(pickLinuxRecipe("apt-get").run, ["sudo", "apt-get", "install", "-y", "google-chrome-stable"], "Debian/Ubuntu still installs Google Chrome from the Google apt repo");
-  assert.equal(selectRecipe(browserPrereq.recipes.linux, { platform: "linux", env: { PATH: path.join(dir, "empty-bin") } }), null, "a Linux host with no supported package manager reports no runnable browser recipe");
+  // Selecting a Linux recipe means resolving its package manager under the POSIX executable-bit
+  // rule, and a Windows filesystem cannot express that bit — so this block runs where the rule it
+  // depends on exists. The registry contracts below are pure data and are checked everywhere.
+  if (process.platform !== "win32") {
+    const pickLinuxRecipe = (manager) => {
+      const bin = path.join(dir, `${manager}-bin`);
+      mkdirSync(bin, { recursive: true });
+      writeFileSync(path.join(bin, manager), "#!/bin/sh\n", { mode: 0o755 });
+      return selectRecipe(browserPrereq.recipes.linux, { platform: "linux", env: { PATH: bin } });
+    };
+    assert.deepEqual(pickLinuxRecipe("pacman").run, ["sudo", "pacman", "-S", "--noconfirm", "chromium"], "Arch installs chromium via pacman");
+    assert.deepEqual(pickLinuxRecipe("zypper").run, ["sudo", "zypper", "--non-interactive", "install", "chromium"], "openSUSE installs chromium via zypper");
+    assert.deepEqual(pickLinuxRecipe("apt-get").run, ["sudo", "apt-get", "install", "-y", "google-chrome-stable"], "Debian/Ubuntu still installs Google Chrome from the Google apt repo");
+    assert.equal(selectRecipe(browserPrereq.recipes.linux, { platform: "linux", env: { PATH: path.join(dir, "empty-bin") } }), null, "a Linux host with no supported package manager reports no runnable browser recipe");
+  }
 
   // ---- Windows setup contracts, asserted against the REAL registry --------------------
   const openosintPrereqs = registry.openosint.provisioning.prerequisites;

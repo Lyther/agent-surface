@@ -24,7 +24,9 @@ function install(home, dest, extra) {
   mkdirSync(dest, { recursive: true });
   return spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", ...extra, "-y"], {
     encoding: "utf8",
-    env: { ...process.env, HOME: home },
+    // os.homedir() reads USERPROFILE on Windows and HOME elsewhere; set both so the disposable
+    // home applies on every platform.
+    env: { ...process.env, HOME: home, USERPROFILE: home },
   });
 }
 

@@ -19,8 +19,14 @@ jobs:
           cache: npm
       - run: npm ci
       # The suite exercises installing MCP config, which now refuses to wire a server whose binary is
-      # absent — so the environment must actually contain the first-party MCPs, as a user's would.
+      # absent — so the environment must actually contain the MCPs it wires, as a user's would.
       - run: npm run install:mcps
+      # The opt-in cybersecurity MCPs the suite wires include openosint, whose prerequisites are uv
+      # and its provider extras. Establish them through agent-surface's own provisioning (-y), which
+      # also exercises the real recipe path — uv standalone installer, then `uv tool install` — on a
+      # machine that has neither.
+      - name: establish external MCP prerequisites (real provisioning run)
+        run: node scripts/agent-surface.mjs install --target droid --dest "$RUNNER_TEMP/prep" --category mcps --service openosint -y
       - run: npm run check
       - run: npm run check:commands
       - run: npm run check:generated
