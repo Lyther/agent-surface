@@ -18,6 +18,7 @@ const suites = [
   "roots.test.mjs",
   "credentials.test.mjs",
   "mcp-env-launch.test.mjs",
+  "mcp-shims.test.mjs",
   "mcp-credential-launch.test.mjs",
   "provision.test.mjs",
   "provision-exec.test.mjs",
