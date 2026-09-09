@@ -39,7 +39,43 @@ function install(home, dest, env, extra) {
   });
 }
 
+// Same disposable-home install, for an arbitrary service selection.
+function installServices(home, dest, services, extra = []) {
+  mkdirSync(home, { recursive: true });
+  mkdirSync(dest, { recursive: true });
+  return spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", ...services.flatMap((id) => ["--service", id]), ...extra], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home, USERPROFILE: home },
+  });
+}
+
 try {
+  // ---- a partial install must not rewrite a WORKING sibling's configuration -----------
+  // Requesting a service whose prerequisite cannot be established drops that service — but every
+  // surviving service must stay on the normal resolution path. Rebuilding them without launch
+  // wiring would silently downgrade an already-working server to a bare command with no wrapper and
+  // no browser path, which then fails to launch under a host's minimal PATH.
+  {
+    const home = path.join(dir, "partial-home");
+    const dest = path.join(dir, "partial-proj");
+    const first = installServices(home, dest, ["chrome-devtools"], ["-y"]);
+    const configPath = path.join(dest, ".factory", "mcp.json");
+    if (first.status !== 0 || !existsSync(configPath)) {
+      console.log("provision-install: chrome-devtools not provisionable here — skipping the partial-install regression case");
+    } else {
+      const before = readFileSync(configPath, "utf8");
+      assert.match(before, /--executablePath/, "the baseline install wired the resolved browser");
+      // synapse-bridge is absent from this disposable HOME, and nothing authorizes installing it.
+      const mixed = installServices(home, dest, ["chrome-devtools", "synapse"]);
+      assert.notEqual(mixed.status, 0, "an incomplete request reports non-zero");
+      assert.match(mixed.stdout, /skipping config for .*synapse/, "the service that could not be established is dropped");
+      assert.equal(readFileSync(configPath, "utf8"), before, "the working sibling's configuration is byte-identical — not rewritten with an unresolved command");
+      const still = JSON.parse(before).mcpServers["chrome-devtools"];
+      assert.ok(existsSync(still.command), "its launch command still exists on disk");
+      assert.ok(!Object.hasOwn(JSON.parse(before).mcpServers, "synapse"), "the dropped service was never wired");
+    }
+  }
+
   // ---- Arch/openSUSE browser provisioning: Chromium from the official repo ----------
   // Chrome has no official Arch/openSUSE package, so the browser prerequisite must select that
   // distro's chromium recipe instead of having none (which previously made it a hard blocker).

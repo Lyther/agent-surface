@@ -46,22 +46,27 @@ export function dedupeActions(actions) {
 // Decide what an install should do about missing prerequisites, without side effects, so the policy
 // is unit-testable in isolation. `actions` are missing prerequisites that HAVE a recipe; `blockers`
 // are missing REQUIRED prerequisites with NO recipe for this platform (unsatisfiable here).
-//   block(no-recipe)        — cannot be provisioned on this platform; fail regardless of mode.
-//   proceed                 — nothing required is missing; wire as usual (optional gaps only reported).
-//   install                 — authorized (-y) to run the recipes now.
-//   confirm                 — a TTY is attached; ask once before running the recipes.
-//   block(needs-authorization) — headless with required gaps and no -y; never prompt, fail with guidance.
-export function provisioningDecision({ actions, blockers, interactive, authorized, dryRun }) {
-  if (blockers.length > 0) return { kind: "block", reason: "no-recipe", blockers };
-  const requiredActions = actions.filter((action) => !action.optional);
-  if (actions.length === 0) return { kind: "proceed" };
+//
+// A blocker only removes ITS OWN service: that service cannot be provisioned here, so the caller
+// drops it and its recipes are not run — but it must not suppress a sibling's runnable recipe. An
+// install of Chrome DevTools plus Synapse on native Windows still provisions Chrome DevTools.
+//   proceed                 — no runnable recipe is needed; wire what is satisfied.
+//   install                 — authorized (-y) to run the runnable recipes now.
+//   confirm                 — a TTY is attached; ask once before running them.
+//   block(needs-authorization) — headless with required gaps and no -y; never prompt. The caller
+//                                reports this and drops the services it affects, keeping the rest.
+export function provisioningDecision({ actions, blockers = [], interactive, authorized, dryRun }) {
+  const unprovisionable = new Set(blockers.map((item) => item.service));
+  const runnable = actions.filter((action) => !unprovisionable.has(action.service));
+  const requiredActions = runnable.filter((action) => !action.optional);
+  if (runnable.length === 0) return { kind: "proceed", unprovisionable };
   // A dry-run never runs recipes; it only shows the plan and returns before the apply phase.
-  if (dryRun) return { kind: "proceed" };
-  if (authorized) return { kind: "install", actions };
-  if (interactive) return { kind: "confirm", actions, mustAuthorize: requiredActions.length > 0 };
-  // Headless without -y: only REQUIRED gaps block the run; optional-only gaps are just skipped.
-  if (requiredActions.length > 0) return { kind: "block", reason: "needs-authorization", actions: requiredActions };
-  return { kind: "proceed" };
+  if (dryRun) return { kind: "proceed", unprovisionable };
+  if (authorized) return { kind: "install", actions: runnable, unprovisionable };
+  if (interactive) return { kind: "confirm", actions: runnable, mustAuthorize: requiredActions.length > 0, unprovisionable };
+  // Headless without -y: only REQUIRED gaps stop the recipes; optional-only gaps are just skipped.
+  if (requiredActions.length > 0) return { kind: "block", reason: "needs-authorization", actions: requiredActions, unprovisionable };
+  return { kind: "proceed", unprovisionable };
 }
 
 // Run the missing prerequisites' recipes (deduped), then RE-DETECT so readiness reflects the real
@@ -73,10 +78,14 @@ export function runProvisioning(serviceEntries, options = {}) {
   const {
     platform = PLATFORM, env = process.env, homedir = os.homedir(),
     spawnFn = spawnSync, repoRoot = process.cwd(), onLog = () => {},
+    skipServices = new Set(),
   } = options;
   const detectOptions = { platform, env, homedir };
   const before = provisioningStatus(serviceEntries, detectOptions);
-  const actions = dedupeActions(provisioningActions(before));
+  // Do not install anything for a service that cannot be completed here anyway (one of its
+  // prerequisites has no recipe on this platform) — that would be a real side effect, e.g. a
+  // machine-wide Node install, for a server the run is about to drop.
+  const actions = dedupeActions(provisioningActions(before).filter((action) => !skipServices.has(action.service)));
   const ran = [];
   for (const action of actions) {
     const cwd = action.cwd === "repo" ? repoRoot : undefined;

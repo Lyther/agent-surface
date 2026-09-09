@@ -435,6 +435,9 @@ function resolveLaunchWiring(status, serviceEntries) {
 // must not stop a user's skills and rules from installing, and on a platform with no recipe at all
 // (Synapse/Grimoire on native Windows) the opposite policy would make the tool refuse to run.
 async function establishPrerequisites({ provisioning, planContext }) {
+  // A service that cannot be provisioned here at all is dropped, and its recipes are not run — but
+  // it never decides anything for its siblings: under -y, a runnable recipe still runs.
+  const unprovisionable = new Set(provisioning.blockers.map((item) => item.service));
   const decision = provisioningDecision({
     actions: provisioning.actions,
     blockers: provisioning.blockers,
@@ -442,61 +445,44 @@ async function establishPrerequisites({ provisioning, planContext }) {
     authorized: provisioning.authorized,
     dryRun: false,
   });
-  // The services that cannot be wired right now, and why — computed from detection rather than the
-  // decision so it covers both "no recipe here" and "not authorized to run one".
-  const unestablished = () => new Set(
-    provisioning.status
-      .filter((service) => service.prerequisites.some((prereq) => !prereq.satisfied && !prereq.optional))
-      .map((service) => service.id),
-  );
-  if (decision.kind === "block") {
-    const skipped = await skipUnestablished(planContext, unestablished());
-    // A no-recipe blocker was already named in the plan phase (which also set the exit code); only
-    // the "not authorized to install" case adds information here.
-    if (decision.reason !== "needs-authorization") return skipped;
-    return { ...skipped, error: `prerequisites missing; re-run with -y to install them, or install manually: ${formatProvisioningPlan(provisioning.status).join("; ").trim()}` };
-  }
 
   // finalStatus is the detection the wiring is proven against: the post-recipe re-detection when
   // recipes run, else the initial (already-satisfied) detection. Its resolved absolute paths are what
   // the launch config carries, so a freshly installed binary is launched by path, not by bare name.
   let finalStatus = provisioning.status;
-  let failed = null;
+  let error = null;
   const runRecipes = () => {
-    const result = runProvisioning(provisioning.serviceEntries, { repoRoot: root, onLog: (line) => console.log(line) });
+    const result = runProvisioning(provisioning.serviceEntries, {
+      repoRoot: root, skipServices: unprovisionable, onLog: (line) => console.log(line),
+    });
     finalStatus = result.after;
-    if (result.failed.size > 0) failed = result.failed;
   };
   if (decision.kind === "confirm") {
-    const authorized = await confirmProvisioning(provisioning.actions);
-    if (!authorized && decision.mustAuthorize) {
-      return {
-        ...(await skipUnestablished(planContext, unestablished())),
-        error: "prerequisite installation declined; required prerequisites remain missing",
-      };
-    }
-    if (authorized) runRecipes(); // declined-but-only-optional falls through and wires as-is
+    const authorized = await confirmProvisioning(decision.actions);
+    if (authorized) runRecipes(); // declining when only OPTIONAL gaps remain simply wires as-is
+    else if (decision.mustAuthorize) error = "prerequisite installation refused; required prerequisites remain missing";
   } else if (decision.kind === "install") {
     runRecipes();
+  } else if (decision.kind === "block") {
+    error = `prerequisites missing; re-run with -y to install them, or install manually: ${formatProvisioningPlan(provisioning.status).join("; ").trim()}`;
   }
   // decision.kind === "proceed": nothing to run; finalStatus stays the initial detection.
 
-  if (failed) {
-    console.log(`provisioning: could not establish prerequisites for ${[...failed].sort().join(", ")}; skipping their config (existing config preserved)`);
+  // ONE wiring path for everything that survives, whatever happened above: every service still
+  // missing a required prerequisite is dropped, and every other service is wired from the SAME
+  // detection — so a partial install never rewrites a working sibling's config with an unresolved
+  // command (which would leave it launching a bare name with no wrapper and no browser path).
+  const failed = new Set(
+    finalStatus
+      .filter((service) => service.prerequisites.some((prereq) => !prereq.satisfied && !prereq.optional))
+      .map((service) => service.id),
+  );
+  if (failed.size > 0) {
+    console.log(`provisioning: skipping config for ${[...failed].sort().join(", ")} (existing config preserved)`);
   }
   const launchWiring = resolveLaunchWiring(finalStatus, provisioning.serviceEntries);
-  const rebuilt = await buildInstallPlans({ ...planContext, excludeServices: failed ?? undefined, launchWiring });
-  return { plans: rebuilt, failed };
-}
-
-// Rebuild the plans without the services whose prerequisites could not be established, so the rest
-// of the install still applies and their existing config is left exactly as it was. No launch
-// wiring is resolved: nothing here was provisioned.
-async function skipUnestablished(planContext, skipped) {
-  if (skipped.size > 0) {
-    console.log(`provisioning: skipping config for ${[...skipped].sort().join(", ")} (existing config preserved)`);
-  }
-  return { plans: await buildInstallPlans({ ...planContext, excludeServices: skipped }), failed: skipped };
+  const plans = await buildInstallPlans({ ...planContext, excludeServices: failed.size > 0 ? failed : undefined, launchWiring });
+  return { plans, failed, error };
 }
 
 async function applyInteractiveCredentials(credentials, { scope }) {
