@@ -451,6 +451,7 @@
         "agent-surface provisions openosint via uv (uv tool install openosint==2.27.0) with its provider extras (shodan, censys, openai, ollama); the extras are detected inside openosint's own uv-tool interpreter so an installed launcher never masks a missing provider library.",
         "That interpreter is located by asking the detected uv (`uv tool dir`) rather than assuming a layout: uv's tool directory differs per platform (~/.local/share/uv/tools vs %APPDATA%/uv/data/tools on Windows) and is redirectable, so a hard-coded path would report a successful install as missing extras and drop the service.",
         "Windows bootstraps uv with Astral's standalone PowerShell installer rather than WinGet: it targets %USERPROFILE%/.local/bin, which is a declared detect path, so uv installed at the start of a run is found and used later in that same run. A WinGet portable package lands outside the running process's PATH and would break that bootstrap.",
+        "PowerShell 7 (pwsh) is preferred over Windows PowerShell for that install: an install started from a pwsh terminal exports a PSModulePath pointing at PowerShell 7's modules, and Windows PowerShell 5.1 launched under it fails to load its own (Get-ExecutionPolicy is reported as unloadable). -ExecutionPolicy is not passed either, since `iex` of a downloaded string is not governed by it and requesting it pulls in that same module.",
         "Some lookups require external binaries or operator-provided API keys.",
         "All provider keys are OPTIONAL: OpenOSINT runs keyless and each key only enables its provider. Names are taken from the upstream project's documented .env keys; confirm against the pinned release when wiring live credential delivery."
       ],
@@ -466,7 +467,10 @@
                 { "run": ["sh", "-c", "curl -LsSf https://astral.sh/uv/install.sh | sh"], "source": "Astral uv standalone installer" }
               ],
               "linux": [{ "run": ["sh", "-c", "curl -LsSf https://astral.sh/uv/install.sh | sh"], "source": "Astral uv standalone installer" }],
-              "win32": [{ "run": ["powershell", "-NoProfile", "-ExecutionPolicy", "ByPass", "-Command", "irm https://astral.sh/uv/install.ps1 | iex"], "source": "Astral uv standalone installer (PowerShell)" }]
+              "win32": [
+                { "requires": "pwsh", "run": ["pwsh", "-NoProfile", "-Command", "irm https://astral.sh/uv/install.ps1 | iex"], "source": "Astral uv standalone installer (PowerShell 7)" },
+                { "run": ["powershell", "-NoProfile", "-Command", "irm https://astral.sh/uv/install.ps1 | iex"], "source": "Astral uv standalone installer (Windows PowerShell)" }
+              ]
             }
           },
           {

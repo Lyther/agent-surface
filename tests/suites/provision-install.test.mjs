@@ -112,6 +112,11 @@ try {
   const uvWin = selectRecipe(uvPrereq.recipes.win32, { platform: "win32", env: { PATH: "" } });
   assert.ok(uvWin, "a Windows host with no package manager can still bootstrap uv (no `requires` gate)");
   assert.ok(uvWin.run.join(" ").includes("astral.sh/uv/install.ps1"), "Windows uses the standalone installer, whose install directory is predictable");
+  // PowerShell 7 first: an install started from a pwsh terminal exports a PSModulePath that Windows
+  // PowerShell 5.1 cannot load its own modules from, which breaks the installer outright.
+  assert.equal(uvPrereq.recipes.win32[0].requires, "pwsh", "PowerShell 7 is preferred when available");
+  assert.equal(selectRecipe(uvPrereq.recipes.win32, { platform: "win32", env: { PATH: "" } }).run[0], "powershell", "Windows PowerShell remains the fallback where pwsh is absent");
+  assert.ok(!JSON.stringify(uvPrereq.recipes.win32).includes("ExecutionPolicy"), "-ExecutionPolicy is not requested: it pulls in the very module that fails to load, and `iex` of a string is not governed by it");
   assert.ok(!JSON.stringify(uvPrereq.recipes.win32).includes("winget"), "no WinGet uv recipe: its portable install location is not a declared detect path, so the same-run bootstrap would break");
   assert.ok(uvPrereq.detect.paths.includes("~/.local/bin/uv.exe"), "the standalone installer's Windows target IS a declared detect path, closing the bootstrap");
 

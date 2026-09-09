@@ -38,7 +38,14 @@ if (enabled) {
     // that is the interpreter the uv recipe names.
     const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
     const minimalPath = windows
-      ? [`${systemRoot}\\system32`, systemRoot, `${systemRoot}\\system32\\WindowsPowerShell\\v1.0`].join(path.delimiter)
+      ? [
+        `${systemRoot}\\system32`,
+        systemRoot,
+        `${systemRoot}\\system32\\WindowsPowerShell\\v1.0`,
+        // PowerShell 7, where present: the uv recipe prefers it, because Windows PowerShell 5.1
+        // launched under a pwsh parent's PSModulePath cannot load its own modules.
+        path.join(process.env.ProgramFiles ?? "C:\\Program Files", "PowerShell", "7"),
+      ].join(path.delimiter)
       : "/usr/bin:/bin";
     // os.homedir() reads USERPROFILE on Windows and HOME elsewhere; both are set so uv's installer and
     // agent-surface agree on where the disposable home is.
