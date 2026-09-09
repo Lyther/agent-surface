@@ -15,9 +15,12 @@ jobs:
           submodules: recursive
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "20"
+          node-version: "22" # the suite installs and wires the first-party MCPs, whose floor is 22.17
           cache: npm
       - run: npm ci
+      # The suite exercises installing MCP config, which now refuses to wire a server whose binary is
+      # absent — so the environment must actually contain the first-party MCPs, as a user's would.
+      - run: npm run install:mcps
       - run: npm run check
       - run: npm run check:commands
       - run: npm run check:generated
@@ -26,9 +29,27 @@ jobs:
       - run: npm run build -- --target all
       - run: npm pack --dry-run --json
 
+  # The root CLI declares engines.node >=20.12; keep proving the compiler itself runs on that floor
+  # even though the MCP packages (and therefore the install suite) require 22.17.
+  floor:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20.12"
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build -- --target all
+
   # Native Windows acceptance. The Windows launch path cannot be proven from POSIX: batch-shim
-  # spawning, PATHEXT resolution and the node.exe wrapper are all decided by the OS, so this job
-  # runs the real installer and then launches the EXACT command it generated under a minimal PATH.
+  # spawning, PATHEXT resolution and the node.exe wrapper are all decided by the OS, so this job runs
+  # the real installer and then launches the EXACT command it generated under a minimal PATH.
+  # The full suite is not run here yet: it installs the first-party MCPs, whose installers are POSIX
+  # shell scripts. That port is separate work; until then this job proves the launch path.
   windows:
     runs-on: windows-2025
     steps:
@@ -39,16 +60,24 @@ jobs:
           submodules: recursive
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22" # the MCP package floor; the root CLI floor is lower
+          node-version: "22"
           cache: npm
       - run: npm ci
       - run: npm run check
-      # Acceptance first, so it is never masked by an unrelated suite failure.
       - name: native launch acceptance (real install -> generated command -> MCP session)
         env:
           AGENT_SURFACE_LIVE_LAUNCH: "1"
         run: node tests/suites/live-launch.test.mjs
-      - run: npm test
+      # Suites that must hold on every platform: launch-command construction, credential handling
+      # (where Windows uses ACLs, not mode bits), and prerequisite detection under PATHEXT.
+      - name: portable suites
+        run: |
+          node tests/suites/credentials.test.mjs
+          node tests/suites/mcp-env-launch.test.mjs
+          node tests/suites/mcp-credential-launch.test.mjs
+          node tests/suites/provision.test.mjs
+          node tests/suites/provision-exec.test.mjs
+          node tests/suites/provision-install.test.mjs
 
   mcp:
     runs-on: ubuntu-24.04
