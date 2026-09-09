@@ -80,10 +80,10 @@ if (enabled) {
     // this is precisely what a host launches.
     const session = await mcpSession(entry.command, args, { cwd: os.tmpdir(), env: minimalLaunchEnv(home) }, async ({ call, serverInfo }) => {
       const tools = (await call("tools/list", {})).tools;
-      return { serverInfo, tools: tools.length };
+      return { serverInfo, names: tools.map((tool) => tool.name) };
     });
     assert.equal(session.serverInfo.name, "chrome_devtools", `unexpected server identity: ${JSON.stringify(session.serverInfo)}`);
-    assert.ok(session.tools > 0, "the server advertised its tools");
+    assert.ok(session.names.length > 0, "the server advertised its tools");
 
     // ---- browser qualification: drive the provisioned browser through a real page ----------
     // HARNESS-ONLY FLAGS, recorded explicitly: `--headless` because a CI runner has no interactive
@@ -95,15 +95,25 @@ if (enabled) {
     // needs far more than PATH to start (on Windows, APPDATA/LOCALAPPDATA among others), and PATH
     // independence is already proven by the exact-command phase; what is under test here is that the
     // provisioned browser actually renders a page.
+    // Every step is named as it starts, so a stall is reported as the operation that hung rather than
+    // a bare timeout: listing pages needs the browser merely to be RUNNING, while opening one also
+    // needs navigation. That distinction is the difference between "the browser never came up here"
+    // and "the page never loaded", and neither is worth guessing at.
     const qualifyEnv = { ...process.env, HOME: home, USERPROFILE: home };
-    const renderPage = (command, launchArgs) => mcpSession(command, launchArgs, { cwd: os.tmpdir(), env: qualifyEnv, timeoutMs: 180000 }, async ({ call }) => {
-      const pages = await callTool(call, "new_page", { url: pageUrl });
-      const pageId = selectedPageId(pages);
-      assert.ok(pageId !== null, `could not identify the opened page: ${pages}`);
-      const snapshot = await callTool(call, "take_snapshot", { pageId });
-      assert.ok(snapshot.includes(marker), `marker "${marker}" missing from the snapshot`);
-      return true;
-    }).then(() => ({ rendered: true }), (error) => ({ rendered: false, error: error.message }));
+    const renderPage = (command, launchArgs) => {
+      let stage = "initialize";
+      return mcpSession(command, launchArgs, { cwd: os.tmpdir(), env: qualifyEnv, timeoutMs: 180000 }, async ({ call }) => {
+        if (session.names.includes("list_pages")) { stage = "list_pages (browser must be running)"; await callTool(call, "list_pages", {}); }
+        stage = "new_page (browser must navigate)";
+        const pages = await callTool(call, "new_page", { url: pageUrl });
+        const pageId = selectedPageId(pages);
+        assert.ok(pageId !== null, `could not identify the opened page: ${pages}`);
+        stage = "take_snapshot";
+        const snapshot = await callTool(call, "take_snapshot", { pageId });
+        assert.ok(snapshot.includes(marker), `marker "${marker}" missing from the snapshot`);
+        return true;
+      }).then(() => ({ rendered: true }), (error) => ({ rendered: false, error: `during ${stage}: ${error.message}` }));
+    };
 
     const generatedRender = await renderPage(entry.command, [...args, "--headless", "--isolated"]);
 
@@ -132,7 +142,7 @@ if (enabled) {
     const rendered = generatedRender.rendered
       ? "yes (headless+isolated harness flags)"
       : "NOT VERIFIED — also fails with the upstream invocation on this machine";
-    console.log(`live-launch: initialize=${session.serverInfo.name} ${session.serverInfo.version}, tools=${session.tools}, page rendered=${rendered}, platform=${process.platform}`);
+    console.log(`live-launch: initialize=${session.serverInfo.name} ${session.serverInfo.version}, tools=${session.names.length}, page rendered=${rendered}, platform=${process.platform}`);
   } finally {
     // Windows keeps handles open briefly after a process exits — the browser profile the MCP server
     // created is still locked here. Retry, then REPORT rather than throw: a temp-directory lock is
