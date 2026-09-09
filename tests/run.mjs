@@ -36,6 +36,7 @@ const suites = [
   // Opt-in networked acceptances (AGENT_SURFACE_LIVE_*); they skip by default so the suite stays offline.
   "live-launch.test.mjs",
   "live-provision.test.mjs",
+  "live-first-party.test.mjs",
 ];
 
 wipeDist();
