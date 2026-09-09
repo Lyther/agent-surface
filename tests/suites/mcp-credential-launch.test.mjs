@@ -11,6 +11,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, wri
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { provisioningStatus } from "../../scripts/agent-surface/provision.mjs";
+import { selectedMcpServiceEntries } from "../../scripts/agent-surface/targets.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const cli = path.join(root, "scripts", "agent-surface.mjs");
@@ -26,20 +28,45 @@ function install(home, dest, extra) {
   });
 }
 
-// openosint-extras probes provider libraries inside openosint's OWN interpreter. Stub that
-// interpreter present under the disposable HOME so this credential-delivery test never triggers a
-// real `uv tool install` (provisioning execution is proven in provision-exec/provision-install).
-function seedOpenosintExtras(home) {
-  const bin = path.join(home, ".local", "share", "uv", "tools", "openosint", "bin");
+// Seed the path-based prerequisites inside the disposable HOME so this suite runs NO package
+// manager and needs no network: provisioning EXECUTION is proven in provision-exec and
+// provision-install, while this suite is about credential delivery and launch shape. These stubs
+// stand in only for "a binary exists at this path"; none of them is offered as evidence that the
+// real tool works. Without them the installer would authorize (-y) real recipes on any machine that
+// happens to lack uv — which is exactly what a hermetic suite must not do.
+function seedBin(home, name, body = "#!/bin/sh\nexit 0\n") {
+  const bin = path.join(home, ".local", "bin");
   mkdirSync(bin, { recursive: true });
-  writeFileSync(path.join(bin, "python"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  writeFileSync(path.join(bin, name), body, { mode: 0o755 });
+}
+
+function seedOpenosintPrerequisites(home) {
+  const tools = path.join(home, ".local", "share", "uv", "tools");
+  // `uv tool dir` is how the extras probe locates openosint's own interpreter; answer with the
+  // seeded tools directory so that resolution path is the one exercised.
+  seedBin(home, "uv", `#!/bin/sh\necho "${tools}"\n`);
+  seedBin(home, "openosint-mcp");
+  const venvBin = path.join(tools, "openosint", "bin");
+  mkdirSync(venvBin, { recursive: true });
+  writeFileSync(path.join(venvBin, "python"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+}
+
+// synapse declares a Node >=22.17 floor (node:sqlite) that is a property of the HOST and cannot be
+// seeded — faking a version would make the test lie about what it proved. Ask the real detector
+// whether the installer could proceed for this HOME, so the skip condition is exactly the block
+// condition (the CI job that pins the root CLI's own lower floor skips; a 22.17+ host runs it).
+async function synapseIsProvisionable(homedir) {
+  const entries = (await selectedMcpServiceEntries(true, { mode: "install", scope: "project" })).filter(([id]) => id === "synapse");
+  const status = provisioningStatus(entries, { homedir });
+  const unmet = status.flatMap((service) => service.prerequisites.filter((prereq) => !prereq.satisfied).map((prereq) => prereq.id));
+  return { ok: unmet.length === 0, unmet };
 }
 
 try {
   // ---- credentialed server: wrapper materialized AT the generated command path ----
   const home = path.join(dir, "home");
   const dest = path.join(dir, "proj");
-  seedOpenosintExtras(home);
+  seedOpenosintPrerequisites(home);
   const res = install(home, dest, ["--service", "openosint"]);
   assert.equal(res.status, 0, `install failed: ${res.stderr || res.stdout}`);
 
@@ -89,16 +116,22 @@ try {
 
   // ---- keyless server: direct launch preserved, no wrapper materialized -------
   const keylessHome = path.join(dir, "keyless-home");
-  const keylessDest = path.join(dir, "keyless");
-  const keyless = install(keylessHome, keylessDest, ["--service", "synapse"]);
-  assert.equal(keyless.status, 0, `keyless install failed: ${keyless.stderr || keyless.stdout}`);
-  const keylessConfig = JSON.parse(readFileSync(path.join(keylessDest, ".factory", "mcp.json"), "utf8"));
-  assert.equal(
-    keylessConfig.mcpServers.synapse.command,
-    path.join(keylessHome, ".local", "bin", "synapse-bridge"),
-    "keyless synapse keeps its direct launch command",
-  );
-  assert.ok(!existsSync(path.join(keylessHome, ".local", "bin", "agent-surface-mcp-env")), "a keyless install never materializes the wrapper");
+  seedBin(keylessHome, "synapse-bridge");
+  const provisionable = await synapseIsProvisionable(keylessHome);
+  if (!provisionable.ok) {
+    console.log(`mcp-credential-launch: synapse prerequisite unavailable here (${provisionable.unmet.join(", ")}) — skipping the keyless install case`);
+  } else {
+    const keylessDest = path.join(dir, "keyless");
+    const keyless = install(keylessHome, keylessDest, ["--service", "synapse"]);
+    assert.equal(keyless.status, 0, `keyless install failed: ${keyless.stderr || keyless.stdout}`);
+    const keylessConfig = JSON.parse(readFileSync(path.join(keylessDest, ".factory", "mcp.json"), "utf8"));
+    assert.equal(
+      keylessConfig.mcpServers.synapse.command,
+      path.join(keylessHome, ".local", "bin", "synapse-bridge"),
+      "keyless synapse keeps its direct launch command",
+    );
+    assert.ok(!existsSync(path.join(keylessHome, ".local", "bin", "agent-surface-mcp-env")), "a keyless install never materializes the wrapper");
+  }
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
