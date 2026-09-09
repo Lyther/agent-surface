@@ -107,10 +107,12 @@ export async function install(args) {
   // never surfaces values — only names and the file path reach the plan/logs.
   const credentials = await resolveInstallCredentials({ args, scope, categoryFilter, optionalServices, agentName, envFilePath, installRoot: credentialEnvRoot });
 
-  // Detect (read-only) each selected MCP service's executable prerequisites and runtime floors, so
-  // the plan shows what would be installed and the install can establish anything missing before it
-  // wires config. Shares the credential service selection — the same services that get wired.
-  const provisioning = resolveProvisioning({ serviceEntries: credentials.serviceEntries, args });
+  // Detect (read-only) the executable prerequisites and runtime floors of the MCP services this
+  // install will ACTUALLY WIRE, so the plan shows what would be installed and the install can
+  // establish anything missing before it writes config. Service *selection* is broader than what a
+  // category-filtered run wires (an `--category external` skills install writes no MCP config at
+  // all), and provisioning a server nobody is wiring would block the run over an irrelevant gap.
+  const provisioning = resolveProvisioning({ serviceEntries: wiredServiceEntries(plans, credentials.serviceEntries), args });
 
   const blocked = plans.flatMap((plan) => plan.blocked.map((item) => `${plan.target}: ${item}`));
   // A category-filtered install must do real work across the selection: if no selected target
@@ -331,6 +333,20 @@ function printCredentialPlan(credentials) {
 // Read-only prerequisite detection for the selected MCP services (shares the credential service
 // selection). `blockers` are missing REQUIRED prerequisites with no recipe for this platform; the
 // rest are surfaced as an install plan the apply phase can act on. Never runs anything.
+// The MCP services this install will write into at least one host config — the plans are the
+// authority, since category/scope filtering happens while they are built. Returns the matching
+// [id, service] entries in selection order; empty when the run wires no MCP at all.
+export function wiredServiceEntries(plans, serviceEntries) {
+  const wired = new Set();
+  for (const plan of plans) {
+    for (const merge of plan.configMerges ?? []) {
+      const entries = merge.kind === "kilo" ? merge.mcpEntries : merge.entries;
+      for (const [id] of entries ?? []) wired.add(id);
+    }
+  }
+  return serviceEntries.filter(([id]) => wired.has(id));
+}
+
 function resolveProvisioning({ serviceEntries, args }) {
   const status = provisioningStatus(serviceEntries);
   return {
