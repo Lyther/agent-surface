@@ -17,8 +17,8 @@
     "check:rules": "node scripts/agent-surface.mjs check rules",
     "check:subagents": "node scripts/agent-surface.mjs check subagents",
     "doctor": "node scripts/agent-surface.mjs doctor",
-    "install:synapse": "sh mcps/synapse/install.sh",
-    "install:grimoire": "sh mcps/grimoire/install.sh",
+    "install:synapse": "node mcps/synapse/install.mjs",
+    "install:grimoire": "node mcps/grimoire/install.mjs",
     "install:mcps": "npm run install:synapse && npm run install:grimoire",
     "test": "node tests/run.mjs",
     "snapshot": "node tests/run.mjs"

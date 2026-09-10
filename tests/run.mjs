@@ -18,6 +18,7 @@ const suites = [
   "roots.test.mjs",
   "credentials.test.mjs",
   "mcp-env-launch.test.mjs",
+  "mcp-shims.test.mjs",
   "mcp-credential-launch.test.mjs",
   "provision.test.mjs",
   "provision-exec.test.mjs",
@@ -35,6 +36,7 @@ const suites = [
   // Opt-in networked acceptances (AGENT_SURFACE_LIVE_*); they skip by default so the suite stays offline.
   "live-launch.test.mjs",
   "live-provision.test.mjs",
+  "live-first-party.test.mjs",
 ];
 
 wipeDist();

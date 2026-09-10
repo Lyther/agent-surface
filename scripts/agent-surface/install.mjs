@@ -124,9 +124,8 @@ export async function install(args) {
   // Headless installs never prompt: a missing REQUIRED credential is an explicit failure that
   // names the variables and the expected file. Interactive installs prompt instead (below).
   const credentialBlocker = credentials.interactive ? null : formatMissingCredentialError(credentials.status, credentials.envFilePath);
-  // A required prerequisite with no recipe for this platform can never be provisioned here (e.g.
-  // Synapse/Grimoire on native Windows, whose installers need a POSIX shell). That drops the
-  // affected SERVICE from wiring and makes the run report non-zero — it does not stop the install,
+  // A required prerequisite with no recipe for this platform can never be provisioned here. That
+  // drops the affected SERVICE from wiring and makes the run report non-zero — it does not stop the install,
   // which would let one unavailable MCP server block a user's skills and rules. Optional gaps never
   // affect anything.
   const unprovisionable = provisioning.blockers.length > 0

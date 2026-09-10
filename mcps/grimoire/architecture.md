@@ -23,7 +23,7 @@ mcps/grimoire/
     namespace.ts - resolve ~/.grimoire/{index.sqlite,manifest.json} + pack roots; no repo dependency at runtime.
   test/{contract,model,indexer,store,server,packaging,eval}.test.ts · test/helpers.ts · test/fixtures/{pack/**, queries/*.json}
     (packaging.test.ts = bin-targets-exist + spawned-process real-stdio; eval.test.ts = fixture + real-pack gate)
-  schema.sql · install.sh · package.json · README.md
+  schema.sql · install.mjs · package.json · README.md
 ```
 
 Dependency direction: `server → tools → store → model → contract`; `indexer` is the only writer.

@@ -1,11 +1,13 @@
 // synapse — zero-config bootstrap: discovery file, persistent token, and lock-elected
 // sidecar autostart. A host just launches the bridge; the first bridge elects itself to
-// spawn the single shared sidecar, others wait for the discovery file. Files are mode 600.
+// spawn the single shared sidecar, others wait for the discovery file. Files are mode 600, and
+// on Windows the containing directory carries an owner-only ACL instead (see fsguard).
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmodSync, closeSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ensureOwnerOnlyDir } from "./fsguard.js";
 
 export interface Discovery { url: string; token: string; port: number; pid: number; startedAt: number }
 
@@ -17,6 +19,7 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 
 export function readOrCreateToken(dbDir: string): string {
   mkdirSync(dbDir, { recursive: true });
+  ensureOwnerOnlyDir(dbDir);
   const p = tokenPath(dbDir);
   try {
     const t = readFileSync(p, "utf8").trim();
@@ -53,6 +56,7 @@ async function healthy(url: string, timeoutMs = 700): Promise<boolean> {
 /** Ensure a reachable sidecar exists; spawn it (lock-elected) if needed. Returns its url+token. */
 export async function ensureSidecar(dbDir: string, spawnPort?: number): Promise<Discovery> {
   mkdirSync(dbDir, { recursive: true });
+  ensureOwnerOnlyDir(dbDir);
   const existing = readDiscovery(dbDir);
   if (existing && (await healthy(existing.url))) return existing;
 
@@ -64,7 +68,9 @@ export async function ensureSidecar(dbDir: string, spawnPort?: number): Promise<
   if (won) {
     const env: NodeJS.ProcessEnv = { ...process.env, SYNAPSE_DB_DIR: dbDir };
     if (spawnPort !== undefined) env["SYNAPSE_PORT"] = String(spawnPort);
-    const child = spawn(process.execPath, [sidecarEntry()], { detached: true, stdio: "ignore", env });
+    // detached so it outlives this bridge; windowsHide so a host without a console does not
+    // flash one up when the shared sidecar is elected.
+    const child = spawn(process.execPath, [sidecarEntry()], { detached: true, stdio: "ignore", windowsHide: true, env });
     child.unref();
   }
 

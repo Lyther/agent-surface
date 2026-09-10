@@ -27,6 +27,12 @@ jobs:
       # machine that has neither.
       - name: establish external MCP prerequisites (real provisioning run)
         run: node scripts/agent-surface.mjs install --target droid --dest "$RUNNER_TEMP/prep" --category mcps --service openosint -y
+      # The first-party MCPs now install through a portable Node installer. Prove the whole path on
+      # POSIX as well: registry recipe -> build -> launcher -> real MCP session -> repeat install.
+      - name: first-party MCP acceptance (install -> startup -> repeat -> lifecycle)
+        env:
+          AGENT_SURFACE_LIVE_FIRST_PARTY: "1"
+        run: node tests/suites/live-first-party.test.mjs
       - run: npm run check
       - run: npm run check:commands
       - run: npm run check:generated
@@ -54,8 +60,8 @@ jobs:
   # Native Windows acceptance. The Windows launch path cannot be proven from POSIX: batch-shim
   # spawning, PATHEXT resolution and the node.exe wrapper are all decided by the OS, so this job runs
   # the real installer and then launches the EXACT command it generated under a minimal PATH.
-  # The full suite is not run here yet: it installs the first-party MCPs, whose installers are POSIX
-  # shell scripts. That port is separate work; until then this job proves the launch path.
+  # The full suite is still not run here: several of its cases assume a POSIX filesystem and shell.
+  # This job proves the launch, provisioning and first-party installation paths instead.
   windows:
     runs-on: windows-2025
     steps:
@@ -81,12 +87,20 @@ jobs:
         env:
           AGENT_SURFACE_LIVE_PROVISION: "1"
         run: node tests/suites/live-provision.test.mjs
+      # The first-party MCPs: built and launched natively here, including a rebuild while the
+      # sidecar is running — the case Windows makes distinct, since a live process there can hold
+      # the files an install rewrites.
+      - name: first-party MCP acceptance (install -> startup -> repeat -> lifecycle)
+        env:
+          AGENT_SURFACE_LIVE_FIRST_PARTY: "1"
+        run: node tests/suites/live-first-party.test.mjs
       # Suites that must hold on every platform: launch-command construction, credential handling
       # (where Windows uses ACLs, not mode bits), and prerequisite detection under PATHEXT.
       # ONE STEP PER SUITE — the shell reports only the LAST command's exit status, so chaining them
       # in a single step would let an earlier failure pass as green.
       - run: node tests/suites/credentials.test.mjs
       - run: node tests/suites/mcp-env-launch.test.mjs
+      - run: node tests/suites/mcp-shims.test.mjs
       - run: node tests/suites/mcp-credential-launch.test.mjs
       - run: node tests/suites/provision.test.mjs
       - run: node tests/suites/provision-exec.test.mjs

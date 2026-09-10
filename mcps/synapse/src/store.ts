@@ -10,6 +10,7 @@ import type {
   Store as Scope,
 } from "./contract.js";
 import { LIMITS, SynapseInputError, SynapsePayloadError, utf8Bytes } from "./contract.js";
+import { ensureOwnerOnlyDir } from "./fsguard.js";
 import { SCHEMA_SQL, SCHEMA_VERSION, crossProjectId, decId, extId, rowToCompact, rowToFull, rowToLock, type LockRow, type MemoryRow } from "./model.js";
 import { resolveProjectRef } from "./namespace.js";
 
@@ -17,7 +18,7 @@ const ftsQuery = (q: string): string =>
   q.split(/\s+/).filter(Boolean).map((t) => `"${t.replace(/"/g, "")}"`).join(" ") || '""';
 
 function openDb(path: string, readonly: boolean): DatabaseSync {
-  if (!readonly) mkdirSync(dirname(path), { recursive: true });
+  if (!readonly) { mkdirSync(dirname(path), { recursive: true }); ensureOwnerOnlyDir(dirname(path)); }
   const db = new DatabaseSync(path, { readOnly: readonly });
   db.exec("PRAGMA busy_timeout=5000");
   if (!readonly) {

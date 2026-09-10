@@ -31,7 +31,7 @@ test("indexerArgv fail-closes a required pack whose skills dir is absent", () =>
   // - replaces: a real required submodule that is missing from disk
   // - necessity: cannot delete external/rev-skills from this checkout without breaking the real 121-skill eval
   // - real-option: a disposable clone without the submodule still needs a registry; this isolates the missing-dir branch
-  // - proof-limit: proves argv omission + missingRequired, not install.sh or a live index rebuild
+  // - proof-limit: proves argv omission + missingRequired, not install.mjs or a live index rebuild
   // - real-proof: npm run install:grimoire on a machine with both submodules present
   const dir = mkdtempSync(join(tmpdir(), "grimoire-served-missing-"));
   try {

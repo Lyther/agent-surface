@@ -76,7 +76,7 @@ test("bridge: proxies tools/list + tools/call AND forwards realtime resources/up
 });
 
 test("bridge: reconnects upstream and retries after a sidecar restart", async () => {
-  // install.sh redistribution kills and restarts the sidecar; the restarted sidecar has
+  // install.mjs redistribution kills and restarts the sidecar; the restarted sidecar has
   // an empty session map. Existing bridges must re-initialize their upstream session
   // instead of failing every subsequent call with "no valid session".
   const dir = mkdtempSync(join(tmpdir(), "synapse-restart-"));

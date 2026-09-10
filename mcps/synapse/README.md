@@ -22,7 +22,7 @@ Realtime: agents `subscribe` to `synapse://project/<ns>/changes`; on a peer's wr
 ```sh
 npm install && npm run build
 npm test            # store + live-HTTP sidecar + S-01 realtime + bridge autostart
-sh install.sh       # link bins into ~/.local/bin, then deploy + start the sidecar service
+node install.mjs    # link bins into ~/.local/bin, then deploy + start the sidecar service
 ```
 
 Point any MCP host at the **bridge** (stdio). It needs no token, URL, or env — it discovers or autostarts the shared sidecar (lock-elected single instance), reading `~/.synapse/{sidecar.json,token}` (mode 600):

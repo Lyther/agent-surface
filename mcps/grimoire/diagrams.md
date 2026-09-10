@@ -20,7 +20,7 @@ flowchart TB
     MAN["~/.grimoire/manifest.json<br/>(expected packs: commit/hash/attribution)"]
 
     subgraph build["build-on-install (not at serve time)"]
-        Inst["install.sh / npm run install:grimoire"]
+        Inst["install.mjs / npm run install:grimoire"]
         Idx["indexer (write-once)"]
     end
     Pack[("external/<pack>/skills/**<br/>pinned submodule (source of truth)")]
