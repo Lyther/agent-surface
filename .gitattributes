@@ -1,0 +1,18 @@
+# The compiler parses `---` frontmatter delimiters literally and compares generated output
+# byte-for-byte, so the working tree must be LF on every platform. Git for Windows checks out CRLF
+# by default, which makes every skill/command/rule report "frontmatter missing" and makes generated
+# output differ from source on Windows only.
+* text=auto eol=lf
+
+# Shell installers and the launcher stubs they write are executed by /bin/sh — CRLF breaks them.
+*.sh text eol=lf
+
+# Never line-ending-normalize binary assets if any are added later.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.sqlite binary

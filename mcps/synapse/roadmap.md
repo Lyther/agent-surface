@@ -29,7 +29,7 @@ Last updated: 2026-08-31
 
 ## Phase 2: Hardening + owned-file distribution
 
-- [x] `T2.1` Lifecycle autostart — `src/bootstrap.ts` lock-elected spawn + discovery/token (mode 600); `deploy/launchd/local.synapse.plist` deployed/restarted by `install.sh`. Evidence: bridge "zero-config autostart" test; `sh -n install.sh`.
+- [x] `T2.1` Lifecycle autostart — `src/bootstrap.ts` lock-elected spawn + discovery/token (mode 600); `deploy/launchd/local.synapse.plist` deployed/restarted by `install.mjs` (macOS only; Linux and Windows use the same lazy autostart). Evidence: bridge "zero-config autostart" test; `node --check install.mjs`.
 - [x] `T2.3` Security pass — bearer/Host, ingest redaction, `forget` plaintext scrub (F004), 2 MB body cap → 413 (F005), mode-600 files (F007). Evidence: F002/F004/F005 + redaction tests.
 - [x] `T2.4` Threat model + README. Evidence: `README.md` Security section.
 - [x] `T2.6` Distribution (owned-file targets) — first-party `synapse` registry entry; `optional-services.schema.json` first-party path; `npm run install:synapse` builds+links bins and deploys/updates the launchd sidecar. Evidence: `check generated: ok`; generated routes asserted in `tests/suites/build.test.mjs`.

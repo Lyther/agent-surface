@@ -1,5 +1,5 @@
 // Packaging + real-process runtime guards.
-// F001: every package.json#bin target must exist after build, so install.sh wrappers
+// F001: every package.json#bin target must exist after build, so install.mjs wrappers
 //       (derived from package.json#bin) can never point at a missing module.
 // SUBSTITUTE_JUSTIFICATION
 // - substitute: FIXTURE_PACK content indexed for the spawned-server protocol test
