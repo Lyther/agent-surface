@@ -456,6 +456,7 @@
         "Censys is probed as `censys.search`, not `censys`: the distribution installs a PEP 420 namespace package, so a bare `censys` resolves against any directory of that name on sys.path and would read satisfied with the client library absent. The other three ship a regular package and are probed by their top-level name.",
         "Windows bootstraps uv with Astral's standalone PowerShell installer rather than WinGet: it targets %USERPROFILE%/.local/bin, which is a declared detect path, so uv installed at the start of a run is found and used later in that same run. A WinGet portable package lands outside the running process's PATH and would break that bootstrap.",
         "PowerShell 7 (pwsh) is preferred over Windows PowerShell for that install: an install started from a pwsh terminal exports a PSModulePath pointing at PowerShell 7's modules, and Windows PowerShell 5.1 launched under it fails to load its own (Get-ExecutionPolicy is reported as unloadable). -ExecutionPolicy is not passed either, since `iex` of a downloaded string is not governed by it and requesting it pulls in that same module.",
+        "OpenOSINT itself supports three model backends — Anthropic (default), Ollama, and OpenAI-compatible endpoints — and its README marks ANTHROPIC_API_KEY as needed only when the other two are unused. That choice does not reach the MCP surface wired here: in the pinned 2.27.0 the investigate_multi tool constructs the Anthropic-backed agent unconditionally (multi_target.py `_investigate_one`), so that one tool needs ANTHROPIC_API_KEY however Ollama or OPENAI_BASE_URL are set. ANTHROPIC_BASE_URL redirects it, since the vendored SDK reads that variable. Every other tool wired here is keyless or uses the provider keys above; upstream's MCP documentation does not say which backend its tools use.",
         "Some lookups require external binaries or operator-provided API keys.",
         "All provider keys are OPTIONAL: OpenOSINT runs keyless and each key only enables its provider. Names are taken from the upstream project's documented .env keys; confirm against the pinned release when wiring live credential delivery."
       ],
@@ -521,6 +522,7 @@
       "notes": [
         "Agent-surface distributes the documented MCP command only when selected with --category mcps --service pentest-ai.",
         "Automatic installation is deferred because this host blocks extraction of an impacket script required by ptai 1.4.0.",
+        "Over MCP the connected runtime supplies the model — upstream states its provider environment variables do not apply in that mode — so the server needs no LLM credential of its own and none is declared here. PENTEST_AI_LLM_PROVIDER and the Anthropic/OpenAI-compatible/Ollama/LiteLLM settings govern ptai's standalone CLI only.",
         "The server exposes a broad offensive tool surface and is not part of the general default distribution."
       ]
     }
