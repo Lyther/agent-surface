@@ -186,8 +186,8 @@ Exit gate: docs, generated output, local distribution, and manifests agree with 
 
 The selected distribution includes all asset categories but only Synapse and Grimoire. Kilo's measured all-enabled startup cost is accepted; no further context optimization is requested. These external-service gaps do not block the selected profile:
 
-- The service registry currently distributes stdio command/args only; application settings and local credential references are not implemented.
-- OpenOSINT's MCP entry point does not load `.env` like its CLI. Optional provider credentials were not available in the checked environment; `holehe`, `sublist3r`, and `phoneinfoga` were absent from PATH. Application installation remains outside agent-surface.
+- The service registry distributes stdio command/args plus resolved launch paths and local credential references (env-file delivery through the shared launcher). Arbitrary per-application settings are still not modelled.
+- OpenOSINT is installed and wired by agent-surface (uv, the application, its provider extras, and the `holehe` / `sublist3r` / `sherlock` lookup binaries in its own tool environment; `phoneinfoga` via Homebrew where a package exists). Its MCP entry point still does not read `.env` itself — the shared launcher supplies the values instead. Shodan, VirusTotal, AbuseIPDB and IP2Location are verified end-to-end; Censys and GitHub are rejected under the tested configuration; HIBP and IPinfo have no values. `investigate_multi` remains the one tool pinned to a single model backend.
 - IDA Pro MCP's configured executable is missing; licensed `idalib` readiness remains unverified.
 - Pentest-AI's executable is missing. Its MCP client supplies the model, so a separate LLM key is not the missing configuration. Installation and activation remain deferred.
 
