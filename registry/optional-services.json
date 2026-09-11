@@ -457,6 +457,8 @@
         "Windows bootstraps uv with Astral's standalone PowerShell installer rather than WinGet: it targets %USERPROFILE%/.local/bin, which is a declared detect path, so uv installed at the start of a run is found and used later in that same run. A WinGet portable package lands outside the running process's PATH and would break that bootstrap.",
         "PowerShell 7 (pwsh) is preferred over Windows PowerShell for that install: an install started from a pwsh terminal exports a PSModulePath pointing at PowerShell 7's modules, and Windows PowerShell 5.1 launched under it fails to load its own (Get-ExecutionPolicy is reported as unloadable). -ExecutionPolicy is not passed either, since `iex` of a downloaded string is not governed by it and requesting it pulls in that same module.",
         "OpenOSINT itself supports three model backends — Anthropic (default), Ollama, and OpenAI-compatible endpoints — and its README marks ANTHROPIC_API_KEY as needed only when the other two are unused. That choice does not reach the MCP surface wired here: in the pinned 2.27.0 the investigate_multi tool constructs the Anthropic-backed agent unconditionally (multi_target.py `_investigate_one`), so that one tool needs ANTHROPIC_API_KEY however Ollama or OPENAI_BASE_URL are set. ANTHROPIC_BASE_URL redirects it, since the vendored SDK reads that variable. Every other tool wired here is keyless or uses the provider keys above; upstream's MCP documentation does not say which backend its tools use.",
+        "The lookup binaries OpenOSINT shells out to — holehe, sublist3r and sherlock — are co-installed into OpenOSINT's own uv tool environment rather than as separate tools: it prepends that environment's bin directory to PATH before resolving them (utils.py), so they are found without the operator putting anything else on PATH. They are OPTIONAL, since the server and every other tool run without them. phoneinfoga is a standalone Go binary and is not installable this way; Homebrew carries it on macOS and Linux, and no Windows package exists, so it is reported unavailable there rather than guessed at.",
+        "socksio is installed alongside them because httpx REFUSES to construct a client when a SOCKS proxy is set in the environment and that package is absent — on a machine with ALL_PROXY exported, every httpx-based tool in the environment (holehe and the ollama provider among them) fails at import with an ImportError rather than a clean result. It is probed with the provider extras so a proxied environment cannot read satisfied while broken.",
         "Some lookups require external binaries or operator-provided API keys.",
         "All provider keys are OPTIONAL: OpenOSINT runs keyless and each key only enables its provider. Names are taken from the upstream project's documented .env keys; confirm against the pinned release when wiring live credential delivery."
       ],
@@ -483,19 +485,40 @@
             "kind": "launch-binary",
             "detect": { "command": "openosint-mcp", "paths": ["~/.local/bin/openosint-mcp", "~/.local/bin/openosint-mcp.exe"] },
             "recipes": {
-              "darwin": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama"], "source": "uv tool install openosint 2.27.0 + extras (shodan, censys, openai, ollama)" }],
-              "linux": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama"], "source": "uv tool install openosint 2.27.0 + extras (shodan, censys, openai, ollama)" }],
-              "win32": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama"], "source": "uv tool install openosint 2.27.0 + extras (shodan, censys, openai, ollama)" }]
+              "darwin": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama", "--with", "socksio", "--with", "holehe", "--with", "sublist3r", "--with", "sherlock-project"], "source": "uv tool install openosint 2.27.0 with provider extras and OSINT tools" }],
+              "linux": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama", "--with", "socksio", "--with", "holehe", "--with", "sublist3r", "--with", "sherlock-project"], "source": "uv tool install openosint 2.27.0 with provider extras and OSINT tools" }],
+              "win32": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama", "--with", "socksio", "--with", "holehe", "--with", "sublist3r", "--with", "sherlock-project"], "source": "uv tool install openosint 2.27.0 with provider extras and OSINT tools" }]
             }
           },
           {
             "id": "openosint-extras",
             "kind": "tool",
-            "detect": { "python": { "interpreter_root": { "prerequisite": "uv", "run": ["tool", "dir"] }, "interpreter_subpaths": ["openosint/bin/python", "openosint/Scripts/python.exe"], "interpreter": ["~/.local/share/uv/tools/openosint/bin/python"], "modules": ["shodan", "censys.search", "openai", "ollama"] } },
+            "detect": { "python": { "interpreter_root": { "prerequisite": "uv", "run": ["tool", "dir"] }, "interpreter_subpaths": ["openosint/bin/python", "openosint/Scripts/python.exe"], "interpreter": ["~/.local/share/uv/tools/openosint/bin/python"], "modules": ["shodan", "censys.search", "openai", "ollama", "socksio"] } },
             "recipes": {
-              "darwin": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama"], "source": "uv openosint provider extras (shodan, censys, openai, ollama)" }],
-              "linux": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama"], "source": "uv openosint provider extras (shodan, censys, openai, ollama)" }],
-              "win32": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama"], "source": "uv openosint provider extras (shodan, censys, openai, ollama)" }]
+              "darwin": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama", "--with", "socksio", "--with", "holehe", "--with", "sublist3r", "--with", "sherlock-project"], "source": "uv openosint provider extras (shodan, censys, openai, ollama)" }],
+              "linux": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama", "--with", "socksio", "--with", "holehe", "--with", "sublist3r", "--with", "sherlock-project"], "source": "uv openosint provider extras (shodan, censys, openai, ollama)" }],
+              "win32": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama", "--with", "socksio", "--with", "holehe", "--with", "sublist3r", "--with", "sherlock-project"], "source": "uv openosint provider extras (shodan, censys, openai, ollama)" }]
+            }
+          },
+          {
+            "id": "openosint-tools",
+            "kind": "tool",
+            "optional": true,
+            "detect": { "python": { "interpreter_root": { "prerequisite": "uv", "run": ["tool", "dir"] }, "interpreter_subpaths": ["openosint/bin/python", "openosint/Scripts/python.exe"], "interpreter": ["~/.local/share/uv/tools/openosint/bin/python"], "modules": ["holehe", "sublist3r", "sherlock_project"] } },
+            "recipes": {
+              "darwin": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama", "--with", "socksio", "--with", "holehe", "--with", "sublist3r", "--with", "sherlock-project"], "source": "uv openosint OSINT tools (holehe, sublist3r, sherlock)" }],
+              "linux": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama", "--with", "socksio", "--with", "holehe", "--with", "sublist3r", "--with", "sherlock-project"], "source": "uv openosint OSINT tools (holehe, sublist3r, sherlock)" }],
+              "win32": [{ "run": ["uv", "tool", "install", "--force", "openosint==2.27.0", "--with", "shodan", "--with", "censys", "--with", "openai", "--with", "ollama", "--with", "socksio", "--with", "holehe", "--with", "sublist3r", "--with", "sherlock-project"], "source": "uv openosint OSINT tools (holehe, sublist3r, sherlock)" }]
+            }
+          },
+          {
+            "id": "phoneinfoga",
+            "kind": "tool",
+            "optional": true,
+            "detect": { "command": "phoneinfoga", "paths": ["/opt/homebrew/bin/phoneinfoga", "/usr/local/bin/phoneinfoga", "/home/linuxbrew/.linuxbrew/bin/phoneinfoga"] },
+            "recipes": {
+              "darwin": [{ "requires": "brew", "run": ["brew", "install", "phoneinfoga"], "source": "Homebrew phoneinfoga" }],
+              "linux": [{ "requires": "brew", "run": ["brew", "install", "phoneinfoga"], "source": "Homebrew phoneinfoga (no distro package; Go binary)" }]
             }
           }
         ]

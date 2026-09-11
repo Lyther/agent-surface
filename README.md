@@ -90,7 +90,7 @@ Built from `mcps/`, installed once, then auto-wired (non-destructive merge) into
 - **Synapse** — shared multi-agent memory + file-lock coordination.
 - **Grimoire** — read-only, just-in-time retrieval over large Agent-Skill packs (`anthropic-cybersecurity-skills`, `rev-skills`, and `hack-skills`) so the model searches instead of loading those catalogs at startup.
 
-`npm run install:mcps` builds both binaries and links them into `~/.local/bin` (Synapse also deploys its sidecar service); the agent-surface `install` step merges each server into every host's MCP config. Both steps are required — one wires the config, the other provides the binary it points at. (`npm run install:synapse` / `install:grimoire` install just one.) Details: [mcps/synapse/README.md](mcps/synapse/README.md), [mcps/grimoire/README.md](mcps/grimoire/README.md).
+`install` provisions both before it wires anything: a missing binary is built and linked into `~/.local/bin` by the same run that merges each server into every host's MCP config, so one command is enough. (Synapse also deploys its sidecar service on macOS; Linux and Windows use its lazy autostart.) `npm run install:mcps` still builds them directly, and `npm run install:synapse` / `install:grimoire` build just one. Details: [mcps/synapse/README.md](mcps/synapse/README.md), [mcps/grimoire/README.md](mcps/grimoire/README.md).
 
 ## Workflow kernel (optional)
 
