@@ -111,6 +111,24 @@ if (enabled) {
     const imported = new Set(modules.stdout.split("\n").map((line) => line.split(" ")[0]));
     for (const name of providers) assert.ok(imported.has(name), `${name} reported its own import: ${modules.stdout}`);
 
+    // The optional lookup tools are installed by their OWN step, deliberately not sharing a command
+    // with the required install: identical run lists are deduplicated into one action that keeps the
+    // FIRST prerequisite's requiredness, so a shared command would be required, and one unresolvable
+    // lookup package would fail the install openosint-mcp depends on. Both steps must appear here,
+    // and the binaries must land where OpenOSINT looks for them — the bin directory of its own tool
+    // environment, which utils.py prepends to PATH before resolving them.
+    // Anchored at end-of-line: without it this would also match the superset step's source text.
+    assert.match(install.stdout, /^provisioning: ok uv tool install openosint 2\.27\.0 with provider extras\r?$/m, "the required install ran on its own");
+    assert.match(install.stdout, /provisioning: ok uv openosint lookup tools/, "the optional lookup tools ran as a separate step");
+    const toolBin = path.dirname(interpreter);
+    for (const tool of ["holehe", "sublist3r", "sherlock"]) {
+      const binary = [path.join(toolBin, tool), path.join(toolBin, `${tool}.exe`)].find((candidate) => existsSync(candidate));
+      assert.ok(binary, `${tool} was installed into openosint's own environment, where it resolves it from: ${toolBin}`);
+    }
+    // And the superset install did not cost the required extras it re-resolved.
+    const stillThere = spawnSync(interpreter, ["-c", importScript], { encoding: "utf8", env: minimalLaunchEnv(home) });
+    assert.equal(stillThere.status, 0, `the provider extras survive the second install: ${stillThere.stderr}`);
+
     // The env-file the launcher will load. Every OpenOSINT key is declared OPTIONAL, and the
     // installer only ever prompts for REQUIRED keys — so for this service the file is authored by the
     // operator (or the value is exported into the environment), never collected interactively.

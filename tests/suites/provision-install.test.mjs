@@ -10,7 +10,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { MCP_ENV_LAUNCH_SCRIPT, MCP_ENV_LAUNCHER } from "../../scripts/agent-surface/merge.mjs";
-import { provisioningStatus, selectRecipe } from "../../scripts/agent-surface/provision.mjs";
+import { dedupeActions } from "../../scripts/agent-surface/provision-exec.mjs";
+import { provisioningActions, provisioningStatus, selectRecipe } from "../../scripts/agent-surface/provision.mjs";
 import { selectedMcpServiceEntries } from "../../scripts/agent-surface/targets.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -137,6 +138,37 @@ try {
   assert.ok(extras.interpreter_subpaths.includes("openosint/Scripts/python.exe"), "the Windows venv layout is covered under that root");
   assert.ok(!JSON.stringify(extras.interpreter).includes("Scripts"), "no hard-coded Windows tool directory remains in the fallback list");
   assert.ok(openosintPrereqs.indexOf(uvPrereq) < openosintPrereqs.findIndex((p) => p.id === "openosint-extras"), "uv is detected before the extras that query it (registry order is dependency order)");
+
+  // ---- an optional prerequisite must not be able to fail a required one -------------------
+  // `optional` is a promise that a failure here cannot drop the service. Sharing one command between
+  // a required and an optional prerequisite silently breaks that promise: dedupeActions collapses
+  // identical run lists into a SINGLE action that keeps the first one's requiredness, so the merged
+  // action is required, and one unresolvable optional package fails the install the service needs.
+  // Asserted registry-wide and behaviorally — this is a shape no service may adopt, not an openosint
+  // detail. (A command may still be shared between two REQUIRED prerequisites; that is what dedupe
+  // is for, and openosint-mcp and openosint-extras do exactly that.)
+  for (const [serviceId, service] of Object.entries(registry)) {
+    const prerequisites = service.provisioning?.prerequisites ?? [];
+    for (const platform of ["darwin", "linux", "win32"]) {
+      const status = [{ id: serviceId, prerequisites: prerequisites.flatMap((prereq) => (prereq.recipes?.[platform] ?? []).map((recipe) => ({ id: prereq.id, optional: prereq.optional === true, satisfied: false, recipe }))) }];
+      const collapsed = dedupeActions(provisioningActions(status));
+      const optionalRuns = new Map(status[0].prerequisites.filter((p) => p.optional).map((p) => [JSON.stringify([p.recipe.run, p.recipe.cwd ?? null]), p.id]));
+      for (const action of collapsed) {
+        const shared = optionalRuns.get(JSON.stringify([action.run, action.cwd ?? null]));
+        assert.ok(!(shared && !action.optional), `${serviceId}/${platform}: optional ${shared} shares its recipe with required ${action.prerequisite}, so its failure would drop the service`);
+      }
+    }
+  }
+
+  // openosint's optional lookup tools are the required install PLUS three packages. Being a strict
+  // superset is what makes the second install safe to run after the first: it can only add, and uv
+  // rejects an unresolvable --with at resolution time, leaving the required environment intact.
+  for (const platform of ["darwin", "linux", "win32"]) {
+    const required = openosintPrereqs.find((p) => p.id === "openosint-mcp").recipes[platform][0].run;
+    const withTools = openosintPrereqs.find((p) => p.id === "openosint-tools").recipes[platform][0].run;
+    assert.deepEqual(withTools.slice(0, required.length), required, `${platform}: the optional tools install extends the required one rather than diverging from it`);
+    assert.deepEqual(withTools.slice(required.length), ["--with", "holehe", "--with", "sublist3r", "--with", "sherlock-project"], `${platform}: and adds exactly the lookup packages`);
+  }
 
   // ---- launch_arg wiring: the resolved browser path reaches the generated launch command ----
   const wired = await selectedMcpServiceEntries(true, {

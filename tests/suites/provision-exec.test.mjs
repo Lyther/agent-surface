@@ -88,6 +88,24 @@ try {
   assert.deepEqual([...failResult.failed], ["svcB"], "a service whose required prerequisite is still missing after the recipe is failed");
   assert.equal(failResult.ran[0].ok, false);
 
+  // ---- an OPTIONAL recipe that fails costs only its own capability --------------
+  // This is what `optional` promises, and it is the whole reason a service's optional prerequisite
+  // must not share a command with a required one: the guarantee lives in the executor's outcome, so
+  // a failure here must leave the required prerequisite satisfied and the service wirable.
+  {
+    const required = path.join(dir, `toolMain${exe}`);
+    const extra = path.join(dir, `toolExtra${exe}`);
+    const result = run([["svcOpt", { provisioning: { prerequisites: [
+      prereq("toolMain", required, ["make", required]),
+      { ...prereq("toolExtra", extra, ["boom"]), optional: true },
+    ] } }]]);
+    assert.equal(result.after[0].prerequisites.find((p) => p.id === "toolExtra").satisfied, false, "the optional prerequisite is reported missing afterwards");
+    assert.equal(result.failed.size, 0, "an optional prerequisite that fails does not fail its service");
+    assert.ok(existsSync(required), "the required prerequisite was still provisioned");
+    assert.ok(!existsSync(extra), "the optional one genuinely did not install");
+    assert.deepEqual(result.ran.map((r) => r.ok), [true, false], "both steps ran independently; only the optional one failed");
+  }
+
   // ---- ENOENT (recipe binary missing) is a failure, not a throw -----------------
   const cPath = path.join(dir, `toolC${exe}`);
   const enoentResult = run([["svcC", { provisioning: { prerequisites: [prereq("toolC", cPath, ["enoent"])] } }]]);
