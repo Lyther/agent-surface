@@ -92,6 +92,23 @@ try {
   // This is what `optional` promises, and it is the whole reason a service's optional prerequisite
   // must not share a command with a required one: the guarantee lives in the executor's outcome, so
   // a failure here must leave the required prerequisite satisfied and the service wirable.
+  //
+  // SUBSTITUTE_JUSTIFICATION
+  // - substitute: the injected spawnFn, returning non-zero for the optional prerequisite's recipe
+  // - replaces: a real package manager whose install of an optional package fails
+  // - necessity: the executor's outcome is a decision about a failed step, so the failure has to
+  //   land on a CHOSEN step; a real one would need a network and a package reliably unresolvable
+  //   on every platform this suite runs on
+  // - real-option: running a real recipe with an unsatisfiable constraint does prove what the
+  //   package manager preserves, but says nothing about how the executor classifies the service
+  //   afterwards, which is the only thing asserted here
+  // - proof-limit: proves the executor's classification — a failed optional recipe leaves its
+  //   service out of `failed` and therefore wirable. It does NOT establish what uv, brew, WinGet or
+  //   any other manager leaves on disk when an install fails; that is a separate claim with
+  //   separate evidence, and it must not be read as a general interrupted-install guarantee.
+  // - real-proof: the live provisioning acceptance installs through the real uv, and a disposable
+  //   UV_TOOL_DIR run with an unresolvable --with shows uv exiting 1 at resolution with the
+  //   previously installed environment intact
   {
     const required = path.join(dir, `toolMain${exe}`);
     const extra = path.join(dir, `toolExtra${exe}`);

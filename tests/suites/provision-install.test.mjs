@@ -11,7 +11,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { MCP_ENV_LAUNCH_SCRIPT, MCP_ENV_LAUNCHER } from "../../scripts/agent-surface/merge.mjs";
 import { dedupeActions } from "../../scripts/agent-surface/provision-exec.mjs";
-import { provisioningActions, provisioningStatus, selectRecipe } from "../../scripts/agent-surface/provision.mjs";
+import { provisioningStatus, selectRecipe } from "../../scripts/agent-surface/provision.mjs";
 import { selectedMcpServiceEntries } from "../../scripts/agent-surface/targets.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -142,27 +142,39 @@ try {
   // ---- an optional prerequisite must not be able to fail a required one -------------------
   // `optional` is a promise that a failure here cannot drop the service. Sharing one command between
   // a required and an optional prerequisite silently breaks that promise: dedupeActions collapses
-  // identical run lists into a SINGLE action that keeps the first one's requiredness, so the merged
-  // action is required, and one unresolvable optional package fails the install the service needs.
-  // Asserted registry-wide and behaviorally — this is a shape no service may adopt, not an openosint
-  // detail. (A command may still be shared between two REQUIRED prerequisites; that is what dedupe
-  // is for, and openosint-mcp and openosint-extras do exactly that.)
+  // identical run lists into a SINGLE action, so the two stop being independently installable and
+  // one unresolvable optional package fails the install the service needs. Asserted registry-wide —
+  // this is a shape no service may adopt, not an openosint detail. (A command may still be shared
+  // between two REQUIRED prerequisites; that is what dedupe is for, and openosint-mcp and
+  // openosint-extras do exactly that.)
+  // Checked on the DECLARED recipes, before deduplication. Which of the two survives the collapse
+  // depends on registry order; the hazard does not, since either way the prerequisites stop being
+  // independently installable. Comparing after the collapse would accept the same defect written in
+  // the other order.
+  const recipeKey = (recipe) => JSON.stringify([recipe.run, recipe.cwd ?? null]);
+  // That key has to stay the one the executor actually collapses on, or this check quietly drifts
+  // away from the behavior it exists to constrain.
+  assert.equal(dedupeActions([{ run: ["a"], cwd: null }, { run: ["a"] }]).length, 1, "dedupeActions collapses on run + cwd, an absent cwd being null — the key used here");
+  assert.equal(dedupeActions([{ run: ["a"], cwd: null }, { run: ["a"], cwd: "repo" }]).length, 2, "and keeps recipes differing in either part");
   for (const [serviceId, service] of Object.entries(registry)) {
-    const prerequisites = service.provisioning?.prerequisites ?? [];
     for (const platform of ["darwin", "linux", "win32"]) {
-      const status = [{ id: serviceId, prerequisites: prerequisites.flatMap((prereq) => (prereq.recipes?.[platform] ?? []).map((recipe) => ({ id: prereq.id, optional: prereq.optional === true, satisfied: false, recipe }))) }];
-      const collapsed = dedupeActions(provisioningActions(status));
-      const optionalRuns = new Map(status[0].prerequisites.filter((p) => p.optional).map((p) => [JSON.stringify([p.recipe.run, p.recipe.cwd ?? null]), p.id]));
-      for (const action of collapsed) {
-        const shared = optionalRuns.get(JSON.stringify([action.run, action.cwd ?? null]));
-        assert.ok(!(shared && !action.optional), `${serviceId}/${platform}: optional ${shared} shares its recipe with required ${action.prerequisite}, so its failure would drop the service`);
+      const declared = new Map();
+      for (const prereq of service.provisioning?.prerequisites ?? []) {
+        for (const recipe of prereq.recipes?.[platform] ?? []) {
+          const optional = prereq.optional === true;
+          const seen = declared.get(recipeKey(recipe));
+          if (seen) assert.equal(seen.optional, optional, `${serviceId}/${platform}: ${seen.id} and ${prereq.id} share one recipe across the optional boundary, so the optional one's failure would drop the service`);
+          else declared.set(recipeKey(recipe), { id: prereq.id, optional });
+        }
       }
     }
   }
 
   // openosint's optional lookup tools are the required install PLUS three packages. Being a strict
-  // superset is what makes the second install safe to run after the first: it can only add, and uv
-  // rejects an unresolvable --with at resolution time, leaving the required environment intact.
+  // superset is what makes the second install safe to run after the first: it can only add, and a
+  // requirement set uv cannot RESOLVE is rejected before it replaces anything, so the environment
+  // the first step built survives. That is a claim about resolution failure specifically — not about
+  // an install interrupted midway.
   for (const platform of ["darwin", "linux", "win32"]) {
     const required = openosintPrereqs.find((p) => p.id === "openosint-mcp").recipes[platform][0].run;
     const withTools = openosintPrereqs.find((p) => p.id === "openosint-tools").recipes[platform][0].run;
