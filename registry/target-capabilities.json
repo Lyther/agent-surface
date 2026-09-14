@@ -2467,10 +2467,9 @@
           ],
           "paths": [
             "plugins/agent-surface/plugin.json",
-            "plugins/agent-surface/.codex-plugin/plugin.json",
             ".agents/plugins/marketplace.json"
           ],
-          "notes": "One metadata definition is emitted to both manifest locations. The portable root manifest is what the format specifies; the .codex-plugin overlay is what the qualified runtime loads, verified against codex-cli 0.153.2, where a package carrying only the root manifest fails to install with `missing plugin.json` and a package carrying both installs cleanly. Paths are relative to the marketplace root passed to the host's `plugin marketplace add`."
+          "notes": "One portable plugin manifest in the location the format specifies, plus the local marketplace manifest. The manifest declares the schema identifier the published manifest schema requires as a const; verified against codex-cli 0.153.2, where a manifest omitting it is rejected on install with `missing plugin.json` while the valid manifest installs, caches its companions, reaches model-visible discovery, and is removed cleanly. An earlier .codex-plugin overlay was compensating for that invalid manifest and has been removed. Paths are relative to the marketplace root passed to the host's `plugin marketplace add`."
         },
         "skills": {
           "support": "native",

@@ -725,8 +725,9 @@ export const retiredInstallTargets = {
 };
 
 export const generatedOutputMinimums = new Map([
-  // The export package is a narrow pilot, not a catalog: three manifests, one skill, and the
-  // companions that skill ships with. The floor only has to catch an export that silently collapsed.
+  // The export package is a narrow pilot, not a catalog: the plugin manifest, the marketplace
+  // manifest, one skill, and the companions that skill ships with. The floor only has to catch an
+  // export that silently collapsed.
   ["codex-plugin", 6],
   ["claude-code", 250],
   ["codex", 300],
@@ -1291,39 +1292,29 @@ export function adapterMcpConfigs(adapter) {
 // to become a second distribution channel for the whole catalog.
 export const CODEX_PLUGIN_NAME = "agent-surface";
 export const CODEX_PLUGIN_SKILLS = ["ops-swarm"];
+// Required by the portable manifest schema, whose `$schema` property is a const rather than a hint.
+// A manifest without it is invalid, and a host that validates on install rejects the package — the
+// reason this identifier is not optional decoration.
+export const CODEX_PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
 const CODEX_PLUGIN_ROOT = path.join("plugins", CODEX_PLUGIN_NAME);
 
 export async function codexPluginPackageOutputs(catalog, _context) {
   const version = await packageVersion();
-  // ONE metadata definition. It is serialized into both manifest locations below rather than
-  // maintained twice, so the package cannot drift against itself.
-  const manifest = {
-    name: CODEX_PLUGIN_NAME,
-    version,
-    description: "Portable agent-surface skill package generated from Lyther/agent-surface.",
-  };
-  const manifestJson = `${JSON.stringify(manifest, null, 2)}\n`;
   const outputs = [
     {
       sourceKind: "commands",
       renderKind: "plugins",
       source: "package.json",
-      // The portable Agent Plugins root manifest. The installed host does not read it — see the
-      // overlay below — but it is what the portable format specifies, and emitting only the
-      // host-specific copy would bake this one runtime's limitation into the package.
+      // The portable root manifest, and the only plugin manifest in the package: a valid one is
+      // enough. An earlier host-specific copy under `.codex-plugin/` was a misdiagnosis — the
+      // install failure it was compensating for came from this manifest omitting `$schema`.
       relativeOutput: path.join(CODEX_PLUGIN_ROOT, "plugin.json"),
-      content: manifestJson,
-    },
-    {
-      sourceKind: "commands",
-      renderKind: "plugins",
-      source: "package.json",
-      // The documented compatibility overlay, and the one this host actually loads: installing a
-      // package carrying only the portable root manifest fails with `missing plugin.json`. Both are
-      // emitted because a package carrying both installs cleanly, so satisfying this runtime costs
-      // nothing in portability.
-      relativeOutput: path.join(CODEX_PLUGIN_ROOT, ".codex-plugin", "plugin.json"),
-      content: manifestJson,
+      content: `${JSON.stringify({
+        $schema: CODEX_PLUGIN_SCHEMA,
+        name: CODEX_PLUGIN_NAME,
+        version,
+        description: "Portable agent-surface skill package generated from Lyther/agent-surface.",
+      }, null, 2)}\n`,
     },
     {
       sourceKind: "commands",

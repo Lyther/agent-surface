@@ -17,7 +17,7 @@ import { vsCodeUserRoot } from "./roots.mjs";
 import { readRules } from "./rules.mjs";
 import { readSkills } from "./skills.mjs";
 import { readSubagents, subagentValidationErrors } from "./source-primitives.mjs";
-import { generatedOutputMinimums, producerEmitsFor, sourceKindPolicy, targetOutputs, targetProducers, targets } from "./targets.mjs";
+import { CODEX_PLUGIN_NAME, CODEX_PLUGIN_SCHEMA, generatedOutputMinimums, producerEmitsFor, sourceKindPolicy, targetOutputs, targetProducers, targets } from "./targets.mjs";
 import { argValue, exists, fail, globMatches, isPathInside, isSafeTargetName, sha256 } from "./util.mjs";
 
 export const commandMetadataFields = new Set(["name", "aliases", "phase", "description"]);
@@ -1121,6 +1121,22 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".agents", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".config", "zed", "AGENTS.md"), /agent-surface Zed rules/);
     requireContains(path.join(".agents", "skills", "redteam-boundary-policy", "SKILL.md"), skillFrontmatter);
+  } else if (target === "codex-plugin") {
+    // An exported package is only portable if its manifest is VALID. `$schema` is a required const
+    // in the published manifest schema, and a host that validates on install rejects a manifest
+    // without it — the defect this check exists to keep from recurring. Emitting a host-specific
+    // manifest copy instead of a valid portable one is how that mistake gets papered over, so the
+    // retired overlay path is asserted absent rather than merely left unwritten.
+    const manifest = requireJson(path.join("plugins", CODEX_PLUGIN_NAME, "plugin.json"));
+    if (manifest && manifest.$schema !== CODEX_PLUGIN_SCHEMA) {
+      errors.push(`portable plugin manifest must declare ${CODEX_PLUGIN_SCHEMA}`);
+    }
+    if (manifest && manifest.name !== CODEX_PLUGIN_NAME) errors.push(`portable plugin manifest name must be ${CODEX_PLUGIN_NAME}`);
+    requireAbsent(path.join("plugins", CODEX_PLUGIN_NAME, ".codex-plugin", "plugin.json"));
+    const marketplace = requireJson(path.join(".agents", "plugins", "marketplace.json"));
+    if (marketplace && marketplace.plugins?.[0]?.source !== `./plugins/${CODEX_PLUGIN_NAME}`) {
+      errors.push("marketplace manifest must point at the packaged plugin directory, relative to the marketplace root");
+    }
   }
 
   return errors;
