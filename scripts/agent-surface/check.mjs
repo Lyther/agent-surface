@@ -810,6 +810,11 @@ export function validateGeneratedTarget(target, outputs) {
     return byPath.get(relativeOutput);
   };
 
+  // For a route that was RETIRED rather than renamed: the assertion is that nothing is emitted here.
+  const requireAbsent = (relativeOutput) => {
+    if (byPath.has(relativeOutput)) errors.push(`retired output still emitted: ${relativeOutput}`);
+  };
+
   const requireJson = (relativeOutput) => {
     const output = requirePath(relativeOutput);
     if (!output) return null;
@@ -963,7 +968,16 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "agents", "boss.md"), /^---\nname: boss\n/);
     requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "rules", "00-precedence-and-safety.md"), /Antigravity CLI plugin rule/);
-    requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "references", "rules", "10-python.md"), /Scoped agent-surface reference/);
+    // Antigravity CLI documents slash invocation; the generic renderer's `$name` default is Codex's.
+    requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "skills", "ops-nuke", "SKILL.md"), /Use explicit invocation: `\/ops-nuke`\./);
+    // A scoped reference must carry the scope it tells the reader to match. The body used to name
+    // frontmatter globs that the same render had stripped out, leaving nothing to match against.
+    const scopedReference = path.join("antigravity-cli", "plugins", "agent-surface", "references", "rules", "10-python.md");
+    requireContains(scopedReference, /Scoped agent-surface reference/);
+    requireContains(scopedReference, /\*\*Scope\.\*\* Python-specific correctness rules/);
+    requireContains(scopedReference, /Applies to files matching:\n\n- `\*\*\/\*\.py`/);
+    // Inert metadata, not host directives: re-emitting frontmatter here would be read as real.
+    requireNotContains(scopedReference, /^---$/m);
   } else if (target === "cursor") {
     requirePath(path.join(".cursor", "skills", "ops-flow", "SKILL.md"));
     requirePath(path.join(".cursor", "commands", "ops-nuke.md"));
@@ -985,6 +999,8 @@ export function validateGeneratedTarget(target, outputs) {
   } else if (target === "copilot") {
     const userRoot = vsCodeUserRoot("Code", { scope: "user" });
     requirePath(path.join(".copilot", "skills", "ops-flow", "SKILL.md"));
+    // Copilot CLI documents slash invocation, so its manual skills must not print Codex's `$name`.
+    requireContains(path.join(".copilot", "skills", "ops-nuke", "SKILL.md"), /Use explicit invocation: `\/ops-nuke`\./);
     requireContains(path.join(".copilot", "copilot-instructions.md"), /agent-surface GitHub Copilot instructions/);
     requireContains(path.join(".copilot", "agents", "boss.agent.md"), /^---\nname: boss\n/);
     const mcp = requireJson(path.join(".copilot", "mcp-config.json"));
@@ -996,7 +1012,12 @@ export function validateGeneratedTarget(target, outputs) {
     const userRoot = vsCodeUserRoot("Code", { scope: "user" });
     requirePath(path.join(".agents", "skills", "ops-flow", "SKILL.md"));
     requireContains(path.join(userRoot, "instructions", "agent-surface.instructions.md"), /^---\ndescription: "agent-surface VS Code instructions"\napplyTo: "\*\*"/);
-    requireContains(path.join(userRoot, "prompts", "ops-nuke.md"), /^---\ndescription: "Respawn an unmaintainable project/);
+    // Manual workflows reach VS Code as explicit-only Agent Skills, not prompt files: 1.116 does not
+    // load prompt files in Agent Host sessions, and `disable-model-invocation` is how it is told to
+    // keep a skill manual. The absent-path assertion is the point — a prompt file here would mean
+    // the dead route came back.
+    requireContains(path.join(".agents", "skills", "ops-nuke", "SKILL.md"), /disable-model-invocation: true/);
+    requireAbsent(path.join(userRoot, "prompts", "ops-nuke.md"));
   } else if (target === "opencode") {
     requireContains(path.join(".config", "opencode", "AGENTS.md"), /agent-surface global OpenCode rules/);
     requirePath(path.join(".config", "opencode", "skills", "ops-flow", "SKILL.md"));

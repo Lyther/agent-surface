@@ -70,7 +70,7 @@ node scripts/agent-surface.mjs build --target <t> --dry-run
 node scripts/agent-surface.mjs install --target <t> --scope user --dry-run
 ```
 
-`install` accepts repeated/comma-separated `--target` (or `--runtime`) IDs and `--category` selectors. Output selectors are `commands`, `rules`, `subagents`, `skills`, `recipes`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, and `ignores`. Asset selectors are `development`, `cybersecurity`, `private`, and `modding`; run asset and output selectors as separate installs. Omitting `--category` or using `--category all` performs the general full sync; opt-in asset categories remain explicit. `--service <id>` narrows the MCP services in an MCP or asset-category install without filtering its other assets.
+`install` accepts repeated/comma-separated `--target` (or `--runtime`) IDs and `--category` selectors. Output selectors are `commands`, `rules`, `subagents`, `skills`, `recipes`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, and `ignores`. Asset selectors are `development`, `cybersecurity`, `private`, and `modding`; run asset and output selectors as separate installs. Omitting `--category` or using `--category all` performs the general full sync; opt-in asset categories remain explicit. `all` selects the whole set on either flag, so it must be supplied alone — `--category all,development` and `--target all,codex` are rejected rather than silently resolved to one of the two. `--service <id>` narrows the MCP services in an MCP or asset-category install without filtering its other assets.
 
 ## Install behavior
 

@@ -9,7 +9,7 @@ import { directDirectories, filesUnder } from "./fs-tree.mjs";
 import { MCP_ENV_LAUNCHER, mcpLauncherInvocation, optionalServiceMcpServers, renderMcpConfig } from "./merge.mjs";
 import { normalizeExternalSkillFile } from "./postprocess.mjs";
 import { assetCategoryAllowed, assetCategoryFor, readAssetCategories, readOptionalServices, relative, root, selectedAssetCategories } from "./registry.mjs";
-import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityCliSubagent, renderAntigravityWorkflow, renderClaudeSubagent, renderClineSubagent, renderClineWorkflow, renderCodexSubagent, renderCopilotSubagent, renderCursorCommand, renderCursorSubagent, renderDeepAgentsSubagent, renderDroidCommand, renderDroidSubagent, renderGooseRecipe, renderInstructionDocument, renderKiloRuleDocument, renderKiloSubagent, renderKiloWorkflow, renderKimiCodeSubagent, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderQwenCodeSubagent, renderScopedRuleReferenceDocument, renderTraeSubagent, renderVanillaSkill, renderVsCodeInstructionDocument, renderVsCodePromptDocument, renderWindsurfWorkflow } from "./render.mjs";
+import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityCliSubagent, renderAntigravityWorkflow, renderClaudeSubagent, renderClineSubagent, renderClineWorkflow, renderCodexSubagent, renderCopilotSubagent, renderCursorCommand, renderCursorSubagent, renderDeepAgentsSubagent, renderDroidCommand, renderDroidSubagent, renderGooseRecipe, renderInstructionDocument, renderKiloRuleDocument, renderKiloSubagent, renderKiloWorkflow, renderKimiCodeSubagent, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderQwenCodeSubagent, renderScopedRuleReferenceDocument, renderTraeSubagent, renderVanillaSkill, renderVsCodeInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
 import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, clineAgentRoot, clineCursorExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, droidSkillRoot, dshSkillRoot, flatMarkdownCommandOutputName, gooseRecipeOutputName, gooseSkillRoot, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCliSkillRoot, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
 import { readRulesForContext } from "./rules.mjs";
 import { ignoreOutputs, subagentOutputs } from "./source-primitives.mjs";
@@ -447,7 +447,7 @@ export const targets = {
     renderSkill: renderVanillaSkill,
     commandOutputRoot: path.join("antigravity-cli", "plugins", "agent-surface", "skills"),
     commandOutputName: codexSkillOutputName,
-    renderCommand: renderManualPortableSkill,
+    renderCommand: renderManualSlashSkill,
     renderSubagent: renderAntigravityCliSubagent,
     installRoot: installRootAntigravityCli,
     staticOutputs: antigravityCliStaticOutputs,
@@ -523,7 +523,7 @@ export const targets = {
     renderSkill: renderVanillaSkill,
     commandOutputRoot: copilotSkillRoot,
     commandOutputName: codexSkillOutputName,
-    renderCommand: renderManualPortableSkill,
+    renderCommand: renderManualSlashSkill,
     renderSubagent: renderCopilotSubagent,
     staticRenders: ["instructions"],
     installRoot: installRootUserOrProject,
@@ -535,16 +535,24 @@ export const targets = {
     },
   },
   vscode: {
-    label: "VS Code user prompt and instruction files",
+    label: "VS Code user skills and instruction files",
     skillRenders: ["skills"],
     skillOutputRoot: sharedAgentSkillRoot,
     skillOutputName: codexSkillOutputName,
     renderSkill: renderVanillaSkill,
-    commandRenders: ["prompts"],
-    commandOutputRoot: (context) => path.join(vsCodeUserRoot("Code", context), "prompts"),
-    commandOutputName: flatMarkdownCommandOutputName,
-    renderCommand: renderVsCodePromptDocument,
-    staticRenders: ["instructions", "prompts"],
+    // Manual workflows go through Agent Skills, not prompt files. Qualified against the installed
+    // VS Code 1.116.0 (stable): it ships `chat.agentSkillsLocations` whose built-in user-scope
+    // entries include `~/.agents/skills` — the root canonical skills already use — and it reads
+    // `disable-model-invocation`, describing it in-product as preventing automatic loading "for
+    // workflows you want to trigger manually". Prompt files were the legacy Local-agent route, and
+    // these were additionally emitted as `<name>.md` rather than the `.prompt.md` that route
+    // requires, so they were not loaded by either session type. The previous outputs are pruned by
+    // the manifest's ownership cleanup like any other renamed managed file.
+    commandRenders: ["skills"],
+    commandOutputRoot: sharedAgentSkillRoot,
+    commandOutputName: codexSkillOutputName,
+    renderCommand: renderManualPortableSkill,
+    staticRenders: ["instructions"],
     installRoot: installRootVsCode,
     staticOutputs: vscodeStaticOutputs,
     mcpConfig: {

@@ -19,7 +19,7 @@ Every host `agent-surface` renders into, and how much of the source model each r
 | Antigravity CLI | 61 staged-plugin `skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | 6 always-on rules + 6 scoped refs | 6 plugin agents | External plugin skills; Synapse + Grimoire | 5 |
 | Antigravity | 61 `~/.gemini/config/skills/*/SKILL.md` | 5 legacy workflows | None | None | External skills | 4 |
 | GitHub Copilot | 61 `~/.copilot/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | CLI + VS Code instructions and scoped refs | 6 `.copilot/agents/*.agent.md` | External skills; Synapse + Grimoire | 5 |
-| VS Code | 61 shared `~/.agents/skills/*/SKILL.md` | 5 prompt files | VS Code instructions + 6 scoped refs | None | External skills; Synapse + Grimoire in the VS Code user profile | 4 |
+| VS Code | 61 shared `~/.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills in the same root | VS Code instructions + 6 scoped refs | None | External skills; Synapse + Grimoire in the VS Code user profile | 4 |
 | OpenCode | 61 `.config/opencode/skills/*/SKILL.md` | 5 `.config/opencode/commands/*.md` | `AGENTS.md` + 6 scoped refs | 6 agents | External skills; Synapse + Grimoire; whole-object full-access permission; sharing disabled | 5 |
 | OpenHands | 61 `.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | User rules or project `AGENTS.md`; 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
 | Trae | 61 skills in each `.trae/skills` and `.traecli/skills` root | 5 explicit-invocation skills in each root | 12 native rule files + retained `user_rules.md` and 6 refs | 6 IDE + 6 CLI agents | Single-copy external skills; IDE + CLI MCP; full CLI policy | 5 |

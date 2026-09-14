@@ -3,7 +3,7 @@ import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
-import { run } from "../lib/helpers.mjs";
+import { run, status } from "../lib/helpers.mjs";
 
 // Table-driven live install smoke: each installable target must write a manifest
 // with managed entries. Distinct from build/check generated (render path only).
@@ -85,6 +85,20 @@ for (const target of [
       assert.match(combinedInstructions, /^## 00-precedence-and-safety\.mdc$/m);
       assert.match(combinedInstructions, /^## 02-agent-workflow\.mdc$/m);
 
+      // An output-only rules refresh must not quietly rewrite this document back to the general
+      // baseline: it is a single file carrying development's always-on rules, and dropping them
+      // here would leave development's skills installed beside rules that no longer mention them.
+      // The manifest knows the document is development-owned, so the operation is refused BEFORE
+      // writing — the alternative, reassembling the contribution, is not something one recorded
+      // category can do faithfully.
+      const refresh = status([...installArgs, "--category", "rules"]);
+      assert.notEqual(refresh.status, 0, `codex: an output-only rules refresh over a category-owned document is refused: ${refresh.stdout}`);
+      assert.match(refresh.stdout, /AGENTS\.md carries the development category's contribution/, `codex: the refusal names the document and its owner: ${refresh.stdout}${refresh.stderr}`);
+      assert.equal(readFileSync(instructionPath, "utf8"), combinedInstructions, "codex: the refused refresh left the document byte-identical");
+      // And the refusal is not a dead end: the owning category still refreshes it.
+      run([...installArgs, "--category", "development"]);
+      assert.match(readFileSync(instructionPath, "utf8"), /^## 02-agent-workflow\.mdc$/m, "codex: re-running the owning category restores the document");
+
       run(installArgs);
       run([...installArgs, "--category", "development,cybersecurity,private,modding", "--service", "synapse,grimoire"]);
       const primaryMcpConfig = TOML.parse(readFileSync(path.join(targetDest, ".codex", "config.toml"), "utf8"));
@@ -93,6 +107,19 @@ for (const target of [
       for (const skill of ["dev-feature", "solve-challenge", "stellaris-design"]) {
         assert.ok(existsSync(path.join(targetDest, ".agents", "skills", skill, "SKILL.md")), skill);
       }
+    }
+    if (target === "cursor") {
+      // The per-file counterpart to the codex case above, and the reason that one is refused rather
+      // than rewritten: here each rule is its own managed output, so an output-only refresh has
+      // nothing to overwrite and development's rules simply stay. Same command, same sequence, no
+      // refusal — the contract differs because the host's rule surface does.
+      const ruleDir = path.join(targetDest, ".cursor", "rules");
+      run([...installArgs, "--category", "development"]);
+      assert.ok(existsSync(path.join(ruleDir, "02-agent-workflow.mdc")), "cursor: development contributes its own rule file");
+      const refresh = status([...installArgs, "--category", "rules"]);
+      assert.equal(refresh.status, 0, `cursor: a per-file rule host refreshes without refusal: ${refresh.stdout}${refresh.stderr}`);
+      assert.ok(existsSync(path.join(ruleDir, "02-agent-workflow.mdc")), "cursor: and development's rule file survives the refresh");
+      assert.ok(existsSync(path.join(ruleDir, "00-precedence-and-safety.mdc")), "cursor: alongside the baseline rules");
     }
     if (target === "opencode") {
       const openCodeConfig = JSON.parse(readFileSync(path.join(targetDest, ".opencode", "opencode.json"), "utf8"));

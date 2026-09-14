@@ -1,15 +1,16 @@
 # VS Code adapter
 
-VS Code uses native Agent Skills for safe reusable procedures and prompt files for available high-impact manual workflows.
+VS Code uses native Agent Skills for both safe reusable procedures and available high-impact manual workflows.
 
 Implemented user-profile surfaces:
 
 - `instructions/agent-surface.instructions.md`
 - `instructions/references/rules/<rule>.md`
-- `prompts/<manual-command>.md`
 - `mcp.json` with `servers.{synapse,grimoire}`
 
-Canonical skills and reviewed external skill packs install under `~/.agents/skills/`.
+Canonical skills, manual workflows, and reviewed external skill packs install under `~/.agents/skills/` — one of the built-in user-scope entries in `chat.agentSkillsLocations`. Manual workflows carry `disable-model-invocation: true`, which keeps them out of automatic loading and available to trigger explicitly.
+
+Prompt files are no longer generated. They were the legacy Local-agent route, current Agent Host sessions do not load them, and the files agent-surface wrote used a `<name>.md` suffix that route does not recognize either. Existing ones are removed by the normal manifest cleanup on the next install.
 
 These paths are relative to the VS Code user data directory:
 

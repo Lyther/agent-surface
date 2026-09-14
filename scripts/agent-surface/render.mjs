@@ -341,6 +341,19 @@ export async function renderManualPortableSkill(source) {
   });
 }
 
+// Same manual-skill contract, spelled with the invocation these hosts document. The generic `$name`
+// default is Codex's idiom; Copilot CLI and Antigravity CLI both invoke a skill as `/name`, so the
+// portable text was telling their users to type something their host does not accept. Only the
+// prefix differs — the skill stays explicit-only.
+export async function renderManualSlashSkill(source) {
+  return renderSkillMarkdown(source, {
+    invocationPrefix: "/",
+    generatedFor: "compatible Agent Skills hosts",
+    frontmatter: ["disable-model-invocation: true"],
+    hostInstruction: "This manual workflow must be selected explicitly.",
+  });
+}
+
 export async function renderGooseRecipe(source) {
   const description = yamlString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   return [
@@ -423,11 +436,24 @@ export async function renderInstructionDocument(title, subtitle, context = {}) {
   ].join("\n");
 }
 
+// A scoped rule applies only to matching files, and this host has no native surface that scopes a
+// document that way — so it is delivered as a REFERENCE the reader decides to apply. That only
+// works if the reader can see what it applies to: the previous text told them to match the rule's
+// frontmatter globs while stripFrontmatter removed the very globs it named. The description and
+// globs are therefore restored into the body as inert metadata. They are not a host mechanism and
+// this document does not claim to be attached automatically; nothing here re-emits frontmatter,
+// which a host might read as its own directives.
 export function renderScopedRuleReferenceDocument(rule) {
+  const applicability = rule.globs.length > 0
+    ? ["Applies to files matching:", "", ...rule.globs.map((glob) => `- \`${glob}\``)]
+    : ["No file globs are declared, so apply it by judgment."];
   return [
     `# ${path.basename(rule.file, ".mdc")}`,
     "",
-    `> Scoped agent-surface reference. Generated from \`${rule.file}\`. Attach this rule only when the current project files match its frontmatter globs.`,
+    `> Scoped agent-surface reference. Generated from \`${rule.file}\`. This host does not attach scoped rules automatically — read it when the work matches the scope below.`,
+    "",
+    ...(rule.description ? [`**Scope.** ${rule.description}`, ""] : []),
+    ...applicability,
     "",
     stripFrontmatter(rule.text).trim(),
     "",
@@ -467,21 +493,6 @@ export async function renderVsCodeInstructionDocument(title, target, context = {
     "---",
     "",
     await renderInstructionDocument(title, `${target} global instruction file`, context),
-  ].join("\n");
-}
-
-export async function renderVsCodePromptDocument(source) {
-  const description = source?.metadata.description ?? "Run an explicit agent-surface workflow";
-  const name = source?.name ?? "agent-surface";
-  return [
-    "---",
-    `description: "${yamlString(description)}"`,
-    `name: "${yamlString(name)}"`,
-    'agent: "agent"',
-    "---",
-    "",
-    source?.body ?? "Run this explicit agent-surface workflow.",
-    "",
   ].join("\n");
 }
 

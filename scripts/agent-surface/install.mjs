@@ -268,10 +268,22 @@ function protectCrossPlanLiveOutputs(plans) {
   }
 }
 
+// `all` selects the WHOLE set, so pairing it with a sibling is ambiguous rather than additive:
+// `--category all,development` asks at once for the general reset (which REMOVES previously managed
+// opt-in assets) and for development to be added. Returning early on `all` also meant the siblings
+// were never validated, so `all,developmnet` was accepted in silence and installed neither. Require
+// `all` alone; every other value then reaches its own validation below.
+function exclusiveAll(values, flag) {
+  if (!values.includes("all")) return false;
+  const siblings = uniqueStrings(values.filter((value) => value !== "all"));
+  if (siblings.length > 0) fail(`${flag} all cannot be combined with ${siblings.join(", ")}; run them as separate installs`);
+  return true;
+}
+
 function selectedInstallTargets(args) {
   const values = splitArgValues([...argValues(args, "--target"), ...argValues(args, "--runtime")]);
   if (values.length === 0) fail("missing required --target or --runtime");
-  if (values.includes("all")) return Object.keys(targets);
+  if (exclusiveAll(values, "--target")) return Object.keys(targets);
   const selected = uniqueStrings(values);
   for (const target of selected) {
     if (!isSafeTargetName(target)) fail(`unsafe install target: ${target}`);
@@ -283,8 +295,8 @@ function selectedInstallTargets(args) {
 function installCategoryFilter(args) {
   const values = splitArgValues([...argValues(args, "--category"), ...argValues(args, "--categories")]);
   if (values.length === 0) return null;
-  // `all` retains the full general sync; sensitive and specialized assets stay opt-in.
-  if (values.includes("all")) return null;
+  // Standalone `all` retains the full general sync; sensitive and specialized assets stay opt-in.
+  if (exclusiveAll(values, "--category")) return null;
   const known = new Set([
     "commands",
     "commands-as-workflows",
@@ -648,6 +660,29 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   const liveOutputs = new Set(managed.map((item) => item.output));
   const previousFileEntries = manifestFileEntries(previousManifest, target);
   const selectedCategories = selectedAssetCategories(categoryFilter);
+
+  // An aggregate instruction document (Codex's AGENTS.md and its kin) holds several categories'
+  // always-on rules in ONE file. Regenerating it under a narrower selection therefore erases what
+  // the others contributed: `--category rules` after `--category development` rewrote the shared
+  // document back to the general baseline while development's skills stayed installed, leaving a
+  // profile no single command describes. Per-file rule hosts never had this problem — each rule is
+  // its own managed output, and a category-filtered install prunes only the selected category.
+  //
+  // The manifest records ONE asset_category per output. That is enough to DETECT the loss, and not
+  // enough to reconstruct a document assembled from several categories, so the operation is
+  // rejected before anything is written rather than reassembled from a reconstructed profile. The
+  // contribution is restored by re-running the category that owns it; the general full sync still
+  // resets it deliberately, which is its documented meaning.
+  if (partialInstall) {
+    const previousOwner = new Map(previousFileEntries.filter((item) => item.asset_category).map((item) => [item.output, item.asset_category]));
+    for (const item of writes) {
+      // Only a real content change can lose anything: an unchanged file is a skip either way.
+      if (item.action !== "write") continue;
+      const owner = previousOwner.get(item.relativeOutput);
+      if (owner === undefined || selectedCategories.has(owner)) continue;
+      blocked.push(`${item.relativeOutput} carries the ${owner} category's contribution and this selection would overwrite it; re-run --category ${owner} to refresh that document, or run the general install to reset it`);
+    }
+  }
   const staleExternalManaged = categoryFilter?.has("external")
     ? previousFileEntries.filter(
       (item) => item.asset_category === undefined

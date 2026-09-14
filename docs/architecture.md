@@ -168,7 +168,9 @@ Migration posture:
 - `check:generated`: rebuild all implemented targets and compare expected output.
 - `doctor`: inspect local runtime/MCP/install health; diagnostics are evidence, not automatic repair.
 
-Unknown target IDs fail before writing. Scope support is adapter-owned. An unfiltered full install reconciles the general baseline, including removal of previously managed opt-in assets. Category-only installs are additive and prune only the selected category, so an installation profile is the general sync followed by each desired category. Retired-target cleanup runs only for an unfiltered full user-scope `--target all` install.
+Unknown target IDs fail before writing, and `all` must be supplied alone on `--target` and `--category` so a sibling selector is never dropped or left unvalidated. Scope support is adapter-owned. An unfiltered full install reconciles the general baseline, including removal of previously managed opt-in assets. Category-only installs are additive and prune only the selected category, so an installation profile is the general sync followed by each desired category. Retired-target cleanup runs only for an unfiltered full user-scope `--target all` install.
+
+One output can carry several categories' contributions — a host whose rules are one concatenated instruction document is the case that matters. Regenerating such a file under a narrower selection would erase the rest, so a category-filtered install that would overwrite an output the manifest records as owned by an unselected category is rejected before writing, naming the owner. Per-file rule hosts are unaffected, since each rule is its own managed output. The manifest records one owning category per output, which is enough to detect that loss and not enough to reconstruct a multi-category document, so the contribution is restored by re-running its own category rather than reassembled; the general full sync still resets it deliberately.
 
 ### Adapter contract
 

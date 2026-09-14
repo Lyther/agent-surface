@@ -220,7 +220,6 @@
       "renders": [
         "skills",
         "instructions",
-        "prompts",
         "external",
         "mcps"
       ]

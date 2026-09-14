@@ -1792,11 +1792,10 @@
       }
     },
     "vscode": {
-      "summary": "VS Code/Copilot supports instruction files, prompt files, MCP, and preview agent plugins; agent-surface generates user instruction and prompt files plus first-party MCP wiring (Synapse + Grimoire).",
+      "summary": "VS Code/Copilot supports Agent Skills, instruction files, MCP, and preview agent plugins; agent-surface generates user instruction files, canonical and manual-only skills, plus first-party MCP wiring (Synapse + Grimoire).",
       "generated_render_tokens": [
         "skills",
         "instructions",
-        "prompts",
         "external",
         "mcps"
       ],
@@ -1808,6 +1807,10 @@
         {
           "label": "VS Code MCP servers",
           "url": "https://code.visualstudio.com/docs/copilot/chat/mcp-servers"
+        },
+        {
+          "label": "VS Code Agent Skills",
+          "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills"
         }
       ],
       "surfaces": {
@@ -1821,17 +1824,6 @@
             "instructions/agent-surface.instructions.md"
           ],
           "notes": "Path is relative to the VS Code user data directory."
-        },
-        "prompts": {
-          "support": "native",
-          "generation": "generated",
-          "scope": [
-            "user"
-          ],
-          "paths": [
-            "prompts/agent-surface.prompt.md"
-          ],
-          "notes": "Prompt file provides a lightweight routing entry point."
         },
         "mcp": {
           "support": "native",
@@ -1863,7 +1855,7 @@
           "paths": [
             "~/.agents/skills/<name>/SKILL.md"
           ],
-          "notes": "Canonical skills use VS Code Agent Skills discovery. Available high-impact commands remain user prompt files."
+          "notes": "Canonical skills use VS Code Agent Skills discovery. Available high-impact commands install into the same root as explicit-only skills (disable-model-invocation: true), which VS Code 1.116 describes as the way to keep a workflow manual. Prompt files were the legacy Local-agent route and are no longer generated."
         },
         "external": {
           "support": "native",
