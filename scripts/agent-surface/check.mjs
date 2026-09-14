@@ -482,6 +482,7 @@ export async function checkGenerated(args) {
   const selected = target === "all" ? Object.keys(targets) : [target];
   const catalog = await exportableCatalog();
   const sourceKindsConfig = await readSourceKinds();
+  const rules = await readRules();
   const errors = [];
 
   for (const item of selected) {
@@ -489,18 +490,25 @@ export async function checkGenerated(args) {
     if (!Object.hasOwn(targets, item)) fail(`unsupported generated target: ${item}`);
   }
 
+  const outputsByTarget = new Map();
   for (const item of selected) {
     const adapter = targets[item];
     const outputs = await targetOutputs(adapter, catalog, { target: item, scope: "user", mode: "check" });
+    outputsByTarget.set(item, outputs);
     const targetErrors = validateGeneratedTarget(item, outputs);
     const countErrors = validateGeneratedOutputCount(item, outputs);
     const sourceKindErrors = validateGeneratedSourceKinds(item, outputs, sourceKindsConfig);
-    const failed = targetErrors.length + countErrors.length + sourceKindErrors.length > 0;
+    const fidelityErrors = await validateSkillResourceFidelity(outputs);
+    const referenceErrors = validateScopedRuleReferences(outputs, rules);
+    const failed = targetErrors.length + countErrors.length + sourceKindErrors.length + fidelityErrors.length + referenceErrors.length > 0;
     console.log(`${item}: generated outputs ${outputs.length} ${failed ? "failed" : "ok"}`);
     errors.push(...targetErrors.map((error) => `${item}: ${error}`));
     errors.push(...countErrors.map((error) => `${item}: ${error}`));
     errors.push(...sourceKindErrors);
+    errors.push(...fidelityErrors.map((error) => `${item}: ${error}`));
+    errors.push(...referenceErrors.map((error) => `${item}: ${error}`));
   }
+  errors.push(...validateSharedSkillRootAgreement(outputsByTarget));
 
   if (errors.length > 0) {
     console.log("errors:");
@@ -783,6 +791,71 @@ export async function readWorkflowJson(file, validate, errors) {
   return data;
 }
 
+// A skill's companion file is DELIVERED material, not rendered material: what arrives beside the
+// installed skill has to be what the source says, byte for byte. Asserting the bytes instead of a
+// heading means rewording a reference is free and silently truncating or transforming one is not.
+export async function validateSkillResourceFidelity(outputs) {
+  const errors = [];
+  for (const output of outputs) {
+    if (output.sourceKind !== "skills") continue;
+    if (!/^skills[\\/]/.test(output.source) || output.source.endsWith("SKILL.md")) continue;
+    const source = await readFileIfExists(path.join(root, output.source));
+    if (source === null) {
+      errors.push(`companion output ${output.relativeOutput} has no source file at ${output.source}`);
+      continue;
+    }
+    if (source.toString("utf8") !== output.content) {
+      errors.push(`companion output ${output.relativeOutput} does not match its source ${output.source}`);
+    }
+  }
+  return errors;
+}
+
+// A scoped rule is delivered as a reference the reader decides to apply, so the reference has to
+// carry the scope that decision needs — the rule's OWN description and globs, whatever they say —
+// and must not re-emit frontmatter a host could mistake for its own directives.
+export function validateScopedRuleReferences(outputs, rules) {
+  const errors = [];
+  const scoped = new Map(rules.filter((rule) => rule.alwaysApply === false).map((rule) => [rule.file, rule]));
+  for (const output of outputs) {
+    const rule = scoped.get(output.source);
+    if (!rule || !/references[\\/]rules[\\/]/.test(output.relativeOutput)) continue;
+    if (rule.description && !output.content.includes(rule.description)) {
+      errors.push(`scoped reference ${output.relativeOutput} drops the rule's description`);
+    }
+    for (const glob of rule.globs) {
+      if (!output.content.includes(glob)) errors.push(`scoped reference ${output.relativeOutput} drops the applicability glob ${glob}`);
+    }
+    if (/^---$/m.test(output.content)) {
+      errors.push(`scoped reference ${output.relativeOutput} re-emits frontmatter a host could read as directives`);
+    }
+  }
+  return errors;
+}
+
+// `.agents/skills/` is one directory on disk that several targets install into, and identical
+// content is what lets them coexist there — a divergence is a real install conflict, not a style
+// difference. This is the contract that host-specific invocation syntax in a shared file violates,
+// stated as the conflict itself rather than as an expected sentence.
+export function validateSharedSkillRootAgreement(outputsByTarget) {
+  const errors = [];
+  const seen = new Map();
+  for (const [target, outputs] of outputsByTarget) {
+    for (const output of outputs) {
+      if (!/^\.agents[\\/]skills[\\/]/.test(output.relativeOutput)) continue;
+      const previous = seen.get(output.relativeOutput);
+      if (!previous) {
+        seen.set(output.relativeOutput, { target, content: output.content });
+        continue;
+      }
+      if (previous.content !== output.content) {
+        errors.push(`shared skill root conflict: ${target} and ${previous.target} emit different content for ${output.relativeOutput}`);
+      }
+    }
+  }
+  return errors;
+}
+
 export function validateGeneratedOutputCount(target, outputs) {
   const minimum = generatedOutputMinimums.get(target);
   if (minimum === undefined) return ["missing generated output minimum"];
@@ -849,19 +922,14 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".claude", "skills", "ops-nuke", "SKILL.md"), /disable-model-invocation: true/);
     requireContains(path.join(".claude", "skills", "ops-ask", "SKILL.md"), /^---\nname: ops-ask\ndescription: "[^"]+"\n---\n/);
   } else if (target === "codex") {
-    // A skill's companion files are part of the skill. Rendering the body without them would leave
-    // every relative reference in it dangling at the installed location.
-    requireContains(path.join(".agents", "skills", "ops-swarm", "SKILL.md"), /`references\/runtime-catalog\.md`/);
-    requireContains(path.join(".agents", "skills", "ops-swarm", "references", "runtime-catalog.md"), /ops-swarm runtime and model catalog/);
+    // The companion files must be DELIVERED with the skill, which validateSkillResourceFidelity
+    // checks against their sources for every target. Here: the body still points at one, so a
+    // dangling reference in the shipped body is caught rather than only a missing file.
+    requireContains(path.join(".agents", "skills", "ops-swarm", "SKILL.md"), /references\/runtime-catalog\.md/);
     requireContains(path.join(".agents", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".agents", "skills", "ops-flow", "agents", "openai.yaml"), /allow_implicit_invocation: true/);
     requireContains(path.join(".agents", "skills", "ops-nuke", "SKILL.md"), /^---\nname: ops-nuke\n/);
     requireContains(path.join(".agents", "skills", "ops-nuke", "agents", "openai.yaml"), /allow_implicit_invocation: false/);
-    // `.agents/skills` is read by several hosts that spell explicit invocation differently, so a file
-    // written there must name no syntax at all — whichever prefix it printed would be wrong for one
-    // of its readers. Explicit-only is carried by metadata each host reads, not by this sentence.
-    requireContains(path.join(".agents", "skills", "ops-nuke", "SKILL.md"), /Select this workflow explicitly through your runtime's skill interface\./);
-    requireNotContains(path.join(".agents", "skills", "ops-nuke", "SKILL.md"), /Use explicit invocation: `[$/]/);
     requireContains(path.join(".agents", "skills", "ops-ask", "agents", "openai.yaml"), /allow_implicit_invocation: true/);
     requireContains(path.join(".codex", "agents", "boss.toml"), /^name = "boss"\n/);
     requireContains(path.join(".codex", "AGENTS.md"), /agent-surface global Codex rules/);
@@ -979,14 +1047,7 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "rules", "00-precedence-and-safety.md"), /Antigravity CLI plugin rule/);
     // Antigravity CLI documents slash invocation; the generic renderer's `$name` default is Codex's.
     requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "skills", "ops-nuke", "SKILL.md"), /Use explicit invocation: `\/ops-nuke`\./);
-    // A scoped reference must carry the scope it tells the reader to match. The body used to name
-    // frontmatter globs that the same render had stripped out, leaving nothing to match against.
-    const scopedReference = path.join("antigravity-cli", "plugins", "agent-surface", "references", "rules", "10-python.md");
-    requireContains(scopedReference, /Scoped agent-surface reference/);
-    requireContains(scopedReference, /\*\*Scope\.\*\* Python-specific correctness rules/);
-    requireContains(scopedReference, /Applies to files matching:\n\n- `\*\*\/\*\.py`/);
-    // Inert metadata, not host directives: re-emitting frontmatter here would be read as real.
-    requireNotContains(scopedReference, /^---$/m);
+    requirePath(path.join("antigravity-cli", "plugins", "agent-surface", "references", "rules", "10-python.md"));
   } else if (target === "cursor") {
     requirePath(path.join(".cursor", "skills", "ops-flow", "SKILL.md"));
     requirePath(path.join(".cursor", "commands", "ops-nuke.md"));

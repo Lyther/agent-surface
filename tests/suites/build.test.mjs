@@ -388,7 +388,8 @@ run(["build", "--target", "all"]);
     assert.equal(typeof resource.text, "string");
   }
   // Every reference the body names must be a file that actually ships with it.
-  const referenced = [...new Set([...swarm.text.matchAll(/`(references\/[a-z0-9-]+\.md)`/g)].map((match) => match[1]))];
+  // Backtick or Markdown-link spelling; the contract is that what the body points at is carried.
+  const referenced = [...new Set([...swarm.text.matchAll(/(?:\]\(|`)(references\/[^)`\s]+)(?:\)|`)/g)].map((match) => match[1]))];
   assert.ok(referenced.length > 0, "the pilot body points at its companions");
   const carried = new Set(swarm.resources.map((resource) => resource.resourcePath));
   for (const reference of referenced) assert.ok(carried.has(reference), `${reference} is referenced by the body and carried with it`);

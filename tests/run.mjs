@@ -32,6 +32,7 @@ const suites = [
   "runtime.test.mjs",
   "install.test.mjs",
   "install-live.test.mjs",
+  "skill-packages.test.mjs",
   "workflow.test.mjs",
   // Opt-in networked acceptances (AGENT_SURFACE_LIVE_*); they skip by default so the suite stays offline.
   "live-launch.test.mjs",
