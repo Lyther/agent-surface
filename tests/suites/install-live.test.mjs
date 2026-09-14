@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { run, status } from "../lib/helpers.mjs";
+import { root, run, status } from "../lib/helpers.mjs";
 
 // Table-driven live install smoke: each installable target must write a manifest
 // with managed entries. Distinct from build/check generated (render path only).
+
+// Two adapters with DIFFERENT skill roots run the companion-removal case, so what it proves is the
+// ownership layer's behavior rather than one adapter's. Both must be in the loop below; the
+// post-loop assertion is what stops this from silently becoming dead test code.
+const companionRemovalTargets = ["codex", "copilot"];
+const companionRemovalRan = [];
 for (const target of [
   "codex",
   "cursor",
@@ -40,6 +46,23 @@ for (const target of [
     const manifest = JSON.parse(readFileSync(path.join(targetDest, ".agent-surface", `${target}-manifest.json`), "utf8"));
     assert.equal(manifest.target, target);
     assert.equal(manifest.managed.length > 0, true, `${target}: managed entries`);
+
+    // A skill's companion files must arrive with it wherever it lands. This is asserted against the
+    // INSTALLED tree, not the source checkout, because resolving there is the entire point: a body
+    // that references `references/<file>.md` is read from the installed location at runtime.
+    const installedSkill = manifest.managed.find((entry) => entry.output.endsWith(path.join("ops-swarm", "SKILL.md")));
+    if (installedSkill) {
+      const skillDir = path.join(targetDest, path.dirname(installedSkill.output));
+      const body = readFileSync(path.join(skillDir, "SKILL.md"), "utf8");
+      const referenced = [...new Set([...body.matchAll(/`(references\/[a-z0-9-]+\.md)`/g)].map((match) => match[1]))];
+      assert.ok(referenced.length > 0, `${target}: the installed body still points at its companions`);
+      for (const reference of referenced) {
+        const resource = path.join(skillDir, reference);
+        assert.ok(existsSync(resource), `${target}: ${reference} resolves from the installed skill directory`);
+        assert.ok(readFileSync(resource, "utf8").length > 0, `${target}: ${reference} arrived with its contents`);
+        assert.ok(manifest.managed.some((entry) => entry.output === path.join(path.dirname(installedSkill.output), reference)), `${target}: ${reference} is tracked as a managed output, so ownership cleanup governs it`);
+      }
+    }
     if (target === "kilo") {
       const kiloConfig = JSON.parse(readFileSync(path.join(targetDest, "kilo.jsonc"), "utf8"));
       assert.deepEqual(kiloConfig.instructions, [
@@ -108,6 +131,34 @@ for (const target of [
         assert.ok(existsSync(path.join(targetDest, ".agents", "skills", skill, "SKILL.md")), skill);
       }
     }
+    if (companionRemovalTargets.includes(target)) {
+      // The other half of the package contract: a companion REMOVED at the source must be removed
+      // from the install, and nothing else in that directory may go with it. Exercised on two
+      // adapters with different skill roots so the behavior is the ownership layer's, not one
+      // adapter's. The source file is restored in `finally` — this suite mutates the real checkout.
+      const skillEntry = manifest.managed.find((entry) => entry.output.endsWith(path.join("ops-swarm", "SKILL.md")));
+      if (skillEntry) {
+        const skillDir = path.join(targetDest, path.dirname(skillEntry.output));
+        const sourceResource = path.join(root, "skills", "ops-swarm", "references", "report-template.md");
+        const original = readFileSync(sourceResource, "utf8");
+        // An operator's own file inside the managed directory: unmanaged, so it must survive.
+        const operatorFile = path.join(skillDir, "references", "operator-note.md");
+        writeFileSync(operatorFile, "operator note\n");
+        try {
+          rmSync(sourceResource);
+          run(installArgs);
+          assert.ok(!existsSync(path.join(skillDir, "references", "report-template.md")), `${target}: a companion deleted at the source is removed from the install`);
+          assert.ok(existsSync(path.join(skillDir, "references", "runtime-catalog.md")), `${target}: its siblings are untouched`);
+          assert.ok(existsSync(operatorFile), `${target}: an unmanaged file in the same directory is preserved`);
+          assert.ok(existsSync(path.join(skillDir, "SKILL.md")), `${target}: the skill itself is untouched`);
+          companionRemovalRan.push(target);
+        } finally {
+          writeFileSync(sourceResource, original);
+        }
+        run(installArgs);
+        assert.ok(existsSync(path.join(skillDir, "references", "report-template.md")), `${target}: restoring the source companion reinstalls it`);
+      }
+    }
     if (target === "cursor") {
       // The per-file counterpart to the codex case above, and the reason that one is refused rather
       // than rewritten: here each rule is its own managed output, so an output-only refresh has
@@ -160,5 +211,10 @@ for (const target of [
     rmSync(targetDest, { recursive: true, force: true });
   }
 }
+
+// The companion-removal case is conditional on the skill being installed for that target, so assert
+// it actually ran on both adapters. A condition that silently stopped matching would otherwise turn
+// the whole case into test decoration.
+assert.deepEqual(companionRemovalRan.sort(), [...companionRemovalTargets].sort(), "the companion-removal case ran on both adapters");
 
 console.log("install-live: ok");

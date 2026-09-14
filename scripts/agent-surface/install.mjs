@@ -578,6 +578,12 @@ async function materializeMcpLauncher() {
   return target;
 }
 
+// Windows has no POSIX mode bits to set, and a failure to set one must not abort an install that
+// otherwise succeeded — the file is written either way, and its content is the deliverable.
+async function applyOutputMode(target, mode) {
+  await chmod(target, mode).catch(() => { /* best effort on platforms without POSIX modes */ });
+}
+
 async function installPlan(target, adapter, installRoot, scope, rootSource, options = {}) {
   const categoryFilter = options.categoryFilter ?? null;
   const optionalServices = options.optionalServices ?? null;
@@ -625,7 +631,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       continue;
     }
 
-    writes.push({ source: item.source, output, relativeOutput, content: item.content });
+    writes.push({ source: item.source, output, relativeOutput, content: item.content, mode: item.mode });
     managed.push({
       target,
       source: item.source,
@@ -1230,6 +1236,9 @@ async function applyInstallPlan(plan) {
 
   for (const item of plan.writes) {
     if (item.action === "skip") {
+      // Identical content, but a mode the output declares still has to hold: a companion script
+      // restored from a non-executable copy would otherwise stay unrunnable forever.
+      if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
       skipped += 1;
       continue;
     }
@@ -1240,6 +1249,7 @@ async function applyInstallPlan(plan) {
     const postMkdirRouteError = await installPathError(plan.installRoot, item.output, `managed output ${item.relativeOutput}`);
     if (postMkdirRouteError) fail(postMkdirRouteError);
     await writeFile(item.output, item.content);
+    if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
     written += 1;
   }
 

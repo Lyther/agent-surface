@@ -849,6 +849,10 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".claude", "skills", "ops-nuke", "SKILL.md"), /disable-model-invocation: true/);
     requireContains(path.join(".claude", "skills", "ops-ask", "SKILL.md"), /^---\nname: ops-ask\ndescription: "[^"]+"\n---\n/);
   } else if (target === "codex") {
+    // A skill's companion files are part of the skill. Rendering the body without them would leave
+    // every relative reference in it dangling at the installed location.
+    requireContains(path.join(".agents", "skills", "ops-swarm", "SKILL.md"), /`references\/runtime-catalog\.md`/);
+    requireContains(path.join(".agents", "skills", "ops-swarm", "references", "runtime-catalog.md"), /ops-swarm runtime and model catalog/);
     requireContains(path.join(".agents", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".agents", "skills", "ops-flow", "agents", "openai.yaml"), /allow_implicit_invocation: true/);
     requireContains(path.join(".agents", "skills", "ops-nuke", "SKILL.md"), /^---\nname: ops-nuke\n/);

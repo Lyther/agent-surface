@@ -43,7 +43,8 @@ Planned: Amp, Auggie, Crush, and Warp. Out of scope: Gemini CLI (individual-acco
 ## Project layout
 
 ```text
-skills/      Vanilla Agent Skills, model-invocable by default
+skills/      Vanilla Agent Skills, model-invocable by default; a skill is a directory and
+             may carry the reference material its SKILL.md points at
 commands/    High-impact workflows that require explicit user invocation
 rules/       Always-on or scoped behavior policy
 subagents/   Normalized subagent definitions

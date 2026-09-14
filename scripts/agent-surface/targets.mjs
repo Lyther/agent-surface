@@ -859,12 +859,30 @@ export async function produceSkillOutputs(adapter, skills, context) {
     const assetCategory = assetCategoryFor(categories, "skills", skill.name);
     if (!assetCategoryAllowed(context, assetCategory)) continue;
     if (adapter.renderSkill) {
+      const relativeOutput = skillRelativeOutput(adapter, skill, context);
       outputs.push({
         source: skill.relativePath,
-        relativeOutput: skillRelativeOutput(adapter, skill, context),
+        relativeOutput,
         content: await adapter.renderSkill(skill, context),
         assetCategory,
       });
+      // Companion files ride beside their SKILL.md, so a relative reference in the body resolves
+      // from the INSTALLED location rather than the source checkout. Each is its own managed output,
+      // which is what makes ownership cleanup remove a deleted one without special handling. Gated
+      // on the host actually using a directory-shaped skill surface: an adapter that flattens a
+      // skill to a single file has nowhere to put them, and a guessed path would not resolve.
+      if (path.basename(relativeOutput) === "SKILL.md") {
+        const skillDirectory = path.dirname(relativeOutput);
+        for (const resource of skill.resources ?? []) {
+          outputs.push({
+            source: resource.relativePath,
+            relativeOutput: path.join(skillDirectory, resource.resourcePath),
+            content: resource.text,
+            mode: resource.executable ? 0o755 : undefined,
+            assetCategory,
+          });
+        }
+      }
     }
     for (const buildOutput of adapter.additionalSkillOutputs ?? []) {
       outputs.push({ ...await buildOutput(skill, context), assetCategory });
