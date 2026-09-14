@@ -540,14 +540,16 @@ export const targets = {
     skillOutputRoot: sharedAgentSkillRoot,
     skillOutputName: codexSkillOutputName,
     renderSkill: renderVanillaSkill,
-    // Manual workflows go through Agent Skills, not prompt files. Qualified against the installed
-    // VS Code 1.116.0 (stable): it ships `chat.agentSkillsLocations` whose built-in user-scope
-    // entries include `~/.agents/skills` — the root canonical skills already use — and it reads
-    // `disable-model-invocation`, describing it in-product as preventing automatic loading "for
-    // workflows you want to trigger manually". Prompt files were the legacy Local-agent route, and
-    // these were additionally emitted as `<name>.md` rather than the `.prompt.md` that route
-    // requires, so they were not loaded by either session type. The previous outputs are pruned by
-    // the manifest's ownership cleanup like any other renamed managed file.
+    // Manual workflows go through Agent Skills, not prompt files. Prompt files were the legacy
+    // Local-agent route, and these were additionally emitted as `<name>.md` rather than the
+    // `.prompt.md` that route requires, so they were loaded by neither session type. The previous
+    // outputs are pruned by the manifest's ownership cleanup like any other renamed managed file.
+    //
+    // The mapping was read out of the installed VS Code 1.116.0 (stable) build: its built-in
+    // user-scope skill locations include `~/.agents/skills`, the root canonical skills already use,
+    // and it describes `disable-model-invocation` in-product as preventing automatic loading "for
+    // workflows you want to trigger manually". That is evidence about the shipped build, NOT a
+    // verified runtime result — discovery and invocation in a live VS Code session remain unproven.
     commandRenders: ["skills"],
     commandOutputRoot: sharedAgentSkillRoot,
     commandOutputName: codexSkillOutputName,

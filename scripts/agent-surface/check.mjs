@@ -853,6 +853,11 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".agents", "skills", "ops-flow", "agents", "openai.yaml"), /allow_implicit_invocation: true/);
     requireContains(path.join(".agents", "skills", "ops-nuke", "SKILL.md"), /^---\nname: ops-nuke\n/);
     requireContains(path.join(".agents", "skills", "ops-nuke", "agents", "openai.yaml"), /allow_implicit_invocation: false/);
+    // `.agents/skills` is read by several hosts that spell explicit invocation differently, so a file
+    // written there must name no syntax at all — whichever prefix it printed would be wrong for one
+    // of its readers. Explicit-only is carried by metadata each host reads, not by this sentence.
+    requireContains(path.join(".agents", "skills", "ops-nuke", "SKILL.md"), /Select this workflow explicitly through your runtime's skill interface\./);
+    requireNotContains(path.join(".agents", "skills", "ops-nuke", "SKILL.md"), /Use explicit invocation: `[$/]/);
     requireContains(path.join(".agents", "skills", "ops-ask", "agents", "openai.yaml"), /allow_implicit_invocation: true/);
     requireContains(path.join(".codex", "agents", "boss.toml"), /^name = "boss"\n/);
     requireContains(path.join(".codex", "AGENTS.md"), /agent-surface global Codex rules/);
@@ -1015,7 +1020,8 @@ export function validateGeneratedTarget(target, outputs) {
     // Manual workflows reach VS Code as explicit-only Agent Skills, not prompt files: 1.116 does not
     // load prompt files in Agent Host sessions, and `disable-model-invocation` is how it is told to
     // keep a skill manual. The absent-path assertion is the point — a prompt file here would mean
-    // the dead route came back.
+    // the dead route came back. This asserts what is GENERATED; discovery and invocation by a live
+    // VS Code session are a separate claim and are not established by this check.
     requireContains(path.join(".agents", "skills", "ops-nuke", "SKILL.md"), /disable-model-invocation: true/);
     requireAbsent(path.join(userRoot, "prompts", "ops-nuke.md"));
   } else if (target === "opencode") {

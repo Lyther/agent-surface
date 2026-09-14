@@ -333,18 +333,22 @@ export async function renderManualKimiCodeSkill(source) {
   ].join("\n");
 }
 
+// Deliberately names no invocation syntax. Several hosts read the very same generated file out of the
+// shared Agent Skills root and spell explicit invocation differently, so the body describes WHAT the
+// reader must do — choose it deliberately — and leaves HOW to the runtime. The explicit-only
+// guarantee is carried by `disable-model-invocation`, which is metadata the hosts read, not prose.
 export async function renderManualPortableSkill(source) {
   return renderSkillMarkdown(source, {
+    invocationPrefix: null,
     generatedFor: "compatible Agent Skills hosts",
     frontmatter: ["disable-model-invocation: true"],
     hostInstruction: "This manual workflow must be selected explicitly.",
   });
 }
 
-// Same manual-skill contract, spelled with the invocation these hosts document. The generic `$name`
-// default is Codex's idiom; Copilot CLI and Antigravity CLI both invoke a skill as `/name`, so the
-// portable text was telling their users to type something their host does not accept. Only the
-// prefix differs — the skill stays explicit-only.
+// The same manual-skill contract for hosts that own their skill root outright, so the file is read by
+// one runtime and can name that runtime's syntax. Both of these document slash invocation and were
+// previously handed a different host's `$name` idiom.
 export async function renderManualSlashSkill(source) {
   return renderSkillMarkdown(source, {
     invocationPrefix: "/",
@@ -368,13 +372,21 @@ export async function renderGooseRecipe(source) {
   ].join("\n");
 }
 
+// `invocationPrefix: null` asks for guidance that names no syntax. That is the right choice whenever
+// one rendered file is read by more than one host: `.agents/skills/<name>/SKILL.md` is shared, and
+// hosts reading it do not agree on a prefix, so any concrete syntax printed there is wrong for
+// someone. A renderer that owns its host's own root passes that host's prefix instead.
 export function renderSkillMarkdown(source, options = {}) {
   const invocationPrefix = Object.hasOwn(options, "invocationPrefix") ? options.invocationPrefix : "$";
   const generatedFor = options.generatedFor ?? "agent-surface skill";
   const description = yamlString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
-  const hostInstruction = options.hostInstruction ?? `Invoke \`${invocationPrefix}${source.name}\` when this skill is needed.`;
+  const hostInstruction = options.hostInstruction ?? (invocationPrefix === null
+    ? "Select this skill explicitly when it is needed."
+    : `Invoke \`${invocationPrefix}${source.name}\` when this skill is needed.`);
   const frontmatter = options.frontmatter ?? [];
-  const invocationInstruction = `Use explicit invocation: \`${invocationPrefix}${source.name}\`.`;
+  const invocationInstruction = invocationPrefix === null
+    ? "Select this workflow explicitly through your runtime's skill interface."
+    : `Use explicit invocation: \`${invocationPrefix}${source.name}\`.`;
   return [
     "---",
     `name: ${source.name}`,

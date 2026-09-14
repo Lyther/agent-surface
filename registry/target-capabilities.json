@@ -1855,7 +1855,7 @@
           "paths": [
             "~/.agents/skills/<name>/SKILL.md"
           ],
-          "notes": "Canonical skills use VS Code Agent Skills discovery. Available high-impact commands install into the same root as explicit-only skills (disable-model-invocation: true), which VS Code 1.116 describes as the way to keep a workflow manual. Prompt files were the legacy Local-agent route and are no longer generated."
+          "notes": "Canonical skills use VS Code Agent Skills discovery. Available high-impact commands install into the same root as explicit-only skills (disable-model-invocation: true). The mapping was read from the installed 1.116.0 build, whose built-in user-scope skill locations include ~/.agents/skills and which describes that attribute as keeping a workflow manual; discovery and invocation in a live session are not yet verified. Prompt files were the legacy Local-agent route and are no longer generated."
         },
         "external": {
           "support": "native",
