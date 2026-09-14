@@ -826,8 +826,11 @@ export function validateScopedRuleReferences(outputs, rules) {
     for (const glob of rule.globs) {
       if (!output.content.includes(glob)) errors.push(`scoped reference ${output.relativeOutput} drops the applicability glob ${glob}`);
     }
-    if (/^---$/m.test(output.content)) {
-      errors.push(`scoped reference ${output.relativeOutput} re-emits frontmatter a host could read as directives`);
+    // Frontmatter is a LEADING construct: a host reads `---` as metadata only when the document opens
+    // with it. A `---` further down is an ordinary horizontal rule and rendering one is not a defect,
+    // so only the opening delimiter is rejected.
+    if (/^---\r?\n/.test(output.content)) {
+      errors.push(`scoped reference ${output.relativeOutput} opens with frontmatter a host could read as directives`);
     }
   }
   return errors;
@@ -835,8 +838,13 @@ export function validateScopedRuleReferences(outputs, rules) {
 
 // `.agents/skills/` is one directory on disk that several targets install into, and identical
 // content is what lets them coexist there — a divergence is a real install conflict, not a style
-// difference. This is the contract that host-specific invocation syntax in a shared file violates,
-// stated as the conflict itself rather than as an expected sentence.
+// difference.
+//
+// What this proves is exactly cross-target byte compatibility, and nothing more. Every target could
+// agree on the same WRONG invocation guidance and pass: agreement is not correctness. It is the
+// reason a shared file cannot carry host-specific syntax — because the hosts would then disagree —
+// but whether the shared wording is good guidance is a question for review and task-shaped
+// evaluation, not for this check.
 export function validateSharedSkillRootAgreement(outputsByTarget) {
   const errors = [];
   const seen = new Map();
