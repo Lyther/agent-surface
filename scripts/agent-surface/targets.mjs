@@ -8,7 +8,7 @@ import path from "node:path";
 import { directDirectories, filesUnder } from "./fs-tree.mjs";
 import { MCP_ENV_LAUNCHER, mcpLauncherInvocation, optionalServiceMcpServers, renderMcpConfig } from "./merge.mjs";
 import { normalizeExternalSkillFile } from "./postprocess.mjs";
-import { assetCategoryAllowed, assetCategoryFor, readAssetCategories, readOptionalServices, relative, root, selectedAssetCategories } from "./registry.mjs";
+import { assetCategoryAllowed, assetCategoryFor, packageVersion, readAssetCategories, readOptionalServices, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityCliSubagent, renderAntigravityWorkflow, renderClaudeSubagent, renderClineSubagent, renderClineWorkflow, renderCodexSubagent, renderCopilotSubagent, renderCursorCommand, renderCursorSubagent, renderDeepAgentsSubagent, renderDroidCommand, renderDroidSubagent, renderGooseRecipe, renderInstructionDocument, renderKiloRuleDocument, renderKiloSubagent, renderKiloWorkflow, renderKimiCodeSubagent, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderQwenCodeSubagent, renderScopedRuleReferenceDocument, renderTraeSubagent, renderVanillaSkill, renderVsCodeInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
 import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, clineAgentRoot, clineCursorExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, droidSkillRoot, dshSkillRoot, flatMarkdownCommandOutputName, gooseRecipeOutputName, gooseSkillRoot, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCliSkillRoot, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
 import { readRulesForContext } from "./rules.mjs";
@@ -688,6 +688,17 @@ export const targets = {
       defaultEnabled: true,
     },
   },
+  // An EXPORT format, not a host to install into. It renders a portable plugin package plus the
+  // local marketplace manifest that the host's own `plugin marketplace add` / `plugin add` consume,
+  // so distribution stays the host's job and agent-surface never becomes a plugin manager. Marked
+  // buildOnly for that reason: `install` would have to decide where a package "belongs", which is
+  // exactly the decision the native manager already owns.
+  "codex-plugin": {
+    label: "Portable plugin package and local marketplace manifest (export only)",
+    buildOnly: true,
+    staticRenders: ["plugins", "skills"],
+    staticOutputs: codexPluginPackageOutputs,
+  },
 };
 
 // Full user-scope installs run these cleanup-only adapters before active targets.
@@ -714,6 +725,9 @@ export const retiredInstallTargets = {
 };
 
 export const generatedOutputMinimums = new Map([
+  // The export package is a narrow pilot, not a catalog: three manifests, one skill, and the
+  // companions that skill ships with. The floor only has to catch an export that silently collapsed.
+  ["codex-plugin", 6],
   ["claude-code", 250],
   ["codex", 300],
   ["deepagents", 250],
@@ -1270,6 +1284,87 @@ export function mcpConfigRootProperties(mcpConfig, context) {
 export function adapterMcpConfigs(adapter) {
   if (adapter.mcpConfigs) return adapter.mcpConfigs;
   return adapter.mcpConfig ? [adapter.mcpConfig] : [];
+}
+
+// The pilot package: one plugin, carrying one canonical skill and the companion files that skill
+// already ships with. Deliberately narrow — this exists to prove the packaging path end to end, not
+// to become a second distribution channel for the whole catalog.
+export const CODEX_PLUGIN_NAME = "agent-surface";
+export const CODEX_PLUGIN_SKILLS = ["ops-swarm"];
+const CODEX_PLUGIN_ROOT = path.join("plugins", CODEX_PLUGIN_NAME);
+
+export async function codexPluginPackageOutputs(catalog, _context) {
+  const version = await packageVersion();
+  // ONE metadata definition. It is serialized into both manifest locations below rather than
+  // maintained twice, so the package cannot drift against itself.
+  const manifest = {
+    name: CODEX_PLUGIN_NAME,
+    version,
+    description: "Portable agent-surface skill package generated from Lyther/agent-surface.",
+  };
+  const manifestJson = `${JSON.stringify(manifest, null, 2)}\n`;
+  const outputs = [
+    {
+      sourceKind: "commands",
+      renderKind: "plugins",
+      source: "package.json",
+      // The portable Agent Plugins root manifest. The installed host does not read it — see the
+      // overlay below — but it is what the portable format specifies, and emitting only the
+      // host-specific copy would bake this one runtime's limitation into the package.
+      relativeOutput: path.join(CODEX_PLUGIN_ROOT, "plugin.json"),
+      content: manifestJson,
+    },
+    {
+      sourceKind: "commands",
+      renderKind: "plugins",
+      source: "package.json",
+      // The documented compatibility overlay, and the one this host actually loads: installing a
+      // package carrying only the portable root manifest fails with `missing plugin.json`. Both are
+      // emitted because a package carrying both installs cleanly, so satisfying this runtime costs
+      // nothing in portability.
+      relativeOutput: path.join(CODEX_PLUGIN_ROOT, ".codex-plugin", "plugin.json"),
+      content: manifestJson,
+    },
+    {
+      sourceKind: "commands",
+      renderKind: "plugins",
+      source: "package.json",
+      // The local marketplace manifest the host reads. Its location and the way relative plugin
+      // sources resolve are both fixed by the host: the manifest lives under `.agents/plugins/`,
+      // while `./plugins/<name>` resolves from the marketplace ROOT, not from the manifest's folder.
+      relativeOutput: path.join(".agents", "plugins", "marketplace.json"),
+      content: `${JSON.stringify({
+        name: CODEX_PLUGIN_NAME,
+        plugins: [{ name: CODEX_PLUGIN_NAME, source: `./${CODEX_PLUGIN_ROOT.split(path.sep).join("/")}` }],
+      }, null, 2)}\n`,
+    },
+  ];
+
+  for (const name of CODEX_PLUGIN_SKILLS) {
+    const skill = catalog.skills.find((item) => item.name === name);
+    if (!skill) fail(`codex-plugin package expects canonical skill ${name}`);
+    const skillRoot = path.join(CODEX_PLUGIN_ROOT, "skills", skill.name);
+    // The canonical source, rendered the same way every other host renders it — not a second copy
+    // maintained for packaging.
+    outputs.push({
+      sourceKind: "skills",
+      renderKind: "skills",
+      source: skill.relativePath,
+      relativeOutput: path.join(skillRoot, "SKILL.md"),
+      content: await renderVanillaSkill(skill),
+    });
+    for (const resource of skill.resources ?? []) {
+      outputs.push({
+        sourceKind: "skills",
+        renderKind: "skills",
+        source: resource.relativePath,
+        relativeOutput: path.join(skillRoot, resource.resourcePath),
+        content: resource.text,
+        mode: resource.executable ? 0o755 : undefined,
+      });
+    }
+  }
+  return outputs;
 }
 
 export async function antigravityCliStaticOutputs(catalog, context) {

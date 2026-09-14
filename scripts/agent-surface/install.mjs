@@ -283,11 +283,15 @@ function exclusiveAll(values, flag) {
 function selectedInstallTargets(args) {
   const values = splitArgValues([...argValues(args, "--target"), ...argValues(args, "--runtime")]);
   if (values.length === 0) fail("missing required --target or --runtime");
-  if (exclusiveAll(values, "--target")) return Object.keys(targets);
+  // An export format has no install destination of its own: its package is handed to the host's own
+  // plugin manager, which decides where it lives. `--target all` therefore skips these rather than
+  // inventing a location, and naming one explicitly says so instead of failing obscurely later.
+  if (exclusiveAll(values, "--target")) return Object.keys(targets).filter((target) => !targets[target].buildOnly);
   const selected = uniqueStrings(values);
   for (const target of selected) {
     if (!isSafeTargetName(target)) fail(`unsafe install target: ${target}`);
     if (!Object.hasOwn(targets, target)) fail(`unsupported install target: ${target}`);
+    if (targets[target].buildOnly) fail(`${target} is an export format, not an install target: build it, then register the package with the host's own plugin manager`);
   }
   return selected;
 }

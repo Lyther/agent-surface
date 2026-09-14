@@ -38,6 +38,7 @@ const suites = [
   "live-launch.test.mjs",
   "live-provision.test.mjs",
   "live-first-party.test.mjs",
+  "live-plugin.test.mjs",
 ];
 
 wipeDist();

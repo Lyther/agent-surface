@@ -2441,6 +2441,49 @@
           "notes": "First-party secretless MCP services are generated/merged under context_servers; external or secret-bearing MCPs remain opt-in."
         }
       }
+    },
+    "codex-plugin": {
+      "summary": "Export-only portable plugin package plus the local marketplace manifest a host's own plugin manager consumes. agent-surface renders the package; installation, caching, and removal stay with the native manager.",
+      "generated_render_tokens": [
+        "plugins",
+        "skills"
+      ],
+      "evidence": [
+        {
+          "label": "Agent Plugins specification",
+          "url": "https://agent-plugins.org/specification"
+        },
+        {
+          "label": "Plugin packaging and local marketplace testing",
+          "url": "https://developers.openai.com/plugins/build/plugins"
+        }
+      ],
+      "surfaces": {
+        "plugins": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "plugins/agent-surface/plugin.json",
+            "plugins/agent-surface/.codex-plugin/plugin.json",
+            ".agents/plugins/marketplace.json"
+          ],
+          "notes": "One metadata definition is emitted to both manifest locations. The portable root manifest is what the format specifies; the .codex-plugin overlay is what the qualified runtime loads, verified against codex-cli 0.153.2, where a package carrying only the root manifest fails to install with `missing plugin.json` and a package carrying both installs cleanly. Paths are relative to the marketplace root passed to the host's `plugin marketplace add`."
+        },
+        "skills": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "plugins/agent-surface/skills/<name>/SKILL.md"
+          ],
+          "notes": "Pilot scope is the single canonical ops-swarm skill and the companion files it already ships; the canonical source is rendered, not copied into a second maintained tree. Plugin-contributed skills are namespaced `<plugin>:<skill>` by the host, so the packaged copy does not collide with a direct-file install of the same skill."
+        }
+      }
     }
   }
 }

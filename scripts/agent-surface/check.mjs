@@ -918,7 +918,10 @@ export function validateGeneratedTarget(target, outputs) {
   const skillFrontmatter = /^(?:\uFEFF)?---\r?\n/;
 
   if (outputs.length === 0) errors.push("no outputs generated");
-  for (const optionalPack of ["external/sanyuan-skills/"]) {
+  // Full-catalog targets must not silently drop the optional external packs. An export format is not
+  // in that class: it packages a declared subset on purpose, and requiring the catalog there would
+  // force the pilot package to carry material it deliberately excludes.
+  for (const optionalPack of targets[target]?.buildOnly ? [] : ["external/sanyuan-skills/"]) {
     if (!outputs.some((output) => output.source.startsWith(optionalPack))) {
       errors.push(`optional skill pack is not distributed: ${optionalPack}`);
     }

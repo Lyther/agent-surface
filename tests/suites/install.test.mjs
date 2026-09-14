@@ -1463,7 +1463,14 @@ const allTargetsDest = mkdtempSync(path.join(os.tmpdir(), "agent-surface-all-tar
 try {
   run(["install", "--target", "all", "--scope", "user", "--dest", allTargetsDest]);
   const manifestRoot = path.join(allTargetsDest, ".agent-surface");
-  for (const target of Object.keys(targets)) {
+  // `--target all` covers every INSTALLABLE target. An export format has no install destination of
+  // its own — its package is handed to the host's own plugin manager — so it is skipped rather than
+  // written somewhere invented. Asserted explicitly so the skip stays deliberate.
+  for (const [target, adapter] of Object.entries(targets)) {
+    if (adapter.buildOnly) {
+      assert.ok(!existsSync(path.join(manifestRoot, `${target}-manifest.json`)), `${target}: an export format is not installed by --target all`);
+      continue;
+    }
     const manifest = JSON.parse(
       readFileSync(path.join(manifestRoot, `${target}-manifest.json`), "utf8"),
     );

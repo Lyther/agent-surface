@@ -221,7 +221,11 @@ const opsServer = registry.commands.find((command) => command.name === "ops-serv
 assert.equal(Boolean(opsServer), hasLocalOpsServerCommand);
 if (opsServer) {
   assert.equal(Object.hasOwn(opsServer.targets, "dsh"), false);
-  assert.equal(Object.keys(opsServer.targets).length, Object.keys(targets).length - 1);
+  // A command reaches every target that HAS a command surface. Expressed as the set rather than as
+  // "all targets minus one": the exclusions are dsh, which is skills-only by design, and any export
+  // format, which renders no commands at all — an arithmetic offset silently absorbs a new one.
+  const commandSurfaceTargets = Object.entries(targets).filter(([, adapter]) => Boolean(adapter.renderCommand)).map(([id]) => id);
+  assert.deepEqual(Object.keys(opsServer.targets).sort(), commandSurfaceTargets.filter((id) => id !== "dsh").sort());
 }
 
 const shipCommands = JSON.parse(run(["commands", "--phase", "ship", "--json"]));
