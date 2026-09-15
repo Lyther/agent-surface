@@ -9,6 +9,7 @@ import { runEvidence } from "./agent-surface/evidence.mjs";
 import { directDirectories, files } from "./agent-surface/fs-tree.mjs";
 import { build, install } from "./agent-surface/install.mjs";
 import { root } from "./agent-surface/registry.mjs";
+import { readSkills } from "./agent-surface/skills.mjs";
 import { checkIgnores, checkSubagents } from "./agent-surface/source-primitives.mjs";
 import { commandRelativeOutput, skillRelativeOutput, targets } from "./agent-surface/targets.mjs";
 import { argValue, fail } from "./agent-surface/util.mjs";
@@ -114,7 +115,9 @@ async function inventory() {
   const counts = {
     rules: (await files("rules", [".md", ".mdc"])).length,
     commands: (await files("commands", [".md"])).length,
-    skills: (await files("skills", [".md"])).length,
+    // Skills are DIRECTORIES, counted through the same loader everything else uses. Counting .md
+    // files here would report a skill's companion references as if each were another skill.
+    skills: (await readSkills()).length,
     subagents: (await files("subagents", [".md"])).length,
     mcps: (await files("mcps", [".json", ".toml", ".yaml", ".yml"])).length,
     settings: (await files("settings", [".json", ".toml", ".yaml", ".yml"])).length,

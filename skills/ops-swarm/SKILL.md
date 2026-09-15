@@ -1,6 +1,6 @@
 ---
 name: ops-swarm
-description: "Coordinate a bounded evidence-led multi-agent investigation."
+description: "Coordinate a bounded evidence-led multi-agent investigation when a question is broad or under-specified, splits into packets that can be evaluated independently, spans several domains, or has competing hypotheses worth comparing adversarially — and when a prior single-agent pass produced weak or contradictory evidence. Not for work one agent can safely do directly, tightly serial steps, tasks whose real cost is running the same tests repeatedly, or shipping and implementation requests, which route to the ship and workflow commands instead."
 ---
 
 ## OBJECTIVE
@@ -103,38 +103,8 @@ Runtime assignment fields:
 
 Before assigning worker-led subagents, verify the target's subagent mechanism and headless support locally. Do not ask a runtime to fan out subagents when the capability is unverified, unless the packet is specifically a probe to confirm the mechanism.
 
-Use runtime-specific prompt variants instead of a generic "use subagents" instruction:
-
-- Kilo CLI: use Task-tool or `@agent-name` subagents after `kilo run --help`, `kilo agent list`, and model/config probes pass.
-- Kilo VS Code: query `agent_manager_models`, then use `agent_manager` with explicit task model/provider/variant overrides; do not shell out to another Kilo process.
-- Claude Code: use the Agent tool or agent teams for small fan-out; use dynamic workflows only for large repeatable fan-out where script-managed orchestration is worth the overhead.
-- Antigravity CLI: validate the staged plugin under `~/.gemini/antigravity-cli/plugins/agent-surface`, register it with `agy plugin install`, then use its agents.
-- Codex: explicitly ask the parent Codex session to spawn one subagent per independent point, wait for all results, and summarize. Use `codex exec` for single role sessions unless the current Codex surface confirms subagent visibility.
-
-For aggressive Kilo worker assignment, use a prompt shape like this after probing the exact model id with `kilo models` or a configured project profile:
-
-```text
-Runtime: Kilo CLI.
-Model: $KILO_WORKER_MODEL, expected to resolve to an ID returned by the current `kilo models` output.
-Agent/mode: code or the configured implementation agent.
-Launch: kilo run --auto --dir "$repo" --model "$KILO_WORKER_MODEL" --variant "$KILO_WORKER_EFFORT" --agent code --format json --title "$packet_id" "<packet prompt>"
-
-You are the worker lead for packet <packet_id>.
-Use Kilo subagents in parallel via the Task tool when subtasks are independent.
-Start with 2-4 subagents, each with a distinct filescope or evidence target.
-Monitor subagent progress, spawn follow-up subagents only for newly discovered dependent work, and stop spawning when evidence is sufficient.
-Do not let two subagents edit the same file or generated output unless one is read-only.
-Collect each subagent's artifact/evidence reference, reconcile conflicts, run the assigned verification, then return one summary with changed files, evidence, blockers, and residual risk.
-```
-
-Kilo-specific notes from current docs and local probe:
-
-- Kilo CLI exposes `kilo run`, `kilo serve`, `kilo agent`, `kilo models`, and `kilo roll-call`.
-- `kilo run` accepts `--model`, `--agent`, `--format json`, `--dir`, `--variant`, and `--auto`; use `--auto` for this distribution and record the effective full-access mode.
-- Kilo subagents run isolated sessions with tailored prompts, models, tool access, and permissions. Primary agents can invoke them through the Task tool, and users can invoke configured subagents with `@agent-name`.
-- Kilo Agent Manager is an extension feature. When the driver is Kilo VS Code, use its native model search and session tools; do not assume those tools exist in Kilo CLI.
-- Current Kilo docs say dedicated Orchestrator mode is deprecated; agents with full tool access now support subagents natively. Prefer explicit agent/mode assignment over relying on a legacy orchestrator label.
-- If Kilo config validation fails, do not launch packet work. Record the config error as `probe_result=failed` and choose another approved runtime or ask for config repair.
+Use runtime-specific prompt variants instead of a generic "use subagents" instruction. The per-host
+launch shapes, worker prompt skeletons, and host-specific caveats are in `references/runtime-launch.md`.
 
 ## WHEN TO USE
 
@@ -395,60 +365,14 @@ Provider adapter record:
 }
 ```
 
-### Current Runtime and Model Hints
+### Current runtime and model hints
 
-Refresh before assignment. This is a preference table, not an allowlist or a readiness claim. Evidence was refreshed on 2026-09-03 from installed CLI help/catalogs and first-party model catalogs; `live` means only that a bounded exact-output headless call passed on this machine.
+Read `references/runtime-catalog.md` for the dated per-runtime model preferences, the Ollama Cloud
+pool, the thinking policy, and bounded probe commands. It is a preference table, not an allowlist:
+a runtime missing from it is a probe-on-demand candidate, not an unsupported one.
 
-| Runtime | Preferred models | Role fit | Current evidence and boundary |
-|---|---|---|---|
-| Codex 0.148.0 | `gpt-daybreak-blue-latest` for provisioned defensive-security work; `gpt-5.6-sol` for hard core/BOSS/review; `gpt-5.6-terra` for normal development; `gpt-5.6-luna` for cheap workers; `gpt-5.5` fallback; Ollama pool when its cost/family trade-off wins | Operator-preferred general runtime and OpenAI-family coordinator | Luna headless `live`; all listed OpenAI IDs in local Codex catalog. `gpt-daybreak-blue-latest` is the valid Daybreak alias and resolves to Sol. Do not assign `gpt-5.4` in this operator profile even though it remains catalog-visible. Use `ollama launch codex --model <ollama-id>` for Ollama models. |
-| Claude Code 2.1.227 | `fable` / `claude-fable-5-1` for the hardest long runs; `opus` / `claude-opus-5` for deep review; `sonnet` / `claude-sonnet-5` for routine work; Ollama pool only when its trade-off is explicit | Strong architecture, implementation, and independent review | CLI shape and current IDs verified; local CLI auth is currently unavailable. Prefer native Claude models: the operator observes poor cache reuse for non-Claude compatibility models. Ollama uses `ollama launch claude --model <ollama-id>`. |
-| DSH 0.1.1-rc.2 | Native `deepseek-v4-pro` for hard work and `deepseek-v4-flash` for routine work; exact dated snapshots through the Ollama pool below | DeepSeek-family independent worker/reviewer | Headless help and composed default (`deepseek-v4-flash`) verified; no live call. Model selection is settings/patch-owned, not a headless flag. |
-| Grok Build 1.0.13 | `grok-4.6` | Large independent coding/review packets when its operator-reported high allowance is available | CLI/model catalog verified; local account is not authenticated, so quota and execution are not currently proven. Never encode the allowance as infinite or guaranteed. |
-| Cursor Agent 2026.08.25 | `composer-2.5` for fast routine work; `cursor-grok-4.6-high-fast` for strong high-volume work; `cursor-grok-4.6-xhigh` for hard reasoning; account-listed GPT/Claude models only when their API-priced use is justified | Fast native worker or independent model-family route | `composer-2.5` headless `live`; account model list verified. Resolve `cursor-agent` explicitly. The bare `agent` alias is unstable even though it currently resolves to Cursor here. |
-| Kimi Code 0.36.1 | `kimi-code/k3` with `low`, `high`, or `max` effort | Long-context Kimi-family core or implementation work | Native K3 headless `live` with normal TLS. Prompt mode is already non-interactive and rejects `--auto`; use `-p` without it. |
-| Kilo 7.2.52 | Ollama pool below; start with `ollama-cloud/glm-5.3-flash` for ordinary workers | Flexible multi-model worker; native orchestration when Kilo is the driver | GLM-5.3-Flash headless `live`. VS Code Agent Manager can select per-task provider/model/variant through `agent_manager_models` + `agent_manager`; CLI uses native `task` subagents or `kilo run`. Re-probe CLI and extension state separately. |
-| OpenCode 1.18.15 | Ollama pool below | Low-cost headless worker after provider setup | Launch flags verified, but this machine currently has no `ollama-cloud` provider or credentials; assignment is blocked until `ollama launch opencode --model <id> --config` and a live probe pass. |
-| Cline | Ollama pool below | Alternate worker after exact binary qualification | `ollama launch` supports Cline, but this host exposed conflicting Cline 3.0.60 and legacy 1.0.8 installations during the refresh. Resolve the executable and re-read its help before every assignment; no standing headless command is currently certified. |
-
-Recommended Ollama Cloud pool, verified by `ollama show` on 2026-09-03:
-
-| Ollama model ID | Kilo selectable ID | Prefer for |
-|---|---|---|
-| `glm-5.3-flash:cloud` | `ollama-cloud/glm-5.3-flash` | Default low-cost worker; tools, thinking, vision, 1M context |
-| `glm-5.3:cloud` | `ollama-cloud/glm-5.3` | Hard core work, synthesis, or review when stronger reasoning earns the cost |
-| `deepseek-v4-flash:0731-cloud` | `ollama-cloud/deepseek-v4-flash:0731` | Low-cost DeepSeek-family worker |
-| `deepseek-v4-pro:0813-cloud` | `ollama-cloud/deepseek-v4-pro-0813` | DeepSeek-family core or independent review |
-| `kimi-k3:cloud` | `ollama-cloud/kimi-k3` | Capable long-context fallback, but expensive; prefer native `kimi-code/k3` when available |
-
-The Kilo IDs above were listed by the installed runtime. OpenCode and Cline may expose different provider aliases after `ollama launch`; use their live model/config output rather than translating the raw Ollama ID by assumption.
-
-Other installed targets remain probe-on-demand candidates; absence from this recommendation table does not remove support.
-
-When Kilo is the driver inside VS Code, prefer its native `agent_manager_models` and `agent_manager` tools over shelling out to `kilo run`. For CLI Kilo and other runtimes, prefer their native `task`/subagent tool when it can satisfy model, isolation, and artifact requirements. Use a headless subprocess when provider-family independence or a missing native capability actually requires it.
-
-Ollama thinking policy for swarm packets:
-
-- For non-trivial reasoning packets, prefer thinking enabled and hide/drop the trace.
-- Do not persist the API `thinking` field or Grok `thought` field in reports, state files, or evidence.
-- Very low output caps can produce thinking but no final answer. For thinking probes, allocate enough output budget or treat empty final output as a failed probe.
-- Use `think:false` only for trivial formatting, extraction, or latency probes; it is not a privacy control.
-
-Example bounded packet probes:
-
-```bash
-unset NODE_TLS_REJECT_UNAUTHORIZED
-ollama show glm-5.3-flash:cloud
-ollama show glm-5.3:cloud
-ollama show deepseek-v4-flash:0731-cloud
-ollama show deepseek-v4-pro:0813-cloud
-ollama show kimi-k3:cloud
-codex exec -m gpt-5.6-luna -c 'model_reasoning_effort="low"' -C "$PWD" -s read-only --ephemeral --json "Reply OK only."
-kilo run --dir "$PWD" --model ollama-cloud/glm-5.3-flash --variant low --agent ask --format json "Reply OK only."
-kimi -m kimi-code/k3 -p "Reply OK only." --output-format stream-json
-cursor-agent -p --workspace "$PWD" --mode ask --model composer-2.5 --output-format json "Reply OK only."
-grok --cwd "$PWD" -m grok-4.6 --reasoning-effort low -p "Reply OK only." --output-format json --max-turns 1
-```
+Do not treat any row as current. Re-probe before assignment and record what you observed, because a
+stale catalog row is exactly the kind of assumption this skill exists to keep out of the evidence.
 
 ## PROTOCOL
 
@@ -607,40 +531,13 @@ State artifacts must not contain raw secrets. If sensitive evidence is needed fo
 
 ## OUTPUT REPORT
 
-Return a Markdown report unless `--state` only is requested:
+Return a Markdown report unless `--state` only is requested. The section order and headings are in
+`references/report-template.md`; copy that skeleton rather than inventing one.
 
-```markdown
-# Swarm Report
-
-## Executive Decision
-- Status:
-- Answer:
-- Recommended next action:
-- Confidence:
-- Verification:
-
-## Issue Contract
-
-## Swarm Plan
-- Topology:
-- Agents:
-- Packets:
-- Budget:
-
-## Evidence Ledger
-| ID | Source | Summary |
-
-## Findings
-| Finding | Evidence | Confidence | Limits |
-
-## Conflicts and Dissent
-| Conflict | Resolution | Remaining Risk |
-
-## Verification
-| Check | Result | Evidence |
-
-## Next Actions
-```
+Whatever the shape, the report must carry the executive decision, the issue contract, the swarm plan
+and budget, the evidence ledger, findings with their limits, unresolved conflicts with what would
+resolve them, the verification result, and next actions. Dropping a section because it came back
+empty is a reporting failure, not brevity.
 
 If `--write` is provided, write the report to the requested path and also return the key decision in chat.
 

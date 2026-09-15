@@ -166,6 +166,28 @@ const mixedCategory = status([
 assert.notEqual(mixedCategory.status, 0);
 assert.match(mixedCategory.stderr, /asset categories cannot be mixed with output categories/);
 
+// ---- `all` selects the whole set, so it may not be combined ----------------------------
+// Both selectors used to answer `all` before validating anything else, which made two different
+// requests disappear: the sibling category was dropped (a general reset is not "also install
+// development"), and a misspelled sibling was accepted rather than reported. Each case below
+// therefore asserts a NON-ZERO exit — a silently broadened install is the failure mode.
+const rejects = (flag, value, sibling) => {
+  const result = status(["install", "--target", flag === "--target" ? value : "codex", "--dest", "/tmp/agent-surface-all-combo", ...(flag === "--category" ? ["--category", value] : []), "--dry-run"]);
+  assert.notEqual(result.status, 0, `${flag} ${value} is rejected rather than silently broadened: ${result.stdout}`);
+  assert.match(result.stderr, new RegExp(`${flag} all cannot be combined with ${sibling}`), `${flag} ${value} names the conflicting sibling: ${result.stderr}`);
+};
+rejects("--category", "all,development", "development");
+rejects("--category", "all,skills", "skills");
+rejects("--target", "all,codex", "codex");
+// A typo next to `all` must surface as an error, not vanish behind it.
+rejects("--category", "all,developmnet", "developmnet");
+rejects("--target", "all,codx", "codx");
+// Standalone `all` keeps its documented meaning on both selectors: the general full sync.
+const standaloneCategory = status(["install", "--target", "codex", "--dest", "/tmp/agent-surface-all-standalone", "--category", "all", "--dry-run"]);
+assert.equal(standaloneCategory.status, 0, `--category all alone still performs the general sync: ${standaloneCategory.stderr}`);
+const noCategory = status(["install", "--target", "codex", "--dest", "/tmp/agent-surface-all-standalone", "--dry-run"]);
+assert.equal(standaloneCategory.stdout, noCategory.stdout, "--category all alone plans exactly what omitting --category plans");
+
 const kiroDevelopmentPlan = dryRun("kiro", ["--category", "development"]);
 planHas(kiroDevelopmentPlan, [
   /\.kiro\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/,
@@ -1441,7 +1463,14 @@ const allTargetsDest = mkdtempSync(path.join(os.tmpdir(), "agent-surface-all-tar
 try {
   run(["install", "--target", "all", "--scope", "user", "--dest", allTargetsDest]);
   const manifestRoot = path.join(allTargetsDest, ".agent-surface");
-  for (const target of Object.keys(targets)) {
+  // `--target all` covers every INSTALLABLE target. An export format has no install destination of
+  // its own — its package is handed to the host's own plugin manager — so it is skipped rather than
+  // written somewhere invented. Asserted explicitly so the skip stays deliberate.
+  for (const [target, adapter] of Object.entries(targets)) {
+    if (adapter.buildOnly) {
+      assert.ok(!existsSync(path.join(manifestRoot, `${target}-manifest.json`)), `${target}: an export format is not installed by --target all`);
+      continue;
+    }
     const manifest = JSON.parse(
       readFileSync(path.join(manifestRoot, `${target}-manifest.json`), "utf8"),
     );

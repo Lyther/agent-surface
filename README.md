@@ -38,12 +38,15 @@ Twenty-five targets, ranked 1–5 by how much of the source model maps to native
 
 **Full matrix - per-target surfaces and MCP wiring: [docs/reference/targets.md](docs/reference/targets.md).**
 
+One additional target, `codex-plugin`, is an export format rather than a host: `build` renders a portable plugin package and the local marketplace manifest a host's own plugin manager consumes, and `install` refuses it. See [adapters/codex-plugin/README.md](adapters/codex-plugin/README.md).
+
 Planned: Amp, Auggie, Crush, and Warp. Out of scope: Gemini CLI (individual-account EoL; use Antigravity CLI), iFlow CLI (shutdown), Roo Code (archived), VSCodium (no maintained native agent runtime), and Xcode.
 
 ## Project layout
 
 ```text
-skills/      Vanilla Agent Skills, model-invocable by default
+skills/      Vanilla Agent Skills, model-invocable by default; a skill is a directory and
+             may carry the reference material its SKILL.md points at
 commands/    High-impact workflows that require explicit user invocation
 rules/       Always-on or scoped behavior policy
 subagents/   Normalized subagent definitions
@@ -70,7 +73,7 @@ node scripts/agent-surface.mjs build --target <t> --dry-run
 node scripts/agent-surface.mjs install --target <t> --scope user --dry-run
 ```
 
-`install` accepts repeated/comma-separated `--target` (or `--runtime`) IDs and `--category` selectors. Output selectors are `commands`, `rules`, `subagents`, `skills`, `recipes`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, and `ignores`. Asset selectors are `development`, `cybersecurity`, `private`, and `modding`; run asset and output selectors as separate installs. Omitting `--category` or using `--category all` performs the general full sync; opt-in asset categories remain explicit. `--service <id>` narrows the MCP services in an MCP or asset-category install without filtering its other assets.
+`install` accepts repeated/comma-separated `--target` (or `--runtime`) IDs and `--category` selectors. Output selectors are `commands`, `rules`, `subagents`, `skills`, `recipes`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, and `ignores`. Asset selectors are `development`, `cybersecurity`, `private`, and `modding`; run asset and output selectors as separate installs. Omitting `--category` or using `--category all` performs the general full sync; opt-in asset categories remain explicit. `all` selects the whole set on either flag, so it must be supplied alone — `--category all,development` and `--target all,codex` are rejected rather than silently resolved to one of the two. `--service <id>` narrows the MCP services in an MCP or asset-category install without filtering its other assets.
 
 ## Install behavior
 

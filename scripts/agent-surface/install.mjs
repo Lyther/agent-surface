@@ -61,6 +61,10 @@ export async function build(args) {
 
       await mkdir(path.dirname(targetPath), { recursive: true });
       await writeFile(targetPath, output.content);
+      // The same mode install honours. An export target is buildOnly, so dist/ is not a preview of
+      // the artifact — it IS the artifact someone hands to a plugin manager, and a companion script
+      // that arrives there unrunnable is broken at the only point it gets materialized.
+      if (output.mode !== undefined) await applyOutputMode(targetPath, output.mode);
     }
 
     console.log(`${item}: ${outputs.length} outputs rendered${dryRun ? " (dry-run)" : ""}`);
@@ -268,14 +272,30 @@ function protectCrossPlanLiveOutputs(plans) {
   }
 }
 
+// `all` selects the WHOLE set, so pairing it with a sibling is ambiguous rather than additive:
+// `--category all,development` asks at once for the general reset (which REMOVES previously managed
+// opt-in assets) and for development to be added. Returning early on `all` also meant the siblings
+// were never validated, so `all,developmnet` was accepted in silence and installed neither. Require
+// `all` alone; every other value then reaches its own validation below.
+function exclusiveAll(values, flag) {
+  if (!values.includes("all")) return false;
+  const siblings = uniqueStrings(values.filter((value) => value !== "all"));
+  if (siblings.length > 0) fail(`${flag} all cannot be combined with ${siblings.join(", ")}; run them as separate installs`);
+  return true;
+}
+
 function selectedInstallTargets(args) {
   const values = splitArgValues([...argValues(args, "--target"), ...argValues(args, "--runtime")]);
   if (values.length === 0) fail("missing required --target or --runtime");
-  if (values.includes("all")) return Object.keys(targets);
+  // An export format has no install destination of its own: its package is handed to the host's own
+  // plugin manager, which decides where it lives. `--target all` therefore skips these rather than
+  // inventing a location, and naming one explicitly says so instead of failing obscurely later.
+  if (exclusiveAll(values, "--target")) return Object.keys(targets).filter((target) => !targets[target].buildOnly);
   const selected = uniqueStrings(values);
   for (const target of selected) {
     if (!isSafeTargetName(target)) fail(`unsafe install target: ${target}`);
     if (!Object.hasOwn(targets, target)) fail(`unsupported install target: ${target}`);
+    if (targets[target].buildOnly) fail(`${target} is an export format, not an install target: build it, then register the package with the host's own plugin manager`);
   }
   return selected;
 }
@@ -283,8 +303,8 @@ function selectedInstallTargets(args) {
 function installCategoryFilter(args) {
   const values = splitArgValues([...argValues(args, "--category"), ...argValues(args, "--categories")]);
   if (values.length === 0) return null;
-  // `all` retains the full general sync; sensitive and specialized assets stay opt-in.
-  if (values.includes("all")) return null;
+  // Standalone `all` retains the full general sync; sensitive and specialized assets stay opt-in.
+  if (exclusiveAll(values, "--category")) return null;
   const known = new Set([
     "commands",
     "commands-as-workflows",
@@ -566,6 +586,12 @@ async function materializeMcpLauncher() {
   return target;
 }
 
+// Windows has no POSIX mode bits to set, and a failure to set one must not abort an install that
+// otherwise succeeded — the file is written either way, and its content is the deliverable.
+async function applyOutputMode(target, mode) {
+  await chmod(target, mode).catch(() => { /* best effort on platforms without POSIX modes */ });
+}
+
 async function installPlan(target, adapter, installRoot, scope, rootSource, options = {}) {
   const categoryFilter = options.categoryFilter ?? null;
   const optionalServices = options.optionalServices ?? null;
@@ -613,7 +639,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       continue;
     }
 
-    writes.push({ source: item.source, output, relativeOutput, content: item.content });
+    writes.push({ source: item.source, output, relativeOutput, content: item.content, mode: item.mode });
     managed.push({
       target,
       source: item.source,
@@ -648,6 +674,29 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   const liveOutputs = new Set(managed.map((item) => item.output));
   const previousFileEntries = manifestFileEntries(previousManifest, target);
   const selectedCategories = selectedAssetCategories(categoryFilter);
+
+  // An aggregate instruction document (Codex's AGENTS.md and its kin) holds several categories'
+  // always-on rules in ONE file. Regenerating it under a narrower selection therefore erases what
+  // the others contributed: `--category rules` after `--category development` rewrote the shared
+  // document back to the general baseline while development's skills stayed installed, leaving a
+  // profile no single command describes. Per-file rule hosts never had this problem — each rule is
+  // its own managed output, and a category-filtered install prunes only the selected category.
+  //
+  // The manifest records ONE asset_category per output. That is enough to DETECT the loss, and not
+  // enough to reconstruct a document assembled from several categories, so the operation is
+  // rejected before anything is written rather than reassembled from a reconstructed profile. The
+  // contribution is restored by re-running the category that owns it; the general full sync still
+  // resets it deliberately, which is its documented meaning.
+  if (partialInstall) {
+    const previousOwner = new Map(previousFileEntries.filter((item) => item.asset_category).map((item) => [item.output, item.asset_category]));
+    for (const item of writes) {
+      // Only a real content change can lose anything: an unchanged file is a skip either way.
+      if (item.action !== "write") continue;
+      const owner = previousOwner.get(item.relativeOutput);
+      if (owner === undefined || selectedCategories.has(owner)) continue;
+      blocked.push(`${item.relativeOutput} carries the ${owner} category's contribution and this selection would overwrite it; re-run --category ${owner} to refresh that document, or run the general install to reset it`);
+    }
+  }
   const staleExternalManaged = categoryFilter?.has("external")
     ? previousFileEntries.filter(
       (item) => item.asset_category === undefined
@@ -1195,6 +1244,9 @@ async function applyInstallPlan(plan) {
 
   for (const item of plan.writes) {
     if (item.action === "skip") {
+      // Identical content, but a mode the output declares still has to hold: a companion script
+      // restored from a non-executable copy would otherwise stay unrunnable forever.
+      if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
       skipped += 1;
       continue;
     }
@@ -1205,6 +1257,7 @@ async function applyInstallPlan(plan) {
     const postMkdirRouteError = await installPathError(plan.installRoot, item.output, `managed output ${item.relativeOutput}`);
     if (postMkdirRouteError) fail(postMkdirRouteError);
     await writeFile(item.output, item.content);
+    if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
     written += 1;
   }
 

@@ -220,7 +220,6 @@
       "renders": [
         "skills",
         "instructions",
-        "prompts",
         "external",
         "mcps"
       ]
@@ -297,6 +296,15 @@
         "rules",
         "external",
         "mcps"
+      ]
+    },
+    "codex-plugin": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": false,
+      "renders": [
+        "plugins",
+        "skills"
       ]
     }
   },

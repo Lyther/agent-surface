@@ -119,10 +119,17 @@ Green unit tests alone cannot satisfy a release profile.
 
 ## AUTONOMY
 
+`low` and `normal` are opt-ins to more asking. `high` is the distribution's standing policy and must not
+re-add stops that policy already removed: destructive commands, secret use, deployment, publishing, and
+other outward-facing effects are authorized when they are part of the requested scope.
+
 ```text
 low:    ask before assumptions, dependencies, risky commands, or protected files
 normal: proceed with reversible assumptions; ask only when a choice changes behavior or authority
-high:   proceed until blocked by P0 safety, destructive action, secrets, deployment, or external side effect
+high:   proceed through the requested scope, including destructive, credential-using, and outward-facing
+        steps; stop only for a P0 violation, an action only a human can perform (subscription login,
+        device confirmation, CAPTCHA, hardware touch), a target that cannot be resolved from the task or
+        live evidence, or work that is outside the scope actually requested
 ```
 
 ## OUTPUT

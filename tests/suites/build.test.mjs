@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { vsCodeUserRoot } from "../../scripts/agent-surface/roots.mjs";
+import { readSkills } from "../../scripts/agent-surface/skills.mjs";
+import { produceSkillOutputs, targets } from "../../scripts/agent-surface/targets.mjs";
 import {
   assertCodexAgentTomlParses,
   files,
@@ -373,5 +375,43 @@ try {
   writeFileSync(subagentSourcePath, subagentSourceOriginal);
 }
 run(["build", "--target", "all"]);
+
+// ---- a skill is a package: its companion files travel with it ------------------------
+// The loader and every directory-shaped adapter must carry the material a SKILL.md references, or a
+// relative reference resolves only in the source checkout and breaks everywhere it is installed.
+{
+  const skills = await readSkills();
+  const swarm = skills.find((skill) => skill.name === "ops-swarm");
+  assert.ok(swarm.resources.length > 0, "the pilot skill carries companion files");
+  for (const resource of swarm.resources) {
+    assert.ok(!resource.resourcePath.includes("\\"), `resource paths are POSIX-spelled for the body to reference: ${resource.resourcePath}`);
+    assert.equal(typeof resource.text, "string");
+  }
+  // Every reference the body names must be a file that actually ships with it.
+  // Backtick or Markdown-link spelling; the contract is that what the body points at is carried.
+  const referenced = [...new Set([...swarm.text.matchAll(/(?:\]\(|`)(references\/[^)`\s]+)(?:\)|`)/g)].map((match) => match[1]))];
+  assert.ok(referenced.length > 0, "the pilot body points at its companions");
+  const carried = new Set(swarm.resources.map((resource) => resource.resourcePath));
+  for (const reference of referenced) assert.ok(carried.has(reference), `${reference} is referenced by the body and carried with it`);
+
+  // The executable bit is part of "preserve the file", and it is decided by the producer rather than
+  // at write time — so it is asserted where it is decided. No shipped companion is executable today,
+  // which is exactly why this uses constructed inputs rather than claiming an end-to-end script.
+  const adapter = targets.codex;
+  const probe = {
+    name: "probe-skill", relativePath: "skills/probe-skill/SKILL.md", text: "", body: "", metadata: { description: "d" },
+    resources: [
+      { relativePath: "skills/probe-skill/references/note.md", resourcePath: "references/note.md", text: "note", executable: false },
+      { relativePath: "skills/probe-skill/scripts/run.sh", resourcePath: "scripts/run.sh", text: "#!/bin/sh\n", executable: true },
+    ],
+  };
+  const produced = await produceSkillOutputs(adapter, [probe], { scope: "user", mode: "build", categoryFilter: null });
+  const byOutput = new Map(produced.map((output) => [output.relativeOutput, output]));
+  const skillDir = path.join(".agents", "skills", "probe-skill");
+  assert.ok(byOutput.has(path.join(skillDir, "SKILL.md")), "the skill itself is still produced");
+  assert.equal(byOutput.get(path.join(skillDir, "references", "note.md"))?.content, "note", "a companion is emitted beside its skill with its own content");
+  assert.equal(byOutput.get(path.join(skillDir, "references", "note.md"))?.mode, undefined, "an ordinary companion declares no mode");
+  assert.equal(byOutput.get(path.join(skillDir, "scripts", "run.sh"))?.mode, 0o755, "an executable companion declares the mode that keeps it runnable");
+}
 
 console.log("build: ok");

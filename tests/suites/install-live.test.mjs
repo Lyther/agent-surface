@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { run } from "../lib/helpers.mjs";
+import { root, run, status } from "../lib/helpers.mjs";
 
 // Table-driven live install smoke: each installable target must write a manifest
 // with managed entries. Distinct from build/check generated (render path only).
+
 for (const target of [
   "codex",
   "cursor",
@@ -40,6 +41,25 @@ for (const target of [
     const manifest = JSON.parse(readFileSync(path.join(targetDest, ".agent-surface", `${target}-manifest.json`), "utf8"));
     assert.equal(manifest.target, target);
     assert.equal(manifest.managed.length > 0, true, `${target}: managed entries`);
+
+    // A skill's companion files must arrive with it wherever it lands. This is asserted against the
+    // INSTALLED tree, not the source checkout, because resolving there is the entire point: a body
+    // that references `references/<file>.md` is read from the installed location at runtime.
+    const installedSkill = manifest.managed.find((entry) => entry.output.endsWith(path.join("ops-swarm", "SKILL.md")));
+    if (installedSkill) {
+      const skillDir = path.join(targetDest, path.dirname(installedSkill.output));
+      const body = readFileSync(path.join(skillDir, "SKILL.md"), "utf8");
+      // Either spelling a body might legitimately use: `references/x.md` or [text](references/x.md).
+      // What matters is that a reference RESOLVES from the installed skill, not how it was written.
+      const referenced = [...new Set([...body.matchAll(/(?:\]\(|`)(references\/[^)`\s]+)(?:\)|`)/g)].map((match) => match[1]))];
+      assert.ok(referenced.length > 0, `${target}: the installed body still points at its companions`);
+      for (const reference of referenced) {
+        const resource = path.join(skillDir, reference);
+        assert.ok(existsSync(resource), `${target}: ${reference} resolves from the installed skill directory`);
+        assert.ok(readFileSync(resource, "utf8").length > 0, `${target}: ${reference} arrived with its contents`);
+        assert.ok(manifest.managed.some((entry) => entry.output === path.join(path.dirname(installedSkill.output), reference)), `${target}: ${reference} is tracked as a managed output, so ownership cleanup governs it`);
+      }
+    }
     if (target === "kilo") {
       const kiloConfig = JSON.parse(readFileSync(path.join(targetDest, "kilo.jsonc"), "utf8"));
       assert.deepEqual(kiloConfig.instructions, [
@@ -85,6 +105,20 @@ for (const target of [
       assert.match(combinedInstructions, /^## 00-precedence-and-safety\.mdc$/m);
       assert.match(combinedInstructions, /^## 02-agent-workflow\.mdc$/m);
 
+      // An output-only rules refresh must not quietly rewrite this document back to the general
+      // baseline: it is a single file carrying development's always-on rules, and dropping them
+      // here would leave development's skills installed beside rules that no longer mention them.
+      // The manifest knows the document is development-owned, so the operation is refused BEFORE
+      // writing — the alternative, reassembling the contribution, is not something one recorded
+      // category can do faithfully.
+      const refresh = status([...installArgs, "--category", "rules"]);
+      assert.notEqual(refresh.status, 0, `codex: an output-only rules refresh over a category-owned document is refused: ${refresh.stdout}`);
+      assert.match(refresh.stdout, /AGENTS\.md carries the development category's contribution/, `codex: the refusal names the document and its owner: ${refresh.stdout}${refresh.stderr}`);
+      assert.equal(readFileSync(instructionPath, "utf8"), combinedInstructions, "codex: the refused refresh left the document byte-identical");
+      // And the refusal is not a dead end: the owning category still refreshes it.
+      run([...installArgs, "--category", "development"]);
+      assert.match(readFileSync(instructionPath, "utf8"), /^## 02-agent-workflow\.mdc$/m, "codex: re-running the owning category restores the document");
+
       run(installArgs);
       run([...installArgs, "--category", "development,cybersecurity,private,modding", "--service", "synapse,grimoire"]);
       const primaryMcpConfig = TOML.parse(readFileSync(path.join(targetDest, ".codex", "config.toml"), "utf8"));
@@ -93,6 +127,19 @@ for (const target of [
       for (const skill of ["dev-feature", "solve-challenge", "stellaris-design"]) {
         assert.ok(existsSync(path.join(targetDest, ".agents", "skills", skill, "SKILL.md")), skill);
       }
+    }
+    if (target === "cursor") {
+      // The per-file counterpart to the codex case above, and the reason that one is refused rather
+      // than rewritten: here each rule is its own managed output, so an output-only refresh has
+      // nothing to overwrite and development's rules simply stay. Same command, same sequence, no
+      // refusal — the contract differs because the host's rule surface does.
+      const ruleDir = path.join(targetDest, ".cursor", "rules");
+      run([...installArgs, "--category", "development"]);
+      assert.ok(existsSync(path.join(ruleDir, "02-agent-workflow.mdc")), "cursor: development contributes its own rule file");
+      const refresh = status([...installArgs, "--category", "rules"]);
+      assert.equal(refresh.status, 0, `cursor: a per-file rule host refreshes without refusal: ${refresh.stdout}${refresh.stderr}`);
+      assert.ok(existsSync(path.join(ruleDir, "02-agent-workflow.mdc")), "cursor: and development's rule file survives the refresh");
+      assert.ok(existsSync(path.join(ruleDir, "00-precedence-and-safety.mdc")), "cursor: alongside the baseline rules");
     }
     if (target === "opencode") {
       const openCodeConfig = JSON.parse(readFileSync(path.join(targetDest, ".opencode", "opencode.json"), "utf8"));
