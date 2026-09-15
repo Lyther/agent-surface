@@ -1,48 +1,62 @@
 #!/usr/bin/env node
 // A host posix_spawns an MCP stdio command with no shell, so a bare command name only launches when
 // its directory is already on the launching runtime's PATH. For an externally-installed server whose
-// location is not fixed by agent-surface, the installer must DETECT the real executable and wire its
-// absolute path — not assume one directory. This suite reproduces, through the actual installer, the
-// two install layouts a hard-coded path gets wrong, plus the absent case that must degrade quietly.
+// location agent-surface does not fix, the installer must DETECT the real executable and wire its
+// absolute path — not assume one directory.
 //
-// pentest-ai is the pilot: an opt-in MCP with a detection-only prerequisite (no install recipe). The
-// fake executables here stand in for a real install; detection is by path and PATH lookup, so their
-// location is the whole point and their contents are irrelevant.
+// NOTHING HERE IS A SUBSTITUTE. The two present-binary cases run the genuinely installed `pentest-ai`
+// console script; they are opt-in (AGENT_SURFACE_LIVE_PENTEST_AI=1) because that binary is a real
+// prerequisite, and an explicitly requested run that cannot get one fails rather than passing. Each
+// case SYMLINKS that same real executable into the layout under test: what varies is only its
+// LOCATION, which is the whole variable, and the file that gets executed is the real application.
+// The absent case plants no file at all, so it needs no binary and stays offline — but it proves
+// REGISTRATION behavior only (what gets wired when nothing is detectable), never that an
+// unavailable service is usable.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { cli } from "../lib/helpers.mjs";
 
+const live = process.env.AGENT_SURFACE_LIVE_PENTEST_AI === "1";
+
+// The genuinely installed console script: its default pipx/uv location first, then this machine's
+// PATH. Returns null when the tool is not installed here.
+function installedPentestAi() {
+  const candidates = [path.join(os.homedir(), ".local", "bin", "pentest-ai")];
+  for (const entry of (process.env.PATH ?? "").split(path.delimiter)) {
+    if (entry) candidates.push(path.join(entry, "pentest-ai"));
+  }
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
 if (process.platform === "win32") {
-  // Detection and the fake binaries are POSIX-shaped here; the resolution logic is platform-shared
-  // and covered on POSIX. A Windows-native harness would use .exe paths and a different PATH lookup.
+  // The layouts and symlinks here are POSIX-shaped; the resolution logic itself is platform-shared.
   console.log("mcp-launch-resolve: skipped on win32 (POSIX detection layouts)");
 } else {
   const dir = mkdtempSync(path.join(os.tmpdir(), "as-launch-resolve-"));
-  // The wired pentest-ai command after an install run with a controlled HOME and PATH. A fake
-  // executable is planted at `binDir` (a real one would be installed by pipx/uv); nothing else on the
-  // sanitized PATH provides the command, so what resolves is exactly what detection found.
-  const wiredCommand = (label, { binDir, onPath }) => {
+  const realExecutable = live ? installedPentestAi() : null;
+  // Run the real installer with a controlled HOME and PATH, and return the pentest-ai command it
+  // wired. `link` places the real executable at a location inside the disposable tree; `onPath` puts
+  // a directory of that tree on the PATH detection searches.
+  const wiredCommand = (label, { link = null, onPath = null } = {}) => {
     const home = path.join(dir, `${label}-home`);
     const dest = path.join(dir, `${label}-dest`);
     mkdirSync(home, { recursive: true });
     mkdirSync(dest, { recursive: true });
-    if (binDir) {
-      const abs = path.join(dir, binDir);
-      mkdirSync(abs, { recursive: true });
-      const exe = path.join(abs, "pentest-ai");
-      writeFileSync(exe, "#!/bin/sh\n:\n");
-      chmodSync(exe, 0o755);
+    if (link) {
+      const target = path.join(dir, link);
+      mkdirSync(path.dirname(target), { recursive: true });
+      symlinkSync(realExecutable, target);
     }
-    const detectPath = onPath ? `${path.join(dir, onPath)}:/usr/bin:/bin` : "/usr/bin:/bin";
+    const searchPath = onPath ? `${path.join(dir, onPath)}:/usr/bin:/bin` : "/usr/bin:/bin";
     const result = spawnSync(
       process.execPath,
       [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", "--service", "pentest-ai", "--allow-scope-root", "-y"],
-      { encoding: "utf8", env: { HOME: home, USERPROFILE: home, PATH: detectPath } },
+      { encoding: "utf8", env: { HOME: home, USERPROFILE: home, PATH: searchPath } },
     );
-    // The install must never fail merely because an opt-in tool is or is not present.
+    // Selecting an opt-in service must never fail an install, present or absent.
     assert.equal(result.status, 0, `${label}: install exited ${result.status}: ${result.stderr || result.stdout}`);
     const configPath = path.join(dest, ".factory", "mcp.json");
     if (!existsSync(configPath)) return null;
@@ -50,28 +64,44 @@ if (process.platform === "win32") {
   };
 
   try {
-    // The default pipx/uv location, with the directory NOT on PATH — the exact case a runtime spawned
-    // outside a login shell fails to launch a bare command. Detection resolves it by path.
-    const homeLocal = path.join("default-home", ".local", "bin");
-    const defaultCase = wiredCommand("default", { binDir: homeLocal });
-    assert.ok(defaultCase && path.isAbsolute(defaultCase), `default-location install must wire an absolute path, got: ${defaultCase}`);
-    assert.equal(path.basename(defaultCase), "pentest-ai", "and it points at the detected executable");
-    assert.ok(defaultCase.includes(path.join(".local", "bin")), `resolved from the default location, got: ${defaultCase}`);
+    // ---- offline: nothing is detectable ---------------------------------------------------
+    // No file is planted, so no stand-in exists. There is no absolute path to wire, and the bare
+    // command is the honest fallback — it launches if the runtime later has the tool on its PATH.
+    const absent = wiredCommand("absent");
+    assert.equal(absent, "pentest-ai", `an undetectable tool falls back to the bare command, got: ${absent}`);
 
-    // A supported alternate layout: the executable lives in a directory that IS on PATH but is not
-    // ~/.local/bin (uv honours UV_TOOL_BIN_DIR; MOMO's Kali image sets it to /usr/local/bin). A path
-    // hard-coded to ~/.local/bin would be ENOENT here; detection must follow PATH instead.
-    const altCase = wiredCommand("alternate", { binDir: "altbin", onPath: "altbin" });
-    assert.ok(altCase && path.isAbsolute(altCase), `alternate-PATH install must wire an absolute path, got: ${altCase}`);
-    assert.ok(altCase.includes("altbin"), `resolved from the on-PATH alternate directory, not ~/.local/bin, got: ${altCase}`);
+    if (!live) {
+      console.log("mcp-launch-resolve: registration case ok; resolved-path acceptance skipped (set AGENT_SURFACE_LIVE_PENTEST_AI=1 with pentest-ai installed)");
+    } else {
+      // Explicitly requested and unable to proceed is a failure, not a pass.
+      assert.ok(realExecutable, "AGENT_SURFACE_LIVE_PENTEST_AI=1 requires an installed pentest-ai; none was found in ~/.local/bin or on PATH. Install the pinned ptai application and re-run; this acceptance is not emulated");
+      const version = spawnSync(realExecutable, ["--version"], { encoding: "utf8" });
+      assert.match(version.stdout, /ptai/, `the located executable is the real application: ${version.stdout || version.stderr}`);
 
-    // Not installed anywhere the installer can see. There is no absolute path to wire, so the bare
-    // command is the honest fallback (it launches if the runtime later has it on PATH) and the run
-    // still succeeds — selecting an opt-in service must not fail just because its tool is absent.
-    const absentCase = wiredCommand("absent", {});
-    assert.equal(absentCase, "pentest-ai", `an undetectable tool falls back to the bare command, got: ${absentCase}`);
+      // The default pipx/uv location, with that directory NOT on PATH — exactly where a runtime
+      // spawned outside a login shell fails to launch a bare command. Detection resolves it by path.
+      const defaultLink = path.join("default-home", ".local", "bin", "pentest-ai");
+      const resolvedDefault = wiredCommand("default", { link: defaultLink });
+      assert.ok(resolvedDefault && path.isAbsolute(resolvedDefault), `default-location install must wire an absolute path, got: ${resolvedDefault}`);
+      assert.equal(resolvedDefault, path.join(dir, defaultLink), "and it is the detected executable's own path");
 
-    console.log("mcp-launch-resolve: ok");
+      // A supported alternate layout: the executable is in a directory that IS on PATH and is not
+      // ~/.local/bin (uv honours UV_TOOL_BIN_DIR; MOMO's Kali image sets it to /usr/local/bin). A
+      // path hard-coded to ~/.local/bin is ENOENT here, so detection must follow PATH instead.
+      const altLink = path.join("altbin", "pentest-ai");
+      const resolvedAlt = wiredCommand("alternate", { link: altLink, onPath: "altbin" });
+      assert.ok(resolvedAlt && path.isAbsolute(resolvedAlt), `alternate-PATH install must wire an absolute path, got: ${resolvedAlt}`);
+      assert.equal(resolvedAlt, path.join(dir, altLink), "resolved from the on-PATH alternate directory, not ~/.local/bin");
+
+      // The point of resolving a path is that the emitted command runs. Launch each wired command
+      // exactly as generated, from an environment with neither directory on PATH.
+      for (const [label, command] of [["default", resolvedDefault], ["alternate", resolvedAlt]]) {
+        const launched = spawnSync(command, ["--version"], { encoding: "utf8", env: { HOME: os.homedir(), PATH: "/usr/bin:/bin" } });
+        assert.equal(launched.status, 0, `${label}: the wired command failed to launch: ${launched.stderr}`);
+        assert.match(launched.stdout, /ptai/, `${label}: the wired command runs the real application`);
+      }
+      console.log(`mcp-launch-resolve: both install layouts resolved and launched (${version.stdout.trim()})`);
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
