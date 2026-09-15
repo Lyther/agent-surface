@@ -61,6 +61,10 @@ export async function build(args) {
 
       await mkdir(path.dirname(targetPath), { recursive: true });
       await writeFile(targetPath, output.content);
+      // The same mode install honours. An export target is buildOnly, so dist/ is not a preview of
+      // the artifact — it IS the artifact someone hands to a plugin manager, and a companion script
+      // that arrives there unrunnable is broken at the only point it gets materialized.
+      if (output.mode !== undefined) await applyOutputMode(targetPath, output.mode);
     }
 
     console.log(`${item}: ${outputs.length} outputs rendered${dryRun ? " (dry-run)" : ""}`);

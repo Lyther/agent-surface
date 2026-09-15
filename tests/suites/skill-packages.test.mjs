@@ -8,7 +8,7 @@
 // The installer, the registry, and the skill sources are the real ones; only their location differs.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { root } from "../lib/helpers.mjs";
@@ -83,7 +83,33 @@ try {
     );
   }
 
+  // An executable companion, delivered by BOTH writers. `install` and `build` materialize outputs
+  // independently, and an export target is buildOnly — so for that target dist/ is not a preview,
+  // it is the artifact handed to a plugin manager. A script that arrives there unrunnable is broken
+  // at the only point it ever gets written. Running it is the assertion; a mode bit could be right
+  // while the file is not actually executable by the OS.
+  if (process.platform !== "win32") {
+    const script = path.join(sourceSkill, "references", "probe.sh");
+    writeFileSync(script, "#!/bin/sh\necho companion-ran\n");
+    chmodSync(script, 0o755);
+
+    install("codex");
+    const installed = path.join(installedSkillDir("codex"), "references", "probe.sh");
+    assert.equal(spawnSync(installed, { encoding: "utf8" }).stdout.trim(), "companion-ran", "an executable companion runs from where install put it");
+
+    const built = spawnSync(process.execPath, [cli, "build", "--target", "codex-plugin"], { cwd: checkout, encoding: "utf8" });
+    assert.equal(built.status, 0, `export build failed: ${built.stderr || built.stdout}`);
+    const exported = path.join(checkout, "dist", "codex-plugin", "plugins", "agent-surface", "skills", "ops-swarm", "references", "probe.sh");
+    assert.ok(existsSync(exported), "the export package carries the executable companion");
+    assert.equal(spawnSync(exported, { encoding: "utf8" }).stdout.trim(), "companion-ran", "and it runs straight out of the exported package");
+
+    rmSync(script);
+    install("codex");
+    assert.ok(!existsSync(installed), "removing it at the source removes the installed copy too");
+  }
+
   assert.equal(readFileSync(path.join(root, "skills", "ops-swarm", "references", "report-template.md"), "utf8").length > 0, true, "the real checkout was never the thing being mutated");
+  assert.ok(!existsSync(path.join(root, "skills", "ops-swarm", "references", "probe.sh")), "and the probe script never existed in it");
 } finally {
   rmSync(checkout, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
