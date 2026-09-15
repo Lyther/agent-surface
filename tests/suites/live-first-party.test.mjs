@@ -147,10 +147,11 @@ if (enabled) {
     // answer tools/list, so the claim worth testing is that the right skill comes back and that its
     // content is the source's — plus the two cases a naive index gets wrong.
     const knownSkill = "hack-skills:symbolic-execution-tools";
+    // The same technique, written up independently by two packs. Both must survive indexing:
+    // collapsing them would silently drop one pack's procedure, and neither pack outranks the other.
+    const nearDuplicates = ["anthropic-cybersecurity-skills:performing-mobile-app-certificate-pinning-bypass", "hack-skills:mobile-ssl-pinning-bypass"];
     const retrieval = await useServer(servers.grimoire, async ({ call }) => ({
       known: await callTool(call, "grimoire_search", { query: "angr symbolic execution", k: 5 }),
-      // Two packs describe the same technique. Both must survive indexing: collapsing them would
-      // silently drop one pack's procedure, and neither pack is authoritative over the other.
       duplicates: await callTool(call, "grimoire_search", { query: "certificate pinning bypass", k: 5 }),
       // An index that pads results would answer this too. Retrieval is only useful if it can
       // say "nothing here" instead of returning the least-bad row.
@@ -158,13 +159,17 @@ if (enabled) {
       document: await callTool(call, "grimoire_get", { id: knownSkill }),
     }));
     assert.equal(retrieval.known.hits?.[0]?.id, knownSkill, `the distinctive query did not rank its skill first: ${JSON.stringify(retrieval.known).slice(0, 300)}`);
+    // The WHOLE body, not a recognizable line of it: a truncated or stale document would still
+    // carry its heading. Frontmatter is split off exactly the way the indexer splits it.
     const sourceSkill = readFileSync(path.join(root, "external", "hack-skills", "skills", "symbolic-execution-tools", "SKILL.md"), "utf8");
-    const sourceHeading = sourceSkill.split("\n").find((line) => line.startsWith("# "));
-    assert.ok(JSON.stringify(retrieval.document).includes(JSON.stringify(sourceHeading).slice(1, -1)), "the served document is not the packaged source");
-    const duplicatePacks = new Set((retrieval.duplicates.hits ?? []).slice(0, 3).map((hit) => hit.pack));
-    assert.ok(duplicatePacks.size > 1, `near-duplicate skills from different packs both survived indexing: ${[...duplicatePacks].join(", ")}`);
+    const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(sourceSkill);
+    assert.ok(frontmatter, "the source skill carries the frontmatter the indexer strips");
+    assert.equal(retrieval.document.skill?.id, knownSkill, "the served document is the skill that was asked for");
+    assert.equal(retrieval.document.skill?.body, sourceSkill.slice(frontmatter[0].length), "the served body is the packaged source, complete and unmodified");
+    const duplicateIds = (retrieval.duplicates.hits ?? []).map((hit) => hit.id);
+    for (const id of nearDuplicates) assert.ok(duplicateIds.includes(id), `${id} did not survive indexing alongside its near-duplicate: ${duplicateIds.join(", ")}`);
     assert.deepEqual(retrieval.absent.hits, [], `an off-corpus query returned rows: ${JSON.stringify(retrieval.absent).slice(0, 300)}`);
-    console.log(`live-first-party: recalled the disposable record, ranked ${knownSkill} first, kept ${duplicatePacks.size} packs' near-duplicates, returned nothing off-corpus`);
+    console.log(`live-first-party: recalled the disposable record, ranked ${knownSkill} first and served its whole body, kept both near-duplicates, returned nothing off-corpus`);
 
     // ---- phase 4: repeat install is idempotent -------------------------------------------
     const before = readFileSync(configPath, "utf8");
