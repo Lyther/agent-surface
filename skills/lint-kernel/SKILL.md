@@ -145,6 +145,7 @@ Anchored to `Documentation/process/submitting-patches.rst` and `5.Posting.rst`. 
 
 **Body**
 
+- [ ] **State the user-visible impact first.** For a bug fix, name the affected workload or configuration and the observable failure before explaining the internal mechanism. Explain why downstream users need the backport and how they can recognize the problem.
 - [ ] **Imperative mood.** "Decrement used_hpages …", not "This patch decrements …" or "I changed …". Banned phrases: `this patch`, `I/we`, past tense verbs describing the change.
 - [ ] **Frame the actual bug, not one symptom.** If the unwind needs to fire on cgroup-charge fail AND dequeue fail AND buddy alloc fail, name the underlying invariant (e.g. "subpool used_hpages accounting"), not just one trigger. Pinning the bug to a specific failure mode is misleading.
 - [ ] **Wrap body at 75 columns.** Tags (`Fixes:`, `Closes:`, `Link:`) are exempt — never split a tag across lines.
