@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-// LIVE acceptance for the two first-party MCPs, through the product's own path, in four phases:
+// LIVE acceptance for the two first-party MCPs, through the product's own path, in five phases:
 //   1. INSTALL: agent-surface provisions synapse and grimoire by running their registry recipe on
 //      this platform (build, link the launcher, build grimoire's index) and wires the host config
 //   2. STARTUP: launch each wired command UNCHANGED and require a real MCP session from the
 //      installed server — initialize plus tools/list
-//   3. REPEAT: install again; the prerequisites are already satisfied, so nothing is re-provisioned
+//   3. CAPABILITY: call the tools, not just list them — a disposable memory write and recall, and a
+//      retrieval pass over the combined pack corpus including near-duplicates and a non-match
+//   4. REPEAT: install again; the prerequisites are already satisfied, so nothing is re-provisioned
 //      and the generated config is byte-identical
-//   4. LIFECYCLE: reinstall while synapse's sidecar is running — the case Windows makes distinct,
+//   5. LIFECYCLE: reinstall while synapse's sidecar is running — the case Windows makes distinct,
 //      since a running process there can hold the files an install rewrites — then start again
 //
 // Everything runs in a disposable home. Synapse binds one sidecar per machine on a fixed port, so
@@ -72,6 +74,24 @@ if (enabled) {
     return session;
   });
 
+  // Drive real tool calls over the same wired launch command. `tools/list` proves a server answered;
+  // only calling a tool proves the capability the config was wired for.
+  const useServer = (entry, steps) => mcpSession(entry.command, entry.args ?? [], {
+    cwd: os.tmpdir(),
+    env: { ...minimalLaunchEnv(home), SYNAPSE_PORT: port },
+    timeoutMs: 180000,
+  }, steps);
+  const callTool = async (call, name, args) => {
+    const result = await call("tools/call", { name, arguments: args });
+    assert.ok(!result.isError, `${name} failed: ${JSON.stringify(result).slice(0, 400)}`);
+    const text = (result.content ?? []).filter((part) => part.type === "text").map((part) => part.text).join("");
+    // Some tools prefix their payload with a provenance line for the model's benefit, so parse from
+    // the first structural character rather than assuming the whole body is JSON.
+    const start = text.search(/[[{]/);
+    if (start === -1) return text;
+    try { return JSON.parse(text.slice(start)); } catch { return text; }
+  };
+
   const readSidecarPid = () => {
     try { return JSON.parse(readFileSync(sidecarState, "utf8")).pid; } catch { return null; }
   };
@@ -111,7 +131,42 @@ if (enabled) {
     console.log(`live-first-party: started synapse ${synapse.serverInfo.version} (${synapse.names.length} tools) and grimoire ${grimoire.serverInfo.version} (${grimoire.names.length} tools)`);
     assert.ok(existsSync(sidecarState), "starting the bridge elected and started the shared sidecar");
 
-    // ---- phase 3: repeat install is idempotent -------------------------------------------
+    // ---- phase 3: the wired servers do their job ------------------------------------------
+    // Synapse: what one session stores, a later session gets back. The record is written into the
+    // disposable home and dies with it, so this never touches the operator's own memory.
+    const fact = `agent-surface first-party acceptance ${path.basename(dir)} stored this disposable record`;
+    await useServer(servers.synapse, async ({ call }) => {
+      await callTool(call, "memory_remember", { content: fact, tags: ["agent-surface-acceptance"] });
+    });
+    const recalled = await useServer(servers.synapse, ({ call }) =>
+      callTool(call, "memory_recall", { query: "disposable record", tags: ["agent-surface-acceptance"], mode: "full" }));
+    assert.ok(JSON.stringify(recalled).includes(fact), `a fresh session did not recall what the first one stored: ${JSON.stringify(recalled).slice(0, 400)}`);
+    assert.ok(existsSync(path.join(home, ".synapse")), "and it was stored inside the disposable home");
+
+    // Grimoire: retrieval over the combined pack corpus. A pack that failed to index would still
+    // answer tools/list, so the claim worth testing is that the right skill comes back and that its
+    // content is the source's — plus the two cases a naive index gets wrong.
+    const knownSkill = "hack-skills:symbolic-execution-tools";
+    const retrieval = await useServer(servers.grimoire, async ({ call }) => ({
+      known: await callTool(call, "grimoire_search", { query: "angr symbolic execution", k: 5 }),
+      // Two packs describe the same technique. Both must survive indexing: collapsing them would
+      // silently drop one pack's procedure, and neither pack is authoritative over the other.
+      duplicates: await callTool(call, "grimoire_search", { query: "certificate pinning bypass", k: 5 }),
+      // An index that pads results would answer this too. Retrieval is only useful if it can
+      // say "nothing here" instead of returning the least-bad row.
+      absent: await callTool(call, "grimoire_search", { query: "sourdough proofing", k: 5 }),
+      document: await callTool(call, "grimoire_get", { id: knownSkill }),
+    }));
+    assert.equal(retrieval.known.hits?.[0]?.id, knownSkill, `the distinctive query did not rank its skill first: ${JSON.stringify(retrieval.known).slice(0, 300)}`);
+    const sourceSkill = readFileSync(path.join(root, "external", "hack-skills", "skills", "symbolic-execution-tools", "SKILL.md"), "utf8");
+    const sourceHeading = sourceSkill.split("\n").find((line) => line.startsWith("# "));
+    assert.ok(JSON.stringify(retrieval.document).includes(JSON.stringify(sourceHeading).slice(1, -1)), "the served document is not the packaged source");
+    const duplicatePacks = new Set((retrieval.duplicates.hits ?? []).slice(0, 3).map((hit) => hit.pack));
+    assert.ok(duplicatePacks.size > 1, `near-duplicate skills from different packs both survived indexing: ${[...duplicatePacks].join(", ")}`);
+    assert.deepEqual(retrieval.absent.hits, [], `an off-corpus query returned rows: ${JSON.stringify(retrieval.absent).slice(0, 300)}`);
+    console.log(`live-first-party: recalled the disposable record, ranked ${knownSkill} first, kept ${duplicatePacks.size} packs' near-duplicates, returned nothing off-corpus`);
+
+    // ---- phase 4: repeat install is idempotent -------------------------------------------
     const before = readFileSync(configPath, "utf8");
     const second = install("repeat install");
     assert.doesNotMatch(second, /provisioning: ok agent-surface repo build/, "an already-satisfied prerequisite is not rebuilt");
@@ -119,7 +174,7 @@ if (enabled) {
     assert.match(second, /grimoire-server ok/, "grimoire's launcher is detected as present on re-run");
     assert.equal(readFileSync(configPath, "utf8"), before, "the generated config is byte-identical on re-run");
 
-    // ---- phase 4: reinstall while the sidecar is running ----------------------------------
+    // ---- phase 5: reinstall while the sidecar is running ----------------------------------
     // The interesting platform is Windows, where a running process can hold the very files an
     // install rewrites. The sidecar started in phase 2 is still up, so this reinstall happens
     // under exactly that condition; afterwards the bridge must still start.
