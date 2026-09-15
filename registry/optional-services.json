@@ -530,6 +530,22 @@
       "source_url": "https://github.com/0xSteph/pentest-ai",
       "kind": "mcp",
       "optional": true,
+      "provisioning": {
+        "prerequisites": [
+          {
+            "id": "pentest-ai",
+            "kind": "launch-binary",
+            "optional": true,
+            "detect": {
+              "command": "pentest-ai",
+              "paths": [
+                "~/.local/bin/pentest-ai",
+                "~/.local/bin/pentest-ai.exe"
+              ]
+            }
+          }
+        ]
+      },
       "mcp": {
         "server": {
           "type": "stdio",
@@ -538,14 +554,15 @@
             "mcp"
           ]
         },
-        "validation_hint": "Install the pinned ptai application, then call the host MCP status command. The MCP client supplies the model; authorized target scope remains an operator responsibility."
+        "validation_hint": "Install the pinned ptai application (pipx/uv), then call the host MCP status command. The MCP client supplies the model; authorized target scope remains an operator responsibility."
       },
       "local_wiring": [
         "MCP-capable runtimes: explicit opt-in MCP named pentest-ai over stdio."
       ],
       "notes": [
         "Agent-surface distributes the documented MCP command only when selected with --category mcps --service pentest-ai.",
-        "Automatic installation is deferred because this host blocks extraction of an impacket script required by ptai 1.4.0.",
+        "The installer detects the executable (detect.paths for the default pipx/uv ~/.local/bin location, detect.command as a PATH fallback) and wires the resolved absolute path into the launch command, like synapse and grimoire. A host posix_spawns the stdio command with no shell, so a bare `pentest-ai` only resolves when its bin directory is already on the launching runtime's PATH — verified failing in a sanitized environment on a Debian dev box. Detection covers both the off-PATH default location and an install placed elsewhere on PATH (e.g. UV_TOOL_BIN_DIR=/usr/local/bin), rather than assuming one directory. The prerequisite is optional and recipes are intentionally absent: when the binary is present its resolved absolute path is wired; when it is not detectable at install time the bare command is wired as a fallback and nothing is installed, so selecting the service never fails a preview or install just because the tool has not been set up yet.",
+        "Automatic installation is deferred because macOS blocks extraction of an impacket script required by ptai 1.4.0; manual install plus MCP startup, discovery, and a harmless tool call are verified on a Debian dev box, ptai running under its uv-provisioned Python 3.14.2 interpreter.",
         "Over MCP the connected runtime supplies the model — upstream states its provider environment variables do not apply in that mode — so the server needs no LLM credential of its own and none is declared here. PENTEST_AI_LLM_PROVIDER and the Anthropic/OpenAI-compatible/Ollama/LiteLLM settings govern ptai's standalone CLI only.",
         "The server exposes a broad offensive tool surface and is not part of the general default distribution."
       ]
