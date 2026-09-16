@@ -142,9 +142,10 @@ State the detected mode in one line before proceeding (e.g., `Mode: kernel — c
     failure mode being fixed. Reference the offending commit when fixing.
 
     Fixes: <12-hex> ("subject of bad commit")
-    Cc: stable@vger.kernel.org    (only if backport intended)
+    Cc: <stable@vger.kernel.org> # 6.1.x   (only if backport intended)
     Reported-by: Name <email>     (when applicable)
     Reviewed-by: ...              (only after review actually given)
+    Assisted-by: LLM coccinelle   (if a tool helped — no model or product names)
     Signed-off-by: Your Name <you@example.org>
     ```
 
@@ -153,14 +154,26 @@ State the detected mode in one line before proceeding (e.g., `Mode: kernel — c
     - The subject must stand alone. The body explains why, not what.
     - Do **not** invent `Reviewed-by`/`Tested-by` trailers. They only appear when a real human gave that tag.
     - Do **not** add `Fixes:` unless you know the offending SHA.
+    - The stable annotation is a version ("that version and newer"), not a range expression. Leaving
+      it off is legitimate when the range follows from `Fixes:` — do not manufacture one.
+    - `Signed-off-by:` is the human author's DCO certification. An agent never adds it.
+    - Report trailer problems; do not rewrite them. Trailers are inside the commit object, so
+      editing one rewrites every later hash and invalidates an already-prepared series.
+      See `lint-kernel` → `references/submission-policy.md`.
 
 3. **Sign & Commit** (mode-aware):
 
     ```bash
     # Conventional repo: GPG sign + message
     git commit -S -m "type(scope): subject"
+    ```
 
-    # Kernel: DCO sign-off (mandatory). GPG optional but encouraged.
+    **Kernel mode is preparation only.** `Signed-off-by:` is the DCO certification and only a
+    human can make it, so an agent does not run the sign-off itself. Draft the message — including
+    `Assisted-by:` when a tool helped — and hand the exact command to the author to run:
+
+    ```bash
+    # Proposed (NOT EXECUTED — the author certifies the DCO):
     git commit -s -S -m "subsystem: imperative subject" \
                      -m "Body paragraph explaining why."
     ```
@@ -170,6 +183,7 @@ State the detected mode in one line before proceeding (e.g., `Mode: kernel — c
 4. **Read Back the Actual Commit Message**:
     - Immediately after each successful commit, inspect the committed text, not the draft you intended.
     - Verify it contains no AI/vendor attribution, advertising, generated-by trailers, emoji watermarks, or assistant branding. Hooks, editor integrations, and hosted tools can mutate commit text after you draft it.
+    - **Kernel exception:** `Assisted-by: LLM [tools]` is *required* upstream disclosure, not vendor attribution, and must be preserved. It names no product. Same for the human author's DCO `Signed-off-by:`.
     - If an unpublished local commit contains banned text, fix the message before any push, PR/MR, patch export, or handoff.
 
 5. **Handle Hook Failure**:
@@ -207,17 +221,20 @@ State the detected mode in one line before proceeding (e.g., `Mode: kernel — c
 
 #### 4C. Email / Patch Series (Kernel and Mailing-List Workflows)
 
-- For kernel mode, derive recipients from the exact patch and current tree, validate the final `.eml`/patch inputs, then send through the configured mail workflow:
+- For kernel mode, derive recipients from the exact patch and current tree and validate the final
+  `.eml`/patch inputs. **Preparation stops there** — the assistant never sends. Print the send
+  command for the author to run:
 
     ```bash
-    # Prepare the exact patch series.
-    git format-patch -M --cover-letter -o outgoing/ origin/master..
+    # Prepare the exact patch series against the tree you are actually targeting
+    # (a subsystem maintainer tree is normal; origin/master is not universal).
+    git format-patch -M --cover-letter -o outgoing/ <review-base>..
 
     # Derive and verify recipients for the exact patch.
     scripts/get_maintainer.pl outgoing/*.patch
 
-    # Send the validated files to the resolved recipients.
-    git send-email --to=<maintainer> --cc=<list> outgoing/*.patch
+    # Proposed (NOT EXECUTED — requires explicit human authorization):
+    #   git send-email --to=<maintainer> --cc=<list> outgoing/*.patch
     ```
 
 - Record the final `--to` / `--cc` list, patch filenames, and transport result without exposing credentials.
