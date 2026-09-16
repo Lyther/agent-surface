@@ -26,37 +26,60 @@ If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surf
 
 1. **Identify scope**: which `.c` / `.h` / `Kconfig` / `Makefile` files were touched. For an existing patch series, run against `outgoing/*.patch` instead of the working tree.
 
-2. **Apply kernel rules** (each must pass — do not skip a tool because it "isn't installed"; install it or block):
+2. **Build a check plan, then execute it honestly.** Select the checks this patch actually needs
+   — a pure documentation change does not need smatch — and record an outcome for each:
+
+   | State | Meaning |
+   |---|---|
+   | `PASS` | Executed, found nothing. |
+   | `FAIL` | Executed, found a defect. |
+   | `SKIP` | Does not apply to this patch. Say why. |
+   | `MISS` | Applies, but could not run — tool absent, no built tree, no hardware. Say why. |
+
+   A `MISS` never counts toward a pass and never aggregates into an "N/N" score. It blocks the
+   specific claim that check would have supported, not every claim: a missing sparse blocks "no
+   new type errors", it does not block "checkpatch is clean". Unresolved `MISS` entries are
+   restated in the outgoing patch below `---`, not buried in a local report.
 
    ```bash
    # Style — primary gate. Use --strict for new code. --no-tree if running on
    # a single .patch outside the kernel tree.
    scripts/checkpatch.pl --strict --codespell <file-or-patch>
 
-   # Static type checking — sparse must be installed (`apt install sparse`).
-   make C=2 W=1 <touched-subdir>/      # C=2 reruns sparse on all sources
+   # Static type checking. C=2 checks every source; C=1 only checks files that
+   # actually recompile, which on a warm tree can be nothing at all.
+   make C=2 W=1 <touched-subdir>/
 
-   # Smatch — semantic checker, catches null derefs and lock imbalance.
+   # Smatch — semantic checker, catches null derefs and lock imbalance. Its
+   # cross-function database takes hours to build; without it, report MISS.
    make CHECK=smatch C=1 <touched-subdir>/
 
    # Semantic patches — coccicheck reports kernel-style anti-patterns.
    make coccicheck MODE=report COCCI=scripts/coccinelle/<area>/<rule>.cocci
 
-   # Doc warnings, when touching kernel-doc comments.
-   make htmldocs 2>&1 | grep -E 'warning|error'
+   # Doc warnings, when touching kernel-doc comments. Capture first, then filter:
+   # piping into grep would report grep's status instead of the build's.
+   make htmldocs > /tmp/htmldocs.log 2>&1; rc=$?
+   grep -E 'warning|error' /tmp/htmldocs.log; exit $rc
    ```
+
+   Report how many files each analyzer actually processed. `sparse: PASS` over zero files is
+   `MISS`. Most of these tools exit 0 in the presence of findings — see
+   `references/tool-invocation.md` for per-tool exit semantics before trusting a status.
 
 3. **Subject + sign-off discipline** (mandatory for every commit in the series):
 
    ```bash
    # Subject form: "subsystem: imperative short description" (≤75 cols, no period).
    # Body wrapped at 72 cols, explains *why* and the user-visible impact.
-   # Trailers, in order, no blank lines between:
-   #   Fixes: <12-hex> ("subject")        # required for bug fixes
-   #   Reported-by: …                      # only with real attribution
-   #   Cc: stable@vger.kernel.org # 6.x+   # only if backport intended
-   #   Reviewed-by: / Tested-by: / Acked-by:  (REAL tags only — never invent)
-   #   Signed-off-by: Name <email>         # MANDATORY (DCO 1.1)
+   # Trailers, no blank lines between:
+   #   Fixes: <12-hex> ("subject")              # required for bug fixes
+   #   Reported-by: …                            # only with real attribution
+   #   Cc: <stable@vger.kernel.org> # 6.1.x      # version, not a range; optional when
+   #                                             # derivable from Fixes:
+   #   Reviewed-by: / Tested-by: / Acked-by:     (REAL tags only — never invent)
+   #   Assisted-by: LLM coccinelle sparse        # if a tool helped; no model names
+   #   Signed-off-by: Name <email>               # MANDATORY (DCO 1.1), human only
    git commit -s        # appends Signed-off-by automatically
    ```
 
@@ -69,22 +92,35 @@ If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surf
    git format-patch -M --cover-letter -o outgoing/ origin/master..
 
    # Derive maintainers and lists for review. DO NOT auto-pipe into send-email.
-   scripts/get_maintainer.pl --no-rolestats outgoing/*.patch
+   # --no-git-fallback is required for reproducible output: git fallback is ON by
+   # default, so without it the script shells out to git and results drift.
+   scripts/get_maintainer.pl --no-rolestats --no-git-fallback outgoing/*.patch
 
    # Show the proposed send-email command but do NOT execute it.
    # User must explicitly authorize before any SMTP traffic.
    echo "Proposed: git send-email --to=<maintainer> --cc=<list> outgoing/*.patch"
    ```
 
+   Check for a `.get_maintainer.conf` in the tree root before trusting the output — it is
+   prepended to the command line and silently overrides the flags you passed.
+
    Heuristic: if you have not been told to send, you are not sending. Print the plan, stop.
 
-5. **Pre-public review (if patch will hit a public ML).** Before `git format-patch` for upstream submission:
+5. **Backport review (when the fix may reach stable).** Answer six questions separately —
+   affected range, target branches, prerequisite investigation, application, build, behavioral
+   evidence — and do not let one stand in for another. History searches (`git log -S`/`-G`,
+   `git describe --contains`) produce **leads to read, not verdicts**; they misreport renames,
+   reverts and substring matches. An affected branch that needs an adapted patch or a prerequisite
+   is not an excluded branch. Full procedure and the failure modes in
+   `references/backport-review.md`.
+
+6. **Pre-public review (if patch will hit a public ML).** Before `git format-patch` for upstream submission:
    - Run `qa-trace` again with the **error path** — not the happy path — as the entry point.
    - Hand the patch to a fresh agent / reviewer **without** the v1 context. If the design only survives review when you explain the journey, the patch is not ready.
    - For any `(input × concurrent-op)` quadrant you cannot empirically reach in a test, document why and how you verified by inspection. The race quadrant of RSV-2 was *only* covered by code review; that is acceptable when stated, not acceptable when hidden.
    - If a previous version was already sent publicly, write the v1→v2 changelog **as a real diff of the design**, not a politeness sentence. Reviewers should not have to re-derive what changed.
 
-6. **Report findings** using the output format below.
+7. **Report findings** using the output format below.
 
 ## DOMAIN CHECKLIST
 
@@ -111,7 +147,8 @@ If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surf
 - [ ] `kmalloc`/`kzalloc`/`vmalloc` paired with the matching free; check return for `NULL`; use `_return: kfree(...)` cleanup pattern or `goto err_*` ladders, not silent leak paths.
 - [ ] No `strcpy`/`sprintf`; use `strscpy`/`scnprintf`.
 - [ ] No raw `memcpy` between user/kernel — use `copy_from_user`/`copy_to_user` and check the return.
-- [ ] DMA buffers come from a coherent allocator (`dma_alloc_coherent`) when device-visible; no DMA-ing of stack memory.
+- [ ] DMA mapping chosen by **lifetime**, not by "the device can see it": `dma_alloc_coherent`/`dma_pool` for long-lived structures the CPU and device touch in parallel (ring descriptors, mailboxes); `dma_map_single`/`dma_map_sg` + matching `dma_unmap_*` for one-shot transfers. Coherent memory can be expensive and page-granular, so it is not the default.
+- [ ] Never DMA to/from stack, static/module image, vmalloc or kmap addresses — these may map somewhere other than the rest of physical memory, and unaligned buffers cause cacheline-sharing corruption on DMA-incoherent CPUs. `dma_map_single` buffers must come from a physically contiguous source (kmalloc / page allocator).
 - [ ] `printk` carries a level (`pr_err`, `pr_warn`, `dev_err`, etc.); no rate-limited noise without `*_ratelimited`.
 
 ### Build & module hygiene
@@ -124,7 +161,11 @@ If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surf
 ### Concurrency / hot path (gates `qa-trace`)
 
 - [ ] If the patch touches locking, IRQ context, RCU, atomics, or scheduler hooks — `qa-trace` is **mandatory** before commit (see `ship-commit` Phase 1.5).
-- [ ] `READ_ONCE`/`WRITE_ONCE` used on shared variables read/written outside locks.
+- [ ] Access marking follows `tools/memory-model/Documentation/access-marking.txt` — a four-way choice, not a blanket rule:
+      **plain C** when the access is excluded by a held lock or seqlock, is init-before-publication or cleanup, is CPU- or task-private, or has no concurrent store (marking these *hides* real bugs from KCSAN);
+      **`READ_ONCE`/`WRITE_ONCE`** when the race is intentional and the value is load-bearing for the concurrency design;
+      **`data_race()`** (or `__data_racy`) when the race is intentional and the value is diagnostic, re-validated against a marked reload, or feeds an error-tolerant heuristic — combine as `data_race(READ_ONCE(x))` when you need both.
+      Comment the reason; document the design with `ASSERT_EXCLUSIVE_WRITER`/`ASSERT_EXCLUSIVE_ACCESS`. KCSAN is an input, not the arbiter: silence does not imply correctness, and churning in markings to quiet it is unhelpful.
 - [ ] No `volatile` as a substitute for proper ordering — use `smp_*` barriers.
 
 ### Error-path & cleanup audit
@@ -163,11 +204,28 @@ Anchored to `Documentation/process/submitting-patches.rst` and `5.Posting.rst`. 
 
 **Trailers (order, no blank lines between)**
 
-- [ ] `Fixes: <12-hex> ("oneline")` — required for bug fixes. Tag exempt from 75-col wrap.
+- [ ] `Fixes: <12-hex> ("oneline")` — required for bug fixes. Tag exempt from 75-col wrap. Verify
+      the SHA exists and is an ancestor (`git merge-base --is-ancestor`); report `MISS` if you have
+      no tree to check it against.
 - [ ] `Reported-by:` / `Closes:` / `Link:` — only with real attribution; lore.kernel.org URLs preferred for `Link:`.
-- [ ] `Cc: stable@vger.kernel.org # vX.Y+` — only if backport intended; verify the version range against the `Fixes:` commit's containment.
+- [ ] `Cc: <stable@vger.kernel.org> # 5.14.x` — only if backport intended. The annotation names a
+      single version and already means "that version and newer" (`# 3.3.x` and `# v5.14` both
+      appear in practice), so a trailing `+` is redundant rather than a range expression. An
+      **absent** annotation is not a defect — upstream says it is unnecessary when the range is
+      derivable from `Fixes:`. Honor `Cc: <stable+noautosel@kernel.org> # reason`. For an
+      unpublished vulnerability use `stable@kernel.org`, and read
+      `references/submission-policy.md` first: that address protects one channel, it does not make
+      the mail private.
 - [ ] `Reviewed-by:` / `Tested-by:` / `Acked-by:` — **never invent**. Each fake trailer is a career-shortening event.
-- [ ] `Signed-off-by:` — mandatory (DCO 1.1). Use `git commit -s`.
+- [ ] `Assisted-by: LLM [tools]` — when a tool helped produce the patch. The literal token `LLM`,
+      then optional specialized *analysis* tools actually used. No agent or model name. See
+      `references/submission-policy.md`; upstream specifies no position for this trailer, so
+      placing it immediately above `Signed-off-by:` is our convention, not upstream's.
+- [ ] `Signed-off-by:` — mandatory (DCO 1.1). Use `git commit -s`. **A human certifies this.** An
+      agent must never add it.
+
+Trailers live inside the commit object. Correcting one rewrites every subsequent hash and
+invalidates an already-prepared series. **Report trailer problems; do not silently rewrite them.**
 
 **`Changes in vN:` placement**
 
@@ -183,9 +241,9 @@ Anchored to `Documentation/process/submitting-patches.rst` and `5.Posting.rst`. 
 
 - [ ] **Plain text only.** No HTML, no rich formatting, no auto-quoted reply prefixes that mangle diffs.
 - [ ] **Use `git send-email`.** Webmail and most desktop clients reflow whitespace and break patches.
-- [ ] **For replies (`[PATCH vN]`):** set `In-Reply-To:` to the v(N-1) Message-ID and `References:` to the full chain (v1, v2, …). `format-patch -v N --in-reply-to=<msgid>` handles this.
+- [ ] **A new revision is a new thread.** Post `[PATCH vN]` at top level; do **not** set `In-Reply-To:` to the v(N-1) Message-ID. `submitting-patches.rst` asks you to avoid linking series revisions that way so references don't become "an unmanageable forest"; netdev forbids it outright. Link earlier revisions instead with lore.kernel.org URLs below the `---` or in the cover letter.
 - [ ] **Trim quoted text in review replies.** Don't top-post; place your response under the specific quoted line you're addressing.
-- [ ] **One Message-ID per patch.** Cover letter is patch 0; subsequent patches link via `In-Reply-To:` to the cover letter, not to each other.
+- [ ] **Thread shallow within one series.** Patches 1..N reply to the cover letter, never to each other — `--thread=shallow`, never `--chain-reply-to`/`deep`, which creates "exceptionally deep nesting". Note this is `git send-email`'s and `b4`'s default but **not** `git format-patch`'s: `--cover-letter` alone emits no threading headers unless `--thread` or `format.thread` is set.
 
 ## OUTPUT FORMAT
 
@@ -199,22 +257,31 @@ Series size: [N patches]; cover letter: [yes / no]
 
 ### PART 2: TOOLCHAIN
 
+Every selected check reports `PASS` / `FAIL` / `SKIP` / `MISS`, with a reason for the latter two
+and the number of files actually processed. `MISS` is not a pass and is excluded from any score.
+
 ```text
-checkpatch.pl --strict:  [PASS | N CHECK / M WARNING / K ERROR]
-make C=2 W=1:            [PASS | sparse warnings: list]
-make CHECK=smatch C=1:   [PASS | smatch findings: list]
-coccicheck:              [PASS | semantic-patch findings: list]
-htmldocs (if touched):   [PASS | kernel-doc warnings: list]
+checkpatch.pl --strict:  [PASS | FAIL: N CHECK / M WARNING / K ERROR | SKIP: reason | MISS: reason]
+make C=2 W=1 (sparse):   [PASS (f files) | FAIL: warnings | MISS: no built tree]
+make CHECK=smatch C=1:   [PASS (f files) | FAIL: findings | MISS: cross-fn DB not built]
+coccicheck:              [PASS | FAIL: findings | MISS: ocaml unavailable]
+htmldocs (if touched):   [PASS | FAIL: kernel-doc warnings | SKIP: no kernel-doc touched]
+
+Not run: [list every MISS with its reason — these are restated below --- in the patch]
+Claims blocked by the above: [which conclusions are unsupported as a result]
 ```
 
 ### PART 3: SUBJECT + TRAILERS
 
 ```text
 Subject:      [subsystem: imperative short description]
-Sign-off:     [Signed-off-by: present? yes/no]
-Fixes:        [hex: subject — present? yes/no/n-a]
-Cc stable:    [yes # version-range / no / n-a]
+Sign-off:     [Signed-off-by: present? yes/no — human-certified]
+Fixes:        [hex: subject — present? yes/no/n-a; ancestor check PASS/MISS]
+Cc stable:    [yes # 6.1.x / no / n-a — absent annotation is not a defect]
+Assisted-by:  [LLM <tools> / n-a]
 Other tags:   [Reported-by, Reviewed-by, Tested-by, Acked-by — only real ones]
+
+Trailer corrections needed: [report only — never rewrite; rewriting invalidates the series]
 ```
 
 ### PART 4: DISTRIBUTION PLAN (Local Only — No Network)

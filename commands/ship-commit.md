@@ -142,9 +142,10 @@ State the detected mode in one line before proceeding (e.g., `Mode: kernel — c
     failure mode being fixed. Reference the offending commit when fixing.
 
     Fixes: <12-hex> ("subject of bad commit")
-    Cc: stable@vger.kernel.org    (only if backport intended)
+    Cc: <stable@vger.kernel.org> # 6.1.x   (only if backport intended)
     Reported-by: Name <email>     (when applicable)
     Reviewed-by: ...              (only after review actually given)
+    Assisted-by: LLM coccinelle   (if a tool helped — no model or product names)
     Signed-off-by: Your Name <you@example.org>
     ```
 
@@ -153,6 +154,12 @@ State the detected mode in one line before proceeding (e.g., `Mode: kernel — c
     - The subject must stand alone. The body explains why, not what.
     - Do **not** invent `Reviewed-by`/`Tested-by` trailers. They only appear when a real human gave that tag.
     - Do **not** add `Fixes:` unless you know the offending SHA.
+    - The stable annotation is a version ("that version and newer"), not a range expression. Leaving
+      it off is legitimate when the range follows from `Fixes:` — do not manufacture one.
+    - `Signed-off-by:` is the human author's DCO certification. An agent never adds it.
+    - Report trailer problems; do not rewrite them. Trailers are inside the commit object, so
+      editing one rewrites every later hash and invalidates an already-prepared series.
+      See `lint-kernel` → `references/submission-policy.md`.
 
 3. **Sign & Commit** (mode-aware):
 
