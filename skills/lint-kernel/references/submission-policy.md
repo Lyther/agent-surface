@@ -82,9 +82,11 @@ conditions, not the surface category a finding appears to fall into.
 
 The trap worth naming: "probabilistic" is not an exclusion. Upstream excludes attacks that need
 unrealistic conditions or an implausible number of attempts — not every race or timing-dependent
-bug. A race that is genuinely reachable in production is a vulnerability even though it is
-probabilistic. Compressing that into "lab-only or probabilistic findings are excluded" is how a
-real vulnerability gets routed as an ordinary bug.
+bug. A production-reachable race can be a vulnerability when it violates a protection covered by
+the threat model; probabilistic behavior alone does not exclude it. Reachability by itself does
+not make it one either — an ordinary correctness race may cross no security boundary. Compressing
+this into "lab-only or probabilistic findings are excluded" is how a real vulnerability gets
+routed as an ordinary bug.
 
 If you cannot consult the document, say the classification is unverified rather than guessing it.
 

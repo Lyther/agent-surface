@@ -63,10 +63,17 @@ Critical, and worth stating precisely because the two halves differ:
   it requires git; `$chk_fixes_tag = 0 if ($file)` disables the commit checks on file input, and
   the git lookups return early with no tree.
 
-So a well-formed `Fixes:` tag pointing at a commit that does not exist passes cleanly outside a
-checkout. Observed on a real patch run this way — checkpatch emitted
-`WARNING:UNKNOWN_COMMIT_ID` and left the SHA unverified. Treat SHA *existence* as `MISS` in that
-mode, not `PASS`.
+Two distinct outcomes follow, and they must not be reported as one:
+
+- **No lookup available** — file input, or no git tree. The commit checks are disabled, so nothing
+  reports on the SHA at all and a clean run says nothing about it. This is `MISS`, not `PASS`.
+- **Lookup attempted, object unresolved** — a tree was reachable but the commit was not found.
+  checkpatch says so, e.g. `WARNING:UNKNOWN_COMMIT_ID: Unknown commit id '…', maybe rebased or
+  not pulled?`. That is a real finding to investigate — an unfetched tree or rebased history —
+  not silence.
+
+In both cases treat SHA *existence* as unestablished. Only the second gives you a diagnostic to
+act on.
 
 ## Incremental builds silently skip the analyzer
 

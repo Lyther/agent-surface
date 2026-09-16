@@ -93,8 +93,9 @@ If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surf
 4. **Recipient derivation** (preparation only; sending is gated by user consent — see `ship-commit` Phase 4C):
 
    ```bash
-   # Build the patch series locally.
-   git format-patch -M --cover-letter -o outgoing/ origin/master..
+   # Build the patch series locally, against the review base you established for
+   # this work (often a subsystem maintainer tree — origin/master is not universal).
+   git format-patch -M --cover-letter -o outgoing/ <review-base>..
 
    # Derive maintainers and lists for review. DO NOT auto-pipe into send-email.
    # Use the DEFAULTS here: git fallback contributes history-derived reviewers that
@@ -275,7 +276,9 @@ and the number of files actually processed. `MISS` is not a pass and is excluded
 ```text
 checkpatch.pl --strict:  [PASS | FAIL: N CHECK / M WARNING / K ERROR | SKIP: reason | MISS: reason]
 make C=2 W=1 (sparse):   [PASS (f files) | FAIL: warnings | MISS: no built tree]
-make CHECK=smatch C=1:   [PASS (f files) | FAIL: findings | MISS: cross-fn DB not built]
+make CHECK=smatch C=2:   [PASS (f files) | FAIL: findings | MISS: no built tree]
+  smatch coverage:       [cross-function DB built? if not, inter-procedural findings
+                          are out of scope — a limitation on the run, not a MISS]
 coccicheck:              [PASS | FAIL: findings | MISS: ocaml unavailable]
 htmldocs (if touched):   [PASS | FAIL: kernel-doc warnings | SKIP: no kernel-doc touched]
 

@@ -104,14 +104,19 @@ These are genuinely mechanical and have low false-positive rates:
 
 - **`Fixes:` object exists**: `git cat-file -e <sha>^{commit}`. Report `MISS` without a tree
   rather than passing.
-- **`Fixes:` is reachable from the base you are actually targeting.** Resolve that base first —
-  developing against a subsystem maintainer tree is normal and upstream expects it, so
-  `origin/master` is not a universal reference:
+- **`Fixes:` is reachable from the review base.** That base is an input you must establish and
+  state — the tree this work actually targets. Developing against a subsystem maintainer tree is
+  normal, so `origin/master` is not a universal reference.
 
   ```bash
-  base=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null || echo HEAD)
-  git merge-base --is-ancestor <sha> "$base"
+  # REVIEW_BASE is established explicitly. Do not infer it, and do not fall back.
+  git merge-base --is-ancestor <sha> "$REVIEW_BASE"
   ```
+
+  Do not derive it from `@{upstream}` or `HEAD`. A tracking branch may be your own published
+  feature branch, and `HEAD` contains the very work under review, so both can report "ancestor"
+  for a commit that is not in the target tree at all. If no base has been established, that is
+  `MISS` — say the base is unknown rather than substituting a guess.
 
   Non-ancestry is a **lead to investigate**, not a verdict that the tag is invalid. The commit may
   live in a tree you have not fetched, or your history may be a cherry-picked or rebased variant
