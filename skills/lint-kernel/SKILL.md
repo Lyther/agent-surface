@@ -131,7 +131,11 @@ If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surf
    - For any `(input × concurrent-op)` quadrant you cannot empirically reach in a test, document why and how you verified by inspection. The race quadrant of RSV-2 was *only* covered by code review; that is acceptable when stated, not acceptable when hidden.
    - If a previous version was already sent publicly, write the v1→v2 changelog **as a real diff of the design**, not a politeness sentence. Reviewers should not have to re-derive what changed.
 
-7. **Report findings** using the output format below.
+7. **Report findings** using the output format below. Before you report anything, apply
+   `references/finding-discipline.md`: an issue needs concrete evidence on at least one execution
+   path, style observations are capped and held to a far higher bar than correctness, and you
+   never assert authorship or comment on a disclosure trailer. A review that reports everything it
+   suspects is worse than no review.
 
 ## DOMAIN CHECKLIST
 
