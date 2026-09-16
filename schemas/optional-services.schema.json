@@ -208,8 +208,7 @@
                   "required": [
                     "id",
                     "kind",
-                    "detect",
-                    "recipes"
+                    "detect"
                   ],
                   "properties": {
                     "id": {
@@ -319,7 +318,7 @@
                       "type": "object",
                       "additionalProperties": false,
                       "minProperties": 1,
-                      "description": "Per-platform install recipes (node os.platform() keys). Each platform is an ordered list of ALTERNATIVES; the planner runs the first whose `requires` command is present (or that declares none), so Linux selects the real package manager instead of assuming apt.",
+                      "description": "Per-platform install recipes (node os.platform() keys). Each platform is an ordered list of ALTERNATIVES; the planner runs the first whose `requires` command is present (or that declares none), so Linux selects the real package manager instead of assuming apt. OPTIONAL: a prerequisite may omit recipes to declare detection-only — its resolved path still wires the launch command, but a missing binary is reported rather than installed (used where automatic installation is deliberately deferred).",
                       "properties": {
                         "darwin": {
                           "$ref": "#/$defs/recipeSteps"
