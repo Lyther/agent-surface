@@ -93,8 +93,11 @@ if (process.platform === "win32") {
       assert.ok(resolvedAlt && path.isAbsolute(resolvedAlt), `alternate-PATH install must wire an absolute path, got: ${resolvedAlt}`);
       assert.equal(resolvedAlt, path.join(dir, altLink), "resolved from the on-PATH alternate directory, not ~/.local/bin");
 
-      // The point of resolving a path is that the emitted command runs. Launch each wired command
-      // exactly as generated, from an environment with neither directory on PATH.
+      // The point of resolving a path is that the emitted command spawns at all. Run the wired
+      // command itself from an environment with neither directory on PATH — the exact condition a
+      // bare name fails under. `--version` is used instead of the generated ["mcp"] args because the
+      // claim here is EXECUTABLE RESOLUTION, not MCP behavior: a server started here would hold the
+      // pipe open. End-to-end MCP acceptance belongs to the live first-party/launch suites.
       for (const [label, command] of [["default", resolvedDefault], ["alternate", resolvedAlt]]) {
         const launched = spawnSync(command, ["--version"], { encoding: "utf8", env: { HOME: os.homedir(), PATH: "/usr/bin:/bin" } });
         assert.equal(launched.status, 0, `${label}: the wired command failed to launch: ${launched.stderr}`);
