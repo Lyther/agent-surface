@@ -55,10 +55,18 @@ These are different checks and they do not substitute for one another.
 - **Source mode** (`checkpatch.pl -f <file>`) sees the whole file and reports pre-existing style
   you did not introduce. Do not "fix" unrelated findings into your patch.
 
-Critical: `checkpatch.pl` disables its commit checks on file input (`$chk_fixes_tag = 0 if ($file)`)
-and its git lookups return early when there is no git tree. Running it on a detached `.patch`
-outside a kernel checkout silently no-ops the `Fixes:` SHA validation. A clean run in that mode
-does not mean the SHA was checked — it means nothing checked it.
+Critical, and worth stating precisely because the two halves differ:
+
+- **Format checks are local.** SHA length, the `("summary")` shape, and the `BAD_FIXES_TAG`
+  family are evaluated by the script itself and work fine with no git tree.
+- **Object lookup needs a tree.** Confirming the commit exists and that the quoted summary matches
+  it requires git; `$chk_fixes_tag = 0 if ($file)` disables the commit checks on file input, and
+  the git lookups return early with no tree.
+
+So a well-formed `Fixes:` tag pointing at a commit that does not exist passes cleanly outside a
+checkout. Observed on a real patch run this way — checkpatch emitted
+`WARNING:UNKNOWN_COMMIT_ID` and left the SHA unverified. Treat SHA *existence* as `MISS` in that
+mode, not `PASS`.
 
 ## Incremental builds silently skip the analyzer
 
@@ -87,20 +95,38 @@ is disclosure-triggering under `generated-content.rst`.
 **get_maintainer.pl** — the only in-tree script with native JSON.
 
 ```bash
+# Deriving recipients: keep the defaults.
+scripts/get_maintainer.pl --json --status --subsystem <patch>
+
+# Auditing what MAINTAINERS itself declares, with no history input:
 scripts/get_maintainer.pl --no-tree --mpath <MAINTAINERS> --nogit --no-git-fallback \
                           --json --status --subsystem -f <file>
 ```
 
-`--no-git-fallback` is mandatory, not hygiene: git fallback is **on** by default
-(`$email_git_fallback = 1`), so without it the script shells out to git and output stops being
-reproducible. Also check for a `.get_maintainer.conf` in the tree root — it is prepended to the
-command line and silently overrides flags you passed. Never `--interactive`; it reads stdin.
+These two invocations answer different questions and are not interchangeable. Git fallback is
+**on** by default (`$email_git_fallback = 1`): when no `F:` pattern matches, the script derives
+reviewers from history. Those people are often the right audience, so `--no-git-fallback` is for
+deliberate MAINTAINERS-only inspection — using it to derive a send list silently shrinks the
+audience, sometimes to nothing but LKML. Suppress history input only when you want that, and say
+that you did.
+
+A `.get_maintainer.conf` in the tree root is prepended to `@ARGV`, so explicit flags passed
+afterwards win over it. Read it anyway before trusting output whose flags you did not fully
+specify. Never `--interactive`; it reads stdin.
 
 `--self-test[:sections|patterns|links|scm]` audits MAINTAINERS hygiene and emits parseable
 `<file>:<line>: warning: <kind>` lines. It says nothing about whether an address is still alive.
 
-**sparse / smatch** — need a configured, built tree. Smatch's cross-function database takes
-hours to build; without it, report `MISS`, do not imply the check ran.
+**sparse / smatch** — need a configured, built tree. Invoke with `C=2` so the files under review
+are actually processed.
+
+Smatch's cross-function database is **optional**. Smatch runs and reports real findings without
+it; building it only widens what it can see across call boundaries. Do not report `MISS` merely
+because the database is absent, and do not treat an hours-long database build as a prerequisite.
+Report the run normally and note the cross-function limitation separately — for example
+"smatch: PASS (12 files), cross-function DB not built, so inter-procedural findings are out of
+scope". Checks that genuinely require the database (such as sleeping-in-atomic) are the ones to
+mark `MISS`; `CONFIG_DEBUG_ATOMIC_SLEEP=y` is the recommended alternative for that specific case.
 
 **coccinelle** — needs OCaml. `spatch --dir` works without a kernel build. It has no
 changed-files mode; loop per file with `M=`.

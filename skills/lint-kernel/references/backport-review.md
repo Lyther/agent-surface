@@ -102,9 +102,21 @@ Opt-out exists and must be honored: `Cc: <stable+noautosel@kernel.org> # reason 
 
 These are genuinely mechanical and have low false-positive rates:
 
-- `Fixes:` SHA exists and is an ancestor:
-  `git cat-file -e <sha>^{commit}` then `git merge-base --is-ancestor <sha> origin/master`.
-  Report `MISS` without a tree rather than passing.
-- `Fixes:` SHA length and format — checkpatch's `BAD_FIXES_TAG` covers this, but only when it can
-  reach a git tree. See the checkpatch note in `tool-invocation.md`.
+- **`Fixes:` object exists**: `git cat-file -e <sha>^{commit}`. Report `MISS` without a tree
+  rather than passing.
+- **`Fixes:` is reachable from the base you are actually targeting.** Resolve that base first —
+  developing against a subsystem maintainer tree is normal and upstream expects it, so
+  `origin/master` is not a universal reference:
+
+  ```bash
+  base=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null || echo HEAD)
+  git merge-base --is-ancestor <sha> "$base"
+  ```
+
+  Non-ancestry is a **lead to investigate**, not a verdict that the tag is invalid. The commit may
+  live in a tree you have not fetched, or your history may be a cherry-picked or rebased variant
+  in which the same change carries a different SHA. Say which of those you checked.
+- **`Fixes:` SHA length and format** — checkpatch performs these format checks locally and does
+  not need a git tree for them. What it *cannot* do without a tree is confirm the object exists or
+  resolve its summary; that is where it degrades. See the checkpatch note in `tool-invocation.md`.
 - Fix present in every newer supported branch, once the affected range is known.

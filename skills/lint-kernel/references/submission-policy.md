@@ -75,9 +75,18 @@ The bug-handling procedure also expects a reproducer, a tested fix, and a `Fixes
 
 ## Vulnerability routing
 
-Classify before sending. `threat-model.rst` governs what is and is not a vulnerability; it
-explicitly excludes configuration problems, excess initial privilege, lab-only or probabilistic
-findings, hardening gaps ("just weaknesses, not vulnerabilities"), and incidental info leaks.
+Classify before sending, and **read `threat-model.rst` itself** — do not classify from a summary.
+Its exclusions turn on qualifications that a condensed list destroys: what matters is whether a
+security boundary is actually crossed and whether the attack is feasible under realistic
+conditions, not the surface category a finding appears to fall into.
+
+The trap worth naming: "probabilistic" is not an exclusion. Upstream excludes attacks that need
+unrealistic conditions or an implausible number of attempts — not every race or timing-dependent
+bug. A race that is genuinely reachable in production is a vulnerability even though it is
+probabilistic. Compressing that into "lab-only or probabilistic findings are excluded" is how a
+real vulnerability gets routed as an ordinary bug.
+
+If you cannot consult the document, say the classification is unverified rather than guessing it.
 
 - Vulnerability → `security-bugs.rst` process.
 - Regular bug → `submitting-patches.rst`.

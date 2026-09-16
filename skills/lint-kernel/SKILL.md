@@ -50,9 +50,11 @@ If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surf
    # actually recompile, which on a warm tree can be nothing at all.
    make C=2 W=1 <touched-subdir>/
 
-   # Smatch — semantic checker, catches null derefs and lock imbalance. Its
-   # cross-function database takes hours to build; without it, report MISS.
-   make CHECK=smatch C=1 <touched-subdir>/
+   # Smatch — semantic checker, catches null derefs and lock imbalance. Runs
+   # without the cross-function database; that database is optional and only
+   # widens what it can see across call boundaries. C=2 so the selected files
+   # are actually processed rather than skipped as already-built.
+   make CHECK=smatch C=2 W=1 <touched-subdir>/
 
    # Semantic patches — coccicheck reports kernel-style anti-patterns.
    make coccicheck MODE=report COCCI=scripts/coccinelle/<area>/<rule>.cocci
@@ -80,7 +82,10 @@ If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surf
    #   Reviewed-by: / Tested-by: / Acked-by:     (REAL tags only — never invent)
    #   Assisted-by: LLM coccinelle sparse        # if a tool helped; no model names
    #   Signed-off-by: Name <email>               # MANDATORY (DCO 1.1), human only
-   git commit -s        # appends Signed-off-by automatically
+   #
+   # Draft the message; do NOT run the sign-off yourself. Only the human author can
+   # certify the DCO. Hand over the exact command instead:
+   #   git commit -s -m "subsystem: imperative subject" -m "Body."
    ```
 
    Conventional Commits prefixes (`feat:`, `fix:`, `chore:`) are **forbidden** here and `checkpatch.pl` will flag them.
@@ -92,17 +97,22 @@ If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surf
    git format-patch -M --cover-letter -o outgoing/ origin/master..
 
    # Derive maintainers and lists for review. DO NOT auto-pipe into send-email.
-   # --no-git-fallback is required for reproducible output: git fallback is ON by
-   # default, so without it the script shells out to git and results drift.
-   scripts/get_maintainer.pl --no-rolestats --no-git-fallback outgoing/*.patch
+   # Use the DEFAULTS here: git fallback contributes history-derived reviewers that
+   # MAINTAINERS alone does not list, and dropping them silently shrinks the audience.
+   scripts/get_maintainer.pl --no-rolestats outgoing/*.patch
+
+   # Only for MAINTAINERS-only inspection (auditing what the file itself declares),
+   # not for deriving who to send to:
+   #   scripts/get_maintainer.pl --nogit --no-git-fallback outgoing/*.patch
 
    # Show the proposed send-email command but do NOT execute it.
    # User must explicitly authorize before any SMTP traffic.
    echo "Proposed: git send-email --to=<maintainer> --cc=<list> outgoing/*.patch"
    ```
 
-   Check for a `.get_maintainer.conf` in the tree root before trusting the output — it is
-   prepended to the command line and silently overrides the flags you passed.
+   A `.get_maintainer.conf` in the tree root is prepended to the command line, so explicit flags
+   you pass afterwards take precedence over it. Still read it before trusting output you did not
+   fully specify.
 
    Heuristic: if you have not been told to send, you are not sending. Print the plan, stop.
 
@@ -205,8 +215,10 @@ Anchored to `Documentation/process/submitting-patches.rst` and `5.Posting.rst`. 
 **Trailers (order, no blank lines between)**
 
 - [ ] `Fixes: <12-hex> ("oneline")` — required for bug fixes. Tag exempt from 75-col wrap. Verify
-      the SHA exists and is an ancestor (`git merge-base --is-ancestor`); report `MISS` if you have
-      no tree to check it against.
+      the SHA exists, then that it is reachable from **the base you are actually targeting**
+      (a subsystem tree is normal; `origin/master` is not universal). Non-ancestry is a lead to
+      investigate — unfetched tree, or rebased/cherry-picked history — not proof the tag is wrong.
+      Report `MISS` if you have no tree to check against.
 - [ ] `Reported-by:` / `Closes:` / `Link:` — only with real attribution; lore.kernel.org URLs preferred for `Link:`.
 - [ ] `Cc: <stable@vger.kernel.org> # 5.14.x` — only if backport intended. The annotation names a
       single version and already means "that version and newer" (`# 3.3.x` and `# v5.14` both
