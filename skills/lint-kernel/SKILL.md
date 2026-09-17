@@ -69,6 +69,10 @@ If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surf
    `MISS`. Most of these tools exit 0 in the presence of findings — see
    `references/tool-invocation.md` for per-tool exit semantics before trusting a status.
 
+   If repeated structural lookups across a large tree are the bottleneck, an indexed navigator is
+   optional assistance — see `references/semcode.md`. It is never a prerequisite for review, and
+   its results never replace reading the source.
+
 3. **Subject + sign-off discipline** (mandatory for every commit in the series):
 
    ```bash
