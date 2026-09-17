@@ -412,6 +412,25 @@ run(["build", "--target", "all"]);
   assert.equal(byOutput.get(path.join(skillDir, "references", "note.md"))?.content, "note", "a companion is emitted beside its skill with its own content");
   assert.equal(byOutput.get(path.join(skillDir, "references", "note.md"))?.mode, undefined, "an ordinary companion declares no mode");
   assert.equal(byOutput.get(path.join(skillDir, "scripts", "run.sh"))?.mode, 0o755, "an executable companion declares the mode that keeps it runnable");
+
+  // A second directory-shaped destination is a second install of the same skill, so it carries the
+  // same companions: Trae installs every skill into both `.trae/skills` and `.traecli/skills`, and
+  // a body under either root points at `references/…` beside itself. The CLI root used to receive
+  // the body alone, leaving those references dangling there.
+  const traeProduced = await produceSkillOutputs(targets.trae, [probe], { scope: "user", mode: "build", categoryFilter: null });
+  const traeByOutput = new Map(traeProduced.map((output) => [output.relativeOutput, output]));
+  for (const skillRoot of [path.join(".trae", "skills"), path.join(".traecli", "skills")]) {
+    const traeSkillDir = path.join(skillRoot, "probe-skill");
+    assert.ok(traeByOutput.has(path.join(traeSkillDir, "SKILL.md")), `${skillRoot}: the skill is produced`);
+    assert.equal(traeByOutput.get(path.join(traeSkillDir, "references", "note.md"))?.content, "note", `${skillRoot}: the companion rides beside the body`);
+    assert.equal(traeByOutput.get(path.join(traeSkillDir, "scripts", "run.sh"))?.mode, 0o755, `${skillRoot}: the executable companion keeps its mode`);
+  }
+  assert.equal(traeProduced.length, 6, "each Trae destination carries exactly the body and its two companions");
+  // A metadata sidecar is not a skill directory: Codex's agents/openai.yaml gets no companions.
+  assert.ok(
+    produced.every((output) => !output.relativeOutput.startsWith(path.join(skillDir, "agents", "references"))),
+    "a sidecar beside the skill carries no companions of its own",
+  );
 }
 
 console.log("build: ok");

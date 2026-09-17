@@ -867,6 +867,24 @@ export async function produceCommandOutputs(adapter, commands, context) {
   return outputs;
 }
 
+// Companion files ride beside their SKILL.md, so a relative reference in the body resolves from the
+// INSTALLED location rather than the source checkout. Each is its own managed output, which is what
+// makes ownership cleanup remove a deleted one without special handling. Gated on the destination
+// actually being a directory-shaped skill surface: an adapter that flattens a skill to a single
+// file, or a metadata sidecar such as Codex's agents/openai.yaml, has nowhere to put them, and a
+// guessed path would not resolve.
+function skillCompanionOutputs(skill, relativeOutput, assetCategory) {
+  if (path.basename(relativeOutput) !== "SKILL.md") return [];
+  const skillDirectory = path.dirname(relativeOutput);
+  return (skill.resources ?? []).map((resource) => ({
+    source: resource.relativePath,
+    relativeOutput: path.join(skillDirectory, resource.resourcePath),
+    content: resource.text,
+    mode: resource.executable ? 0o755 : undefined,
+    assetCategory,
+  }));
+}
+
 export async function produceSkillOutputs(adapter, skills, context) {
   const outputs = [];
   const categories = await readAssetCategories();
@@ -881,26 +899,13 @@ export async function produceSkillOutputs(adapter, skills, context) {
         content: await adapter.renderSkill(skill, context),
         assetCategory,
       });
-      // Companion files ride beside their SKILL.md, so a relative reference in the body resolves
-      // from the INSTALLED location rather than the source checkout. Each is its own managed output,
-      // which is what makes ownership cleanup remove a deleted one without special handling. Gated
-      // on the host actually using a directory-shaped skill surface: an adapter that flattens a
-      // skill to a single file has nowhere to put them, and a guessed path would not resolve.
-      if (path.basename(relativeOutput) === "SKILL.md") {
-        const skillDirectory = path.dirname(relativeOutput);
-        for (const resource of skill.resources ?? []) {
-          outputs.push({
-            source: resource.relativePath,
-            relativeOutput: path.join(skillDirectory, resource.resourcePath),
-            content: resource.text,
-            mode: resource.executable ? 0o755 : undefined,
-            assetCategory,
-          });
-        }
-      }
+      outputs.push(...skillCompanionOutputs(skill, relativeOutput, assetCategory));
     }
+    // An additional destination that is itself a skill directory (Trae CLI's second skill root)
+    // carries the same companions as the primary one; the body it installs points at them.
     for (const buildOutput of adapter.additionalSkillOutputs ?? []) {
-      outputs.push({ ...await buildOutput(skill, context), assetCategory });
+      const output = { ...await buildOutput(skill, context), assetCategory };
+      outputs.push(output, ...skillCompanionOutputs(skill, output.relativeOutput, assetCategory));
     }
   }
   return outputs;
