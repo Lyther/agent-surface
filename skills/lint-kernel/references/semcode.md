@@ -36,11 +36,15 @@ Two separate operations. Doing the first does not do the second.
 semcode-index -s /path/to/linux
 ```
 
-**History indexing** is a distinct, explicit step over a revision range:
+**History indexing** is a distinct, explicit step over a revision range. Bind the repository here
+too — `-s` defaults to the current directory, so running this from elsewhere can select the wrong
+repository and database, or fail to resolve the tags:
 
 ```bash
-semcode-index --commits v6.11..v6.12
+semcode-index -s /path/to/linux --commits v6.11..v6.12
 ```
+
+Pass the same `--database` you used for source indexing if that database is in a custom location.
 
 The values below are **the tested example, not defaults** — pick the checkout and range your work
 actually needs, and record what you chose:
@@ -104,10 +108,14 @@ notifications as responses and misreport results.
 
 At startup the server checks whether indexing is needed and **may index the current commit**,
 emitting `Checking if indexing is needed… → Indexing current commit… → Indexing complete →
-Database ready for queries`. Queries issued during that window legitimately report that indexing
-is in progress; that is accurate, not a defect. A conformant client needs no fixed delay and no
-retry wrapper, but startup work can still take time on a large tree — wait for the response rather
-than assuming a duration.
+Database ready for queries`.
+
+A request issued during that window does not block. The server returns a **completed tool response
+whose content says indexing is in progress** — correct `id` correlation does not change that, since
+the response really is the answer to your request. So: no fixed startup delay, and no custom retry
+wrapper. The qualified trial needed zero retries. If a lookup does come back reporting indexing in
+progress, treat it as "not answered yet", wait for completion and reissue the lookup within a
+bounded deadline rather than accepting it as a negative result.
 
 Because of that startup behaviour, the server **writes to its database**. It is not a read-only
 consumer, which is a further reason to bind it to one project rather than wire it in globally.
