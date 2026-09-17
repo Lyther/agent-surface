@@ -1,7 +1,7 @@
 ---
 name: ship-commit
 phase: ship
-description: "Commit and publish accepted local changes safely."
+description: "Commit accepted local changes safely; publish only when explicitly authorized."
 ---
 ## OBJECTIVE
 
@@ -24,7 +24,7 @@ Commit accepted work frequently. Atomic commits enable easy rollback and bisecti
 
 ## COMMIT-ONLY BOUNDARY
 
-`ship-commit` packages and publishes already-accepted work. It is not a development or remediation loop.
+`ship-commit` packages already-accepted work into a local commit. On its own it stops there; push and PR/MR creation happen only when the user's request explicitly authorizes them. It is not a development or remediation loop.
 
 - Commit-time edits are limited to mechanical blockers required to represent the accepted change correctly, such as repository-formatter output, staged-snapshot hygiene, or commit metadata.
 - Use current review evidence for the unchanged diff, or run exactly one read-only review pass when evidence is missing. Do not automatically fix findings or start another review round.
@@ -45,7 +45,7 @@ Inspect the working tree and pick **one** mode. When in doubt, ask the user.
 | **kernel** | Top-level `MAINTAINERS`, `scripts/checkpatch.pl`, `scripts/get_maintainer.pl`, `Documentation/process/submitting-patches.rst`, `Kbuild`, kernel-style `Makefile` with `VERSION =`/`PATCHLEVEL =` | Conventional Commits BANNED. Use `subsystem: imperative subject`. Sign-off via `-s` (DCO), GPG sign optional. Distribute via `git format-patch` + `git send-email`, never `git push` to mainline. |
 | **oss-pr** | `.github/`, `CONTRIBUTING.md`, public remote, GitHub/GitLab/Gitea PR flow | Conventional Commits typical. Push to feature branch + open PR. Never push to `main`/`master` directly. |
 | **internal-trunk** | Private remote, monorepo signals, no PR template | Follow repo's `CONTRIBUTING` or AGENTS.md. Default to feature-branch + PR unless told otherwise. |
-| **solo / local** | No remote, or remote == local mirror | Commit freely. Publish when a configured remote exists; otherwise stop at the local commit because no external route exists. |
+| **solo / local** | No remote, or remote == local mirror | Commit freely and stop at the local commit. A configured remote is a possible route, not an instruction to use it. |
 
 State the detected mode in one line before proceeding (e.g., `Mode: kernel — checkpatch + send-email path engaged`). If multiple signals conflict, ask.
 
@@ -193,7 +193,7 @@ State the detected mode in one line before proceeding (e.g., `Mode: kernel — c
 
 ### Phase 4: Distribute
 
-*This command completes the detected repository workflow under durable full-execution consent. Verify every external target before publishing.*
+*Phase 4 runs only when the user's request explicitly authorizes publication. Without that, the workflow ends at the local commit with the route reported. Once authorized, complete the detected workflow end to end without re-asking at each step, and verify every external target before publishing.*
 
 #### 4A. Branch Discipline
 
@@ -210,7 +210,7 @@ State the detected mode in one line before proceeding (e.g., `Mode: kernel — c
 
 #### 4B. Push
 
-- Verify the remote URL, branch, upstream base, and commit set, then publish:
+- Only under explicit authorization. Verify the remote URL, branch, upstream base, and commit set, then publish:
 
   ```bash
   git push -u origin <feature-branch>
@@ -302,8 +302,8 @@ For **kernel mode**, replace the push/PR block with the validated `git format-pa
 6. **IMPERATIVE MOOD**: "Add X", not "Added X" or "Adds X".
 7. **SIGN-OFFS**: Conventional repos → GPG sign (`-S`) when keys are configured. Kernel → DCO sign-off (`-s`) is mandatory; `-S` additionally if your key is set up.
 8. **PROTECTED BRANCHES**: Use the repository's protected-branch workflow; default feature work to a feature branch plus PR/MR.
-9. **VERIFIED EMAIL TARGETS**: For patch-email workflows, derive recipients from the exact patch, validate durable message inputs, send, and record transport state.
-10. **COMPLETE PUBLICATION**: Push and open/update the PR/MR when that is the detected repository workflow; do not stop after a local commit.
+9. **VERIFIED EMAIL TARGETS**: For patch-email workflows, derive recipients from the exact patch and validate durable message inputs. Sending is publication and needs the same explicit authorization; once sent, record transport state.
+10. **PUBLICATION IS AUTHORIZED, NOT IMPLIED**: Stop at the local commit unless the request explicitly authorizes push or PR/MR. Once it does, complete that workflow fully rather than asking again at each step.
 11. **NO READINESS OVERCLAIMS**: Broad readiness claims require `verify-readiness` PASS or equivalent real-run proof; otherwise state the narrower checks that passed.
 12. **READ BACK PUBLISHED TEXT**: Before push, patch export, PR/MR handoff, or release handoff, re-check the actual commit messages and submitted PR/MR/release text for AI/vendor attribution or advertising.
 13. **HEURISTICS OVER HARD-CODES**: Treat the example commands as illustrations, not scripts. Pick the right tool for the detected stack (uv, cargo, go, kbuild). When the heuristic is ambiguous, ask.

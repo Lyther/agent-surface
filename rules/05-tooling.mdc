@@ -37,7 +37,7 @@ alwaysApply: true
 - Limit commit-only edits to mechanical staging, formatter, hook, metadata, signing, or publication blockers. Release, artifact, deployment, and distribution workflows remain write-capable within their own declared scope.
 - Report behavioral defects, design issues, and missing tests directly in chat. Do not create a findings file unless explicitly requested, and do not defer publication unless the user or repository policy defines the review as a blocking gate.
 - If a configured hook physically blocks the commit because of a product defect, report the exact blocker without bypassing the hook or silently switching to development work. Product remediation requires a separate explicit fix request.
-- Complete the Git workflow implied by the task, including push, PR creation, branch cleanup, or history repair when needed. Verify the remote, branch, and content before publication.
+- Completing implementation does not imply publication. Commit locally; push and PR/MR creation require explicit authorization in the user's request. Once authorized, complete that publication workflow — remote verification, push, PR/MR, branch cleanup — without asking again at each step.
 - Preserve protected/default-branch policy unless the task or established repository workflow selects that branch.
 
 ## Databases and Environments
