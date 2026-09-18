@@ -10,7 +10,7 @@ export const opsServerCommandPath = path.join(root, "commands", "ops-server.md")
 export const hasLocalOpsServerCommand = existsSync(opsServerCommandPath);
 export const expectedCommandCount = 5 + Number(hasLocalOpsServerCommand);
 export const expectedSourceCommandCount = expectedCommandCount;
-export const expectedSkillCount = 61;
+export const expectedSkillCount = 62;
 
 export function clineIdeUserDataRoot(product) {
   if (process.platform === "darwin") return path.join("Library", "Application Support", product);

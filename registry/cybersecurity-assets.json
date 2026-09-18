@@ -1,6 +1,8 @@
 {
   "category": "cybersecurity",
-  "skills": [],
+  "skills": [
+    "ops-pentest-report"
+  ],
   "commands": [],
   "rules": [
     "04-cybersecurity"
