@@ -59,15 +59,15 @@ Runbook profile:
 ## Step shape
 
 ```markdown
-### 5. Drain the node
+### 5. Confirm the node is ready and schedulable
 
 Run:
 
-    kubectl drain <node> --ignore-daemonsets --delete-emptydir-data
+    kubectl get node <node>
 
-**Expected:** `node/<node> drained` and `kubectl get pods -o wide` shows no pods scheduled on `<node>`.
+**Expected:** one row whose `STATUS` column reads exactly `Ready`.
 
-**If not:** pods with local storage block the drain. Do not add `--force` — it deletes data. Go to step 9.
+**If not:** any other value — `NotReady`, `Unknown`, or `Ready,SchedulingDisabled` (already cordoned) — means the node is not in the state this procedure assumes. Stop before step 6, record the status line, and follow the escalation section. Do not try to change the node's state from here.
 ```
 
 ## Rules
