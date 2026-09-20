@@ -38,10 +38,6 @@ export function installRootVsCode(scope) {
   return os.homedir();
 }
 
-export function antigravityCliSkillOutputName(source) {
-  return `${source.name}.md`;
-}
-
 export function droidInstructionPath(context) {
   return context.scope === "user" ? path.join(".factory", "AGENTS.md") : "AGENTS.md";
 }
@@ -277,10 +273,6 @@ export function kiloConfigPath(scope) {
   return scope === "user" ? path.join(".config", "kilo", "kilo.jsonc") : "kilo.jsonc";
 }
 
-export function kiloInstructionPath(context) {
-  return context.scope === "user" ? path.join(".config", "kilo", "AGENTS.md") : "AGENTS.md";
-}
-
 export function kiloRuleRoot(context) {
   return context.scope === "user" ? path.join(".config", "kilo", "rules") : path.join(".kilo", "rules");
 }
@@ -365,8 +357,8 @@ export function openhandsInstructionPath(context) {
   return context.scope === "user" ? path.join(".openhands", "skills", "agent-surface-rules.md") : "AGENTS.md";
 }
 
-export function openhandsConfigRoot(context) {
-  return context.scope === "user" ? ".openhands" : ".openhands";
+export function openhandsConfigRoot() {
+  return ".openhands";
 }
 
 export function openhandsMcpPath() {

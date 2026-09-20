@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as TOML from "@decimalturn/toml-patch";
 import { isMap, isSeq, parseDocument, stringify as stringifyYaml } from "yaml";
-import { parseJsoncResult, setJsoncRootObjectProperty, setJsoncRootProperty } from "./jsonc.mjs";
+import { parseJsoncResult, setJsoncRootProperty } from "./jsonc.mjs";
 import { fail } from "./util.mjs";
 
 export const YAML_MCP_FORMATS = new Set(["goose-extensions", "poolside-mcp"]);
@@ -148,7 +148,7 @@ export function mergeJsonMcpConfig(
     const next = { ...current };
     for (const id of removeIds) delete next[id];
     Object.assign(next, optionalServiceMcpServers(entries, format));
-    content = setJsoncRootObjectProperty(content, key, next);
+    content = setJsoncRootProperty(content, key, next);
   }
 
   const replacements = new Set(replaceRootProperties);

@@ -9,7 +9,7 @@ import path from "node:path";
 import process from "node:process";
 import { readCommands } from "./commands.mjs";
 import { approximateTokens } from "./format.mjs";
-import { directDirectories, directories, files, filesUnder } from "./fs-tree.mjs";
+import { directDirectories, files, filesUnder } from "./fs-tree.mjs";
 import { readFileIfExists } from "./io.mjs";
 import { gitIgnoredPaths, gitStagedGitlinkMap, gitSubmoduleStatusMap } from "./proc.mjs";
 import { readAssetCategories, readOptionalServices, readSourceKinds, relative, root } from "./registry.mjs";
@@ -183,11 +183,6 @@ export async function check() {
     if (await exists(path.join(root, "adapters", name))) {
       errors.push(`out-of-scope adapter exists: ${name}`);
     }
-  }
-
-  for (const dir of await directories(root)) {
-    const name = path.basename(dir);
-    if (name === "legacy") errors.push(`legacy directory must not exist: ${relative(dir)}`);
   }
 
   for (const dir of await directDirectories(path.join(root, "adapters"))) {

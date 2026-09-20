@@ -20,8 +20,7 @@
     "install:synapse": "node mcps/synapse/install.mjs",
     "install:grimoire": "node mcps/grimoire/install.mjs",
     "install:mcps": "npm run install:synapse && npm run install:grimoire",
-    "test": "node tests/run.mjs",
-    "snapshot": "node tests/run.mjs"
+    "test": "node tests/run.mjs"
   },
   "engines": {
     "node": ">=20.12.0"

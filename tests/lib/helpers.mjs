@@ -6,10 +6,9 @@ import { fileURLToPath } from "node:url";
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 export const cli = path.join(root, "scripts", "agent-surface.mjs");
 export const stripAiAttributionHook = path.join(root, "hooks", "strip-ai-attribution.sh");
-export const opsServerCommandPath = path.join(root, "commands", "ops-server.md");
+const opsServerCommandPath = path.join(root, "commands", "ops-server.md");
 export const hasLocalOpsServerCommand = existsSync(opsServerCommandPath);
 export const expectedCommandCount = 5 + Number(hasLocalOpsServerCommand);
-export const expectedSourceCommandCount = expectedCommandCount;
 export const expectedSkillCount = 62;
 
 export function clineIdeUserDataRoot(product) {
@@ -85,7 +84,7 @@ for (const file of guardedRepoFiles) {
   }
 }
 
-export function restoreGuardedFiles() {
+function restoreGuardedFiles() {
   for (const [file, content] of guardedSnapshots) {
     if (content !== null) {
       try {
@@ -104,7 +103,7 @@ for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   });
 }
 
-export function assertTomlParses(dir) {
+function assertTomlParses(dir) {
   const script = `
 import pathlib
 import sys

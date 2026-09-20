@@ -120,9 +120,7 @@ async function inventory() {
     skills: (await readSkills()).length,
     subagents: (await files("subagents", [".md"])).length,
     mcps: (await files("mcps", [".json", ".toml", ".yaml", ".yml"])).length,
-    settings: (await files("settings", [".json", ".toml", ".yaml", ".yml"])).length,
     ignores: (await files("ignores", [".ignore", ".gitignore", ".clineignore", ".md", ".txt"])).length,
-    plugins: (await files("plugins", [".json", ".md", ".toml", ".yaml", ".yml"])).length,
     external: (await directDirectories(path.join(root, "external"))).length,
     schemas: (await files("schemas", [".json"])).length,
   };

@@ -19,7 +19,6 @@ import { targets } from "../../scripts/agent-surface/targets.mjs";
 import {
   expectedCommandCount,
   expectedSkillCount,
-  expectedSourceCommandCount,
   files,
   hasLocalOpsServerCommand,
   root,
@@ -171,7 +170,7 @@ const expectedInventory = {
 for (const [key, count] of Object.entries(expectedInventory)) {
   assert.match(inventory, new RegExp(`^${key}: ${count}$`, "m"));
 }
-assert.equal(expectedInventory.commands, expectedSourceCommandCount);
+assert.equal(expectedInventory.commands, expectedCommandCount);
 assert.match(inventory, new RegExp(`^skills: ${expectedSkillCount}$`, "m"));
 
 const skillRegistry = JSON.parse(run(["skills", "--json"]));

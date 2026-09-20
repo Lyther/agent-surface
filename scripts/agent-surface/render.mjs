@@ -1,7 +1,7 @@
 // Per-target render functions: source (command/rule/subagent) + context -> native string.
 // Pure text transforms (+ small format/access helpers); no fs, no producers.
 import path from "node:path";
-import { tomlMultilineString, tomlString, yamlString } from "./format.mjs";
+import { quotedScalar, tomlMultilineString } from "./format.mjs";
 import { readRulesForContext } from "./rules.mjs";
 import { fail } from "./util.mjs";
 
@@ -18,7 +18,7 @@ export function renderClaudeSubagent(source) {
   return [
     "---",
     `name: ${source.metadata.name}`,
-    `description: "${yamlString(source.metadata.description)}"`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
     `tools: ${mapped.tools}`,
     `model: ${source.metadata.model}`,
     `permissionMode: ${mapped.permissionMode}`,
@@ -35,7 +35,7 @@ export function renderClineSubagent(source) {
   return [
     "---",
     `name: ${source.metadata.name}`,
-    `description: "${yamlString(source.metadata.description)}"`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
     "tools:",
     ...tools.map((tool) => `  - ${tool}`),
     "---",
@@ -49,7 +49,7 @@ export function renderKiloSubagent(source) {
   const mapped = kiloSubagentAccess(source.metadata.access);
   const lines = [
     "---",
-    `description: "${yamlString(source.metadata.description)}"`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
     "mode: subagent",
   ];
   if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
@@ -73,9 +73,9 @@ export function renderKimiCodeSubagent(source) {
   return [
     "---",
     `name: ${source.metadata.name}`,
-    `description: "${yamlString(source.metadata.description)}"`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
     "tools:",
-    ...tools.map((tool) => `  - "${yamlString(tool)}"`),
+    ...tools.map((tool) => `  - "${quotedScalar(tool)}"`),
     "---",
     "",
     source.body.trim(),
@@ -88,7 +88,7 @@ export function renderQwenCodeSubagent(source) {
   const lines = [
     "---",
     `name: ${source.metadata.name}`,
-    `description: "${yamlString(source.metadata.description)}"`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
     `approvalMode: ${mapped.approvalMode}`,
   ];
   if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
@@ -108,7 +108,7 @@ export function renderKiroSubagent(source) {
   const lines = [
     "---",
     `name: ${source.metadata.name}`,
-    `description: "${yamlString(source.metadata.description)}"`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
     `tools: ${JSON.stringify(mapped.tools)}`,
   ];
   if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
@@ -137,7 +137,7 @@ export function renderCopilotSubagent(source) {
   return [
     "---",
     `name: ${source.metadata.name}`,
-    `description: "${yamlString(source.metadata.description)}"`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
     `tools: [${tools.map((tool) => JSON.stringify(tool)).join(", ")}]`,
     "---",
     "",
@@ -151,7 +151,7 @@ export function renderTraeSubagent(source) {
   return [
     "---",
     `name: ${source.metadata.name}`,
-    `description: "${yamlString(source.metadata.description)}"`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
     `tools: ${tools.join(", ")}`,
     "---",
     "",
@@ -164,7 +164,7 @@ export function renderCursorSubagent(source) {
   return [
     "---",
     `name: ${source.metadata.name}`,
-    `description: "${yamlString(source.metadata.description)}"`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
     `model: ${source.metadata.model}`,
     `readonly: ${cursorSubagentReadonly(source.metadata.access)}`,
     "is_background: false",
@@ -180,7 +180,7 @@ export function renderAntigravityCliSubagent(source) {
   return [
     "---",
     `name: ${source.metadata.name}`,
-    `description: "${yamlString(source.metadata.description)}"`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
     `model: ${source.metadata.model}`,
     "tools:",
     ...tools.map((tool) => `  - ${tool}`),
@@ -196,7 +196,7 @@ export function renderDroidSubagent(source) {
   return [
     "---",
     `name: ${source.metadata.name}`,
-    `description: "${yamlString(source.metadata.description)}"`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
     `model: ${source.metadata.model}`,
     "tools:",
     ...tools.map((tool) => `  - ${tool}`),
@@ -209,11 +209,11 @@ export function renderDroidSubagent(source) {
 
 export function renderCodexSubagent(source) {
   const lines = [
-    `name = "${tomlString(source.metadata.name)}"`,
-    `description = "${tomlString(source.metadata.description)}"`,
+    `name = "${quotedScalar(source.metadata.name)}"`,
+    `description = "${quotedScalar(source.metadata.description)}"`,
     `sandbox_mode = "${codexSubagentSandboxMode(source.metadata.access)}"`,
   ];
-  if (source.metadata.model !== "inherit") lines.push(`model = "${tomlString(source.metadata.model)}"`);
+  if (source.metadata.model !== "inherit") lines.push(`model = "${quotedScalar(source.metadata.model)}"`);
   lines.push(
     "",
     `developer_instructions = ${tomlMultilineString(source.body.trim())}`,
@@ -226,7 +226,7 @@ export function renderDeepAgentsSubagent(source) {
   const lines = [
     "---",
     `name: ${source.metadata.name}`,
-    `description: "${yamlString(source.metadata.description)}"`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
   ];
   if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
   lines.push(
@@ -242,7 +242,7 @@ export function renderOpenCodeSubagent(source) {
   const mapped = opencodeSubagentAccess(source.metadata.access);
   const lines = [
     "---",
-    `description: "${yamlString(source.metadata.description)}"`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
     "mode: subagent",
   ];
   if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
@@ -270,7 +270,7 @@ export async function renderOpenCodeCommand(source) {
 }
 
 export async function renderNativeMarkdownCommand(source) {
-  const description = yamlString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
+  const description = quotedScalar(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   return [
     "---",
     `name: ${source.name}`,
@@ -282,7 +282,7 @@ export async function renderNativeMarkdownCommand(source) {
 }
 
 export async function renderQwenCodeCommand(source) {
-  const description = yamlString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
+  const description = quotedScalar(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   return [
     "---",
     `description: "${description}"`,
@@ -320,7 +320,7 @@ export async function renderManualClaudeSkill(source) {
 }
 
 export async function renderManualKimiCodeSkill(source) {
-  const description = yamlString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
+  const description = quotedScalar(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   return [
     "---",
     `name: ${source.name}`,
@@ -359,10 +359,10 @@ export async function renderManualSlashSkill(source) {
 }
 
 export async function renderGooseRecipe(source) {
-  const description = yamlString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
+  const description = quotedScalar(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   return [
     'version: "1.0.0"',
-    `title: "agent-surface ${yamlString(source.name)}"`,
+    `title: "agent-surface ${quotedScalar(source.name)}"`,
     `description: "${description}"`,
     "instructions: |",
     yamlLiteralBlock(source.body.trim(), "  "),
@@ -379,7 +379,7 @@ export async function renderGooseRecipe(source) {
 export function renderSkillMarkdown(source, options = {}) {
   const invocationPrefix = Object.hasOwn(options, "invocationPrefix") ? options.invocationPrefix : "$";
   const generatedFor = options.generatedFor ?? "agent-surface skill";
-  const description = yamlString(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
+  const description = quotedScalar(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   const hostInstruction = options.hostInstruction ?? (invocationPrefix === null
     ? "Select this skill explicitly when it is needed."
     : `Invoke \`${invocationPrefix}${source.name}\` when this skill is needed.`);
@@ -406,7 +406,7 @@ export function renderSkillMarkdown(source, options = {}) {
 
 export async function renderAntigravityWorkflow(source) {
   const body = source.body;
-  const description = yamlString(source.metadata.description ?? firstHeading(body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
+  const description = quotedScalar(source.metadata.description ?? firstHeading(body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
 
   if (body.startsWith("---\n")) {
     const frontmatterEnd = body.indexOf("\n---\n", 4);
@@ -500,7 +500,7 @@ export function renderKiroRuleDocument(rule) {
 export async function renderVsCodeInstructionDocument(title, target, context = {}) {
   return [
     "---",
-    `description: "${yamlString(title)}"`,
+    `description: "${quotedScalar(title)}"`,
     'applyTo: "**"',
     "---",
     "",

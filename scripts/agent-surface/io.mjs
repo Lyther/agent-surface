@@ -3,7 +3,7 @@
 // route JSON/JSONC parse failures through fail() with a repo-relative label.
 import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
-import { parseJsoncResult } from "./jsonc.mjs";
+import { parseJsonc } from "./jsonc.mjs";
 import { relative, root } from "./registry.mjs";
 import { exists, fail } from "./util.mjs";
 
@@ -11,10 +11,13 @@ export async function removeTree(target) {
   await rm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
 
-export function parseJsonc(text, label) {
-  const result = parseJsoncResult(text);
-  if (result.ok) return result.value;
-  fail(`${label}: invalid JSONC: ${result.error.message}`);
+// The CLI reads config fail-closed: a malformed file is a reported exit, not an exception.
+function parseJsoncOrFail(text, label) {
+  try {
+    return parseJsonc(text, label);
+  } catch (error) {
+    fail(error.message);
+  }
 }
 
 export async function readJsonIfExists(file) {
@@ -28,7 +31,7 @@ export async function readJsonIfExists(file) {
 
 export async function readJsoncIfExists(file) {
   if (!(await exists(file))) return null;
-  return parseJsonc(await readFile(file, "utf8"), path.relative(root, file));
+  return parseJsoncOrFail(await readFile(file, "utf8"), path.relative(root, file));
 }
 
 export async function readFileIfExists(file) {

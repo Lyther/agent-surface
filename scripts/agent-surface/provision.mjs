@@ -15,14 +15,9 @@ import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { expandHome } from "./mcp-env-launch.mjs";
 
 export const PLATFORM = process.platform; // "darwin" | "linux" | "win32"
-
-function expandHome(target, homedir = os.homedir()) {
-  if (target === "~") return homedir;
-  if (target.startsWith("~/")) return path.join(homedir, target.slice(2));
-  return target;
-}
 
 // Windows decides executability by EXTENSION, not by a permission bit: only a name ending in a
 // PATHEXT entry is launchable. The OS value wins when present; the fallback is the conservative
@@ -89,7 +84,7 @@ export function launchNameOf(target, platform = PLATFORM, env = process.env) {
 }
 
 // Read a binary's `--version` (e.g. node) and normalize to a bare "x.y.z". Null on any failure.
-export function commandVersion(binPath) {
+export function binaryVersion(binPath) {
   try {
     const res = spawnSync(binPath, ["--version"], { encoding: "utf8" });
     if (res.status !== 0 || typeof res.stdout !== "string") return null;
@@ -197,7 +192,7 @@ export function detectPrerequisite(prereq, { platform = PLATFORM, homedir = os.h
     // Prefer the resolved runtime binary; fall back to the CLI's own Node when the floor is on Node
     // itself and no separate path resolved.
     const probe = resolvedPath && /node(\.exe)?$/.test(resolvedPath) ? resolvedPath : whichSync("node", { platform, env });
-    nodeActual = probe ? commandVersion(probe) : null;
+    nodeActual = probe ? binaryVersion(probe) : null;
     nodeOk = satisfiesFloor(nodeActual, detect.node);
   }
 

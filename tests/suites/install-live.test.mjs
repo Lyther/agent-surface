@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
-import { root, run, status } from "../lib/helpers.mjs";
+import { run, status } from "../lib/helpers.mjs";
 
 // Table-driven live install smoke: each installable target must write a manifest
 // with managed entries. Distinct from build/check generated (render path only).
