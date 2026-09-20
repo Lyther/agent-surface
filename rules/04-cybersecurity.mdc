@@ -14,6 +14,7 @@ globs:
   - "**/.garak.*"
 alwaysApply: false
 ---
+
 # Cybersecurity
 
 These rules apply to **offensive security work only**: pentests and red-team engagements under written scope/ROE, CTF and lab challenges, research on targets you own or are authorized to test, bug-bounty programs whose policy you have read, and coordinated vulnerability disclosure. They are offensive tradecraft, not defensive hardening.

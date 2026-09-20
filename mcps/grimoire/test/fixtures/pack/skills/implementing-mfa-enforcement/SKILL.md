@@ -13,6 +13,4 @@ tags:
 
 # Implementing MFA Enforcement
 
-Define a conditional-access policy that requires MFA for all interactive sign-ins,
-prefer FIDO2/WebAuthn over OTP, exclude two monitored break-glass accounts, and roll
-out in report-only mode before enforcing.
+Define a conditional-access policy that requires MFA for all interactive sign-ins, prefer FIDO2/WebAuthn over OTP, exclude two monitored break-glass accounts, and roll out in report-only mode before enforcing.
