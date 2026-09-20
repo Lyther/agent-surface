@@ -1,6 +1,6 @@
 ---
 name: ops-docs
-description: "Align, restructure, and rewrite repository docs, or create one self-contained handoff, technical report, or whitepaper when explicitly requested. Handles moves, merges, deletions, and missing docs. Evidence-first and concise by default."
+description: "Align, restructure, and rewrite repository docs, or create one self-contained handoff, technical report, whitepaper, product SOP, or operational runbook when explicitly requested. Handles moves, merges, deletions, and missing docs. Evidence-first and concise by default. For an authorized security engagement report, use ops-pentest-report instead."
 ---
 
 ## OBJECTIVE
@@ -71,7 +71,7 @@ During execution:
 
 ## STANDALONE MODE
 
-Use standalone mode when the requested result is a product or engineering handoff, ownership transfer, project dossier, technical report, whitepaper, or other one-for-all document intended to travel without the repository.
+Use standalone mode when the requested result is a product or engineering handoff, ownership transfer, project dossier, technical report, whitepaper, standard operating procedure, operational runbook, or other one-for-all document intended to travel without the repository.
 
 Before drafting, resolve from the request or evidence:
 
@@ -87,7 +87,7 @@ Ask one focused question only when a missing answer materially changes scope, au
 
 Every standalone artifact contains, in a reader-appropriate order:
 
-1. Title, purpose, audience, status, date/evidence cutoff, and source baseline.
+1. An identity block that answers the same questions in every genre: what the document is (title, document type), which revision the reader holds (version or status, date issued), who it is for (audience, classification, owner), and what it rests on (evidence cutoff, source baseline). These are shared information requirements, not a fixed set of field names: a genre-specific skill may name the fields its readers expect, and may omit an item only where its template says so explicitly, as the runbook profile does.
 2. Executive summary or abstract that stands on its own.
 3. Context, terminology, scope, and non-goals.
 4. Current capability or subject, with the architecture, flow, interfaces, or examples needed to understand it.
@@ -103,6 +103,7 @@ Add only the modules required by the document's job:
 | Technical report | Research question, method, environment/data, results, analysis, reproducibility |
 | Whitepaper | Decision context, problem, proposed approach, alternatives, adoption implications, recommendation |
 | Project dossier | User value, capabilities, architecture, interfaces, operating model, evidence, roadmap boundary |
+| Product SOP or operational runbook | Purpose and outcome, scope, roles, prerequisites, numbered steps with per-step expected results, verification, rollback, escalation, and review cadence — structure and profile choice in `references/sop-template.md` |
 
 Do not create companion documents unless requested. Do not leave essential context behind repo-relative links, private shorthand, undefined acronyms, or undocumented conversations. External artifacts may remain separate when the document gives their immutable identifier or version, owner, access path, purpose, and verification method.
 
@@ -140,6 +141,8 @@ For standalone mode, write one finished artifact at the requested path. When no 
 ## RELATED
 
 - `arch-roadmap`, `arch-contract`, and `arch-diagram` author specialized architecture material that this skill may integrate.
+- `ops-report` produces a project status report for discussion; this skill produces documents built to travel.
+- `ops-pentest-report` owns authorized-engagement security reports, which carry marking, scoring, evidence-integrity, and retest rules this skill does not apply.
 - `ops-clean` handles repository debt beyond documentation.
 - `ops-doctor` checks source, registry, and generated health.
 - `boot-concept` establishes a missing product concept before documentation claims it.
@@ -151,3 +154,4 @@ For standalone mode, write one finished artifact at the requested path. When no 
 - No forced enterprise template when a short complete artifact is enough.
 - No silent conversion of a repository cleanup into a handoff or publication.
 - No standalone artifact maintained as an unversioned competing source of truth.
+- No engagement report, finding register, or retest record for authorized security testing; that genre belongs to `ops-pentest-report`.

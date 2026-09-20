@@ -8,7 +8,7 @@ description: "Initialize a source-to-distribution Stellaris modding environment.
 **THE ARCHITECT**: Initialize a professional "Source-to-Distribution" Stellaris modding environment.
 **Philosophy**: We separate "Raw Code" (Source) from "Game Ready" (Dist) to enable automated hygiene (BOM encoding, cleanup).
 
-## CONTEXT STRATEGY (TOKEN ECONOMICS)
+## CONTEXT STRATEGY
 
 1. **Scaffold First**: Generate folder structure + config first. No content files unless asked.
 2. **Atomic Setup**: After scaffold, stop and ask before generating `scripts/build.py`.

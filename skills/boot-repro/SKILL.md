@@ -3,20 +3,20 @@ name: boot-repro
 description: "Create a reproducible environment and command path for a project."
 ---
 
-## INPUT HANDLING (The Pipe)
-
-- **IF** input is a URL (e.g., `git clone ...` or `https://...`):
-    1. **CLONE IT**: `git clone [URL] .` (Ensure directory is empty or create new).
-    2. **THEN**: Execute the standard Repro Protocol below.
-- **IF** input is current directory:
-  - Proceed directly to Phase 1.
-
 ## OBJECTIVE
 
 **KILL "WORKS ON MY MACHINE".**
 Create a **Hermetic, Deterministic Build Environment**.
 The goal: `git clone` -> `make up` -> Working App.
 No manual installs. No "magic" global dependencies.
+
+## INPUT CONTRACT
+
+- **IF** input is a URL (e.g., `git clone ...` or `https://...`):
+    1. **CLONE IT**: `git clone [URL] .` (Ensure directory is empty or create new).
+    2. **THEN**: Execute the standard Repro Protocol below.
+- **IF** input is current directory:
+  - Proceed directly to Phase 1.
 
 ## VIBE CODING INTEGRATION
 

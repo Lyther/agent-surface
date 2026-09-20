@@ -3,6 +3,7 @@ name: ship-commit
 phase: ship
 description: "Commit accepted local changes safely; publish only when explicitly authorized."
 ---
+
 ## OBJECTIVE
 
 **THE ATOMIC SURGEON.**

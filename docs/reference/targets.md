@@ -4,31 +4,31 @@ Every host `agent-surface` renders into, and how much of the source model each r
 
 | Target | Auto-invocable skills | Manual-only workflows | Rules / instructions | Agents / subagents | External / MCP / ignores | Compat |
 |---|---|---|---|---|---|---:|
-| Claude Code | 61 `.claude/skills/*/SKILL.md` | 5 explicit-only skills | None | 6 `.claude/agents/*.md` | External skills; Synapse + Grimoire in `.claude.json` | 5 |
-| Codex | 61 `.agents/skills/*/SKILL.md` with implicit sidecars | 5 explicit-only `.agents/skills/*/SKILL.md` with non-implicit sidecars | `.codex/AGENTS.md` + 6 scoped refs | 6 `.codex/agents/*.toml` | External skills; Synapse + Grimoire in `.codex/config.toml` | 5 |
-| Deep Agents Code | 61 `.deepagents/agent/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.deepagents/agent/AGENTS.md` + 6 scoped refs | Worker only | External skills; Synapse + Grimoire in `.deepagents/.mcp.json` | 4 |
-| Cursor | 61 `.cursor/skills/*/SKILL.md` | 5 `.cursor/commands/*.md` | 12 native `.cursor/rules/*.mdc` | 6 `.cursor/agents/*.md` | External skills; Synapse + Grimoire; `.cursorignore` | 5 |
-| Droid | 61 `.factory/skills/*/SKILL.md` | 5 `.factory/commands/*.md` | `.factory/AGENTS.md` + 6 scoped refs | 6 `.factory/droids/*.md` | External skills; Synapse + Grimoire | 5 |
-| Cline | 61 `.cline/skills/*/SKILL.md` | 5 `~/Documents/Cline/Workflows/*.md` | Cline rules + 6 scoped refs | 6 `.cline/agents/*.yaml` | External skills; Synapse + Grimoire; `.clineignore` | 5 |
-| Kilo | 61 `~/.kilo/skills/*/SKILL.md` | 5 `.config/kilo/commands/*.md` | 6 always-on rules + 6 scoped refs | 6 `.config/kilo/agents/*.md` | External skills; Synapse + Grimoire; whole-object full-access permission; sharing disabled; `.kilocodeignore` | 5 |
-| Kimi Code | 61 `$KIMI_CODE_HOME/skills/*/SKILL.md` | 5 explicit-only flow skills | `AGENTS.md` + 6 scoped refs | 6 custom agents | External skills; Synapse + Grimoire; auto permissions | 5 |
-| Qoder | 61 `.qoder/skills/*/SKILL.md` | 5 `.qoder/commands/*.md` | `AGENTS.md` + 6 scoped refs | 6 `.qoder/agents/*.md` | External skills; Synapse + Grimoire; bypass permissions; duplicate compatibility scan disabled | 5 |
-| Qwen Code | 61 `.qwen/skills/*/SKILL.md` | 5 `.qwen/commands/*.md` | `QWEN.md` + 6 scoped refs | 6 `.qwen/agents/*.md` | External skills; Synapse + Grimoire; yolo permissions | 5 |
-| Kiro | 61 `.kiro/skills/*/SKILL.md` | 5 manual steering workflows | 12 steering files | 6 `.kiro/agents/*.md` | External skills; Synapse + Grimoire; capability permissions | 5 |
-| DSH | 61 `.dsh/skills/*/SKILL.md` | None | None | None | External skills; Developer Preview skills-only boundary | 3 |
-| Antigravity CLI | 61 staged-plugin `skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | 6 always-on rules + 6 scoped refs | 6 plugin agents | External plugin skills; Synapse + Grimoire | 5 |
-| Antigravity | 61 `~/.gemini/config/skills/*/SKILL.md` | 5 legacy workflows | None | None | External skills | 4 |
-| GitHub Copilot | 61 `~/.copilot/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | CLI + VS Code instructions and scoped refs | 6 `.copilot/agents/*.agent.md` | External skills; Synapse + Grimoire | 5 |
-| VS Code | 61 shared `~/.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills in the same root | VS Code instructions + 6 scoped refs | None | External skills; Synapse + Grimoire in the VS Code user profile | 4 |
-| OpenCode | 61 `.config/opencode/skills/*/SKILL.md` | 5 `.config/opencode/commands/*.md` | `AGENTS.md` + 6 scoped refs | 6 agents | External skills; Synapse + Grimoire; whole-object full-access permission; sharing disabled | 5 |
-| OpenHands | 61 `.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | User rules or project `AGENTS.md`; 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
-| Trae | 61 skills in each `.trae/skills` and `.traecli/skills` root | 5 explicit-invocation skills in each root | 12 native rule files + retained `user_rules.md` and 6 refs | 6 IDE + 6 CLI agents | Single-copy external skills; IDE + CLI MCP; full CLI policy | 5 |
-| Goose | 61 `.agents/skills/*/SKILL.md` | 5 compatibility skills in user builds; project installs use `recipes/*.yaml` | None | None | External skills; Synapse + Grimoire in user config | 4 |
-| Grok Build | 61 `.grok/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | Project `AGENTS.md` + 6 scoped refs | None | External skills; Synapse + Grimoire in `.grok/config.toml` | 4 |
-| Pi | 61 `.pi/agent/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.pi/agent/AGENTS.md` + 6 scoped refs | None | External skills | 4 |
-| Poolside | 61 `.config/poolside/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.poolside` instructions + 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
-| Windsurf | 61 `.codeium/windsurf/skills/*/SKILL.md` | 5 global workflows | Global rules + 6 scoped refs | None | External skills; Synapse + Grimoire | 5 |
-| Zed | 61 `.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.config/zed/AGENTS.md` + 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
+| Claude Code | 62 `.claude/skills/*/SKILL.md` | 5 explicit-only skills | None | 6 `.claude/agents/*.md` | External skills; Synapse + Grimoire in `.claude.json` | 5 |
+| Codex | 62 `.agents/skills/*/SKILL.md` with implicit sidecars | 5 explicit-only `.agents/skills/*/SKILL.md` with non-implicit sidecars | `.codex/AGENTS.md` + 6 scoped refs | 6 `.codex/agents/*.toml` | External skills; Synapse + Grimoire in `.codex/config.toml` | 5 |
+| Deep Agents Code | 62 `.deepagents/agent/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.deepagents/agent/AGENTS.md` + 6 scoped refs | Worker only | External skills; Synapse + Grimoire in `.deepagents/.mcp.json` | 4 |
+| Cursor | 62 `.cursor/skills/*/SKILL.md` | 5 `.cursor/commands/*.md` | 12 native `.cursor/rules/*.mdc` | 6 `.cursor/agents/*.md` | External skills; Synapse + Grimoire; `.cursorignore` | 5 |
+| Droid | 62 `.factory/skills/*/SKILL.md` | 5 `.factory/commands/*.md` | `.factory/AGENTS.md` + 6 scoped refs | 6 `.factory/droids/*.md` | External skills; Synapse + Grimoire | 5 |
+| Cline | 62 `.cline/skills/*/SKILL.md` | 5 `~/Documents/Cline/Workflows/*.md` | Cline rules + 6 scoped refs | 6 `.cline/agents/*.yaml` | External skills; Synapse + Grimoire; `.clineignore` | 5 |
+| Kilo | 62 `~/.kilo/skills/*/SKILL.md` | 5 `.config/kilo/commands/*.md` | 6 always-on rules + 6 scoped refs | 6 `.config/kilo/agents/*.md` | External skills; Synapse + Grimoire; whole-object full-access permission; sharing disabled; `.kilocodeignore` | 5 |
+| Kimi Code | 62 `$KIMI_CODE_HOME/skills/*/SKILL.md` | 5 explicit-only flow skills | `AGENTS.md` + 6 scoped refs | 6 custom agents | External skills; Synapse + Grimoire; auto permissions | 5 |
+| Qoder | 62 `.qoder/skills/*/SKILL.md` | 5 `.qoder/commands/*.md` | `AGENTS.md` + 6 scoped refs | 6 `.qoder/agents/*.md` | External skills; Synapse + Grimoire; bypass permissions; duplicate compatibility scan disabled | 5 |
+| Qwen Code | 62 `.qwen/skills/*/SKILL.md` | 5 `.qwen/commands/*.md` | `QWEN.md` + 6 scoped refs | 6 `.qwen/agents/*.md` | External skills; Synapse + Grimoire; yolo permissions | 5 |
+| Kiro | 62 `.kiro/skills/*/SKILL.md` | 5 manual steering workflows | 12 steering files | 6 `.kiro/agents/*.md` | External skills; Synapse + Grimoire; capability permissions | 5 |
+| DSH | 62 `.dsh/skills/*/SKILL.md` | None | None | None | External skills; Developer Preview skills-only boundary | 3 |
+| Antigravity CLI | 62 staged-plugin `skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | 6 always-on rules + 6 scoped refs | 6 plugin agents | External plugin skills; Synapse + Grimoire | 5 |
+| Antigravity | 62 `~/.gemini/config/skills/*/SKILL.md` | 5 legacy workflows | None | None | External skills | 4 |
+| GitHub Copilot | 62 `~/.copilot/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | CLI + VS Code instructions and scoped refs | 6 `.copilot/agents/*.agent.md` | External skills; Synapse + Grimoire | 5 |
+| VS Code | 62 shared `~/.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills in the same root | VS Code instructions + 6 scoped refs | None | External skills; Synapse + Grimoire in the VS Code user profile | 4 |
+| OpenCode | 62 `.config/opencode/skills/*/SKILL.md` | 5 `.config/opencode/commands/*.md` | `AGENTS.md` + 6 scoped refs | 6 agents | External skills; Synapse + Grimoire; whole-object full-access permission; sharing disabled | 5 |
+| OpenHands | 62 `.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | User rules or project `AGENTS.md`; 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
+| Trae | 62 skills in each `.trae/skills` and `.traecli/skills` root | 5 explicit-invocation skills in each root | 12 native rule files + retained `user_rules.md` and 6 refs | 6 IDE + 6 CLI agents | Single-copy external skills; IDE + CLI MCP; full CLI policy | 5 |
+| Goose | 62 `.agents/skills/*/SKILL.md` | 5 compatibility skills in user builds; project installs use `recipes/*.yaml` | None | None | External skills; Synapse + Grimoire in user config | 4 |
+| Grok Build | 62 `.grok/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | Project `AGENTS.md` + 6 scoped refs | None | External skills; Synapse + Grimoire in `.grok/config.toml` | 4 |
+| Pi | 62 `.pi/agent/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.pi/agent/AGENTS.md` + 6 scoped refs | None | External skills | 4 |
+| Poolside | 62 `.config/poolside/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.poolside` instructions + 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
+| Windsurf | 62 `.codeium/windsurf/skills/*/SKILL.md` | 5 global workflows | Global rules + 6 scoped refs | None | External skills; Synapse + Grimoire | 5 |
+| Zed | 62 `.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.config/zed/AGENTS.md` + 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
 
 Bundled instruction targets inline only `alwaysApply: true` rules. Cybersecurity (`04`) and language rules (`10`–`14`) ship as separate reference files under each target's config tree for explicit or project-aware selection. Cursor keeps all 12 as native `.mdc`; Kilo config-merges the 6 always-on rules and keeps the 6 scoped policies as references.
 

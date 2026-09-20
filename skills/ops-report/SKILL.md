@@ -387,6 +387,8 @@ Include only when relevant.
 
 Use `boot-context`, `arch-roadmap`, `qa-review`, `qa-measure`, `ops-doctor`, `ops-docs`, or `ops-deps` only when the report finds a gap that needs that specialist command.
 
+This skill reports a project's state for discussion. When the requested result is a document built to travel outside the repository, route to `ops-docs` for a handoff, whitepaper, dossier, SOP, or runbook, and to `ops-pentest-report` for an authorized security engagement report.
+
 ## NON-GOALS
 
 Not a full security review, dependency advisory scan, benchmark harness, pure docs audit, roadmap generator, or business plan generator unless the relevant specialist work is explicitly requested.

@@ -1,0 +1,25 @@
+{
+  // This repository pins no formatter for these file types yet. Until it selects and gates one,
+  // save-time formatting and fix-all/organize-imports actions only produce drift here (joined
+  // Markdown paragraphs, expanded JSON, re-sorted imports). Diagnostics and manual commands stay.
+  "[markdown]": {
+    "editor.formatOnSave": false,
+    "editor.codeActionsOnSave": { "source.fixAll": "never", "source.organizeImports": "never" }
+  },
+  "[json]": {
+    "editor.formatOnSave": false,
+    "editor.codeActionsOnSave": { "source.fixAll": "never", "source.organizeImports": "never" }
+  },
+  "[jsonc]": {
+    "editor.formatOnSave": false,
+    "editor.codeActionsOnSave": { "source.fixAll": "never", "source.organizeImports": "never" }
+  },
+  "[javascript]": {
+    "editor.formatOnSave": false,
+    "editor.codeActionsOnSave": { "source.fixAll": "never", "source.organizeImports": "never" }
+  },
+  "[typescript]": {
+    "editor.formatOnSave": false,
+    "editor.codeActionsOnSave": { "source.fixAll": "never", "source.organizeImports": "never" }
+  }
+}

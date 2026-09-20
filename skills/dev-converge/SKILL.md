@@ -9,7 +9,7 @@ Compare multiple candidate implementations from parallel workers, branches, work
 
 Do not mash patches together. Prefer one primary implementation plus small, verified logical transplants. Atomic replacement beats line-by-line blending.
 
-## CONTEXT STRATEGY (TOKEN ECONOMICS)
+## CONTEXT STRATEGY
 
 *Focus on the conflict, not the consensus.*
 
