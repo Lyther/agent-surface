@@ -16,34 +16,34 @@ tmp_file=""
 removed_file=""
 
 cleanup() {
-    [[ -n "${tmp_file:-}" ]] && rm -f -- "$tmp_file"
-    [[ -n "${removed_file:-}" ]] && rm -f -- "$removed_file"
+  [[ -n "${tmp_file:-}" ]] && rm -f -- "$tmp_file"
+  [[ -n "${removed_file:-}" ]] && rm -f -- "$removed_file"
 }
 trap cleanup EXIT
 
 die() {
-    printf '%s: %s\n' "$SCRIPT_NAME" "$*" >&2
-    exit 1
+  printf '%s: %s\n' "$SCRIPT_NAME" "$*" >&2
+  exit 1
 }
 
 usage() {
-    die "usage: $SCRIPT_NAME [--check] <commit-message-file>"
+  die "usage: $SCRIPT_NAME [--check] <commit-message-file>"
 }
 
 main() {
-    if [[ "${1:-}" == "--check" ]]; then
-        check_only=true
-        shift
-    fi
+  if [[ "${1:-}" == "--check" ]]; then
+    check_only=true
+    shift
+  fi
 
-    [[ $# -eq 1 ]] || usage
-    local msg_file="$1"
-    [[ -f "$msg_file" ]] || die "commit message file not found: $msg_file"
+  [[ $# -eq 1 ]] || usage
+  local msg_file="$1"
+  [[ -f "$msg_file" ]] || die "commit message file not found: $msg_file"
 
-    tmp_file="$(mktemp)" || die "failed to create temp file"
-    removed_file="$(mktemp)" || die "failed to create temp file"
+  tmp_file="$(mktemp)" || die "failed to create temp file"
+  removed_file="$(mktemp)" || die "failed to create temp file"
 
-    perl -Mstrict -Mwarnings -e '
+  perl -Mstrict -Mwarnings -e '
         my ($in, $out, $removed) = @ARGV;
         open my $fh, "<", $in or die "read $in: $!";
         local $/;
@@ -82,19 +82,19 @@ main() {
         }
     ' "$msg_file" "$tmp_file" "$removed_file"
 
-    if cmp -s -- "$msg_file" "$tmp_file"; then
-        return 0
-    fi
+  if cmp -s -- "$msg_file" "$tmp_file"; then
+    return 0
+  fi
 
-    if [[ "$check_only" == true ]]; then
-        printf '%s: AI attribution or vendor advertising found in commit message:\n' "$SCRIPT_NAME" >&2
-        sed 's/^/  /' "$removed_file" >&2
-        return 1
-    fi
-
-    cat -- "$tmp_file" >"$msg_file"
-    printf '%s: removed AI attribution/vendor advertising line(s):\n' "$SCRIPT_NAME" >&2
+  if [[ "$check_only" == true ]]; then
+    printf '%s: AI attribution or vendor advertising found in commit message:\n' "$SCRIPT_NAME" >&2
     sed 's/^/  /' "$removed_file" >&2
+    return 1
+  fi
+
+  cat -- "$tmp_file" >"$msg_file"
+  printf '%s: removed AI attribution/vendor advertising line(s):\n' "$SCRIPT_NAME" >&2
+  sed 's/^/  /' "$removed_file" >&2
 }
 
 main "$@"
