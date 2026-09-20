@@ -7,10 +7,10 @@ agent-surface compiles one source tree into 25 agent-host targets. Architecture:
 ```bash
 npm ci
 npm run check   # registry/schema/producer coherence
-npm test        # behaviour snapshots
+npm test        # full suite: build, check, install matrix, MCP wiring
 ```
 
-The root compiler uses locked Ajv and JSONC/TOML/YAML format dependencies and supports Node >= 18. The MCP packages under `mcps/` need Node >= 22.17 (`node:sqlite`).
+The root compiler uses locked Ajv and JSONC/TOML/YAML format dependencies and supports Node >= 20.12. The MCP packages under `mcps/` need Node >= 22.17 (`node:sqlite`).
 
 ## The loop
 
@@ -33,3 +33,15 @@ The root compiler uses locked Ajv and JSONC/TOML/YAML format dependencies and su
 - **Honest matrix.** Every target is `generated` / `manual` / `not-generated` / `not-applicable` with a reason in `target-capabilities.json` — no silent gaps.
 - **Evidence, not invention.** Docs claims trace to a file/command/config; unknowns are marked, not guessed.
 - **CI is the gate.** `check`, `test`, `build --target all`, and the MCP package suites must be green before merge.
+
+## Commit-message hook
+
+`hooks/strip-ai-attribution.sh` removes AI attribution, co-author trailers, and vendor advertising from commit messages; `tests/suites/hooks.test.mjs` covers it. It is not installed by `npm ci`. To run it on every commit in this checkout:
+
+```bash
+git config core.hooksPath hooks
+printf '#!/bin/sh\nexec "$(dirname "$0")/strip-ai-attribution.sh" "$1"\n' > hooks/prepare-commit-msg
+chmod +x hooks/prepare-commit-msg
+```
+
+`hooks/prepare-commit-msg` is ignored by Git, so the wrapper stays local. Use `strip-ai-attribution.sh --check <file>` to reject instead of rewrite.

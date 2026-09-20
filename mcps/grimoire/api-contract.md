@@ -58,8 +58,8 @@ grimoire_file_get(input: { id: SkillId; path: string })
 
 | status | When | hint (example) |
 |---|---|---|
-| `INDEX_MISSING` | no `~/.grimoire/index.sqlite` | `run: npm run install:grimoire` |
-| `INDEX_STALE` | `index_meta` ≠ installed `~/.grimoire/manifest.json` (commit/schema drift) | `index is stale; run: npm run install:grimoire` |
+| `INDEX_MISSING` | no `~/.grimoire/index.sqlite` | `index not built; run: npm run install:grimoire` |
+| `INDEX_STALE` | `index_meta` ≠ installed `~/.grimoire/manifest.json` | `<cause>; run: npm run install:grimoire`, where cause is `manifest unreadable`, `index unreadable`, `schema changed`, `empty manifest`, `pack set changed since build`, or `source changed since build` |
 | `NOT_FOUND` | `id` absent (`get`/`file_get`), or `path` not in the skill manifest (`file_get`) | `unknown skill id` / `path not in skill manifest; call grimoire_get first` |
 | `INVALID_INPUT` | semantic violation past schema (e.g. `path` traversal/absolute in `file_get`) | `path must be a relative entry from the skill manifest` |
 
@@ -81,7 +81,7 @@ grimoire_file_get(input: { id: SkillId; path: string })
      "size": 4096, "attribution": "<author, source, license>" } }
 
 // stale index
-← { "status": "INDEX_STALE", "hint": "index is stale; run: npm run install:grimoire" }
+← { "status": "INDEX_STALE", "hint": "source changed since build; run: npm run install:grimoire" }
 ```
 
 ## Limits & versioning

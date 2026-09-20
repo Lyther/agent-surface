@@ -23,7 +23,7 @@ node scripts/agent-surface.mjs install --target claude-code --scope user --allow
 npm run install:mcps               # build + link the Synapse/Grimoire binaries the wired MCP configs point at
 ```
 
-The `install` step wires each host's MCP *config* to point at `~/.local/bin/synapse-bridge` and `~/.local/bin/grimoire-server`; `npm run install:mcps` builds and links those binaries (and deploys the Synapse sidecar service). Run it once — the two steps together are what makes MCP actually connect.
+The `install` step wires each host's MCP *config* to point at `~/.local/bin/synapse-bridge` and `~/.local/bin/grimoire-server`, and when either binary is missing it builds and links it through the registry recipe before writing any config. `npm run install:mcps` is the manual path: run it to rebuild the binaries (and redeploy the Synapse sidecar service) after pulling MCP changes.
 
 ## What it does
 
@@ -34,13 +34,13 @@ The `install` step wires each host's MCP *config* to point at `~/.local/bin/syna
 
 ## Supported targets
 
-Twenty-five targets, ranked 1–5 by how much of the source model maps to native surfaces. Full adapters receive the canonical skill catalog, configured external skill packs, and every high-impact manual command; the intentionally limited DSH adapter receives skills only. Commands use a native explicit surface where one exists and an explicit-invocation compatibility skill otherwise.
+Twenty-five targets, ranked 1–5 by how much of the source model maps to native surfaces. The general sync delivers the six general-purpose skills and the first-party MCP wiring; with `--category development` (see [Install behavior](#install-behavior)) full adapters receive the canonical skill catalog, configured external skill packs, and every high-impact manual command; the intentionally limited DSH adapter receives skills only. Commands use a native explicit surface where one exists and an explicit-invocation compatibility skill otherwise.
 
 **Full matrix - per-target surfaces and MCP wiring: [docs/reference/targets.md](docs/reference/targets.md).**
 
 One additional target, `codex-plugin`, is an export format rather than a host: `build` renders a portable plugin package and the local marketplace manifest a host's own plugin manager consumes, and `install` refuses it. See [adapters/codex-plugin/README.md](adapters/codex-plugin/README.md).
 
-Planned: Amp, Auggie, Crush, and Warp. Out of scope: Gemini CLI (individual-account EoL; use Antigravity CLI), iFlow CLI (shutdown), Roo Code (archived), VSCodium (no maintained native agent runtime), and Xcode.
+Planned and out-of-scope hosts are listed at the end of [docs/reference/targets.md](docs/reference/targets.md).
 
 ## Project layout
 
@@ -56,10 +56,10 @@ registry/    Target, capability, asset-category, optional-service, and source-ki
 schemas/     JSON schemas for registry and workflow artifacts
 scripts/     CLI compiler and helpers
 adapters/    Per-target install docs (one README each)
+hooks/       Commit-message hook that strips AI attribution (install: CONTRIBUTING.md)
+tests/       Suites behind `npm test`: build, check, install matrix, MCP wiring
 external/    Reviewed git-submodule sources; registries decide what is distributed or indexed
 ```
-
-Local IDE overlays (`.cursor/`, `.claude/`, `.kilo/`, …) stay gitignored on maintainer machines; `build`/`install` render committed source into them.
 
 ## Commands
 
@@ -73,7 +73,7 @@ node scripts/agent-surface.mjs build --target <t> --dry-run
 node scripts/agent-surface.mjs install --target <t> --scope user --dry-run
 ```
 
-`install` accepts repeated/comma-separated `--target` (or `--runtime`) IDs and `--category` selectors. Output selectors are `commands`, `rules`, `subagents`, `skills`, `recipes`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, and `ignores`. Asset selectors are `development`, `cybersecurity`, `private`, and `modding`; run asset and output selectors as separate installs. Omitting `--category` or using `--category all` performs the general full sync; opt-in asset categories remain explicit. `all` selects the whole set on either flag, so it must be supplied alone — `--category all,development` and `--target all,codex` are rejected rather than silently resolved to one of the two. `--service <id>` narrows the MCP services in an MCP or asset-category install without filtering its other assets.
+`install` accepts repeated/comma-separated `--target` (or `--runtime`) IDs and `--category` selectors. Output selectors are `commands`, `rules`, `subagents`, `skills`, `recipes`, `mcps`, `external`, `instructions`, `prompts`, `plugins`, `ignores`, and `commands-as-workflows`. Asset selectors are `development`, `cybersecurity`, `private`, and `modding`; run asset and output selectors as separate installs. Omitting `--category` or using `--category all` performs the general full sync; opt-in asset categories remain explicit. `all` selects the whole set on either flag, so it must be supplied alone — `--category all,development` and `--target all,codex` are rejected rather than silently resolved to one of the two. `--service <id>` narrows the MCP services in an MCP or asset-category install without filtering its other assets.
 
 ## Install behavior
 

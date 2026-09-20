@@ -43,7 +43,7 @@ The honest blockers before an unqualified "production-ready" claim. Items marked
 - [x] `P4.3` **(shared)** CI gate — `.github/workflows/ci.yml` `mcp` job (Node 22) runs the grimoire suite incl. the real-pack eval gate + `npm audit` on every PR.
 - [x] `P4.4` **(shared)** Goose + Poolside MCP — **done**: a safe non-destructive YAML block-merge (`mergeYamlMcpConfig`) was added. Merge preserves keys/comments/sibling servers, is idempotent, and refuses unsupported structures rather than corrupting them; the current matrix has 22 generated hosts.
 - [x] `P4.5` `agent-surface doctor` index-freshness — `doctor` compares the installed `~/.grimoire/manifest.json` pin against the repo registry pin and reports linked/wired state (`grimoire-index: ok (<commit>)`).
-- [ ] `P4.6` **(shared)** Release — `CHANGELOG.md` landed; **remaining**: cut the `grimoire-v0.1.0` git tag (maintainer go) and clear `NODE_TLS_REJECT_UNAUTHORIZED=0` in the launching env.
+- [x] `P4.6` **(shared)** Release — `CHANGELOG.md` landed and the `grimoire-v0.1.0` tag is cut.
 
 ## Later (deferred-by-design — open only if a trigger fires)
 

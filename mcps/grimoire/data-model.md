@@ -7,7 +7,7 @@ A **derived, read-only** index — not a database of record. The source of truth
 ## Entities
 
 - **skill** — one Agent-Skill (`SKILL.md`). Identity: surrogate `id = "<pack>:<skillName>"`; natural key `(pack, name)`. Owns: body, description, derived category, provenance.
-- **skill_file** — one supporting file (`scripts/`/`references/`/`assets/`) belonging to a skill; identity `(skill_id, rel_path)`. The pack ships ~3,404 of these.
+- **skill_file** — one supporting file (`scripts/`/`references/`/`assets/`) belonging to a skill; identity `(skill_id, rel_path)`. The served packs ship thousands of these.
 - **index_meta** — key/value build metadata (schema version + per-pack provenance) used for staleness.
 - One `skill` has many `skill_file` (FK, cascade). `skills_fts` is an FTS5 view over `skill`, not an entity.
 
@@ -66,6 +66,10 @@ CREATE TABLE index_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
                "attribution": "<author, source, license, transformation notice>" },
              { "serviceId": "rev-skills",
                "path": "external/rev-skills",
+               "commit": "<pinned sha or pinned sha-dirty>", "sourceHash": "<sha256 of the indexed source set>",
+               "attribution": "<author, source, license, transformation notice>" },
+             { "serviceId": "hack-skills",
+               "path": "external/hack-skills",
                "commit": "<pinned sha or pinned sha-dirty>", "sourceHash": "<sha256 of the indexed source set>",
                "attribution": "<author, source, license, transformation notice>" } ] }
 ```

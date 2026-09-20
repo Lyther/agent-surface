@@ -1,6 +1,6 @@
 # Target matrix (reference)
 
-Every host `agent-surface` renders into, and how much of the source model each represents. Compatibility is 1-5: how much of the source model maps to native or close-native surfaces. Project-only or install-only surfaces are noted. First-party MCP services (Synapse and Grimoire) auto-wire non-destructively into all 22 MCP-capable hosts across JSON, TOML, and YAML config families.
+Every host `agent-surface` renders into, and how much of the source model each represents. Compatibility is 1-5: how much of the source model maps to native or close-native surfaces. Project-only or install-only surfaces are noted. First-party MCP services (Synapse and Grimoire) auto-wire non-destructively into all 22 MCP-capable hosts across JSON, TOML, and YAML config families. The counts below describe the full profile: the general sync plus `--category development,cybersecurity,modding`. The default install alone delivers the six general-purpose skills, no manual-only workflows, and no subagents.
 
 | Target | Auto-invocable skills | Manual-only workflows | Rules / instructions | Agents / subagents | External / MCP / ignores | Compat |
 |---|---|---|---|---|---|---:|

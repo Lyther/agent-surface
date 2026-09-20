@@ -6,22 +6,22 @@ Thin, read-only MCP — a small script, not a platform. This doc is sized to mat
 
 ## What it is
 
-A read-only, stateless **stdio MCP server** that serves large Agent-Skill packs **just-in-time** so the model *selects* a skill instead of drowning in a 750-entry startup catalog. It reads a self-contained `node:sqlite` FTS5 index (skill text + UTF-8 supporting-file content) **built on install** from the pinned submodule; a non-UTF-8 supporting file fails the build instead of being corrupted. Four namespaced tools; no sidecar, no network, no executor, no embeddings (v0). Distribution reuses synapse's first-party MCP rails, so it reaches **every MCP-capable host those rails cover** — Claude Code, Codex, Deep Agents, Cursor, Droid, Kilo, OpenCode, VS Code, Zed, … — for free. Precondition: served packs are **deferred from all native skill catalogs** (grimoire is the sole path). Sources: `concept-zero.md` (current); synapse impl (`VERIFIED_EXISTING` — FTS5 store, stdio Server, first-party distribution reused); `anthropic-cybersecurity-skills` (754 skills + 3,404 supporting files, already `source-pack` with no `skill_roots`).
+A read-only, stateless **stdio MCP server** that serves large Agent-Skill packs **just-in-time** so the model *selects* a skill instead of drowning in a 750-entry startup catalog. It reads a self-contained `node:sqlite` FTS5 index (skill text + UTF-8 supporting-file content) **built on install** from the pinned submodule; a non-UTF-8 supporting file fails the build instead of being corrupted. Four namespaced tools; no sidecar, no network, no executor, no embeddings (v0). Distribution reuses synapse's first-party MCP rails, so it reaches **every MCP-capable host those rails cover** — Claude Code, Codex, Deep Agents, Cursor, Droid, Kilo, OpenCode, VS Code, Zed, … — for free. Precondition: served packs are **deferred from all native skill catalogs** (grimoire is the sole path). Sources: `concept-zero.md` (historical); synapse impl (`VERIFIED_EXISTING` — FTS5 store, stdio Server, first-party distribution reused); the served packs `anthropic-cybersecurity-skills`, `rev-skills`, and `hack-skills` (registry `source-pack` entries with `served_by: ["grimoire"]` and no `skill_roots`).
 
 ## Source tree
 
 ```text
 mcps/grimoire/
   src/
-    contract.ts  - zod tool I/O, DTOs, ErrorCode (INDEX_MISSING/INDEX_STALE/NOT_FOUND/INVALID_INPUT), SERVER_INSTRUCTIONS, id codec <pack>:<skillName>. Pure.
-    model.ts     - SCHEMA_SQL (skills + skill_files + index_meta + FTS5), row mappers, deriveCategory(name)→categorySource:"derived". Pure.
+    contract.ts  - zod tool I/O, DTOs, ErrorCode (INDEX_MISSING/INDEX_STALE/NOT_FOUND/INVALID_INPUT), SERVER_INSTRUCTIONS. Pure.
+    model.ts     - SCHEMA_SQL (skills + skill_files + index_meta + FTS5), id codec <pack>:<skillName>, row mappers, deriveCategory(name)→categorySource:"derived". Pure.
     indexer.ts   - build-time ONLY writer: walk Git-owned pack roots (skillsRel, default skills/) → validate attribution/metadata (reject symbolic SKILL.md; skip no-frontmatter/bad-slug/dup-id; truncate desc>1024 in metadata) → store body/files → sqlite + index_meta + ~/.grimoire/manifest.json. Git-less input is marked uncommitted; absent pack dir throws; temp-builds and publishes fail-closed. Not imported by server.
     served-packs.ts - install-time: read served_by grimoire packs + index_root from optional-services.json and invoke the indexer.
     store.ts     - runtime read-only reader: search(bm25)/list/get/fileGet/indexStatus. Reopens after index replacement; rejects manifest/index pack-set mismatch. No writes, no MCP.
     tools.ts     - 4 tool specs + validated dispatcher (structuredContent + labeled text); readOnlyHint.
     server.ts    - stdio MCP Server (instructions); bin grimoire-server. Opens index read-only.
-    namespace.ts - resolve ~/.grimoire/{index.sqlite,manifest.json} + pack roots; no repo dependency at runtime.
-  test/{contract,model,indexer,store,server,packaging,eval}.test.ts · test/helpers.ts · test/fixtures/{pack/**, queries/*.json}
+    namespace.ts - resolve ~/.grimoire/{index.sqlite,manifest.json}; no repo dependency at runtime.
+  test/{contract,model,indexer,store,server,packaging,served-packs,eval}.test.ts · test/helpers.ts · test/fixtures/{pack/**, queries/*.json}
     (packaging.test.ts = bin-targets-exist + spawned-process real-stdio; eval.test.ts = fixture + real-pack gate)
   schema.sql · install.mjs · package.json · README.md
 ```

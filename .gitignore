@@ -8,3 +8,6 @@ commands/ops-server.md
 .env
 .env.*
 !.env.example
+
+# local wrapper installed per CONTRIBUTING.md; the tested script beside it is tracked
+hooks/prepare-commit-msg

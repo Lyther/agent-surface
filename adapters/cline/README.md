@@ -17,6 +17,7 @@ User scope:
 - MCP (CLI): `~/.cline/data/settings/cline_mcp_settings.json`
 - MCP (VS Code extension): the Cline extension's `globalStorage/.../settings/cline_mcp_settings.json`
 - MCP (Cursor extension): the Cline extension's `globalStorage/.../settings/cline_mcp_settings.json`
+- MCP (Windsurf extension): the Cline extension's `globalStorage/.../settings/cline_mcp_settings.json`
 
 Project scope:
 

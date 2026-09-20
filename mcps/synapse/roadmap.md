@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: SHIPPED (v0.4 core + distribution + robustness; PR #14 merged) — open by nature: per-host in-app smoke (operator-recorded continuously) + the git tag (maintainer go)
+Status: SHIPPED (v0.4 core + distribution + robustness; PR #14 merged) — tag `synapse-v0.4.0` cut; open by nature: per-host in-app smoke (operator-recorded continuously)
 Source architecture: mcps/synapse/architecture.md
 Last updated: 2026-08-31
 
@@ -23,7 +23,7 @@ Last updated: 2026-08-31
 - [x] `P0.2`–`P0.4` Contract / model / namespace — `src/contract.ts` (7 tools, `instructions`, DTOs), `src/model.ts` + `schema.sql` (no scope/kind column), `src/namespace.ts` (git-root realpath hash). Evidence: `tsc` clean; store tests.
 - [x] `P1.1` Sidecar transport — Streamable HTTP 127.0.0.1, sessions, bearer, DNS-rebind/Host, SDK `>=1.24.0 <2`. Evidence: sidecar tests (bearer/init/isolation).
 - [x] `P1.2` stdio bridge — proxy JSON-RPC + forward `resources/updated`/`list_changed`. Evidence: bridge proxy + forward test.
-- [x] `P1.3`–`P1.6` Store, identity, `memory_*`, `lock_*` — single-owner WAL, FTS5/bm25, budgeted recall, atomic lock reap+claim. Evidence: 13 store tests incl. F001/F004.
+- [x] `P1.3`–`P1.6` Store, identity, `memory_*`, `lock_*` — single-owner WAL, FTS5/bm25, budgeted recall, atomic lock reap+claim. Evidence: 22 store tests incl. F001/F004.
 - [x] `P1.7` Realtime + cursor floor — commit hook → dirty-bit; `recall({since})`/`lock_list` floor. Evidence: S-01 + `since`-cursor tests.
 - [x] `P1.8` `instructions` + tool descriptions (≥3 sentences, "untrusted data"). Evidence: `SERVER_INSTRUCTIONS` + `TOOL_DESCRIPTIONS` in `src/contract.ts`.
 
@@ -45,7 +45,7 @@ Last updated: 2026-08-31
   - Dependencies: T2.6.
   - Note: the live per-host smoke is operator-run evidence, not an automated test; the matrix records pass/fail per host before that host is documented as fully wired.
 - [x] `T2.7` Orchestrator seeding
-  - Files: `commands/workflow-orchestrator.md` (SYNAPSE AGENT SEEDING section).
+  - Files: `skills/workflow-orchestrator/SKILL.md` (SYNAPSE AGENT SEEDING section).
   - Scope: when the orchestrator fans out concurrent agents, pass `SYNAPSE_AGENT_ID` (per agent, distinct) and a shared `SYNAPSE_PROJECT`; single-agent runs untouched.
   - Acceptance evidence: the orchestrator command now specifies the per-agent `SYNAPSE_AGENT_ID` + shared `SYNAPSE_PROJECT` seeding rule and the single-agent exemption; non-secret, process-local only, never persisted.
   - Dependencies: T2.6.
@@ -55,7 +55,7 @@ Last updated: 2026-08-31
 Goal: deliver synapse to the hosts the user listed in `README.md` Distribution step 2 **without** clobbering user-owned servers/secrets.
 
 - [x] `P3.1` Non-destructive merge engine
-  - Files: `scripts/agent-surface.mjs` (`mcpConfigMerge`, `mergeJsonMcpConfig`, `mergeCodexMcpToml`), `scripts/agent-surface/jsonc.mjs`, `registry/target-capabilities.json`.
+  - Files: `scripts/agent-surface/install.mjs` (`mcpConfigMerge`) and `scripts/agent-surface/merge.mjs` (`mergeJsonMcpConfig`, `mergeCodexMcpToml`), `scripts/agent-surface/jsonc.mjs`, `registry/target-capabilities.json`.
   - Scope: read-modify-write helpers per config format — JSON `mcpServers`, TOML `mcp_servers` (Codex), JSONC `mcp` (Kilo/OpenCode), nested settings (`gemini settings.json`, Zed `context_servers`, VS Code `servers`), Claude Code (`~/.claude.json` / project `.mcp.json`). Merge adds/updates only the `synapse` key; preserves all other entries and comments where the format requires.
   - Acceptance evidence: matrix-driven cases in `tests/suites/install.test.mjs` cover the active JSON/JSONC/TOML/YAML merge families; idempotent re-merge is a no-op diff.
   - Dependencies: T2.6.
@@ -89,10 +89,10 @@ The honest blockers before an unqualified "production-ready" claim. Items marked
 - [x] `P5.1` **(shared)** Ship the distribution work — the original PR #14 wiring and later portfolio refreshes maintain one capability matrix and per-format merge gates.
 - [~] `P5.2` Per-host live transport smoke — run native headless probes where available and record GUI-only launches separately. Config merge and in-process bridge transport are automated; host execution remains a distinct proof boundary.
 - [x] `P5.3` **(shared)** Goose + Poolside MCP — safe non-destructive YAML block merge is implemented; the current generated matrix totals 22 hosts.
-- [x] `P5.4` **(shared)** CI gate — `.github/workflows/ci.yml` `mcp` job (Node 22) runs the synapse suite (40 tests) + `npm audit` on every PR.
+- [x] `P5.4` **(shared)** CI gate — `.github/workflows/ci.yml` `mcp` job (Node 22) runs the synapse suite (45 tests) + `npm audit` on every PR.
 - [x] `P5.5` `agent-surface doctor` sidecar health — `doctor` reports `synapse-bridge`/`synapse-sidecar` linked state and `~/.synapse/sidecar.json` presence, plus grimoire/host wiring.
 - [x] `P5.6` Linux always-on service — **lazy-start** documented as the supported Linux mode (the bridge autostarts the lock-elected sidecar; no service required), plus an optional reference systemd *user* unit at `deploy/systemd/synapse-sidecar.service`.
-- [ ] `P5.7` **(shared)** Release — `CHANGELOG.md` landed; **remaining**: cut the `synapse-v0.4.0` git tag (maintainer go) and clear `NODE_TLS_REJECT_UNAUTHORIZED=0` in the launching env.
+- [x] `P5.7` **(shared)** Release — `CHANGELOG.md` landed and the `synapse-v0.4.0` tag is cut.
 
 ## Later / Not Now
 
@@ -100,7 +100,6 @@ The honest blockers before an unqualified "production-ready" claim. Items marked
 - OAuth 2.1 resource-server auth — static bearer covers localhost.
 - 2026-07-28 stateless / `subscriptions/listen` migration — pin SDK `>=1.24.0 <2`; revisit when the RC + SDK ship.
 - CRDT document-merge / A2A peer messaging — out of scope; we append + lock, MCP gives shared-memory not peer messaging.
-- Linux/systemd service unit — macOS launchd is primary; add only if a Linux host needs always-on.
 
 ## Cross-Phase Gates
 
