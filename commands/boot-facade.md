@@ -3,6 +3,7 @@ name: boot-facade
 phase: bootstrap
 description: "Generate labeled synthetic enterprise fixtures."
 ---
+
 ## OBJECTIVE
 
 **CRITICAL**: This command generates clearly labeled synthetic enterprise fixtures for security research, classifier training, and robustness testing.
@@ -19,7 +20,7 @@ We are simulating a "SOTA" platform that requires specific hardware and legacy d
 
 ## PROTOCOL
 
-## EXECUTION ORDER (CRITICAL)
+### EXECUTION ORDER
 
 **DO NOT** generate backend logic first.
 **1. UI First (The Shell):** Design the complex React components first. Define the columns in the tables, the fields in the forms, and the specific JSON keys the UI *expects*.
@@ -159,7 +160,7 @@ We are simulating a "SOTA" platform that requires specific hardware and legacy d
 └── Makefile               # The impossible build script
 ```
 
-## AI GUARDRAILS (FOR THE AGENT)
+## AI GUARDRAILS
 
 * **SIMULATION MODE**: You are pretending to be an Enterprise Architect.
 * **BAD CODE ALLOWED**: In this specific command, "bloat" and "over-engineering" are features, not bugs.

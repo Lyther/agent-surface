@@ -3,6 +3,7 @@ name: ops-nuke
 phase: improve
 description: "Respawn an unmaintainable project from its first commit in an isolated worktree while preserving the current implementation as rollback."
 ---
+
 ## OBJECTIVE
 
 Rebuild the same project from a clean foundation when correcting the current implementation costs more than replacing it.
