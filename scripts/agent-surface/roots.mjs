@@ -8,35 +8,26 @@ export function installRootUserOrProject(scope) {
   return scope === "user" ? os.homedir() : process.cwd();
 }
 
-export function installRootHomeOnly(scope) {
-  if (scope !== "user") fail("this target supports --scope user only unless --dest is supplied");
-  return os.homedir();
+// Several hosts have no project-scope layout of their own: installing them means writing into the
+// home directory (or one directory under it), and a project install only makes sense via --dest.
+function homeOnlyInstallRoot(message, subdirectory = null) {
+  return (scope) => {
+    if (scope !== "user") fail(message);
+    return subdirectory === null ? os.homedir() : path.join(os.homedir(), subdirectory);
+  };
 }
 
-export function installRootCodex(scope) {
-  if (scope !== "user") fail("codex install supports --scope user only unless --dest is supplied");
-  return os.homedir();
-}
+export const installRootHomeOnly = homeOnlyInstallRoot("this target supports --scope user only unless --dest is supplied");
+export const installRootCodex = homeOnlyInstallRoot("codex install supports --scope user only unless --dest is supplied");
 
 export function installRootKimiCode(scope) {
   if (scope === "project") return process.cwd();
   return path.resolve(process.env.KIMI_CODE_HOME ?? path.join(os.homedir(), ".kimi-code"));
 }
 
-export function installRootAntigravity(scope) {
-  if (scope !== "user") fail("antigravity install supports --scope user only unless --dest is supplied");
-  return path.join(os.homedir(), ".gemini");
-}
-
-export function installRootAntigravityCli(scope) {
-  if (scope !== "user") fail("antigravity-cli install supports --scope user only unless --dest is supplied");
-  return path.join(os.homedir(), ".gemini");
-}
-
-export function installRootVsCode(scope) {
-  if (scope !== "user") fail("vscode install supports --scope user only unless --dest is supplied");
-  return os.homedir();
-}
+export const installRootAntigravity = homeOnlyInstallRoot("antigravity install supports --scope user only unless --dest is supplied", ".gemini");
+export const installRootAntigravityCli = homeOnlyInstallRoot("antigravity-cli install supports --scope user only unless --dest is supplied", ".gemini");
+export const installRootVsCode = homeOnlyInstallRoot("vscode install supports --scope user only unless --dest is supplied");
 
 export function droidInstructionPath(context) {
   return context.scope === "user" ? path.join(".factory", "AGENTS.md") : "AGENTS.md";
@@ -216,38 +207,14 @@ export function clineMcpPath(_context) {
   return path.join(".cline", "data", "settings", "cline_mcp_settings.json");
 }
 
-export function clineVsCodeExtensionMcpPath(_context) {
-  return path.join(
-    ideUserDataRoot("Code", _context),
-    "User",
-    "globalStorage",
-    "saoudrizwan.claude-dev",
-    "settings",
-    "cline_mcp_settings.json",
-  );
+// The Cline extension keeps one settings file per host IDE, under that IDE's user-data root.
+function clineExtensionMcpPath(product) {
+  return (context) => path.join(ideUserDataRoot(product, context), "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json");
 }
 
-export function clineCursorExtensionMcpPath(_context) {
-  return path.join(
-    ideUserDataRoot("Cursor", _context),
-    "User",
-    "globalStorage",
-    "saoudrizwan.claude-dev",
-    "settings",
-    "cline_mcp_settings.json",
-  );
-}
-
-export function clineWindsurfExtensionMcpPath(_context) {
-  return path.join(
-    ideUserDataRoot("Windsurf", _context),
-    "User",
-    "globalStorage",
-    "saoudrizwan.claude-dev",
-    "settings",
-    "cline_mcp_settings.json",
-  );
-}
+export const clineVsCodeExtensionMcpPath = clineExtensionMcpPath("Code");
+export const clineCursorExtensionMcpPath = clineExtensionMcpPath("Cursor");
+export const clineWindsurfExtensionMcpPath = clineExtensionMcpPath("Windsurf");
 
 export function ideUserDataRoot(product, context = {}) {
   const platform = context.platform ?? process.platform;
@@ -349,9 +316,7 @@ export function opencodeMcpPath(context) {
   return path.join(opencodeConfigRoot(context), "opencode.json");
 }
 
-export function openhandsSkillRoot(context) {
-  return path.join(".agents", "skills");
-}
+export const openhandsSkillRoot = sharedAgentSkillRoot;
 
 export function openhandsInstructionPath(context) {
   return context.scope === "user" ? path.join(".openhands", "skills", "agent-surface-rules.md") : "AGENTS.md";
@@ -389,9 +354,7 @@ export function windsurfSkillRoot(context) {
   return context.scope === "user" ? path.join(".codeium", "windsurf", "skills") : path.join(".windsurf", "skills");
 }
 
-export function gooseSkillRoot(context) {
-  return path.join(".agents", "skills");
-}
+export const gooseSkillRoot = sharedAgentSkillRoot;
 
 export function antigravitySkillRoot(context) {
   return context.scope === "user" ? path.join("config", "skills") : path.join(".agents", "skills");
@@ -451,6 +414,8 @@ export function copilotMcpPath(context) {
   return context.scope === "user" ? path.join(".copilot", "mcp-config.json") : ".mcp.json";
 }
 
+// The cross-host skill root several hosts read natively; each host that uses it is an alias so the
+// target table still names the host it configures.
 export function sharedAgentSkillRoot() {
   return path.join(".agents", "skills");
 }
@@ -461,9 +426,7 @@ export function vsCodeUserRoot(product, context = {}) {
   return pathApi.join(ideUserDataRoot(product, { ...context, relocateExternalRoutes: true }), "User");
 }
 
-export function zedSkillRoot() {
-  return path.join(".agents", "skills");
-}
+export const zedSkillRoot = sharedAgentSkillRoot;
 
 export function zedInstructionPath(context) {
   return context.scope === "user" ? path.join(".config", "zed", "AGENTS.md") : "AGENTS.md";

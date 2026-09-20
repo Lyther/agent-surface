@@ -1410,27 +1410,34 @@ export async function antigravityCliStaticOutputs(catalog, context) {
   ];
 }
 
+// Fourteen hosts take the same two things from the rules tree: one always-on instruction document
+// and the scoped rule references beside it. Only the document's title and label, its path, and the
+// references root differ per host, so each host supplies those and nothing else. Hosts whose rules
+// land as one file per rule, or that also write a config document, keep their own producer below.
+async function rulesDocumentOutputs(context, { title, label, relativeOutput, referencesRoot, renderKind = "rules", projectOnly = false }) {
+  if (projectOnly && context.scope === "user") return [];
+  const document = { source: "rules/*.mdc", relativeOutput, content: await renderInstructionDocument(title, label, context) };
+  if (renderKind) document.renderKind = renderKind;
+  return [document, ...await scopedRuleReferenceOutputs(context, referencesRoot)];
+}
+
 export async function clineStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      relativeOutput: path.join(outputRootFor(clineRuleRoot, context), "agent-surface.md"),
-      content: await renderInstructionDocument("agent-surface Cline global rules", "Cline rules", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(outputRootFor(clineRuleRoot, context), "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "agent-surface Cline global rules",
+    label: "Cline rules",
+    relativeOutput: path.join(outputRootFor(clineRuleRoot, context), "agent-surface.md"),
+    referencesRoot: path.join(outputRootFor(clineRuleRoot, context), "references", "rules"),
+    renderKind: null,
+  });
 }
 
 export async function codexStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      renderKind: "rules",
-      relativeOutput: path.join(".codex", "AGENTS.md"),
-      content: await renderInstructionDocument("AGENTS.md - agent-surface global Codex rules", "Codex global instructions", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(".codex", "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "AGENTS.md - agent-surface global Codex rules",
+    label: "Codex global instructions",
+    relativeOutput: path.join(".codex", "AGENTS.md"),
+    referencesRoot: path.join(".codex", "references", "rules"),
+  });
 }
 
 export async function copilotStaticOutputs(_commands, context) {
@@ -1471,40 +1478,31 @@ export async function cursorStaticOutputs(_commands, context) {
 }
 
 export async function deepagentsStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      renderKind: "rules",
-      relativeOutput: deepagentsInstructionPath(context),
-      content: await renderInstructionDocument("AGENTS.md - agent-surface Deep Agents Code rules", "Deep Agents Code instructions", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(deepagentsConfigRoot(context), "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "AGENTS.md - agent-surface Deep Agents Code rules",
+    label: "Deep Agents Code instructions",
+    relativeOutput: deepagentsInstructionPath(context),
+    referencesRoot: path.join(deepagentsConfigRoot(context), "references", "rules"),
+  });
 }
 
 export async function droidStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      renderKind: "rules",
-      relativeOutput: droidInstructionPath(context),
-      content: await renderInstructionDocument("AGENTS.md - agent-surface Droid rules", "Droid instructions", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(droidConfigRoot(context), "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "AGENTS.md - agent-surface Droid rules",
+    label: "Droid instructions",
+    relativeOutput: droidInstructionPath(context),
+    referencesRoot: path.join(droidConfigRoot(context), "references", "rules"),
+  });
 }
 
 export async function grokBuildStaticOutputs(_commands, context) {
-  if (context.scope === "user") return [];
-  return [
-    {
-      source: "rules/*.mdc",
-      renderKind: "rules",
-      relativeOutput: "AGENTS.md",
-      content: await renderInstructionDocument("AGENTS.md - agent-surface Grok Build rules", "Grok Build project instructions", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(".grok", "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "AGENTS.md - agent-surface Grok Build rules",
+    label: "Grok Build project instructions",
+    relativeOutput: "AGENTS.md",
+    referencesRoot: path.join(".grok", "references", "rules"),
+    projectOnly: true,
+  });
 }
 
 export async function kiloStaticOutputs(_commands, context) {
@@ -1549,39 +1547,30 @@ export async function kiloStaticOutputs(_commands, context) {
 }
 
 export async function kimiCodeStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      renderKind: "rules",
-      relativeOutput: kimiCodeInstructionPath(context),
-      content: await renderInstructionDocument("AGENTS.md - agent-surface Kimi Code rules", "Kimi Code instructions", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(kimiCodeConfigRoot(context), "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "AGENTS.md - agent-surface Kimi Code rules",
+    label: "Kimi Code instructions",
+    relativeOutput: kimiCodeInstructionPath(context),
+    referencesRoot: path.join(kimiCodeConfigRoot(context), "references", "rules"),
+  });
 }
 
 export async function qoderStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      renderKind: "rules",
-      relativeOutput: qoderInstructionPath(context),
-      content: await renderInstructionDocument("AGENTS.md - agent-surface Qoder rules", "Qoder instructions", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(qoderConfigRoot(context), "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "AGENTS.md - agent-surface Qoder rules",
+    label: "Qoder instructions",
+    relativeOutput: qoderInstructionPath(context),
+    referencesRoot: path.join(qoderConfigRoot(context), "references", "rules"),
+  });
 }
 
 export async function qwenCodeStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      renderKind: "rules",
-      relativeOutput: qwenCodeInstructionPath(context),
-      content: await renderInstructionDocument("QWEN.md - agent-surface Qwen Code rules", "Qwen Code instructions", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(qwenCodeConfigRoot(context), "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "QWEN.md - agent-surface Qwen Code rules",
+    label: "Qwen Code instructions",
+    relativeOutput: qwenCodeInstructionPath(context),
+    referencesRoot: path.join(qwenCodeConfigRoot(context), "references", "rules"),
+  });
 }
 
 export async function kiroStaticOutputs(_commands, context) {
@@ -1596,50 +1585,40 @@ export async function kiroStaticOutputs(_commands, context) {
 }
 
 export async function opencodeStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      relativeOutput: opencodeInstructionPath(context),
-      content: await renderInstructionDocument("AGENTS.md - agent-surface global OpenCode rules", "OpenCode global instructions", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(opencodeConfigRoot(context), "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "AGENTS.md - agent-surface global OpenCode rules",
+    label: "OpenCode global instructions",
+    relativeOutput: opencodeInstructionPath(context),
+    referencesRoot: path.join(opencodeConfigRoot(context), "references", "rules"),
+    renderKind: null,
+  });
 }
 
 export async function openhandsStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      renderKind: "rules",
-      relativeOutput: openhandsInstructionPath(context),
-      content: await renderInstructionDocument("AGENTS.md - agent-surface OpenHands rules", "OpenHands instructions", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(openhandsConfigRoot(context), "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "AGENTS.md - agent-surface OpenHands rules",
+    label: "OpenHands instructions",
+    relativeOutput: openhandsInstructionPath(context),
+    referencesRoot: path.join(openhandsConfigRoot(context), "references", "rules"),
+  });
 }
 
 export async function piStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      renderKind: "rules",
-      relativeOutput: piInstructionPath(context),
-      content: await renderInstructionDocument("AGENTS.md - agent-surface Pi rules", "Pi instructions", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(piConfigRoot(context), "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "AGENTS.md - agent-surface Pi rules",
+    label: "Pi instructions",
+    relativeOutput: piInstructionPath(context),
+    referencesRoot: path.join(piConfigRoot(context), "references", "rules"),
+  });
 }
 
 export async function poolStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      renderKind: "rules",
-      relativeOutput: poolInstructionPath(context),
-      content: await renderInstructionDocument("agent-surface Poolside rules", "Poolside instructions", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(poolConfigRoot(context), "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "agent-surface Poolside rules",
+    label: "Poolside instructions",
+    relativeOutput: poolInstructionPath(context),
+    referencesRoot: path.join(poolConfigRoot(context), "references", "rules"),
+  });
 }
 
 export async function traeStaticOutputs(_commands, context) {
@@ -1693,27 +1672,21 @@ export async function vscodeStaticOutputs(_commands, context) {
 }
 
 export async function windsurfStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      renderKind: "rules",
-      relativeOutput: windsurfRulePath(context),
-      content: await renderInstructionDocument("agent-surface Windsurf rules", "Windsurf instructions", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(windsurfConfigRoot(context), "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "agent-surface Windsurf rules",
+    label: "Windsurf instructions",
+    relativeOutput: windsurfRulePath(context),
+    referencesRoot: path.join(windsurfConfigRoot(context), "references", "rules"),
+  });
 }
 
 export async function zedStaticOutputs(_commands, context) {
-  return [
-    {
-      source: "rules/*.mdc",
-      renderKind: "rules",
-      relativeOutput: zedInstructionPath(context),
-      content: await renderInstructionDocument("AGENTS.md - agent-surface Zed rules", "Zed instructions", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(zedConfigRoot(context), "references", "rules")),
-  ];
+  return rulesDocumentOutputs(context, {
+    title: "AGENTS.md - agent-surface Zed rules",
+    label: "Zed instructions",
+    relativeOutput: zedInstructionPath(context),
+    referencesRoot: path.join(zedConfigRoot(context), "references", "rules"),
+  });
 }
 
 export function sourceKindPolicy(sourceKindsConfig, sourceKind) {
