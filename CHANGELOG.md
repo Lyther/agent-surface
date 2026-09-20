@@ -22,6 +22,7 @@ Notable changes to agent-surface and its first-party MCP services. Format: [Keep
 
 ### Changed
 
+- **Removed the `snapshot` npm script and the `settings`/`plugins` inventory counters** - `npm run snapshot` was a byte-for-byte alias of `npm test` with no snapshot directory behind it, and the two counters only ever reported empty placeholder directories. `npm test` and `npm run inventory` are unchanged otherwise.
 - **Curated external portfolio** - keeps strong large skill catalogs in Grimoire, retains evaluated references as source-only submodules, and removes thirteen duplicate or unnecessary checkouts. Karpathy guidance is no longer mirrored because canonical workflow/project rules own the behavior; Sanyuan development distribution now keeps only skill authoring and review.
 - **Runtime/model routing refresh** - replaces the June model table with current Codex, Claude, DeepSeek, Grok, Cursor, Kimi, and Ollama Cloud recommendations; refreshes headless command shapes and prefers driver-native subagent or agent-manager tools before subprocess orchestration.
 - **`ops-clean` simplification gate** - requires a concrete reduction in owners, layers, dependencies, configuration axes, or failure modes instead of counting rearrangement or raw line changes as simplification.
