@@ -3,13 +3,11 @@ name: ops-deps
 description: "Audit and refresh dependency health and supply-chain state."
 ---
 
-# Dependency Maintenance
-
-## Objective
+## OBJECTIVE
 
 Keep dependencies supported, compatible, secure, and reproducible. An update is a compatibility change, not a freshness contest.
 
-## Workflow
+## WORKFLOW
 
 ### 1. Read Repository Policy
 
@@ -68,7 +66,7 @@ Run the cheapest relevant checks first, then the repository gate appropriate to 
 
 If the selected release is broken or incompatible, report the evidence and either choose a supported compatible release, defer the upgrade, replace the dependency, or roll back. Do not assume application code must always fix forward around an upstream defect.
 
-## Output
+## OUTPUT
 
 ```markdown
 # Dependency Report
@@ -89,7 +87,7 @@ If the selected release is broken or incompatible, report the evidence and eithe
 - migration, compatibility, native-build, or supply-chain limits
 ```
 
-## Hard Rules
+## HARD RULES
 
 1. Respect the repository's package manager, manifests, and lockfile.
 2. Verify package names, versions, APIs, and advisories from authoritative current sources.

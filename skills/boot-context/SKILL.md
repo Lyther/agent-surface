@@ -3,13 +3,11 @@ name: boot-context
 description: "Reload durable memory, active work, and repository reality before editing."
 ---
 
-# Boot Context
-
-## Objective
+## OBJECTIVE
 
 Reconstruct the current task, repository state, and relevant constraints before editing. Load only the depth the task earns.
 
-## Context Depth
+## CONTEXT DEPTH
 
 - **Light:** narrow question or one-file fix; authority, Git state, target file, and its direct test.
 - **Standard:** normal feature or bugfix; add architecture, dependencies, direct callers, and related tests.
@@ -76,7 +74,7 @@ State material conflicts before mutation:
 
 Ask one focused question only when a reasonable assumption could materially change behavior, data, security, or irreversible work. Otherwise choose the smallest compatible interpretation and proceed.
 
-## Output
+## OUTPUT
 
 ```markdown
 # Context Loaded
@@ -104,7 +102,7 @@ Ask one focused question only when a reasonable assumption could materially chan
 - smallest implementation or investigation step
 ```
 
-## Hard Rules
+## HARD RULES
 
 1. Re-read live evidence after a long pause, resume, branch switch, or concurrent worker handoff.
 2. Do not invent missing files, APIs, commands, dependencies, task state, or test results.
