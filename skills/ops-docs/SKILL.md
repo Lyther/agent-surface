@@ -87,7 +87,7 @@ Ask one focused question only when a missing answer materially changes scope, au
 
 Every standalone artifact contains, in a reader-appropriate order:
 
-1. An identity block naming title, document type, version or status, date issued, audience, classification, owner, evidence cutoff, and source baseline. These field names are the shared contract for every standalone artifact this distribution produces; a genre-specific skill extends the set rather than renaming it.
+1. An identity block that answers the same questions in every genre: what the document is (title, document type), which revision the reader holds (version or status, date issued), who it is for (audience, classification, owner), and what it rests on (evidence cutoff, source baseline). These are shared information requirements, not a fixed set of field names: a genre-specific skill may name the fields its readers expect, and may omit an item only where its template says so explicitly, as the runbook profile does.
 2. Executive summary or abstract that stands on its own.
 3. Context, terminology, scope, and non-goals.
 4. Current capability or subject, with the architecture, flow, interfaces, or examples needed to understand it.
