@@ -82,15 +82,19 @@ async function grimoireIndexStatus() {
     return "stale: manifest pack set differs from registry (npm run install:grimoire)";
   }
   for (const pack of packs) {
-    const pin = registry.services?.[pack.serviceId]?.commit;
-    const attribution = registry.services?.[pack.serviceId]?.attribution;
+    const service = registry.services?.[pack.serviceId];
+    const pin = service?.commit;
+    const attribution = service?.attribution;
+    // The submodule directory is not always the serviceId (e.g. trailofbits-static-analysis lives in
+    // external/trailofbits-skills), so name the registered source path, not a reconstructed one.
+    const sourcePath = service?.path ?? `external/${pack.serviceId}`;
     const installed = String(pack.commit ?? "");
     if (pin && installed.endsWith("-dirty")) {
       const builtFrom = installed.slice(0, -"-dirty".length);
       const revision = builtFrom === pin
         ? `pinned ${String(pin).slice(0, 8)}`
         : `${builtFrom.slice(0, 8)} while repo pins ${String(pin).slice(0, 8)}`;
-      return `stale: ${pack.serviceId} built from a dirty worktree of ${revision}; clean or commit external/${pack.serviceId}, then run npm run install:grimoire`;
+      return `stale: ${pack.serviceId} built from a dirty worktree of ${revision}; clean or commit ${sourcePath}, then run npm run install:grimoire`;
     }
     if (pin && pack.commit !== pin) {
       return `stale: ${pack.serviceId} installed ${installed.slice(0, 8)} but repo pins ${String(pin).slice(0, 8)} (npm run install:grimoire)`;
