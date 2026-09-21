@@ -2,9 +2,10 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { parse as parseYaml } from "yaml";
 import { vsCodeUserRoot } from "../../scripts/agent-surface/roots.mjs";
 import { readSkills } from "../../scripts/agent-surface/skills.mjs";
-import { produceSkillOutputs, targets } from "../../scripts/agent-surface/targets.mjs";
+import { codexOpenAiAgentPolicyOutput, produceSkillOutputs, targets } from "../../scripts/agent-surface/targets.mjs";
 import {
   assertCodexAgentTomlParses,
   files,
@@ -431,6 +432,30 @@ run(["build", "--target", "all"]);
     produced.every((output) => !output.relativeOutput.startsWith(path.join(skillDir, "agents", "references"))),
     "a sidecar beside the skill carries no companions of its own",
   );
+}
+
+{
+  // The policy sidecar puts the description under `short_description: >-`. A folded block carries
+  // its scalar literally, so an escape written into it survives into the parsed value: a backslash
+  // doubles and a quote grows a slash. The check is a real parse, because only the parser decides
+  // what the host reads. No shipped description contains either character today, which is why the
+  // generated corpus cannot catch this.
+  for (const description of [
+    String.raw`Escalate to NT AUTHORITY\SYSTEM.`,
+    'Say "hi" before running.',
+    String.raw`A path C:\Users and a "quote".`,
+  ]) {
+    const source = { name: "probe-skill", relativePath: "skills/probe-skill/SKILL.md", body: "", metadata: { description } };
+    const output = codexOpenAiAgentPolicyOutput(source, path.join(".agents", "skills"), true);
+    assert.equal(parseYaml(output.content).interface.short_description, description, `the folded block round-trips ${JSON.stringify(description)} unchanged`);
+  }
+  // Folding is still the reason the block exists: a description spanning lines arrives as one line.
+  const folded = codexOpenAiAgentPolicyOutput(
+    { name: "probe-skill", relativePath: "skills/probe-skill/SKILL.md", body: "", metadata: { description: "  First line\n\n  second   line  " } },
+    path.join(".agents", "skills"),
+    false,
+  );
+  assert.equal(parseYaml(folded.content).interface.short_description, "First line second line", "surrounding and interior whitespace folds to single spaces");
 }
 
 console.log("build: ok");

@@ -11,7 +11,7 @@ User scope:
 - `~/.trae/mcp.json`
 - `~/.trae/traecli.toml`
 
-Project scope uses `.trae/skills` and `.traecli/skills`, `.trae/agents` and `.traecli/agents`, `.trae/rules` plus the retained `.trae/user_rules.md`, and `.trae/mcp.json`. Current official TraeCode documentation requires enabling the IDE Subagents directory beta toggle if it is not already active; the CLI discovers its `.traecli` routes directly and can also consume the IDE-compatible `.trae` routes.
+Under `--dest` the same layout lands in the chosen directory: `.trae/skills` and `.traecli/skills`, `.trae/agents` and `.traecli/agents`, `.trae/rules` and `.trae/references/rules/*.md` plus the retained `.trae/user_rules.md`, and `.trae/mcp.json`. Current official TraeCode documentation requires enabling the IDE Subagents directory beta toggle if it is not already active; the CLI discovers its `.traecli` routes directly and can also consume the IDE-compatible `.trae` routes.
 
 The CLI TOML merge sets `approval_policy = "never"`, `default_permissions = ":danger-full-access"`, and first-party `mcp_servers` while preserving unrelated settings. The IDE JSON MCP route remains generated separately. High-impact workflows stay explicit-invocation compatibility skills.
 

@@ -113,7 +113,7 @@ export function envValueLiteral(value) {
   return null;
 }
 
-export async function writeEnvValues(filePath, values, { homedir = os.homedir() } = {}) {
+export async function writeEnvValues(filePath, values) {
   const existingText = (await readFileIfExists(filePath))?.toString("utf8") ?? "";
   const existing = existingText ? safeParse(existingText) : {};
   const appended = [];
@@ -146,7 +146,7 @@ export async function writeEnvValues(filePath, values, { homedir = os.homedir() 
   await writeFile(filePath, out, { mode: 0o600 });
   await chmod(filePath, 0o600).catch(() => { /* best effort on platforms without POSIX modes */ });
   const restricted = await restrictToOwner(filePath);
-  return { path: filePath, appended, filled, unencodable, homedir, restricted };
+  return { path: filePath, appended, filled, unencodable, restricted };
 }
 
 // Windows ignores POSIX mode bits — `chmod(0o600)` only toggles the read-only attribute there, so a

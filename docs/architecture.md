@@ -2,7 +2,7 @@
 
 Status: IMPLEMENTED; REAL-RUNTIME QUALIFICATION PARTIAL
 Source concept: `docs/context/concept-zero.md`
-Last updated: 2026-09-02
+Last updated: 2026-09-21
 
 ## Executive Decision
 
@@ -96,9 +96,9 @@ Modify now:
 - `antigravity-cli`: move CLI plugin output to the active staged plugin root and update path claims.
 - `trae`: retain IDE skill/rule/MCP routes while adding CLI-native `.traecli/skills`, `.traecli/agents`, current native rule directories, and user CLI TOML policy.
 
-Retire now:
+Retired:
 
-- `vscodium`: remove its adapter, capability entry, docs row, generated minimum, and dedicated output. Add it to out-of-scope lifecycle documentation.
+- `vscodium`: adapter, capability entry, docs row, generated minimum, and dedicated output removed; listed as out of scope. A cleanup-only adapter remains so `install --target all` removes its stale outputs (see Operations).
 
 ### Source Tree and File Responsibilities
 
@@ -205,7 +205,7 @@ No new security layer is added for hypothetical hostile local users. Existing fi
 
 ## Operations
 
-Build and deterministic tests run on `dev-box-cpu` under `ops-server`; MCP packages use a Node version satisfying their manifests. Runtime discovery may run locally when the installed authenticated host is the evidence target. Test workspaces and generated runtime state must be disposable and cleaned after proof.
+Build and deterministic tests run on a maintainer build host; MCP packages use a Node version satisfying their manifests. Runtime discovery may run locally when the installed authenticated host is the evidence target. Test workspaces and generated runtime state must be disposable and cleaned after proof.
 
 Target refresh procedure:
 

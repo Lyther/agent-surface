@@ -42,10 +42,6 @@ export function mergeKiloInstructionJsonc(text, addInstructions, removeInstructi
   ]);
 }
 
-export function setJsoncRootObjectProperty(text, key, value) {
-  return setJsoncRootProperty(text, key, value);
-}
-
 export function setJsoncRootProperty(text, key, value) {
   const parsed = parseJsonc(text, key);
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {

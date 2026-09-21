@@ -1,6 +1,6 @@
 # Diagrams — grimoire
 
-Source: architecture.md · api-contract.md · data-model.md · Last updated: 2026-06-30. Three views — that's all a thin read-only server needs.
+Source: architecture.md · api-contract.md · data-model.md · Last updated: 2026-09-21. Three views — that's all a thin read-only server needs.
 
 ## 1. Containers & build/distribute
 

@@ -18,7 +18,7 @@ These paths are relative to the VS Code user data directory:
 
 - macOS: `~/Library/Application Support/Code/User`
 - Linux: `~/.config/Code/User`
-- Windows: `%APPDATA%/Code/User`
+- Windows: `~/AppData/Roaming/Code/User` (resolved from the profile home; `%APPDATA%` is not consulted)
 
 Settings, keybindings, and extension recommendations are not merged automatically. First-party MCP wiring (Synapse and Grimoire) is generated and safely merged into `mcp.json`; external or secret-bearing MCPs remain opt-in.
 
