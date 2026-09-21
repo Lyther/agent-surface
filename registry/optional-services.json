@@ -294,7 +294,7 @@
       "status": "required",
       "source_url": "https://github.com/yaklang/hack-skills",
       "path": "external/hack-skills",
-      "commit": "c9a4b9ee8645eb60763eb4eef172f1ecb0a5b3e8",
+      "commit": "6fbf0bc8d5c71830d62543a308d8744606c43d7c",
       "attribution": "hack-skills by Yaklang contributors; source https://github.com/yaklang/hack-skills; MIT license https://opensource.org/license/mit; Grimoire serves the SKILL.md body separately from its frontmatter.",
       "kind": "source-pack",
       "optional": false,
@@ -306,7 +306,7 @@
         "Served just-in-time by Grimoire as hack-skills:<name>."
       ],
       "notes": [
-        "Pinned cybersecurity source pack with 102 native Agent Skills.",
+        "Pinned cybersecurity source pack with 103 native Agent Skills.",
         "Kept out of runtime startup catalogs because its coverage overlaps other large security packs."
       ]
     },
