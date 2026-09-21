@@ -197,8 +197,9 @@ try {
   mkdirSync(grimoireDir, { recursive: true });
   writeFileSync(path.join(grimoireDir, "index.sqlite"), "present");
   const registry = JSON.parse(readFileSync(path.join(root, "registry", "optional-services.json"), "utf8"));
-  const serviceId = "anthropic-cybersecurity-skills";
+  const serviceId = "trailofbits-static-analysis";
   const pin = registry.services[serviceId].commit;
+  const sourcePath = registry.services[serviceId].path;
   const otherServedPacks = Object.entries(registry.services)
     .filter(([id, service]) => id !== serviceId && service.served_by?.includes("grimoire"))
     .map(([id, service]) => ({ serviceId: id, commit: service.commit }));
@@ -215,7 +216,9 @@ try {
   assert.match(result.stdout, new RegExp(
     `grimoire-index: stale: ${serviceId} built from a dirty worktree of pinned ${pin.slice(0, 8)}`,
   ));
-  assert.match(result.stdout, new RegExp(`clean or commit external/${serviceId}, then run npm run install:grimoire`));
+  // serviceId is trailofbits-static-analysis but the checkout is external/trailofbits-skills: the hint
+  // must name the registered source path, not external/<serviceId>.
+  assert.match(result.stdout, new RegExp(`clean or commit ${sourcePath}, then run npm run install:grimoire`));
   assert.doesNotMatch(result.stdout, new RegExp(`installed ${pin.slice(0, 8)} but repo pins ${pin.slice(0, 8)}`));
 } finally {
   rmSync(dirtyDoctorHome, { recursive: true, force: true });

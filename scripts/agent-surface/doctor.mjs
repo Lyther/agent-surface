@@ -64,23 +64,37 @@ async function grimoireIndexStatus() {
   if (!packs.length) return "stale: empty manifest (npm run install:grimoire)";
   const registry = await readOptionalServices();
   const installedIds = new Set(packs.map((pack) => pack.serviceId));
-  const servedIds = Object.entries(registry.services ?? {})
-    .filter(([, service]) => Array.isArray(service.served_by) && service.served_by.includes("grimoire"))
-    .map(([id]) => id)
-    .sort();
-  if (JSON.stringify([...installedIds].sort()) !== JSON.stringify(servedIds)) {
+  const servedServices = Object.entries(registry.services ?? {})
+    .filter(([, service]) => Array.isArray(service.served_by) && service.served_by.includes("grimoire"));
+  const allServedIds = new Set(servedServices.map(([id]) => id));
+  // A served pack belongs in the manifest when the indexer would include it: a required pack always,
+  // an optional pack only when its source tree is present on disk. So an optional pack whose submodule
+  // is absent may be missing from the manifest, but one that is checked out yet unindexed is stale.
+  const missing = [];
+  for (const [id, service] of servedServices) {
+    const required = service.optional === false || service.status === "required";
+    const skillsDir = service.path ? path.join(root, service.path, service.index_root ?? "skills") : null;
+    const present = required || (skillsDir ? await exists(skillsDir) : false);
+    if (present && !installedIds.has(id)) missing.push(id);
+  }
+  const strayInstalled = [...installedIds].filter((id) => !allServedIds.has(id));
+  if (missing.length || strayInstalled.length) {
     return "stale: manifest pack set differs from registry (npm run install:grimoire)";
   }
   for (const pack of packs) {
-    const pin = registry.services?.[pack.serviceId]?.commit;
-    const attribution = registry.services?.[pack.serviceId]?.attribution;
+    const service = registry.services?.[pack.serviceId];
+    const pin = service?.commit;
+    const attribution = service?.attribution;
+    // The submodule directory is not always the serviceId (e.g. trailofbits-static-analysis lives in
+    // external/trailofbits-skills), so name the registered source path, not a reconstructed one.
+    const sourcePath = service?.path ?? `external/${pack.serviceId}`;
     const installed = String(pack.commit ?? "");
     if (pin && installed.endsWith("-dirty")) {
       const builtFrom = installed.slice(0, -"-dirty".length);
       const revision = builtFrom === pin
         ? `pinned ${String(pin).slice(0, 8)}`
         : `${builtFrom.slice(0, 8)} while repo pins ${String(pin).slice(0, 8)}`;
-      return `stale: ${pack.serviceId} built from a dirty worktree of ${revision}; clean or commit external/${pack.serviceId}, then run npm run install:grimoire`;
+      return `stale: ${pack.serviceId} built from a dirty worktree of ${revision}; clean or commit ${sourcePath}, then run npm run install:grimoire`;
     }
     if (pin && pack.commit !== pin) {
       return `stale: ${pack.serviceId} installed ${installed.slice(0, 8)} but repo pins ${String(pin).slice(0, 8)} (npm run install:grimoire)`;
