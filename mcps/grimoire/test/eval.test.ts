@@ -111,7 +111,7 @@ test("rev-skills pack: 121 skills, ghidra search, get", { skip: existsSync(REV_S
 
 const HACK_PACK = join(HERE, "..", "..", "..", "..", "external", "hack-skills");
 const HACK_SKILLS = join(HACK_PACK, "skills");
-test("hack-skills pack: 102 skills and direct retrieval", { skip: existsSync(HACK_SKILLS) ? false : "hack-skills submodule not checked out" }, () => {
+test("hack-skills pack: 103 skills and direct retrieval", { skip: existsSync(HACK_SKILLS) ? false : "hack-skills submodule not checked out" }, () => {
   const dir = mkdtempSync(join(tmpdir(), "grimoire-hackskills-"));
   const store = new Store({ dir });
   try {
@@ -120,12 +120,14 @@ test("hack-skills pack: 102 skills and direct retrieval", { skip: existsSync(HAC
       outDir: dir,
       indexedAt: "2026-01-01T00:00:00.000Z",
     });
-    assert.equal(built.skills, 102);
+    assert.equal(built.skills, 103);
     const got = store.get("hack-skills:api-auth-and-jwt-abuse");
     assert.equal(got.status, "ok");
     if (got.status === "ok") {
       assert.equal(got.skill.pack, "hack-skills");
       assert.match(got.skill.body, /JWT/i);
     }
+    const added = store.get("hack-skills:attack-surface-mapping");
+    assert.equal(added.status, "ok", "the newly pinned attack-surface-mapping skill is retrievable");
   } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
 });
