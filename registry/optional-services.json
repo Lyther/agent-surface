@@ -373,6 +373,126 @@
         ]
       }
     },
+    "playwright": {
+      "status": "optional",
+      "source_url": "https://github.com/microsoft/playwright-mcp",
+      "kind": "mcp",
+      "optional": true,
+      "mcp": {
+        "server": {
+          "type": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@playwright/mcp@0.0.82",
+            "--isolated",
+            "--headless",
+            "--browser",
+            "chromium"
+          ]
+        },
+        "validation_hint": "Provision the browser with `npx playwright install chromium` (add `--with-deps` on Linux for system libraries), then list the playwright MCP tools or open a page. --isolated keeps no profile on disk."
+      },
+      "local_wiring": [
+        "MCP-capable runtimes: explicit opt-in general browser MCP named playwright over stdio."
+      ],
+      "notes": [
+        "Cross-engine browser-automation MCP (Playwright) pinned to npm release 0.0.82; the generated command drives Playwright's own downloaded Chromium (--browser chromium), runs headless, and uses --isolated so no browser profile is written to disk.",
+        "Playwright downloads its own browser binaries into the ms-playwright cache rather than using a system Chrome, so the download is a real prerequisite (hundreds of megabytes, from Microsoft's CDN) surfaced as the playwright-browsers prerequisite instead of a hidden first-use side effect; run `npx playwright install chromium` to pre-provision it.",
+        "On Linux the browser may still need system libraries via `npx playwright install --with-deps chromium`, which requires elevation. The firefox and webkit engines are available from the same CLI when a target needs them.",
+        "Least privilege by omission: the generated command enables no extension attachment, no existing-browser CDP endpoint, and no unrestricted file access, and it keeps the browser sandbox on.",
+        "Microsoft distinguishes the Playwright CLI-plus-skill path (more token-efficient for scripted coding-agent work) from this MCP, which suits persistent, introspective, long-running loops; this entry is the MCP option."
+      ],
+      "provisioning": {
+        "prerequisites": [
+          {
+            "id": "node-runtime",
+            "kind": "runtime",
+            "detect": { "command": "npx", "node": ">=20.12.0" },
+            "recipes": {
+              "darwin": [{ "requires": "brew", "run": ["brew", "install", "node"], "source": "Homebrew node" }],
+              "linux": [
+                { "requires": "apt-get", "run": ["sudo", "apt-get", "install", "-y", "nodejs", "npm"], "elevation": true, "source": "apt nodejs (Debian/Ubuntu)" },
+                { "requires": "dnf", "run": ["sudo", "dnf", "install", "-y", "nodejs", "npm"], "elevation": true, "source": "dnf nodejs (Fedora/RHEL)" },
+                { "requires": "pacman", "run": ["sudo", "pacman", "-S", "--noconfirm", "nodejs", "npm"], "elevation": true, "source": "pacman nodejs (Arch)" },
+                { "requires": "zypper", "run": ["sudo", "zypper", "--non-interactive", "install", "nodejs", "npm"], "elevation": true, "source": "zypper nodejs (openSUSE)" }
+              ],
+              "win32": [{ "requires": "winget", "run": ["winget", "install", "-e", "--id", "OpenJS.NodeJS.LTS", "--silent", "--disable-interactivity", "--accept-package-agreements", "--accept-source-agreements"], "elevation": true, "source": "winget OpenJS.NodeJS.LTS (unattended; machine-wide install needs elevation)" }]
+            }
+          },
+          {
+            "id": "playwright-browsers",
+            "kind": "browser",
+            "optional": true,
+            "detect": { "paths": ["~/Library/Caches/ms-playwright", "~/.cache/ms-playwright", "~/AppData/Local/ms-playwright"] }
+          }
+        ]
+      }
+    },
+    "firefox-devtools": {
+      "status": "optional",
+      "source_url": "https://github.com/mozilla/firefox-devtools-mcp",
+      "kind": "mcp",
+      "optional": true,
+      "mcp": {
+        "server": {
+          "type": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@mozilla/firefox-devtools-mcp@0.10.3",
+            "--headless",
+            "--tool-preset",
+            "slim"
+          ]
+        },
+        "validation_hint": "Install Firefox 100+ (the server does not download it), then list the firefox-devtools MCP tools or open a page. The slim tool preset excludes evaluate_script and the server launches its own fresh profile, not your Firefox profile."
+      },
+      "local_wiring": [
+        "MCP-capable runtimes: explicit opt-in general browser MCP named firefox-devtools over stdio."
+      ],
+      "notes": [
+        "Mozilla-hosted Firefox DevTools MCP pinned to npm release 0.10.3; it drives real Firefox over WebDriver BiDi and Marionette and requires a system Firefox 100+ install (Node >=20.19.0), which it does not download.",
+        "The generated command runs headless with --tool-preset slim (pages, snapshot, input, screenshot) so the default evaluate_script tool from the basic preset is not exposed; the developer and mozilla presets, --connect-existing, and --unrestricted-save-paths are intentionally omitted.",
+        "The provisioned Firefox absolute path is passed as --firefox-path, and with --connect-existing omitted the server launches a fresh isolated profile rather than attaching to the user's logged-in Firefox.",
+        "Complements the cross-engine playwright entry with native Gecko and Marionette debugging depth; keep chrome-devtools for Chrome performance traces."
+      ],
+      "provisioning": {
+        "prerequisites": [
+          {
+            "id": "node-runtime",
+            "kind": "runtime",
+            "detect": { "command": "npx", "node": ">=20.19.0" },
+            "recipes": {
+              "darwin": [{ "requires": "brew", "run": ["brew", "install", "node"], "source": "Homebrew node" }],
+              "linux": [
+                { "requires": "apt-get", "run": ["sudo", "apt-get", "install", "-y", "nodejs", "npm"], "elevation": true, "source": "apt nodejs (Debian/Ubuntu)" },
+                { "requires": "dnf", "run": ["sudo", "dnf", "install", "-y", "nodejs", "npm"], "elevation": true, "source": "dnf nodejs (Fedora/RHEL)" },
+                { "requires": "pacman", "run": ["sudo", "pacman", "-S", "--noconfirm", "nodejs", "npm"], "elevation": true, "source": "pacman nodejs (Arch)" },
+                { "requires": "zypper", "run": ["sudo", "zypper", "--non-interactive", "install", "nodejs", "npm"], "elevation": true, "source": "zypper nodejs (openSUSE)" }
+              ],
+              "win32": [{ "requires": "winget", "run": ["winget", "install", "-e", "--id", "OpenJS.NodeJS.LTS", "--silent", "--disable-interactivity", "--accept-package-agreements", "--accept-source-agreements"], "elevation": true, "source": "winget OpenJS.NodeJS.LTS (unattended; machine-wide install needs elevation)" }]
+            }
+          },
+          {
+            "id": "firefox",
+            "kind": "browser",
+            "launch_arg": "--firefox-path",
+            "detect": { "command": "firefox", "paths": ["/Applications/Firefox.app/Contents/MacOS/firefox", "/usr/bin/firefox", "/usr/bin/firefox-esr", "C:\\Program Files\\Mozilla Firefox\\firefox.exe", "C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe"] },
+            "recipes": {
+              "darwin": [{ "requires": "brew", "run": ["brew", "install", "--cask", "firefox"], "source": "Homebrew cask firefox" }],
+              "linux": [
+                { "requires": "apt-get", "run": ["sudo", "apt-get", "install", "-y", "firefox-esr"], "elevation": true, "source": "apt firefox-esr (Debian)" },
+                { "requires": "dnf", "run": ["sudo", "dnf", "install", "-y", "firefox"], "elevation": true, "source": "dnf firefox (Fedora/RHEL)" },
+                { "requires": "pacman", "run": ["sudo", "pacman", "-S", "--noconfirm", "firefox"], "elevation": true, "source": "pacman firefox (Arch)" },
+                { "requires": "zypper", "run": ["sudo", "zypper", "--non-interactive", "install", "MozillaFirefox"], "elevation": true, "source": "zypper MozillaFirefox (openSUSE)" }
+              ],
+              "win32": [{ "requires": "winget", "run": ["winget", "install", "-e", "--id", "Mozilla.Firefox", "--silent", "--disable-interactivity", "--accept-package-agreements", "--accept-source-agreements"], "elevation": true, "source": "winget Mozilla.Firefox (unattended; machine-wide install needs elevation)" }]
+            }
+          }
+        ]
+      }
+    },
     "fenjing": {
       "status": "optional-caution",
       "source_url": "https://github.com/Marven11/Fenjing",
