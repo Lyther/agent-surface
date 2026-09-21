@@ -64,11 +64,18 @@ async function grimoireIndexStatus() {
   if (!packs.length) return "stale: empty manifest (npm run install:grimoire)";
   const registry = await readOptionalServices();
   const installedIds = new Set(packs.map((pack) => pack.serviceId));
-  const servedIds = Object.entries(registry.services ?? {})
-    .filter(([, service]) => Array.isArray(service.served_by) && service.served_by.includes("grimoire"))
+  const servedServices = Object.entries(registry.services ?? {})
+    .filter(([, service]) => Array.isArray(service.served_by) && service.served_by.includes("grimoire"));
+  const allServedIds = new Set(servedServices.map(([id]) => id));
+  // An optional served pack (its submodule absent at index time) is skipped by the indexer, so its
+  // absence from the manifest is expected, not staleness. Require every required pack, and reject a
+  // manifest pack that the registry no longer serves.
+  const missingRequired = servedServices
+    .filter(([, service]) => service.optional === false || service.status === "required")
     .map(([id]) => id)
-    .sort();
-  if (JSON.stringify([...installedIds].sort()) !== JSON.stringify(servedIds)) {
+    .filter((id) => !installedIds.has(id));
+  const strayInstalled = [...installedIds].filter((id) => !allServedIds.has(id));
+  if (missingRequired.length || strayInstalled.length) {
     return "stale: manifest pack set differs from registry (npm run install:grimoire)";
   }
   for (const pack of packs) {
