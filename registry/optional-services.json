@@ -398,7 +398,7 @@
       ],
       "notes": [
         "Cross-engine browser-automation MCP (Playwright) pinned to npm release 0.0.82; the generated command drives Playwright's own downloaded Chromium (--browser chromium), runs headless, and uses --isolated so no browser profile is written to disk.",
-        "Playwright downloads its own browser binaries into the ms-playwright cache rather than using a system Chrome, so the download is a real prerequisite (hundreds of megabytes, from Microsoft's CDN) surfaced as the playwright-browsers prerequisite instead of a hidden first-use side effect; run `npx playwright install chromium` to pre-provision it.",
+        "Playwright downloads its own browser binaries into the ms-playwright cache rather than using a system Chrome; the first browser tool call downloads Chromium (hundreds of megabytes, from Microsoft's CDN) if it is absent, so pre-provision it with `npx playwright install chromium` to avoid a first-use delay. The cache is version-nested and not a fixed executable path, so it is not modelled as a detectable prerequisite.",
         "On Linux the browser may still need system libraries via `npx playwright install --with-deps chromium`, which requires elevation. The firefox and webkit engines are available from the same CLI when a target needs them.",
         "Least privilege by omission: the generated command enables no extension attachment, no existing-browser CDP endpoint, and no unrestricted file access, and it keeps the browser sandbox on.",
         "Microsoft distinguishes the Playwright CLI-plus-skill path (more token-efficient for scripted coding-agent work) from this MCP, which suits persistent, introspective, long-running loops; this entry is the MCP option."
@@ -419,12 +419,6 @@
               ],
               "win32": [{ "requires": "winget", "run": ["winget", "install", "-e", "--id", "OpenJS.NodeJS.LTS", "--silent", "--disable-interactivity", "--accept-package-agreements", "--accept-source-agreements"], "elevation": true, "source": "winget OpenJS.NodeJS.LTS (unattended; machine-wide install needs elevation)" }]
             }
-          },
-          {
-            "id": "playwright-browsers",
-            "kind": "browser",
-            "optional": true,
-            "detect": { "paths": ["~/Library/Caches/ms-playwright", "~/.cache/ms-playwright", "~/AppData/Local/ms-playwright"] }
           }
         ]
       }
@@ -478,7 +472,7 @@
             "id": "firefox",
             "kind": "browser",
             "launch_arg": "--firefox-path",
-            "detect": { "command": "firefox", "paths": ["/Applications/Firefox.app/Contents/MacOS/firefox", "/usr/bin/firefox", "/usr/bin/firefox-esr", "C:\\Program Files\\Mozilla Firefox\\firefox.exe", "C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe"] },
+            "detect": { "command": "firefox", "paths": ["/Applications/Firefox.app/Contents/MacOS/firefox", "/usr/bin/firefox", "/usr/bin/firefox-esr", "C:\\Program Files\\Mozilla Firefox\\firefox.exe", "C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe", "~/AppData/Local/Mozilla Firefox/firefox.exe"] },
             "recipes": {
               "darwin": [{ "requires": "brew", "run": ["brew", "install", "--cask", "firefox"], "source": "Homebrew cask firefox" }],
               "linux": [
