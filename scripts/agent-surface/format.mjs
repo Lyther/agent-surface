@@ -8,6 +8,12 @@ export function quotedScalar(value) {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replace(/\s+/g, " ").trim();
 }
 
+// A YAML folded block carries its scalar literally: it folds line breaks into spaces and performs
+// no escape processing, so the value needs its whitespace collapsed and nothing escaped.
+export function foldedBlockScalar(value) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 export function tomlMultilineString(value) {
   if (!value.includes("'''")) return `'''${value}'''`;
   return JSON.stringify(value);

@@ -2,7 +2,7 @@
 // (commands/rules/subagents/skills/mcp) into per-target outputs. Imports render/roots/merge/
 // postprocess; the install + check layers import targets/targetOutputs/producers from here.
 import { closeSync, openSync, readSync } from "node:fs";
-import { quotedScalar } from "./format.mjs";
+import { foldedBlockScalar } from "./format.mjs";
 import { readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -1262,7 +1262,7 @@ export async function codexManualOpenAiAgentOutput(source) {
 }
 
 export function codexOpenAiAgentPolicyOutput(source, outputRoot, allowImplicitInvocation) {
-  const description = quotedScalar(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
+  const description = foldedBlockScalar(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   return {
     source: source.relativePath,
     relativeOutput: path.join(outputRoot, source.name, "agents", "openai.yaml"),
