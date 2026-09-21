@@ -2,7 +2,7 @@
 
 This directory contains git submodules wired into local agents and IDEs around `agent-surface`. They are not part of the core compiler surface: core builds still work without initializing them.
 
-Source-packs with `status: required` and `served_by: ["grimoire"]` in the registry (currently `anthropic-cybersecurity-skills`, `rev-skills`, and `hack-skills`) must be initialized for `npm run install:grimoire`. Other externals remain optional.
+Source-packs with `status: required` and `served_by: ["grimoire"]` in the registry (currently `anthropic-cybersecurity-skills`, `rev-skills`, and `hack-skills`) must be initialized for `npm run install:grimoire`. The optional `trailofbits-static-analysis` pack (the static-analysis subset of `trailofbits-skills`) is served the same way when that submodule is present and skipped without error when it is absent. Other externals remain optional.
 
 The authoritative optional-service inventory is `registry/optional-services.json`.
 
@@ -32,7 +32,7 @@ Registered entries come from `registry/optional-services.json` and follow its di
 | `external/rtk` | https://github.com/rtk-ai/rtk.git | reference only: not distributed or indexed; evaluated source kept pinned |
 | `external/sanyuan-skills` | https://github.com/sanyuan0704/sanyuan-skills.git | `sanyuan-skills`: skill-pack (opt-in); `sanyuan-development-skills`: skill-pack (opt-in) |
 | `external/superpowers` | https://github.com/obra/superpowers.git | reference only: not distributed or indexed; evaluated source kept pinned |
-| `external/trailofbits-skills` | https://github.com/trailofbits/skills.git | reference only: not distributed or indexed; evaluated source kept pinned |
+| `external/trailofbits-skills` | https://github.com/trailofbits/skills.git | `trailofbits-static-analysis`: source-pack (opt-in), static-analysis subset indexed by Grimoire; other skills reference only |
 | `external/understand-anything` | https://github.com/Egonex-AI/Understand-Anything.git | reference only: not distributed or indexed; evaluated source kept pinned |
 | `external/x64dbg-mcp-server` | https://github.com/duty1g/x64dbg-mcp-server.git | reference only: not distributed or indexed; evaluated source kept pinned |
 

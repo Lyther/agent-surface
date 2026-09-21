@@ -310,6 +310,29 @@
         "Kept out of runtime startup catalogs because its coverage overlaps other large security packs."
       ]
     },
+    "trailofbits-static-analysis": {
+      "status": "optional",
+      "source_url": "https://github.com/trailofbits/skills",
+      "path": "external/trailofbits-skills",
+      "commit": "d3323cefbcf645678b8dc481de204b02ad3d02dc",
+      "attribution": "Trail of Bits skills; source https://github.com/trailofbits/skills; CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/; Grimoire serves the SKILL.md body separately from its frontmatter.",
+      "kind": "source-pack",
+      "optional": true,
+      "index_root": "plugins/static-analysis/skills",
+      "served_by": [
+        "grimoire"
+      ],
+      "local_wiring": [
+        "Not emitted to runtime skill roots by default.",
+        "Served just-in-time by the grimoire MCP as trailofbits-static-analysis:<name> when the trailofbits-skills submodule is initialized; skipped without error when it is absent."
+      ],
+      "notes": [
+        "Optional curated static-analysis source pack: the semgrep, codeql, and sarif-parsing skills from the Trail of Bits static-analysis plugin, indexed just-in-time by grimoire rather than compiled into any host.",
+        "Fills the SAST gap the lint-* skills leave open: Semgrep and CodeQL scanning plus SARIF parsing and deduplication, with the skills' own PASS/FAIL/NOT-RUN and finding-discipline guidance preserved.",
+        "Semgrep and CodeQL are external prerequisites the operator installs; the skills do not auto-install CodeQL or upload SARIF, and keep local SARIF generation separate from any GitHub upload.",
+        "Skill docs are CC BY-SA 4.0; attribution and the share-alike term travel in the pack attribution. Use boundary is authorized code review only."
+      ]
+    },
     "chrome-devtools": {
       "status": "optional",
       "source_url": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
