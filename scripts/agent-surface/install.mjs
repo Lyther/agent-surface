@@ -21,6 +21,7 @@ import { mergeKiloInstructionJsonc, parseJsoncResult, setJsoncRootProperty } fro
 import { provisioningDecision, runProvisioning } from "./provision-exec.mjs";
 import { formatProvisioningPlan, launchNameOf, PLATFORM, provisioningActions, provisioningStatus, unrecipedRequired } from "./provision.mjs";
 import { assertJsonPropertyType, isMcpLauncherCommand, MCP_ENV_LAUNCHER, mcpLauncherInvocation, mergeCodexMcpToml, mergeJsonMcpConfig, mergeKiroPermissions, mergeYamlMcpConfig, optionalServiceMcpServers, renderMcpConfig, YAML_MCP_FORMATS } from "./merge.mjs";
+import { formatNotice, localDate, planNotices } from "./notices.mjs";
 import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { readRules } from "./rules.mjs";
 import { adapterMcpConfigs, kiloRuleInstructionPaths, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets } from "./targets.mjs";
@@ -37,21 +38,34 @@ export async function build(args) {
 
   const selected = target === "all" ? Object.keys(targets) : [target];
   const catalog = await exportableCatalog();
+  const sourceKindsConfig = await readSourceKinds();
+  const today = localDate();
 
-  if (!dryRun) {
-    await removeTree(path.join(root, "dist", target === "all" ? "" : target));
-  }
-
+  // Render and validate every selected target, and show its notices, before dist/ is touched.
+  const rendered = [];
   for (const item of selected) {
-    const adapter = targets[item];
-    const sourceKindsConfig = await readSourceKinds();
-    const outputs = await targetOutputs(adapter, catalog, { target: item, scope: "user", mode: "build" });
+    const outputs = await targetOutputs(targets[item], catalog, { target: item, scope: "user", mode: "build" });
     const sourceKindErrors = [];
     for (const output of outputs) {
       requireKnownSourceKind(output, sourceKindsConfig, sourceKindErrors);
     }
     if (sourceKindErrors.length > 0) fail(sourceKindErrors.join("; "));
+    rendered.push({ item, outputs });
+  }
+  for (const { item, outputs } of rendered) {
+    for (const notice of await planNotices(item, outputs)) {
+      const [heading, ...details] = formatNotice(notice, today);
+      console.log(`${item} notice: ${heading}`);
+      for (const line of details) console.log(line);
+    }
+  }
 
+  if (!dryRun) {
+    await removeTree(path.join(root, "dist", target === "all" ? "" : target));
+  }
+
+  for (const { item, outputs } of rendered) {
+    const adapter = targets[item];
     for (const output of outputs) {
       const targetPath = path.join(root, "dist", item, output.relativeOutput);
       if (dryRun) {
@@ -639,7 +653,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       continue;
     }
 
-    writes.push({ source: item.source, output, relativeOutput, content: item.content, mode: item.mode });
+    writes.push({ source: item.source, output, relativeOutput, content: item.content, mode: item.mode, renderKind: item.renderKind });
     managed.push({
       target,
       source: item.source,
@@ -857,6 +871,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     blocked,
     notApplicableCategories,
     nonApplicable: nonApplicable.sort((left, right) => left.localeCompare(right)),
+    notices: await planNotices(target, writes, installRoot),
     manifest,
   };
 }
@@ -1156,6 +1171,13 @@ function printInstallPlan(plan) {
   if (plan.services) console.log(`services: ${plan.services.join(", ")}`);
   console.log(`root source: ${plan.rootSource}`);
   console.log(`root: ${plan.installRoot}`);
+  if (plan.notices.length > 0) {
+    const today = localDate();
+    console.log("notices:");
+    for (const notice of plan.notices) {
+      for (const line of formatNotice(notice, today)) console.log(`  ${line}`);
+    }
+  }
   console.log("planned writes:");
   for (const item of plan.writes) {
     console.log(`  ${path.relative(plan.installRoot, item.output)} <- ${item.source}`);

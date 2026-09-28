@@ -28,6 +28,7 @@ const suites = [
   "policy.test.mjs",
   "matrix.test.mjs",
   "check.test.mjs",
+  "notices.test.mjs",
   "build.test.mjs",
   "runtime.test.mjs",
   "install.test.mjs",

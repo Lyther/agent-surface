@@ -73,6 +73,7 @@ const guardedRepoFiles = [
   path.join(root, "registry", "private-secret.json"),
   path.join(root, "registry", "modding.json"),
   path.join(root, "registry", "legacy-owned.json"),
+  path.join(root, "registry", "target-capabilities.json"),
   path.join(root, "subagents", "boss.md"),
 ];
 const guardedSnapshots = new Map();

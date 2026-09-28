@@ -2,6 +2,8 @@
 
 Generates Windsurf workflows, rules, and local skills.
 
+Status: Devin Desktop (formerly Windsurf) removed the Cascade harness in 3.9.19 on 2026-09-08 ([changelog](https://docs.devin.ai/desktop/changelog)). This adapter targets existing Cascade installs only; it is not Devin Local or CLI support. Cascade documents a 6,000-character global rules file and 12,000 characters per workspace rule file ([limits](https://docs.devin.ai/desktop/cascade/memories)); user-scope and development rules exceed them, while a project-scope general install fits. Install and build plans show the `WINDSURF_CASCADE_LEGACY` and `WINDSURF_RULE_SIZE_LIMITS` notices.
+
 ## Outputs
 
 - User: `.codeium/windsurf/global_workflows/<command>.md`

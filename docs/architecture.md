@@ -88,18 +88,16 @@ agent-surface/
   docs/architecture.md                  - System ownership and accepted/proposed boundaries.
   docs/roadmap.md                       - Ordered implementation tasks and real acceptance gates.
   docs/contracts/runtime-refresh.md    - Domain/interface semantics and migration decisions.
-  docs/contracts/runtime-refresh.schema.json - Design-only normative extension shapes; not loaded by the compiler.
-  docs/contracts/runtime-refresh.examples.json - Proposed records, never runtime PASS evidence.
   docs/reference/targets.md             - Human-facing projection of registry facts; no second catalog.
   registry/targets.json                 - Selector and build availability and generated tokens; OpenHands remains implemented, Cascade deprecated at the Devin cutover.
-  registry/target-capabilities.json     - Native support plus proposed runtime/notices/qualification facts.
+  registry/target-capabilities.json     - Native support plus runtime, notice and qualification facts.
   registry/source-kinds.json            - Canonical source-kind and install-scope policy, unchanged.
   registry/*-assets.json                - Existing domain membership, unchanged by identity refresh.
   registry/{modding,private-secret}.json - Existing explicit content boundaries, unchanged.
   registry/optional-services.json       - Service definitions and provisioning, no new default MCPs.
   registry/legacy-owned.json            - Existing known legacy ownership, not guessed from paths.
   schemas/targets.schema.json           - Current selection schema; no status abuse for recommendation.
-  schemas/target-capabilities.schema.json - Future inline adoption of the reviewed metadata extension.
+  schemas/target-capabilities.schema.json - Capability schema, including the runtime, notice and qualification extension.
   schemas/{source-kinds,asset-category,optional-services}.schema.json - Existing unchanged source/service contracts.
   scripts/agent-surface.mjs             - CLI dispatch and human output; no new transport or updater.
   scripts/agent-surface/
@@ -108,6 +106,7 @@ agent-surface/
     roots.mjs                          - Pure scope/platform/native-root helpers; no implicit account migration.
     render.mjs                         - Native serializers, manual-only metadata and scoped rule syntax.
     install.mjs                        - Plans/notices/ownership/conflicts, writes and manifests; preserve selection semantics.
+    notices.mjs                        - Stored and planner-derived notices and their wording; never blocks, never written into native files.
     check.mjs                          - Structural/semantic metadata and output contracts; no live client gate.
     doctor.mjs                         - Bounded diagnostics; no unsafe client auto-launch or upgrade.
     skills.mjs                         - Directory skills and allowed UTF-8 companions; unchanged source ownership.
@@ -142,7 +141,7 @@ agent-surface/
   mcps/{synapse,grimoire}/              - Separate existing stores/protocols/installers; no changes in this batch.
 ```
 
-The design schema is a pre-code artifact, not a new runtime schema registry. On implementation, move its adopted definitions into the existing capability schema and remove the duplicate draft definitions in the same change; keep the contract document and examples linked to the canonical schema. Do not maintain two mutable copies.
+The design schema was a pre-code artifact, not a new runtime schema registry. `RT1.1` moved its adopted definitions into the existing capability schema and removed the draft; the stored records in `registry/target-capabilities.json` are the examples. Do not maintain two mutable copies.
 
 ## Data and State
 
@@ -159,7 +158,7 @@ Domain/data: **REQUIRED**, because registry facts and install manifests persist 
 - **No recovery-copy store.** A route migration removes an old owned file only when its bytes match the replacement; otherwise it blocks or retains the file. No backup directory, digest catalog or retention job is introduced.
 - **Native runtime state** remains external. No sessions, account tokens, provider keys, learned skills or schedules are imported into registry or manifest metadata.
 
-The [contract](contracts/runtime-refresh.md) and its [schema](contracts/runtime-refresh.schema.json) define required/optional fields, source validation, notice projection and evidence limits. JSON registry updates are normal reviewed source changes; existing manifests do not require a version bump for metadata-only changes.
+The [contract](contracts/runtime-refresh.md) and `schemas/target-capabilities.schema.json` define required/optional fields, source validation, notice projection and evidence limits. JSON registry updates are normal reviewed source changes; existing manifests do not require a version bump for metadata-only changes.
 
 ### Consistency and Migration
 

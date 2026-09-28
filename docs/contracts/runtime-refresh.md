@@ -1,6 +1,6 @@
 # Runtime Refresh Contract
 
-Status: PROPOSED; DESIGN VALIDATION ONLY; NOT WIRED INTO THE COMPILER
+Status: PROPOSED; RT1.1 METADATA AND NOTICES IMPLEMENTED; OTHER SECTIONS NOT YET WIRED INTO THE COMPILER
 Date: 2026-09-28; revised the same day after cross-review
 Derived from: [concept](../context/concept-zero.md), [architecture](../architecture.md), [roadmap](../roadmap.md).
 
@@ -10,12 +10,12 @@ This contract is the normative home for selection, notice, ownership and migrati
 
 Domain/data and interfaces are **REQUIRED**: JSON registries persist target facts, install manifests persist ownership, the CLI selects operations, and native files are consumed by other products. New database, HTTP API, event bus and account store are **NOT_APPLICABLE**. Existing JSON Schema, parsers and CLI remain the contract technology.
 
-[runtime-refresh.schema.json](runtime-refresh.schema.json) is the normative design shape for optional capability extensions and an internal notice DTO. [Examples](runtime-refresh.examples.json) are proposed records with no native PASS claim; `devin` is not yet a registered target and Antigravity's proposed `commands` surface is not yet generated. Neither file is read by production code. At implementation, promote the extension definitions into `schemas/target-capabilities.schema.json`, validate examples through that canonical schema, and remove the duplicate design definitions in the same change. Internal notice shape belongs with its implementation, not in generated host files. No second mutable registry is introduced.
+The optional capability extensions `runtime`, `notices` and `qualifications` are defined in `schemas/target-capabilities.schema.json` and stored in `registry/target-capabilities.json`; `npm run check` validates every stored record through that schema and the cross-field checks in `check.mjs`. The design examples for current targets became those stored records. The proposed `devin` runtime record arrives with `RT3.1`, because it cannot validate before a `devin` target exists. The proposed Antigravity runtime record and successor qualification arrive together with `RT2.3`: the record would validate today, but it names client identities that `RT0.3` has not qualified, and the qualification needs a generated `commands` surface. The internal plan-notice shape lives with its implementation in `scripts/agent-surface/notices.mjs`, not in generated host files. No second mutable registry is introduced.
 
 Current owners remain:
 
 - `registry/targets.json` / `schemas/targets.schema.json`: public target ID, implementation/selection state, build/install availability and render tokens.
-- `registry/target-capabilities.json` / its existing schema: support, generation, scopes, evidence; proposed `runtime`, `notices`, `qualifications` extend each existing record.
+- `registry/target-capabilities.json` / its existing schema: support, generation, scopes, evidence; the optional `runtime`, `notices` and `qualifications` extend each existing record.
 - `registry/*-assets.json`, `rules.mjs`, `targets.mjs`: domain membership and selected producers. No reclassification in this batch.
 - `roots.mjs`, `render.mjs`, `targets.mjs`: actual paths and serialization. Metadata describes them but does not dynamically implement a path.
 - `install.mjs`: transient plans, preflight, destination ownership, exact owned routes, writes/removals/config merges and manifests.
@@ -32,7 +32,7 @@ The existing target `status` enum remains `implemented | planned | deprecated`. 
 
 ### Notices
 
-A notice is a source-backed fact with one stable `code`, `kind`, `surface`, `message`, `action`, `source_url`, `checked_at`, and optional `effective_on`. Kinds: `maintenance`, `retirement`, `security`, `compatibility`. Surface is an existing target capability key or `target`; code is unique within a target. `retirement` requires the announced date. Date parsing uses an ISO date, not a local-time destructive deadline. Keep one code before/after the date; derive wording, not a second stored lifecycle record.
+A notice is a source-backed fact with one stable `code`, `kind`, `surface`, `message`, `action`, `source_url`, `checked_at`, and optional `effective_on`. Kinds: `maintenance`, `retirement`, `security`, `compatibility`. Surface is `target` or an existing capability key that the adapter renders as an output kind at some scope; a key that is only merged config, such as `mcp`, or that renders under another kind, such as Goose `recipes`, is not a notice surface. Code is unique within a target. `retirement` requires the announced date. Date parsing uses an ISO date, not a local-time destructive deadline. Keep one code before/after the date; derive wording, not a second stored lifecycle record.
 
 Security notices describe documented advisories, not a machine-evaluated vulnerability verdict for an unknown installed build. Store no affected-range parser, moving channel cache, installed-package inventory or exploit payload. The runtime owner applies the source-linked release procedure in the research ledger before execution. Asset generation does not launch or clear a client.
 
