@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-surface.local/design/runtime-refresh.schema.json",
+  "title": "Runtime refresh design contracts, not a production registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["capabilities", "plan_notices"],
+  "properties": {
+    "capabilities": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[a-z][a-z0-9-]*$"},
+      "additionalProperties": {"$ref": "#/$defs/capabilityExtension"}
+    },
+    "plan_notices": {"type": "array", "items": {"$ref": "#/$defs/planNotice"}}
+  },
+  "$defs": {
+    "text": {"type": "string", "minLength": 1},
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+    "date": {"type": "string", "format": "date"},
+    "url": {"type": "string", "format": "uri", "pattern": "^https://"},
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["product", "component", "clients", "lifecycle", "recommendation", "source_url", "checked_at"],
+      "properties": {
+        "product": {"$ref": "#/$defs/text"},
+        "component": {"$ref": "#/$defs/text"},
+        "clients": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "lifecycle": {"enum": ["active", "preview", "legacy"]},
+        "recommendation": {"enum": ["standard", "evaluate", "legacy"]},
+        "source_url": {"$ref": "#/$defs/url"},
+        "checked_at": {"$ref": "#/$defs/date"}
+      }
+    },
+    "notice": {
+      "type": "object",
+      "allOf": [{"$ref": "#/$defs/noticeFields"}],
+      "unevaluatedProperties": false
+    },
+    "qualification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["client", "surface", "scope", "platform", "component_build", "scenario", "level", "outcome", "checked_at", "evidence", "limitations"],
+      "properties": {
+        "client": {"$ref": "#/$defs/id"},
+        "surface": {"$ref": "#/$defs/id"},
+        "scope": {"enum": ["user", "project", "repository", "global", "not-applicable"]},
+        "platform": {"enum": ["darwin", "linux", "win32", "not-applicable"]},
+        "component_build": {"type": ["string", "null"], "minLength": 1},
+        "host_build": {"$ref": "#/$defs/text"},
+        "scenario": {"$ref": "#/$defs/text"},
+        "level": {"enum": ["source", "render", "discovery", "task", "policy"]},
+        "outcome": {"enum": ["pass", "fail", "blocked", "not-run"]},
+        "checked_at": {"$ref": "#/$defs/date"},
+        "evidence": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/text"}},
+        "limitations": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/text"}}
+      },
+      "allOf": [
+        {"if": {"properties": {"outcome": {"const": "pass"}}, "required": ["outcome"]}, "then": {"properties": {"evidence": {"type": "array", "minItems": 1}}}},
+        {"if": {"properties": {"outcome": {"const": "pass"}, "level": {"enum": ["discovery", "task", "policy"]}}, "required": ["outcome", "level"]}, "then": {"properties": {"component_build": {"type": "string", "minLength": 1}, "scope": {"enum": ["user", "project", "repository", "global"]}, "platform": {"enum": ["darwin", "linux", "win32"]}}}},
+        {"if": {"properties": {"outcome": {"enum": ["blocked", "not-run"]}}, "required": ["outcome"]}, "then": {"properties": {"limitations": {"type": "array", "minItems": 1}}}}
+      ]
+    },
+    "capabilityExtension": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "runtime": {"$ref": "#/$defs/runtime"},
+        "notices": {"type": "array", "items": {"$ref": "#/$defs/notice"}},
+        "qualifications": {"type": "array", "items": {"$ref": "#/$defs/qualification"}}
+      },
+      "dependentRequired": {"qualifications": ["runtime"]}
+    },
+    "planNotice": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/noticeFields"},
+        {"type": "object", "required": ["target"], "properties": {"target": {"$ref": "#/$defs/id"}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "noticeFields": {
+      "type": "object",
+      "required": ["code", "kind", "surface", "message", "action", "source_url", "checked_at"],
+      "properties": {
+        "code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]+$"},
+        "kind": {"enum": ["maintenance", "retirement", "security", "compatibility"]},
+        "surface": {"$ref": "#/$defs/id"},
+        "message": {"$ref": "#/$defs/text"},
+        "action": {"$ref": "#/$defs/text"},
+        "source_url": {"$ref": "#/$defs/url"},
+        "checked_at": {"$ref": "#/$defs/date"},
+        "effective_on": {"$ref": "#/$defs/date"}
+      },
+      "allOf": [{"if": {"properties": {"kind": {"const": "retirement"}}, "required": ["kind"]}, "then": {"required": ["effective_on"], "properties": {"effective_on": {"$ref": "#/$defs/date"}}}}]
+    }
+  }
+}

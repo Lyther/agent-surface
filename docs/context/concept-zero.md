@@ -1,168 +1,116 @@
-# Concept Zero: Runtime Portfolio Refresh
+# Concept Zero: Runtime Identity and Compatibility Refresh
 
-Status: ACCEPTED AND IMPLEMENTED; REAL-RUNTIME QUALIFICATION PARTIAL
-Last updated: 2026-09-02
+Status: PROPOSED DESIGN; USER DIRECTION ACCEPTED; IMPLEMENTATION NOT STARTED
+Last updated: 2026-09-28
+Baseline: `main` at `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 
 ## Executive Decision
 
-`agent-surface` remains a curated source-to-native compiler, not a catalog of every product that calls itself an agent. This refresh adds four materially useful runtimes with documented declarative surfaces: DeepSeek Harness (`dsh`), Qoder, Qwen Code, and Kiro. It removes VSCodium as a standalone target because VSCodium has no native agent runtime and its usable AI surface depends on separately installed extensions. It upgrades GitHub Copilot to the current CLI contract, migrates Grok Build to TOML, repairs Antigravity CLI plugin placement, and aligns Trae's IDE/CLI skills, rules, subagents, MCP, and permission routes. DSH is deliberately skills-only until its plugin/MCP profile contract stabilizes. Amp, Auggie, Warp, and Crush remain credible next-wave candidates. Z.ai is a model plan/provider and configuration helper, not a runtime target.
+Keep agent-surface as a canonical-practice compiler, native-adapter catalog and managed installer. This batch makes runtime identity, security-aware release selection, lifecycle and proof boundaries explicit; repairs demonstrated path/format defects; separates different harnesses hidden behind one editor brand; and adds a controlled successor path for Antigravity workflows. Retain OpenHands V1 CLI, but recommend it only for existing users. Expand Grok Build only where native contracts and task evidence justify it; evaluate Grok Bot as a separate private workplace pilot. Do not build a runtime manager, vulnerability scanner, provider router, scheduler, saved-profile engine, or universal permissions layer.
+
+The previous [concept](../history/2026-09-02-runtime-portfolio-concept.md) and [roadmap](../history/2026-09-21-runtime-portfolio-roadmap.md) are historical. Their completed work is not reopened, and their old version/target counts are not the baseline for this batch. The current source has 26 implemented outputs: 25 runtime/host adapters plus the build-only plugin exporter.
 
 ## Problem and Evidence
 
-| ID | Claim | Evidence | Confidence | Impact |
-|---|---|---|---|---|
-| `E-01` | The pre-refresh registry implemented 22 targets and was last reviewed on 2026-08-06. | Git baseline; `registry/targets.json`; `registry/target-capabilities.json` | High | The refresh modifies that known baseline rather than redesigning every adapter. |
-| `E-02` | DeepSeek Harness is an official open-source runtime, but its maintainers explicitly call it developer preview with breaking changes expected. | [DeepSeek Harness repository](https://github.com/deepseek-ai/deepseek-harness) | High | Add only the stable filesystem skill contract now; do not encode unstable Cordis profile internals. |
-| `E-03` | DSH discovers project/user skills from `.dsh/skills` and `.agents/skills`; its MCP client is profile-wide and workspace-scoped MCP remains unresolved. | [DSH skills](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/subsystems/skills.md); [workspace MCP RFC](https://github.com/deepseek-ai/deepseek-harness/discussions/941) | High | Skills are implementable; MCP is deferred rather than approximated. |
-| `E-04` | Qoder CLI natively supports skills, commands, agents, `AGENTS.md`, JSON MCP settings, headless execution, and full-access permission mode. | [Skills](https://docs.qoder.com/cli/Skills); [commands](https://docs.qoder.com/cli/commands); [subagents](https://docs.qoder.com/cli/subagent); [MCP](https://docs.qoder.com/cli/mcp-reference) | High | Qoder qualifies for a full adapter using existing renderer and JSON merge primitives. |
-| `E-05` | Qwen Code natively supports skills, Markdown commands, Claude-compatible subagents, JSON MCP settings, and headless runs. | [Qwen Code](https://github.com/QwenLM/qwen-code); [skills](https://qwenlm.github.io/qwen-code-docs/en/users/features/skills/); [subagents](https://qwenlm.github.io/qwen-code-docs/en/users/features/sub-agents/); [MCP](https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/) | High | Qwen Code qualifies for a full adapter with no new config parser. |
-| `E-06` | Kiro shares `.kiro` configuration across IDE and CLI and supports skills, steering, custom agents, and JSON MCP settings. | [Kiro docs](https://kiro.dev/docs/); [configuration scopes](https://kiro.dev/docs/cli/chat/configuration/); [skills](https://kiro.dev/docs/cli/skills/); [MCP](https://kiro.dev/docs/mcp/configuration/) | High | One Kiro target covers its IDE/CLI surfaces. |
-| `E-07` | Copilot CLI is GA and now supports native skills, custom agents/subagents, plugins, and MCP under `~/.copilot`. | [Copilot CLI config](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference); [skills](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills); [agents](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/invoke-custom-agents) | High | The existing IDE-only Copilot adapter is materially incomplete and must be upgraded. |
-| `E-08` | Grok Build now uses `~/.grok/config.toml` / `.grok/config.toml`, not `.grok/settings.json`, for skills and MCP. | [Grok settings](https://docs.x.ai/build/settings); [MCP](https://docs.x.ai/build/features/mcp-servers); [skills and plugins](https://docs.x.ai/build/features/skills-plugins-marketplaces) | High | Current generated MCP is ignored in an isolated Grok install; migrate the adapter. |
-| `E-09` | Antigravity CLI stages CLI plugins under `~/.gemini/antigravity-cli/plugins`; the current generated directory validates but `agy plugin list` reports no imported plugin. | [Antigravity CLI plugins](https://antigravity.google/docs/cli/plugins/); local `agy 1.1.13` probe | High | Move the CLI target to the active discovery root and prove plugin discovery. |
-| `E-10` | Gemini CLI stopped serving individual accounts on 2026-06-18 and Antigravity CLI is its successor; enterprise/API-key operation remains. | [Gemini CLI transition announcement](https://github.com/google-gemini/gemini-cli/discussions/28017) | High | Do not add Gemini CLI as a new general target. |
-| `E-11` | Roo Code's repository was archived on 2026-05-15 and iFlow CLI announced shutdown on 2026-04-17. | [Roo Code repository](https://github.com/RooCodeInc/Roo-Code); [iFlow CLI repository](https://github.com/iflow-ai/iflow-cli) | High | Keep both out of scope despite past popularity. |
-| `E-12` | VSCodium disables Copilot features by default and cannot use Microsoft's extension marketplace under normal terms. | [VSCodium extensions](https://github.com/VSCodium/vscodium/blob/master/docs/extensions.md); [Copilot setup caveat](https://github.com/VSCodium/vscodium/blob/master/docs/ext-github-copilot.md) | High | A standalone generated target does not prove a consuming runtime and is not worth maintaining. |
-| `E-13` | Z.ai documents integrations for other coding tools and provides `@z_ai/coding-helper`; it does not publish a distinct coding-agent runtime. | [Z.ai supported tools](https://docs.z.ai/devpack/tool/others); [Coding Tool Helper](https://docs.z.ai/devpack/extension/coding-tool-helper) | High | Provider/model wiring remains user-owned; no fictitious `z-ai` target. |
-| `E-14` | Amp, Auggie, Warp, and Crush all have current native skills and/or MCP surfaces. | [Amp skills](https://ampcode.com/docs/customize/skills); [Auggie skills](https://docs.augmentcode.com/cli/skills); [Warp](https://docs.warp.dev/); [Crush](https://github.com/charmbracelet/crush) | High | Keep as researched planned candidates; revisit after the first slice has real proof. |
-| `E-15` | Current TraeCode CLI uses `.traecli/skills`, `.traecli/agents`, and `~/.trae/traecli.toml`; it also reads Trae IDE project skills, rules, and MCP routes under `.trae/`. | [CLI skills](https://docs.trae.cn/cli_skills); [CLI agents](https://docs.trae.cn/cli_agent); [CLI config](https://docs.trae.cn/cli_config-file); [CLI memory/rules compatibility](https://docs.trae.cn/cli_memories) | High | Emit native CLI routes while retaining the IDE-compatible routes one target already owns. |
+Users can receive syntactically valid assets that the selected harness never loads. Editor branding now spans native, CLI-backed, hosted and compatibility modes; a populated home can mask missing native output. Release channels also say little about whether a specific vulnerability is fixed. The required outcome is a precise, usable integration, not a larger catalog or an unqualified compatibility score.
+
+| ID | Claim or decision | Evidence | Confidence / impact |
+|---|---|---|---|
+| `E-RT-01` | FACT: existing support/generation fields already separate some concerns, but lack component-specific qualification. | `registry/target-capabilities.json`; `schemas/target-capabilities.schema.json` | High source confidence; extend rather than replace these records. |
+| `E-RT-02` | USER_DECISION: security-required newer public or preview releases may take precedence over a named stable channel. DSH is urgent. | Operator correction, 2026-09-28; advisory reconciliation in [research](concept-zero-research.md) | Policy accepted; exact affected/fixed versions and exploitation claims require attributable evidence. |
+| `E-RT-03` | FACT: Cascade and Devin Local do not share all customization behavior. | [Devin Local](https://docs.devin.ai/desktop/devin-local), [Cascade rules](https://docs.devin.ai/desktop/cascade/memories) | Separate the harness contract; do not infer parity from the same desktop shell. |
+| `E-RT-04` | FACT: actual user/general Cascade output is 9,539 characters; current documented global limit is 6,000. Development is 30,348 against 6,000 global / 12,000 per workspace file. | `rules.mjs`, `targets.mjs`; [native limits](https://docs.devin.ai/desktop/cascade/memories) | Source/render evidence, not observed truncation. Global and project limits differ; oversized selected output blocks. |
+| `E-RT-05` | FACT: Antigravity workflows have a November 1, 2026 retirement notice. USER_DECISION: warn and support the successor. | [Official migration](https://antigravity.google/docs/migration/workflows-to-skills/) | Time-bound surface migration; not product retirement. |
+| `E-RT-06` | FACT: OpenHands V1 CLI is no longer actively maintained. USER_DECISION: keep it, reduce recommendation. | [Upstream status](https://github.com/OpenHands/OpenHands-CLI/commit/954f2ba646e8d749261a8f2b2b7e3031fa39be9f) | Retained compatibility target, not automatic Canvas/SDK substitution. |
+| `E-RT-07` | FACT: Poolside personal instructions use AGENTS.md; current producer uses .poolside. Zed and Trae claims need platform/edition boundaries. | `roots.mjs`; [Poolside](https://docs.poolside.ai/agent-instructions), [Zed](https://zed.dev/docs/ai/instructions), [Trae CN](https://docs.trae.cn/cli_skills) | Bounded mapping repairs, not a global root resolver redesign. |
+| `E-RT-08` | FACT: Grok Build has custom-agent types; our generated subset omits them. Grok Bot has a distinct persistent workspace. | [Build agents](https://docs.x.ai/build/features/subagents), [Bot computer](https://docs.x.ai/grok-bot/computer-and-apps) | Native expansion and private pilot are different deliverables. |
+| `E-RT-09` | FACT: the installer reads ownership only from the target's own manifest. A differing unowned file is overwritten and an identical one adopted; a rules-only install can replace a shared `AGENTS.md` carrying another target's development rules; one target's reset can delete shared command skills another target still claims. Shared config merging preserves unknown sibling keys, which is a different contract. | `install.mjs` action selection, category guard and stale cleanup versus `merge.mjs`; reproduced with disposable roots during review | Installer-wide ownership protection precedes new path migrations; do not claim existing overwrite protection. |
+
+Evidence dates and unresolved external details belong in [concept-zero-research.md](concept-zero-research.md). Native behavior not exercised during this design remains unqualified. No vulnerability reproduction, credentials, provider calls, runtime installation or GUI operation is needed to define the design.
 
 ## Users and Stakeholders
 
-| Actor | Need | Constraints | Success signal |
-|---|---|---|---|
-| Operator | One command to distribute the same useful skill, rule, agent, and MCP surfaces to the runtimes actually used. | Host formats and lifecycle change quickly; user config must survive merges. | A full install produces native, discoverable files and real host probes succeed. |
-| Skill/workflow author | One canonical source rather than runtime-specific copies. | Manual-only workflows must remain explicit; reusable skills should remain model-invocable. | Generated output is derived from one canonical artifact and passes reference checks. |
-| Maintainer | A portfolio small enough to keep current. | No speculative compatibility layer or runtime-specific framework. | Each target has primary-source evidence, an owner, and a bounded native adapter. |
-| Runtime user | Features work in the selected host rather than merely existing on disk. | Login, subscription, region, or provider availability can block live proof. | Native discovery plus a task-shaped run reaches the expected world state. |
+- Operator: distribute selected practices to actual used harnesses without unexpected services, account changes or lost user content.
+- Maintainer: repair a target independently, select a security-appropriate release, and state what is proven without maintaining competing catalogs.
+- Skill author: keep one canonical procedure and companions; do not fork prose by vendor or weaken explicit-only commands.
+- Implementation peer: receive file ownership, decision gates, migration behavior and observable acceptance criteria before coding.
+- Native runtime/MOMO owner: retain responsibility for client installation, accounts, environment selection and deployment. Runtime upgrades are an urgent separate operation when a confirmed advisory requires them.
 
 ## Goals, Non-Goals, and Constraints
 
-| ID | Type | Statement | Evidence |
-|---|---|---|---|
-| `G-01` | Goal | Keep a current, high-value runtime portfolio with explicit add, keep, modify, planned, and retired decisions. | User request; `E-01` to `E-14` |
-| `G-02` | Goal | Add DSH, Qoder, Qwen Code, and Kiro using only verified native surfaces. | `E-02` to `E-06` |
-| `G-03` | Goal | Repair Copilot, Grok Build, Antigravity CLI, and Trae where current native contracts exceed or contradict generated output. | `E-07` to `E-09`; `E-15` |
-| `G-04` | Goal | Remove VSCodium and let strict-sync prune its owned files on the next full install. | `E-12`; existing manifest contract |
-| `C-01` | Constraint | Preserve the existing Node/Ajv compiler stack and registry/producer architecture; use maintained format libraries instead of local parsers. | `package.json`; `docs/architecture.md` |
-| `C-02` | Constraint | Keep JSONC, YAML, and TOML merges thin and format-library-backed; add no general compatibility framework. | User simplicity requirement; current merge architecture |
-| `C-03` | Constraint | A preview runtime may expose a smaller honest surface; unsupported capabilities must not be faked. | DSH lifecycle evidence; test policy |
-| `N-01` | Non-goal | Configure model providers, API keys, subscriptions, pricing plans, or default models. | Z.ai/provider distinction; secret ownership contract |
-| `N-02` | Non-goal | Add every credible runtime in one change. | Simplicity and real-proof requirements |
-| `N-03` | Non-goal | Rebuild a universal agent configuration manager or introduce an adapter DSL. | Existing table-driven adapter is sufficient |
+- `G-RT-01` Security-aware release selection. Distinguish channel, version, known fixed range, and actual qualification; do not retain a vulnerable version merely because it is labelled stable.
+- `G-RT-02` Unambiguous runtime identity. Identify product, executing harness, surface, scope and platform; separate selectors when different harnesses require different producers.
+- `G-RT-03` Timely Antigravity migration. Display the retirement notice now and qualify the supported replacement before November 1 without implicit execution of manual commands in a clean profile. Other targets' manual-only skill copies in a shared workspace are listed as warnings; whether Antigravity loads them is recorded evidence, not part of this guarantee.
+- `G-RT-04` Preserve OpenHands compatibility. Keep build/install/selection and owned assets while lowering its recommendation; no retirement cleanup or Canvas relabeling.
+- `G-RT-05` Correct demonstrated mapping defects. Repair Poolside and scoped host/edition/path claims while protecting new destinations and existing unrelated configuration.
+- `G-RT-06` Evidence-backed qualification. Keep upstream support, generated output, discovery, task behavior and enforcement claims distinguishable.
+- `G-RT-07` Selective next-generation integration. Qualify Grok Build native roles and define a private Grok Bot pilot; admit other runtimes only for a concrete distinct workflow.
+- `C-RT-01` Preserve the Node/Ajv compiler, existing format libraries, canonical sources, categories, managed manifests, service-selection semantics and operator execution policy.
+- `C-RT-02` Keep design and implementation separate. This change writes design artifacts only; implementation, local commits, publication and deployment retain their own scopes.
+- `C-RT-03` Keep regular build/install offline with respect to client release/advisory discovery. Do not execute a potentially affected client just to ask its version.
+- `N-RT-01` No automatic client upgrades, account migration, cloud connector enrollment, vulnerability feed service, new persistent store, generic policy engine or orchestration runtime.
+- `N-RT-02` No saved-profile reconciliation engine or category-union redesign. Plans become clearer; existing general-reset and partial-install semantics remain.
 
 ## Unacceptable Outcomes
 
-| Outcome | Why it matters | Prevention / detection |
-|---|---|---|
-| A target is marked implemented while its runtime cannot discover the output. | Repeats the current Grok/Antigravity failure. | Isolated install plus native inventory/discovery command; mark blocked when authentication prevents execution. |
-| A removed target leaves owned configuration indefinitely. | Deletion would be cosmetic and stale behavior would persist. | Full-install strict-sync regression for retired routes. |
-| A preview or proprietary host forces a large generic abstraction. | Maintenance cost exceeds user value. | Limit adapters to verified files and existing merge formats; defer the rest. |
-| Provider configuration is mistaken for a runtime. | Produces a fake target with no consuming host. | Runtime qualification requires an executable host and native customization contract. |
-| Peer Grimoire work is accepted from its handoff summary alone. | The current branch includes a separate 431-line behavior change. | Review `fc7fd4e..5dcc388` independently and fix confirmed defects before final proof. |
+- Calling an older named-stable release safe without checking the reported advisory, or calling a latest release fixed without an affected/fixed-range source.
+- Representing Cascade and Devin Local as one proven harness because their files or shell overlap.
+- Silently truncating rules, moving mandatory global policy into on-demand references, or describing project rules as global protection.
+- Continuing to advertise a retired workflow format as current, or migrating a manual command into an automatically invoked skill.
+- Removing OpenHands from selection or erasing its managed files merely because recommendation decreases.
+- Overwriting or adopting an operator-owned file, silently erasing another target's category contribution, deleting a file another target still claims, or purging an old route before successor proof and a selected migration.
+- Treating a provider login, model response, copied file, or historical peer claim as current native acceptance.
 
 ## Glossary
 
-| Term | Meaning |
-|---|---|
-| Runtime target | An executable agent host with a documented native customization surface. |
-| Full adapter | Generates all currently useful, representable native surfaces for a target. |
-| Limited adapter | Generates a deliberately smaller verified subset, with omitted surfaces documented. |
-| Planned candidate | Credible and researched, but deferred until integration shape or real-run prerequisites justify implementation. |
-| Retired target | Removed from `in_scope`; previously owned output is eligible for strict-sync pruning. |
+**Target** is a stable compiler selector and manifest owner. **Component/harness** is the actual consumer of an asset, not necessarily the editor brand. **Surface** is a native facility such as skills, commands or instructions. **Lifecycle** is upstream active/preview/legacy state; **recommendation** is our advice, separate from implemented status. **Qualification** is dated evidence for one version, component, platform, scope and scenario. **Release selection** chooses a concrete client build; it is not client installation. **Migration** changes owned paths/formats under a previewed operation; it is not a license to modify foreign settings.
 
-## Critical Journeys
+## Critical Journeys and Quality Scenarios
 
-| Journey | Current pain | Proposed experience | Evidence needed |
-|---|---|---|---|
-| Add a current runtime | Ad hoc registry, adapter, docs, and test edits can drift. | One bounded adapter entry plus capabilities record and native discovery proof. | `check`, generated output, isolated install, runtime inventory. |
-| Upgrade a changed host | Old config files remain syntactically valid but are ignored. | Migrate only the affected route and prune the obsolete owned entry. | Pre-fix isolated failure, post-fix native discovery. |
-| Retire a host | Stale files/config may survive. | Remove registry/adapter/docs and let manifest ownership clean the old route. | Full-sync removal test. |
-| Use skills without context bloat | Large skill catalogs can overload prompts. | Native progressive loading or Grimoire JIT retrieval; no always-on corpus dump. | Native skill listing and task-shaped invocation. |
+- `Q-RT-01` A reported critical runtime issue arrives: before the next affected execution, the runtime owner identifies the exact product and advisory, checks affected/fixed ranges, and records either a verified fixed build or an unresolved hold. Neither a channel name nor a public PoC is substituted for exploitation evidence.
+- `Q-RT-02` An operator selects a harness: the plan names the actual component and scope; a fresh profile discovers only the intended generated assets. A co-installed profile tests fallback and precedence rather than masking an omission.
+- `Q-RT-03` An Antigravity workflow user previews an install: the dated notice is visible before writes. The replacement supports explicit invocation and companion access; the first successor release retains old owned workflow files, and archiving them is outside this batch ([contract](../contracts/runtime-refresh.md#antigravity)).
+- `Q-RT-04` A destination already contains unowned content: the selected target reports a conflict before any write, with a recoverable operator action. A shared generated file that carries another target's category contribution is regenerated for the requested selection with a visible warning naming what was dropped, and cleanup never deletes a file another target still claims. Repeat installation after a resolved migration is idempotent.
+- `Q-RT-05` An OpenHands user selects it directly or through all targets: support and ownership stay unchanged, a legacy recommendation is shown, and no first-party MCP selection changes.
+- `Q-RT-06` A known rule-size limit is exceeded: the affected output cannot be presented as full native policy. The plan names the limit and a supported alternative or blocker; no automatic summarization or truncation occurs.
+- `Q-RT-07` A cloud Bot pilot runs: only selected non-sensitive artifacts enter the workspace; shared account access is understood; the resulting artifact and cancellation/routine lifecycle are observed. No local-device or security-isolation claim follows from a cloud result.
 
-## Quality Scenarios
+## Research Landscape and Adopt/Adapt/Build
 
-| ID | Scenario | Measure | Later architecture gate |
-|---|---|---|---|
-| `Q-01` | A target is added or changed -> registry, producer, capability, docs, and generated outputs remain coherent. | `check` and `check:generated` pass with no token drift. | Registry coherence tests. |
-| `Q-02` | A user has unrelated host config -> install updates only agent-surface-owned entries. | Unknown sibling values survive semantically; malformed config blocks. | Real merge tests. |
-| `Q-03` | A runtime starts after isolated installation -> it discovers a canonical skill and both configured MCPs when the target claims MCP. | Native inventory succeeds; a task-shaped run calls the skill/MCP and writes exact expected bytes. | `workflow-runtime`/`verify-prove`. |
-| `Q-04` | A target is retired -> next full sync removes only its owned files/routes. | Obsolete managed paths absent; unrelated user files remain. | Strict-sync regression. |
-| `Q-05` | DSH changes during developer preview -> the adapter does not depend on internal profile composition. | Skills remain discoverable from documented filesystem roots; no generated MCP claim. | Pinned clean-room DSH skill probe. |
-
-## Research Landscape
-
-| Capability | Candidate route | Evidence | Verdict |
-|---|---|---|---|
-| Plugin-native preview harness | DSH | `E-02`, `E-03` | Add limited skills-only target. |
-| Full Alibaba coding runtime | Qwen Code | `E-05` | Add full target. |
-| Full Qoder agent runtime | Qoder | `E-04` | Add full target. |
-| Unified AWS IDE/CLI agent | Kiro | `E-06` | Add full target. |
-| Current GitHub agent host | Copilot CLI | `E-07` | Upgrade existing target. |
-| Current xAI terminal agent | Grok Build | `E-08` | Keep and migrate config. |
-| Current Google terminal agent | Antigravity CLI | `E-09`, `E-10` | Keep and repair discovery path. |
-| Additional mature agents | Amp, Auggie, Warp, Crush | `E-14` | Planned next wave after live probes. |
-| Retired agents | Gemini CLI, Roo Code, iFlow CLI | `E-10`, `E-11` | Out of scope. |
-| Provider/helper | Z.ai Coding Plan/helper | `E-13` | Not a runtime target. |
-
-## Adopt / Adapt / Build Decisions
-
-| Capability | Decision | Rationale | Risk |
-|---|---|---|---|
-| Runtime representation | Adapt existing `targets` table and registries. | The current design already enforces producer/registry coherence. | Table growth remains manual but reviewable. |
-| Skills | Adopt each host's native Agent Skills roots. | Shared format and progressive loading minimize custom rendering. | Hosts interpret optional frontmatter differently; capability notes must stay precise. |
-| Agents | Adapt normalized subagents into host-native Markdown/JSON only where documented. | Reuses the current six roles without inventing orchestration. | Tool-name mappings can drift and need native inventory proof. |
-| MCP | Reuse existing non-destructive merge formats. | Qoder, Qwen, Kiro, and Copilot use JSON maps; Grok uses TOML already supported in principle. | Grok needs a small target-specific TOML shape. |
-| Lifecycle | Build a small documented qualification rule, not an automated popularity score. | Support quality depends on contracts and proof, not stars. | Periodic human research remains necessary. |
+- **Adopt native Agent Skills and plugin managers where their consumed contract is proven.** They reduce custom packaging, but frontmatter portability does not establish identical invocation or tool restrictions. [Agent Skills specification](https://agentskills.io/specification).
+- **Adapt existing producers, registries and format libraries.** These already own source loading, output syntax and shared-config merges. No new dependency is selected in this design.
+- **Use native runtime release/advisory sources and external lifecycle owners.** A manually reviewed security choice is sufficient for this batch; building a second package updater or CVE database is not.
+- **Retain Grimoire/Synapse boundaries.** Retrieval and durable runtime memory are not part of a target-identity migration. No MCP protocol, database or service implementation change is proposed.
+- **Pilot persistent workplace products separately.** Grok Bot and similar systems can support long-lived work, but have cloud/account state and import contracts unlike local filesystem adapters. No provider or cost advantage is assumed.
 
 ## Candidate Concepts
 
-### Candidate A: Keep all 22 and append every credible runtime
+### A. Documentation-only refresh
 
-This maximizes logo count but turns one refresh into seven or more unproven adapters, preserves VSCodium despite no native agent, and encourages shallow config support. Rejected because maintenance and real-run proof scale with every host.
+Correct descriptions and recommend current releases without changing native output. Cheapest, but Poolside's wrong filename, oversized Cascade rules and the Antigravity retirement remain user-visible failures. Rejected as the complete batch; metadata is still a useful first vertical slice.
 
-### Candidate B: Curated first slice with explicit lifecycle states
+### B. Identity-explicit adapters with bounded migrations
 
-Add four high-value runtimes, remove one redundant target, repair known stale adapters, and record the next wave. The compiler architecture stays flat, with maintained format libraries owning syntax. Selected because it expands meaningful coverage while keeping every implementation reviewable.
+Retain the compiler, add small lifecycle/qualification metadata, expose selected-target notices, repair demonstrated paths, and separate real harness contracts. Use native managers and existing manifests; add only the checks required by each migration. Selected: it solves the concrete failures without owning runtime operation.
 
-### Candidate C: Only shared `.agents/skills` and no target adapters
+### C. Universal runtime/profile manager
 
-This is attractive for DSH, Crush, Amp, and other shared-skill readers, but it loses rules, custom agents, MCP, command semantics, host policy, ownership, and discovery proof. Rejected as the sole model; shared roots remain a useful implementation detail for limited targets.
-
-## Adversarial Review
-
-| Finding | Revision |
-|---|---|
-| DSH's plugin architecture tempts a generic plugin compiler while the upstream contract is explicitly unstable. | Limit DSH to native skill roots and record MCP as deferred. |
-| Z.ai's product pages list many tools and can be mistaken for a Z.ai runtime. | Require an executable host; classify Z.ai as provider/helper. |
-| Removing VSCodium could exclude users who manually install compatible extensions. | Keep VSCodium documented as an unsupported VS Code fork; users can target a custom destination, but no dedicated lifecycle promise remains. |
-| A four-target addition can still create duplicated renderers. | Reuse vanilla skills, instruction documents, Claude-compatible agent files, and existing JSON merge formats; add host-specific renderers only when schemas differ materially. |
-| The peer Grimoire commit could destabilize the same branch. | Complete independent max-effort review and remediation before portfolio verification. |
+Own client updates, vulnerability feeds, provider accounts, profile reconciliation and cloud jobs. This could centralize more operations but duplicates runtime/MOMO responsibilities, adds persistent state and converts a compiler refresh into a control plane. Rejected. Shared portable skills alone are also insufficient because they cannot replace native policy, commands and MCP configuration.
 
 ## Selected Concept HLD
 
-The compiler remains one Node process with five authoritative inputs: canonical skills, explicit commands, rules, normalized subagents, and optional services. Runtime qualification is a documented portfolio decision backed by primary sources and a native proof boundary. The target registry identifies current, planned, and out-of-scope hosts; the capability registry records exactly which native surfaces each host supports; the adapter table maps only those surfaces to existing render/merge primitives. Install manifests continue to own cleanup and non-destructive updates.
+Canonical sources and pinned external packs feed the existing short-lived Node compiler. The target registry remains the selector/build/install authority; capabilities carry component identity, lifecycle advice and bounded evidence. Pure adapters render supported native files; the installer previews writes, notices, conflicts and removals before applying managed output and named config merges. No new deployment unit or stateful service is introduced.
 
-The selected post-refresh portfolio has 25 implemented targets: 21 retained existing targets, four additions, and one removal from the current 22. Qoder, Qwen Code, and Kiro receive full skills/rules-or-instructions/agents/MCP coverage. DSH receives skills and reviewed external skills only. Copilot, Grok Build, Antigravity CLI, and Trae are modified in place. VSCodium, Gemini CLI, Roo Code, and iFlow CLI are retired/out of scope. Amp, Auggie, Warp, and Crush remain researched planned candidates.
+Security release decisions sit before runtime qualification and deployment, not inside skill compilation. Prefer a verified fixed current release over an affected stable channel, including a supported preview build when that is the available fixed line. Keep its preview label and separate task proof. An unverified advisory report is escalated promptly without inventing an affected range.
 
-Maintained JSONC, TOML, and YAML libraries own config and frontmatter syntax; no new service, database, daemon, adapter DSL, provider layer, or runtime security framework is introduced. Model/provider credentials stay outside agent-surface. Runtime execution proof uses disposable installs and real host CLIs; missing login or subscriptions produce `BLOCKED`, not substitute-backed success.
+Existing target IDs do not silently change harness meaning. Retain `windsurf` for deprecated Cascade compatibility; admit one `devin` artifact target for the shared Local/CLI harness, with separate client qualification. Exclude explicitly deprecated targets from `all` in a deliberate selector change, while retaining explicit selection; that change lands together with Devin's `all` admission. This does not exclude OpenHands: it remains implemented with a legacy recommendation only. Antigravity's successor candidate is native `trigger: manual` rules, not an automatically invoked skill or a guessed flag. Exact producer changes and migration rules follow in architecture/contracts; absent native evidence is a named spike, not speculative code.
 
 ## First Production Slice
 
-1. Implemented: portfolio and native surface contracts are frozen in registries and documentation.
-2. Implemented: DSH, Qoder, Qwen Code, and Kiro reuse existing roots/render/merge functions.
-3. Implemented: Copilot, Grok Build, Antigravity CLI, and Trae are upgraded; VSCodium is retired with cleanup-only manifest reconciliation.
-4. Implemented: the remote test's real-`HOME` leak and confirmed peer Grimoire defects are remediated.
-5. Implemented and verified at the deterministic boundary: remote root/package gates and isolated installs pass. Native proof is intentionally partial where Qoder, Kiro, and Trae require login or Qwen has no authentication type configured.
+The first implementation slice is metadata and visible notices, followed by installer ownership protection as a separate patch and then the Poolside route repair. Together they prove the existing entry point can describe the correct component/lifecycle without altering unrelated generated bytes, and that installs and a real owned-path migration preserve unowned and other-owner content. They do not wait for GUI or cloud work. The operator runs the Antigravity GUI qualification in parallel. The urgent DSH upgrade is done; its native requalification is deferred. Antigravity's warning does not wait for its successor acceptance.
 
-## Open Questions and Spikes
+## Open Questions and Handoff
 
-| Question | Why it matters | How to resolve | Owner / next command |
-|---|---|---|---|
-| Does DSH stabilize a declarative user/project MCP profile contract? | It determines whether Synapse and Grimoire can be added without owning Cordis internals. | Recheck official release/docs after developer preview changes. | Later runtime refresh |
-| Which of Amp, Auggie, Warp, and Crush has the highest actual operator value? | All are credible; adding all would dilute proof effort. | Install/probe on the ops server and rank by real use before the next wave. | Planned spike |
-| Can every proprietary addition complete a real task on this device? | Qoder and Kiro may require human login or subscription. | Run native inventory first; request only literal login HITL. | `workflow-runtime` |
+Native file/schema and effective-invocation unknowns are bounded implementation prerequisites, not product decisions to guess. The research ledger identifies their sources and the roadmap assigns them. DSH's critical advisory and Cascade's removal from current Desktop are now source-verified, and the installed DSH was upgraded past the affected range. Still required: qualify native Devin roots; prove Antigravity manual-only behavior; verify Grok native role schema and restrictions; keep Grok Bot import/account qualification separate; and requalify DSH natively in a later batch.
 
-## Handoff to Architecture and Roadmap
-
-`arch-roadmap` and `arch-contract` preserve the 25-target portfolio, limited DSH contract, VSCodium cleanup, thin format-library boundary, and real native discovery as the acceptance boundary. The target/capability registries remain canonical domain state and the adapter table remains the implementation mapping; no public API or datastore was added.
+`arch-roadmap` carries every `G-RT`/`Q-RT` requirement into a scoped step with files and evidence. `arch-contract` defines the metadata, notice and migration boundaries using existing schemas and installer ownership, with no new transport or database. The implementation peer starts with `dev-spec` for the first bounded slice, not a whole-portfolio rewrite.

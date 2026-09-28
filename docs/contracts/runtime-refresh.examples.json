@@ -1,0 +1,92 @@
+{
+  "capabilities": {
+    "openhands": {
+      "runtime": {
+        "product": "OpenHands",
+        "component": "V1 CLI (legacy; retained)",
+        "clients": ["openhands-cli"],
+        "lifecycle": "legacy",
+        "recommendation": "legacy",
+        "source_url": "https://github.com/OpenHands/OpenHands-CLI#project-status",
+        "checked_at": "2026-09-28"
+      },
+      "notices": [{
+        "code": "OPENHANDS_CLI_LEGACY",
+        "kind": "maintenance",
+        "surface": "target",
+        "message": "V1 CLI is no longer actively maintained; this retained adapter does not represent Canvas or SDK support.",
+        "action": "Existing users may retain the CLI; evaluate a current component separately for new adoption.",
+        "source_url": "https://github.com/OpenHands/OpenHands-CLI#project-status",
+        "checked_at": "2026-09-28"
+      }],
+      "qualifications": []
+    },
+    "antigravity": {
+      "runtime": {
+        "product": "Antigravity",
+        "component": "IDE / 2.0 shared customization surfaces",
+        "clients": ["antigravity-ide", "antigravity-2"],
+        "lifecycle": "active",
+        "recommendation": "evaluate",
+        "source_url": "https://antigravity.google/docs/rules/",
+        "checked_at": "2026-09-28"
+      },
+      "notices": [{
+        "code": "ANTIGRAVITY_WORKFLOW_RETIREMENT",
+        "kind": "retirement",
+        "surface": "commands-as-workflows",
+        "message": "The workflow format is scheduled to retire on 2026-11-01; this is not product retirement.",
+        "action": "Keep existing files; qualify the explicit manual-rule replacement before migrating commands.",
+        "source_url": "https://antigravity.google/docs/migration/workflows-to-skills/",
+        "checked_at": "2026-09-28",
+        "effective_on": "2026-11-01"
+      }],
+      "qualifications": [{
+        "client": "antigravity-2",
+        "surface": "commands",
+        "scope": "user",
+        "platform": "darwin",
+        "component_build": null,
+        "scenario": "Ordinary prompt does not load the protected manual rule; explicit rule selection does.",
+        "level": "policy",
+        "outcome": "not-run",
+        "checked_at": "2026-09-28",
+        "evidence": [],
+        "limitations": ["Design-only example. Native product-specific loader and invocation qualification has not run."]
+      }]
+    },
+    "devin": {
+      "runtime": {
+        "product": "Devin",
+        "component": "Local/CLI shared local harness (proposed target)",
+        "clients": ["devin-local", "devin-cli"],
+        "lifecycle": "active",
+        "recommendation": "evaluate",
+        "source_url": "https://docs.devin.ai/desktop/devin-local",
+        "checked_at": "2026-09-28"
+      }
+    },
+    "dsh": {
+      "notices": [{
+        "code": "DSH_REQUALIFY_AFTER_SECURITY_UPDATE",
+        "kind": "security",
+        "surface": "target",
+        "message": "CVE-2026-82533 affects the historical 0.1.1-rc.2 baseline; this does not identify the installed build.",
+        "action": "Identify the actual package without launching a known affected build; have its owner update and requalify it.",
+        "source_url": "https://cveawg.mitre.org/api/cve/CVE-2026-82533",
+        "checked_at": "2026-09-28"
+      }]
+    }
+  },
+  "plan_notices": [{
+    "target": "antigravity",
+    "code": "ANTIGRAVITY_WORKFLOW_RETIREMENT",
+    "kind": "retirement",
+    "surface": "commands-as-workflows",
+    "message": "The workflow format is scheduled to retire on 2026-11-01; this is not product retirement.",
+    "action": "Keep existing files; qualify the explicit manual-rule replacement before migrating commands.",
+    "source_url": "https://antigravity.google/docs/migration/workflows-to-skills/",
+    "checked_at": "2026-09-28",
+    "effective_on": "2026-11-01"
+  }]
+}
