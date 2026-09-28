@@ -3,7 +3,7 @@
 // and MCP/Kilo config merges) into a host root. Both drive the shared producer
 // engine in targets.mjs; neither owns rendering or validation.
 import { randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -13,8 +13,8 @@ import { fileURLToPath } from "node:url";
 import { exportableCatalog, outputSourceKindError, requireKnownSourceKind } from "./check.mjs";
 import {
   collectMissingRequired, CredentialPromptCancelled, credentialStatus, ensureSecretIgnored,
-  envExampleContent, formatCredentialPlan, formatMissingCredentialError, missingRequiredKeys,
-  readEnvFile, resolveEnvFilePath, secretIgnorePatterns, writeEnvValues,
+  formatCredentialPlan, formatMissingCredentialError, missingRequiredKeys,
+  readEnvFile, resolveEnvFilePath, secretIgnorePatterns, writeEnvExample, writeEnvValues,
 } from "./credentials.mjs";
 import { readFileIfExists, readJsonIfExists, removeTree } from "./io.mjs";
 import { mergeKiloInstructionJsonc, parseJsoncResult, setJsoncRootProperty } from "./jsonc.mjs";
@@ -132,7 +132,7 @@ export async function install(args) {
   // all), and provisioning a server nobody is wiring would block the run over an irrelevant gap.
   const provisioning = resolveProvisioning({ serviceEntries: wiredServiceEntries(plans, credentials.serviceEntries), args });
 
-  const blocked = plans.flatMap((plan) => plan.blocked.map((item) => `${plan.target}: ${item}`));
+  const blocked = [...plans.flatMap((plan) => plan.blocked.map((item) => `${plan.target}: ${item}`)), ...rootBlocks(plans)];
   // A category-filtered install must do real work across the selection: if no selected target
   // has any writes or config merges, the whole run is a no-op and fails (individual
   // non-applicable targets are informational, but "nothing installable anywhere" is an error).
@@ -152,6 +152,7 @@ export async function install(args) {
   for (const plan of plans) {
     printInstallPlan(plan);
   }
+  for (const item of rootBlocks(plans)) console.log(`install blocked: ${item}`);
   printCredentialPlan(credentials);
   printProvisioningPlan(provisioning);
   if (runBlocker) console.log(`install blocked: ${runBlocker}`);
@@ -183,6 +184,13 @@ export async function install(args) {
       process.exitCode = 1;
     }
     const applyPlans = established.plans;
+    // The rebuild after provisioning goes through the same planner, so its blocks still apply.
+    const reblocked = [...applyPlans.flatMap((plan) => plan.blocked.map((item) => `${plan.target}: ${item}`)), ...rootBlocks(applyPlans)];
+    if (reblocked.length > 0) {
+      for (const item of reblocked) console.log(`install blocked: ${item}`);
+      process.exitCode = 1;
+      return;
+    }
     // Materialize the shared env wrapper BEFORE writing any config that launches through it, so a
     // wrapped server is never switched onto a launcher that does not exist yet. Keyless-only
     // installs skip this entirely, preserving their existing direct launch path untouched — as does
@@ -197,8 +205,9 @@ export async function install(args) {
         return;
       }
     }
-    for (const plan of applyPlans) {
-      await applyInstallPlan(plan);
+    if (!(await applyInstallPlans(applyPlans))) {
+      process.exitCode = 1;
+      return;
     }
     // The compiler wires MCP *config* and can now provision the *binaries* those configs launch
     // (the prerequisites established above). Report the wired servers so a freshly wired host config
@@ -231,11 +240,17 @@ async function buildInstallPlans(context) {
   const excludeServices = context.excludeServices ?? null;
   const launchWiring = context.launchWiring ?? null;
   const options = { agentName, categoryFilter, optionalServices, envFilePath, excludeServices, launchWiring };
+  // Claims are read once per install root and shared by every plan writing into it.
+  const claimsByRoot = new Map();
+  const planFor = async (target, adapter, installRoot) => {
+    if (!claimsByRoot.has(installRoot)) claimsByRoot.set(installRoot, await readRootClaims(installRoot));
+    const rootSource = dest ? "explicit --dest" : "scope-derived root";
+    return installPlan(target, adapter, installRoot, scope, rootSource, { ...options, rootClaims: claimsByRoot.get(installRoot) });
+  };
   const plans = [];
   if (allTargetsSelected && scope === "user" && categoryFilter === null && optionalServices === null) {
     for (const [target, adapter] of Object.entries(retiredInstallTargets)) {
-      const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
-      plans.push(await installPlan(target, adapter, installRoot, scope, dest ? "explicit --dest" : "scope-derived root", options));
+      plans.push(await planFor(target, adapter, dest ? path.resolve(dest) : adapter.installRoot(scope)));
     }
   }
   for (const target of selectedTargets) {
@@ -243,10 +258,11 @@ async function buildInstallPlans(context) {
     if (!adapter) fail(`unsupported install target: ${target}`);
     const installRoot = dest ? path.resolve(dest) : adapter.installRoot(scope);
     if (installRoot === path.parse(installRoot).root) fail("install root cannot be filesystem root");
-    plans.push(await installPlan(target, adapter, installRoot, scope, dest ? "explicit --dest" : "scope-derived root", options));
+    plans.push(await planFor(target, adapter, installRoot));
   }
   addCrossPlanInstallConflicts(plans);
   protectCrossPlanLiveOutputs(plans);
+  resolveSharedOwnership(plans);
   return plans;
 }
 
@@ -275,15 +291,111 @@ function addCrossPlanInstallConflicts(plans) {
 }
 
 function protectCrossPlanLiveOutputs(plans) {
-  const live = new Set(plans.flatMap((plan) => [
-    ...plan.writes.map((item) => item.output),
-    ...plan.configMerges.map((item) => item.output),
-  ]));
+  const live = new Map();
   for (const plan of plans) {
-    for (const item of plan.staleRemovalActions) {
-      if (item.action === "remove" && live.has(item.output)) item.action = "retain";
+    for (const item of [...plan.writes, ...plan.configMerges]) {
+      live.set(item.output, [...(live.get(item.output) ?? []), plan.target]);
     }
   }
+  for (const plan of plans) {
+    for (const item of plan.staleRemovalActions) {
+      if (item.action !== "remove" || !live.has(item.output)) continue;
+      item.action = "retain";
+      item.retainedFor = uniqueStrings(live.get(item.output));
+    }
+  }
+}
+
+// A manifest records who manages a path, not a policy inside the file, so another owner's claim is
+// not a veto: a co-owned file is regenerated for this selection, with a warning when that drops a
+// category another owner recorded, and a stale path is removed only once no other owner claims it
+// (contract Migration steps 2 and 3). Owners taking part in this run are judged by their next
+// manifests, every other owner by what is on disk.
+function resolveSharedOwnership(plans) {
+  const participants = new Map(plans.map((plan) => [participantKey(plan.installRoot, plan.target), plan]));
+  const warnedPaths = new Set();
+  for (const plan of plans) {
+    for (const item of plan.writes) {
+      const pathKey = `${plan.installRoot}\0${claimKey(item.relativeOutput)}`;
+      if (item.action !== "write" || !item.existed || warnedPaths.has(pathKey)) continue;
+      const dropped = uniqueStrings(otherClaims(plan, item.relativeOutput, participants)
+        .filter((holder) => holder.category && !plan.selectedCategories.has(holder.category))
+        .map((holder) => `${holder.owner}\0${holder.category}`))
+        .sort()
+        .map((key) => key.split("\0"));
+      if (dropped.length === 0) continue;
+      warnedPaths.add(pathKey);
+      plan.warnings.push(sharedContributionWarning(item.relativeOutput, dropped));
+    }
+    for (const item of plan.staleRemovalActions) {
+      if (item.action !== "remove") continue;
+      const holders = uniqueStrings(otherClaims(plan, item.relativeOutput, participants).map((holder) => holder.owner));
+      if (holders.length === 0) continue;
+      item.action = "retain";
+      item.retainedFor = holders;
+    }
+  }
+  // Only once every removal in the run is settled can a released legacy file be known to stay.
+  const removedInRun = new Set(plans.flatMap((plan) => plan.staleRemovalActions
+    .filter((item) => item.action === "remove")
+    .map((item) => `${plan.installRoot}\0${claimKey(item.relativeOutput)}`)));
+  for (const plan of plans) plan.releasedLegacyPaths = releasedLegacyPaths(plan, participants, removedInRun);
+}
+
+// One warning per path, naming every owner whose recorded category this selection drops. The advice
+// to restore a contribution names only owners and categories this checkout can still select.
+function sharedContributionWarning(relativeOutput, dropped) {
+  const plural = dropped.length > 1;
+  const contributions = dropped.map(([owner, category]) => `${owner}'s ${category}`).join(" and ");
+  const restorable = dropped.filter(([owner, category]) => Object.hasOwn(targets, owner) && assetCategoryNames.has(category));
+  const advice = restorable.length === 0
+    ? `no selectable target restores ${plural ? "them" : "it"}`
+    : `installing ${restorable.map(([owner, category]) => `--target ${owner} --category ${category}`).join(" or ")} into this root restores ${restorable.length > 1 ? "them" : "it"}`;
+  return `SHARED_CONTRIBUTION_REPLACED: ${relativeOutput} drops ${contributions} contribution${plural ? "s" : ""}; ${advice}`;
+}
+
+// Blocks that belong to an install root rather than one plan, listed once however many plans share it.
+function rootBlocks(plans) {
+  return uniqueStrings(plans.flatMap((plan) => plan.rootClaims.blocked.map((item) => `${plan.installRoot}: ${item}`)));
+}
+
+function participantKey(installRoot, target) {
+  return `${installRoot}\0${target}`;
+}
+
+// Owners other than `plan` that still claim a path once this run completes. A nested legacy
+// manifest is never a participant, so its claims count for every other owner even when that owner
+// takes part in the run; `exceptNested` sets one nested manifest aside.
+function otherClaims(plan, relativeOutput, participants, exceptNested = null) {
+  const key = claimKey(relativeOutput);
+  const holders = [];
+  for (const other of participants.values()) {
+    if (other.installRoot !== plan.installRoot || other.target === plan.target) continue;
+    const entry = other.nextEntries.get(key);
+    if (entry) holders.push({ owner: other.target, category: entry.asset_category });
+  }
+  for (const claim of plan.rootClaims.byPath.get(key) ?? []) {
+    if (claim.owner === plan.target || (claim.nested !== null && claim.nested === exceptNested)) continue;
+    if (claim.nested === null && participants.has(participantKey(plan.installRoot, claim.owner))) continue;
+    holders.push({ owner: claim.owner, category: claim.assetCategory });
+  }
+  return holders;
+}
+
+// Removing a nested legacy manifest ends its claims without authorizing any removal; list the
+// recorded files that stay on disk with no claim at all, so their release is visible. A file this
+// run deletes on other authority, such as the target's own legacy entry, is not left in place.
+function releasedLegacyPaths(plan, participants, removedInRun) {
+  return plan.staleRemovalActions
+    .filter((item) => item.action === "remove")
+    .flatMap((item) => {
+      const nestedKey = claimKey(item.relativeOutput);
+      const present = plan.rootClaims.nested.get(nestedKey) ?? [];
+      return present.filter((output) => !plan.nextEntries.has(output)
+        && !removedInRun.has(`${plan.installRoot}\0${output}`)
+        && otherClaims(plan, output, participants, nestedKey).length === 0);
+    })
+    .sort((left, right) => left.localeCompare(right));
 }
 
 // `all` selects the WHOLE set, so pairing it with a sibling is ambiguous rather than additive:
@@ -550,7 +662,9 @@ async function applyInteractiveCredentials(credentials, { scope }) {
   const stillMissing = formatMissingCredentialError(credentials.status, credentials.envFilePath);
   if (stillMissing) {
     // Leave a fillable template, then fail rather than wire a service missing its required keys.
-    await writeFile(`${credentials.envFilePath}.example`, envExampleContent(credentials.status)).catch(() => { /* best effort */ });
+    const template = `${credentials.envFilePath}.example`;
+    const wroteTemplate = await writeEnvExample(template, credentials.status).catch(() => false);
+    if (!wroteTemplate) console.log(`credentials: left ${template} unchanged; it was not generated by agent-surface or could not be written`);
     return { ok: false, error: stillMissing };
   }
   return { ok: true };
@@ -616,11 +730,14 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   const version = await packageVersion();
   const generatedAt = new Date().toISOString();
   const manifestPath = path.join(installRoot, ".agent-surface", `${target}-manifest.json`);
+  const rootClaims = options.rootClaims;
+  // Blocks on the install root itself (an unreadable manifest) are reported once for the run, not per plan.
   const blocked = [];
   const manifestRouteError = await installPathError(installRoot, manifestPath, "manifest path");
   if (manifestRouteError) blocked.push(manifestRouteError);
-  const previousManifest = manifestRouteError ? null : await readJsonIfExists(manifestPath);
+  const previousManifest = manifestRouteError ? null : rootClaims.manifests.get(target) ?? null;
   const legacyOwnership = await readLegacyOwnership(target);
+  const legacyClaims = new Set(legacyOwnership.files.map((item) => claimKey(item.output)));
   const outputs = (await targetOutputs(adapter, catalog, {
     target,
     scope,
@@ -676,12 +793,20 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       continue;
     }
 
-    if (current.toString("utf8") === item.content) {
-      item.action = "skip";
+    // An existing file nobody claims is the operator's, identical bytes included: never overwrite
+    // or adopt it (contract Migration step 2). With an unreadable manifest in the root the claim set
+    // is incomplete, so the root block stands alone rather than beside false unowned reports.
+    item.existed = true;
+    const claimed = rootClaims.blocked.length > 0
+      || rootClaims.byPath.has(claimKey(item.relativeOutput))
+      || legacyClaims.has(claimKey(item.relativeOutput));
+    if (!claimed) {
+      blocked.push(`UNOWNED_DESTINATION: ${item.relativeOutput} exists and no agent-surface manifest in this install root claims it; move or remove it, then rerun`);
+      item.action = "blocked";
       continue;
     }
 
-    item.action = "write";
+    item.action = current.toString("utf8") === item.content ? "skip" : "write";
   }
 
   const partialInstall = categoryFilter !== null || optionalServices !== null;
@@ -872,8 +997,147 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     notApplicableCategories,
     nonApplicable: nonApplicable.sort((left, right) => left.localeCompare(right)),
     notices: await planNotices(target, writes, installRoot),
+    warnings: [],
+    releasedLegacyPaths: [],
     manifest,
+    // Inputs to the cross-plan ownership decisions and to the pending manifest.
+    rootClaims,
+    selectedCategories,
+    previousFileEntries,
+    previousConfigEntries,
+    nextEntries: new Map(manifestManaged.map((entry) => [claimKey(entry.output), entry])),
   };
+}
+
+// Ownership claims on one install root (contract Migration step 2): every <id>-manifest.json directly
+// in its .agent-surface/ (retired and unknown IDs included; other files there are not manifests), and
+// every legacy-listed nested manifest present under it, whose outputs are rebased to its own root.
+// A claim grants ownership and cleanup retention; removal stays with a target's own manifest and
+// legacy entries. A manifest that cannot be read or has the wrong shape blocks every plan in the root.
+const MANIFEST_FILE = /^(.+)-manifest\.json$/;
+
+async function readRootClaims(installRoot) {
+  const claims = { manifests: new Map(), byPath: new Map(), nested: new Map(), blocked: [] };
+  const directory = path.join(installRoot, ".agent-surface");
+  const directoryError = await installPathError(installRoot, directory, "manifest directory");
+  if (directoryError) {
+    claims.blocked.push(directoryError);
+    return claims;
+  }
+  for (const entry of await readDirectoryIfExists(directory)) {
+    const owner = MANIFEST_FILE.exec(entry.name)?.[1];
+    if (!owner) continue;
+    const manifest = await readClaimManifest(installRoot, path.join(directory, entry.name), entry, claims.blocked);
+    if (!manifest) continue;
+    claims.manifests.set(owner, manifest);
+    for (const item of manifest.managed) addClaim(claims, item.output, { owner, assetCategory: recordedCategory(item), nested: null });
+  }
+  for (const legacy of await legacyNestedManifests()) {
+    const file = path.join(installRoot, legacy.output);
+    const info = await lstatIfExists(file);
+    if (!info) continue;
+    const manifest = await readClaimManifest(installRoot, file, info, claims.blocked);
+    if (!manifest) continue;
+    const nested = claimKey(legacy.output);
+    const present = [];
+    for (const item of manifest.managed) {
+      const output = path.join(legacy.root, item.output);
+      addClaim(claims, output, { owner: legacy.target, assetCategory: recordedCategory(item), nested });
+      if (await lstatIfExists(path.join(installRoot, output))) present.push(claimKey(output));
+    }
+    claims.nested.set(nested, present);
+  }
+  return claims;
+}
+
+function claimKey(relativeOutput) {
+  return path.normalize(relativeOutput);
+}
+
+// A manifest another tool or version wrote may hold any value here; only a category-shaped name is
+// kept, and anything else still counts as a recorded contribution without echoing the value.
+function recordedCategory(entry) {
+  if (entry.asset_category === undefined) return undefined;
+  return typeof entry.asset_category === "string" && /^[a-z][a-z0-9-]*$/.test(entry.asset_category)
+    ? entry.asset_category
+    : "unrecognized";
+}
+
+function addClaim(claims, output, claim) {
+  const key = claimKey(output);
+  const list = claims.byPath.get(key);
+  if (list) list.push(claim);
+  else claims.byPath.set(key, [claim]);
+}
+
+async function readClaimManifest(installRoot, file, info, blocked) {
+  const unreadable = (problem) => {
+    blocked.push(`MANIFEST_UNREADABLE: ${path.relative(installRoot, file)} ${problem}; repair it, or remove it together with the files it recorded, then rerun`);
+    return null;
+  };
+  if (!info.isFile()) return unreadable("is not a regular file");
+  let text;
+  try {
+    text = await readFile(file, "utf8");
+  } catch (error) {
+    return unreadable(`cannot be read (${error.message})`);
+  }
+  // The parser's message quotes the file's text, which may hold anything; report the fact only.
+  let manifest;
+  try {
+    manifest = JSON.parse(text);
+  } catch {
+    return unreadable("is not valid JSON");
+  }
+  const shapeError = manifestShapeError(manifest);
+  return shapeError ? unreadable(shapeError) : manifest;
+}
+
+function manifestShapeError(manifest) {
+  if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest)) return "is not a JSON object";
+  if (!Array.isArray(manifest.managed)) return "has no managed array";
+  const entry = manifest.managed.findIndex((item) => typeof item?.output !== "string" || !isSafeRelativePath(item.output));
+  if (entry !== -1) return `managed entry ${entry} has no safe relative output`;
+  if (manifest.config_entries === undefined) return null;
+  if (!Array.isArray(manifest.config_entries)) return "has a config_entries value that is not an array";
+  const config = manifest.config_entries.findIndex(
+    (item) => typeof item?.path !== "string" || typeof item?.format !== "string" || !Array.isArray(item?.ids),
+  );
+  return config === -1 ? null : `config entry ${config} lacks a string path, a string format or an ids array`;
+}
+
+// Legacy-listed manifests that live under another root's .agent-surface/ (a former install root).
+async function legacyNestedManifests() {
+  const legacy = await readJsonIfExists(path.join(root, "registry", "legacy-owned.json")) ?? {};
+  return (Array.isArray(legacy.files) ? legacy.files : []).flatMap((item) => {
+    if (typeof item?.output !== "string") return [];
+    const parts = item.output.split(/[\\/]+/);
+    const owner = MANIFEST_FILE.exec(parts.at(-1))?.[1];
+    if (!owner || parts.length < 3 || parts.at(-2) !== ".agent-surface") return [];
+    return [{
+      output: path.join(...parts),
+      root: path.join(...parts.slice(0, -2)),
+      target: typeof item.target === "string" ? item.target : owner,
+    }];
+  });
+}
+
+async function lstatIfExists(file) {
+  try {
+    return await lstat(file);
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return null;
+    throw error;
+  }
+}
+
+async function readDirectoryIfExists(directory) {
+  try {
+    return await readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return [];
+    throw error;
+  }
 }
 
 async function readLegacyOwnership(target) {
@@ -1178,6 +1442,10 @@ function printInstallPlan(plan) {
       for (const line of formatNotice(notice, today)) console.log(`  ${line}`);
     }
   }
+  if (plan.warnings.length > 0) {
+    console.log("warnings:");
+    for (const item of plan.warnings) console.log(`  ${item}`);
+  }
   console.log("planned writes:");
   for (const item of plan.writes) {
     console.log(`  ${path.relative(plan.installRoot, item.output)} <- ${item.source}`);
@@ -1191,12 +1459,16 @@ function printInstallPlan(plan) {
   }
   const retained = plan.staleRemovalActions
     .filter((item) => item.action === "retain")
-    .map((item) => item.relativeOutput);
-  console.log("planned stale managed paths retained by active targets:");
+    .map((item) => `${item.relativeOutput} (claimed by ${(item.retainedFor ?? []).join(", ")})`);
+  console.log("planned stale managed paths retained for other owners:");
   if (retained.length === 0) {
     console.log("  none");
   } else {
     for (const item of retained) console.log(`  ${item}`);
+  }
+  if (plan.releasedLegacyPaths.length > 0) {
+    console.log("legacy paths left in place without a claim:");
+    for (const item of plan.releasedLegacyPaths) console.log(`  ${item}`);
   }
   console.log("planned manifest:");
   console.log(`  ${path.relative(plan.installRoot, plan.manifestPath)}`);
@@ -1249,71 +1521,163 @@ function printInstallPlan(plan) {
     console.log(`not applicable: ${plan.notApplicableCategories}`);
   }
   console.log("blocked:");
-  if (plan.blocked.length === 0) {
+  const rootBlocked = plan.rootClaims.blocked.length > 0 ? ["this install root is blocked; see install blocked below"] : [];
+  if (plan.blocked.length + rootBlocked.length === 0) {
     console.log("  none");
   } else {
-    for (const item of plan.blocked) console.log(`  ${item}`);
+    for (const item of [...plan.blocked, ...rootBlocked]) console.log(`  ${item}`);
   }
 }
 
-async function applyInstallPlan(plan) {
-  let written = 0;
-  let skipped = 0;
-  let removed = 0;
-  let configMerges = 0;
+// Every participant's pending manifest lands before the run's first write, removal or config merge,
+// so a path one target releases and another newly claims stays claimed throughout (contract
+// Migration steps 6 and 7). There is no multi-file transaction: a late failure is reported, never
+// rolled back, and the pending manifests let the same install be rerun to finish.
+async function applyInstallPlans(plans) {
+  const progress = { applying: false, plan: null, operations: [], index: 0, failedPath: null };
+  try {
+    for (const plan of plans) {
+      Object.assign(progress, { plan, failedPath: path.relative(plan.installRoot, plan.manifestPath) });
+      await writeManifestFile(plan, pendingManifest(plan));
+    }
+    progress.applying = true;
+    for (const plan of plans) {
+      progress.plan = plan;
+      await applyInstallPlan(plan, progress);
+    }
+    return true;
+  } catch (error) {
+    reportInterruptedInstall(progress, plans, error);
+    return false;
+  }
+}
 
-  await mkdir(plan.installRoot, { recursive: true });
+// Names what landed and what did not, path by path and without content (contract Migration step 7).
+function reportInterruptedInstall({ applying, plan, operations, index, failedPath }, plans, error) {
+  console.log(`install interrupted: ${plan.target}: ${failedPath}: ${error.message}`);
+  if (!applying) {
+    console.log("  no planned write, removal or config merge ran; rerun the same install");
+    return;
+  }
+  const position = plans.indexOf(plan);
+  const applied = plans.slice(0, position).map((item) => item.target);
+  console.log(`  targets applied before it: ${applied.length > 0 ? applied.join(", ") : "none"}`);
+  for (const [label, list] of [["completed", operations.slice(0, index)], ["pending", operations.slice(index)]]) {
+    console.log(`  ${label} for ${plan.target}: ${list.length}`);
+    for (const operation of list) console.log(`    ${operation.kind} ${operation.path}`);
+  }
+  const notApplied = plans.slice(position + 1).map((item) => item.target);
+  if (notApplied.length > 0) console.log(`  not applied: ${notApplied.join(", ")}`);
+  console.log("  nothing was rolled back; the pending manifests still claim every planned path, so rerun the same install to finish");
+}
 
-  for (const item of plan.writes) {
-    if (item.action === "skip") {
-      // Identical content, but a mode the output declares still has to hold: a companion script
-      // restored from a non-executable copy would otherwise stay unrunnable forever.
-      if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
-      skipped += 1;
+// The union of what the plan held and what it will hold: a path in both keeps its next entry, and a
+// config entry keeps the IDs of both, so every planned write and removal stays claimed.
+function pendingManifest(plan) {
+  const managed = new Map(plan.previousFileEntries.map((entry) => [claimKey(entry.output), entry]));
+  for (const entry of plan.manifest.managed) managed.set(claimKey(entry.output), entry);
+  return {
+    ...plan.manifest,
+    managed: [...managed.values()].sort((left, right) => left.output.localeCompare(right.output)),
+    config_entries: unionConfigEntries(plan.previousConfigEntries, plan.manifest.config_entries),
+  };
+}
+
+function unionConfigEntries(previousEntries, nextEntries) {
+  const union = new Map(previousEntries.map((entry) => [configEntryKey(entry.path, entry.format), entry]));
+  for (const entry of nextEntries) {
+    const key = configEntryKey(entry.path, entry.format);
+    const earlier = union.get(key);
+    if (!earlier) {
+      union.set(key, entry);
       continue;
     }
-
-    const routeError = await installPathError(plan.installRoot, item.output, `managed output ${item.relativeOutput}`);
-    if (routeError) fail(routeError);
-    await mkdir(path.dirname(item.output), { recursive: true });
-    const postMkdirRouteError = await installPathError(plan.installRoot, item.output, `managed output ${item.relativeOutput}`);
-    if (postMkdirRouteError) fail(postMkdirRouteError);
-    await writeFile(item.output, item.content);
-    if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
-    written += 1;
+    const assetCategories = { ...earlier.asset_categories, ...entry.asset_categories };
+    union.set(key, {
+      path: entry.path,
+      format: entry.format,
+      ids: uniqueStrings([...earlier.ids, ...entry.ids]).sort(),
+      ...(Object.keys(assetCategories).length > 0 ? { asset_categories: assetCategories } : {}),
+    });
   }
+  return [...union.values()].sort(
+    (left, right) => configEntryKey(left.path, left.format).localeCompare(configEntryKey(right.path, right.format)),
+  );
+}
 
-  for (const item of plan.staleRemovalActions) {
-    if (item.action !== "remove") continue;
-    const routeError = await installPathError(plan.installRoot, item.output, `stale managed output ${item.relativeOutput}`);
-    if (routeError) fail(routeError);
-    await rm(item.output, { force: true });
-    removed += 1;
-  }
+// One ordered list of what applying a plan does: writes, then removals of stale paths, then config
+// merges, then the final manifest. The same list drives the apply and the interrupted report.
+function applyOperations(plan) {
+  return [
+    ...plan.writes.map((item) => ({ kind: item.action === "skip" ? "unchanged" : "write", path: item.relativeOutput, item })),
+    ...plan.staleRemovalActions
+      .filter((item) => item.action === "remove")
+      .map((item) => ({ kind: "remove", path: item.relativeOutput, item })),
+    ...plan.configMerges.map((item) => ({ kind: "merge", path: item.relativeOutput, item })),
+    { kind: "manifest", path: path.relative(plan.installRoot, plan.manifestPath) },
+  ];
+}
 
-  for (const item of plan.configMerges) {
-    const result = await applyConfigMerge(item);
-    configMerges += result.changed ? 1 : 0;
+async function applyInstallPlan(plan, progress) {
+  const operations = applyOperations(plan);
+  const done = { written: 0, skipped: 0, removed: 0, merged: 0 };
+  Object.assign(progress, { operations, index: 0, failedPath: plan.installRoot });
+  await mkdir(plan.installRoot, { recursive: true });
+  for (const [index, operation] of operations.entries()) {
+    Object.assign(progress, { index, failedPath: operation.path });
+    await applyOperation(plan, operation, done);
   }
-
-  const manifestRouteError = await installPathError(plan.installRoot, plan.manifestPath, "manifest path");
-  if (manifestRouteError) fail(manifestRouteError);
-  await mkdir(path.dirname(plan.manifestPath), { recursive: true });
-  const postMkdirManifestRouteError = await installPathError(plan.installRoot, plan.manifestPath, "manifest path");
-  if (postMkdirManifestRouteError) fail(postMkdirManifestRouteError);
-  const manifestTmp = `${plan.manifestPath}.${process.pid}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(manifestTmp, `${JSON.stringify(plan.manifest, null, 2)}\n`, { flag: "wx" });
-    await rename(manifestTmp, plan.manifestPath);
-  } finally {
-    await rm(manifestTmp, { force: true });
-  }
+  progress.index = operations.length;
 
   console.log("installed:");
-  console.log(`  wrote: ${written}`);
-  console.log(`  skipped unchanged: ${skipped}`);
-  console.log(`  removed stale: ${removed}`);
-  console.log(`  config merges: ${configMerges}`);
+  console.log(`  wrote: ${done.written}`);
+  console.log(`  skipped unchanged: ${done.skipped}`);
+  console.log(`  removed stale: ${done.removed}`);
+  console.log(`  config merges: ${done.merged}`);
+}
+
+async function applyOperation(plan, { kind, item }, done) {
+  if (kind === "unchanged") {
+    // Identical content, but a mode the output declares still has to hold: a companion script
+    // restored from a non-executable copy would otherwise stay unrunnable forever.
+    if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
+    done.skipped += 1;
+  } else if (kind === "write") {
+    await assertInstallPath(plan.installRoot, item.output, `managed output ${item.relativeOutput}`);
+    await mkdir(path.dirname(item.output), { recursive: true });
+    await assertInstallPath(plan.installRoot, item.output, `managed output ${item.relativeOutput}`);
+    await writeFile(item.output, item.content);
+    if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
+    done.written += 1;
+  } else if (kind === "remove") {
+    await assertInstallPath(plan.installRoot, item.output, `stale managed output ${item.relativeOutput}`);
+    await rm(item.output, { force: true });
+    done.removed += 1;
+  } else if (kind === "merge") {
+    const result = await applyConfigMerge(item);
+    done.merged += result.changed ? 1 : 0;
+  } else {
+    await writeManifestFile(plan, plan.manifest);
+  }
+}
+
+// Replaced atomically, so a crash leaves the previous or the new manifest, never a torn one.
+async function writeManifestFile(plan, manifest) {
+  await assertInstallPath(plan.installRoot, plan.manifestPath, "manifest path");
+  await mkdir(path.dirname(plan.manifestPath), { recursive: true });
+  await assertInstallPath(plan.installRoot, plan.manifestPath, "manifest path");
+  const temporary = `${plan.manifestPath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, `${JSON.stringify(manifest, null, 2)}\n`, { flag: "wx" });
+    await rename(temporary, plan.manifestPath);
+  } finally {
+    await rm(temporary, { force: true });
+  }
+}
+
+async function assertInstallPath(safetyRoot, candidate, label) {
+  const routeError = await installPathError(safetyRoot, candidate, label);
+  if (routeError) throw new Error(routeError);
 }
 
 async function mcpConfigMerge(mcpConfig, installRoot, scope, context) {
@@ -1523,12 +1887,10 @@ async function kiloConfigMerge(installRoot, scope, options = {}) {
 
 async function applyConfigMerge(merge) {
   if (merge.action === "skip") return { changed: false };
-  if (merge.action === "blocked") fail(merge.error);
-  const routeError = await installPathError(merge.safetyRoot, merge.output, `config ${merge.relativeOutput}`);
-  if (routeError) fail(routeError);
+  if (merge.action === "blocked") throw new Error(merge.error);
+  await assertInstallPath(merge.safetyRoot, merge.output, `config ${merge.relativeOutput}`);
   await mkdir(path.dirname(merge.output), { recursive: true });
-  const postMkdirRouteError = await installPathError(merge.safetyRoot, merge.output, `config ${merge.relativeOutput}`);
-  if (postMkdirRouteError) fail(postMkdirRouteError);
+  await assertInstallPath(merge.safetyRoot, merge.output, `config ${merge.relativeOutput}`);
   await writeFile(merge.output, merge.content);
   return { changed: true };
 }

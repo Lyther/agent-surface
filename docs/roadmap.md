@@ -1,6 +1,6 @@
 # Runtime Refresh Roadmap
 
-Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT1.1 IMPLEMENTED; ALL OTHER TASKS NOT STARTED
+Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT1.1 AND RT2.0 IMPLEMENTED; ALL OTHER TASKS NOT STARTED
 Date: 2026-09-28; revised the same day after cross-review
 Baseline: `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 Inputs: [concept](context/concept-zero.md), [research](context/concept-zero-research.md), [architecture](architecture.md), [contract](contracts/runtime-refresh.md).
@@ -95,7 +95,7 @@ Exit: all current target IDs still accounted for; every new support claim links 
 
 ### RT2.0 Installer Ownership Protection
 
-State: NOT STARTED. Depends on: none. Covers: `G-RT-05`, `Q-RT-04`.
+State: IMPLEMENTED. Depends on: none. Covers: `G-RT-05`, `Q-RT-04`.
 
 Implement contract Migration steps 2, 3, 6 and 7 for every whole-file output: claims from this target's manifest, legacy entries and legacy nested manifests plus every other manifest in the same install root; `UNOWNED_DESTINATION` for unclaimed existing files, identical bytes included, with no manifest adoption; regeneration of co-owned files with a `SHARED_CONTRIBUTION_REPLACED` plan warning when another owner's recorded category is not selected; one target-neutral header for the shared project `AGENTS.md`; cross-owner stale retention judged by next manifests; every participant's pending union manifest written before the run's first mutation; `MANIFEST_UNREADABLE` for an unparsable or structurally invalid manifest, `config_entries` included; nested-manifest cleanup that lists the recorded files it leaves unclaimed. Keep the same-run differing-bytes conflict and the same-target category guard. Config merges are unchanged.
 

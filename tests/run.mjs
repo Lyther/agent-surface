@@ -32,6 +32,7 @@ const suites = [
   "build.test.mjs",
   "runtime.test.mjs",
   "install.test.mjs",
+  "ownership.test.mjs",
   "mcp-launch-resolve.test.mjs",
   "install-live.test.mjs",
   "skill-packages.test.mjs",

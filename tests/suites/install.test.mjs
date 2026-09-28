@@ -460,7 +460,7 @@ writeFileSync(path.join(retiredVscodiumDest, ".agent-surface", "grok-build-manif
   config_entries: [{ path: retiredGrokMcpRel, format: "mcpServers", ids: ["old-owned"] }],
 }, null, 2)}\n`);
 const retiredVscodiumPlan = run(["install", "--target", "all", "--scope", "user", "--dest", retiredVscodiumDest, "--dry-run"]);
-assert.match(retiredVscodiumPlan, /planned stale managed paths retained by active targets:/);
+assert.match(retiredVscodiumPlan, /planned stale managed paths retained for other owners:/);
 assert.match(retiredVscodiumPlan, new RegExp(liveKiloConfigRel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 run(["install", "--target", "all", "--scope", "user", "--dest", retiredVscodiumDest]);
 assert.equal(existsSync(path.join(retiredVscodiumDest, retiredOwnedRel)), false);
@@ -565,14 +565,17 @@ assert.doesNotMatch(kimiCodeMcpOnlyPlan, /default_permission_mode :=/);
 assert.doesNotMatch(kimiCodeMcpOnlyPlan, /kimi\.yoloMode :=/);
 rmSync(kimiCodeDest, { recursive: true, force: true });
 
-// Install now overwrites existing files by default.
+// An existing file no manifest in the install root claims is an operator's file: the install
+// refuses before writing anything instead of overwriting it (contract Migration step 2).
 const unmanagedDest = "/tmp/agent-surface-unmanaged";
 rmSync(unmanagedDest, { recursive: true, force: true });
 mkdirSync(path.join(unmanagedDest, ".clinerules", "workflows"), { recursive: true });
 writeFileSync(path.join(unmanagedDest, ".clinerules", "workflows", "ops-nuke.md"), "local workflow\n");
-const overwriteInstall = run(["install", "--target", "cline", "--dest", unmanagedDest, "--category", "development"]);
-assert.match(overwriteInstall, /^installed:$/m);
-assert.match(readFileSync(path.join(unmanagedDest, ".clinerules", "workflows", "ops-nuke.md"), "utf8"), /^## OBJECTIVE/);
+const unownedInstall = status(["install", "--target", "cline", "--dest", unmanagedDest, "--category", "development"]);
+assert.equal(unownedInstall.status, 1, unownedInstall.stdout);
+assert.match(unownedInstall.stdout, /UNOWNED_DESTINATION: \.clinerules[\\/]workflows[\\/]ops-nuke\.md /);
+assert.equal(readFileSync(path.join(unmanagedDest, ".clinerules", "workflows", "ops-nuke.md"), "utf8"), "local workflow\n");
+assert.equal(existsSync(path.join(unmanagedDest, ".agent-surface", "cline-manifest.json")), false);
 rmSync(unmanagedDest, { recursive: true, force: true });
 
 const liveStaleDest = "/tmp/agent-surface-live-stale";

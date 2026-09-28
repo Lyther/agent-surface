@@ -1414,9 +1414,18 @@ export async function antigravityCliStaticOutputs(catalog, context) {
 // and the scoped rule references beside it. Only the document's title and label, its path, and the
 // references root differ per host, so each host supplies those and nothing else. Hosts whose rules
 // land as one file per rule, or that also write a config document, keep their own producer below.
+//
+// Several hosts write the workspace AGENTS.md at project scope, where every target shares one install
+// root. They all render one target-neutral header there, so co-selected hosts plan identical bytes
+// and installing one host never rewrites another's copy just to rename it. A user-scope AGENTS.md at
+// a host's own config root (Kimi Code's) is not shared and keeps its host header.
+const SHARED_AGENTS_DOCUMENT = { title: "AGENTS.md - agent-surface rules", label: "Project instructions" };
+
 async function rulesDocumentOutputs(context, { title, label, relativeOutput, referencesRoot, renderKind = "rules", projectOnly = false }) {
   if (projectOnly && context.scope === "user") return [];
-  const document = { source: "rules/*.mdc", relativeOutput, content: await renderInstructionDocument(title, label, context) };
+  const shared = context.scope === "project" && relativeOutput === "AGENTS.md";
+  const header = shared ? SHARED_AGENTS_DOCUMENT : { title, label };
+  const document = { source: "rules/*.mdc", relativeOutput, content: await renderInstructionDocument(header.title, header.label, context) };
   if (renderKind) document.renderKind = renderKind;
   return [document, ...await scopedRuleReferenceOutputs(context, referencesRoot)];
 }
