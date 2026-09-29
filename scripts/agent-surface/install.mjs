@@ -827,13 +827,25 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   // contribution is restored by re-running the category that owns it; the general full sync still
   // resets it deliberately, which is its documented meaning.
   if (partialInstall) {
-    const previousOwner = new Map(previousFileEntries.filter((item) => item.asset_category).map((item) => [item.output, item.asset_category]));
+    const previousOwner = new Map(previousFileEntries.filter((item) => item.asset_category).map((item) => [claimKey(item.output), item.asset_category]));
+    // A moved document inherits the contribution its old route recorded until it records its own,
+    // even once the old file is gone.
+    const inheritedFrom = new Map();
+    for (const route of declaredRouteMigrations(adapter, scope)) {
+      if (previousOwner.has(route.to) || !previousOwner.has(route.from)) continue;
+      previousOwner.set(route.to, previousOwner.get(route.from));
+      inheritedFrom.set(route.to, route.from);
+    }
     for (const item of writes) {
       // Only a real content change can lose anything: an unchanged file is a skip either way.
       if (item.action !== "write") continue;
-      const owner = previousOwner.get(item.relativeOutput);
+      const key = claimKey(item.relativeOutput);
+      const owner = previousOwner.get(key);
       if (owner === undefined || selectedCategories.has(owner)) continue;
-      blocked.push(`${item.relativeOutput} carries the ${owner} category's contribution and this selection would overwrite it; re-run --category ${owner} to refresh that document, or run the general install to reset it`);
+      const holder = inheritedFrom.has(key)
+        ? `${item.relativeOutput} replaces ${inheritedFrom.get(key)}, which carries`
+        : `${item.relativeOutput} carries`;
+      blocked.push(`${holder} the ${owner} category's contribution and this selection would overwrite it; re-run --category ${owner} to refresh that document, or run the general install to reset it`);
     }
   }
   const staleExternalManaged = categoryFilter?.has("external")
@@ -851,11 +863,17 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   const partialStaleManaged = [...new Map(
     [...staleExternalManaged, ...staleCategoryManaged].map((item) => [item.output, item]),
   ).values()];
-  const staleManaged = !partialInstall
-    ? [...previousFileEntries, ...legacyOwnership.files]
-      .filter((item) => !liveOutputs.has(item.output))
-      .sort((left, right) => left.output.localeCompare(right.output))
-    : partialStaleManaged.sort((left, right) => left.output.localeCompare(right.output));
+  // A declared old route is handled only by its migration, never by generic stale cleanup.
+  const migrations = await planRouteMigrations(adapter, { scope, installRoot, writes, previousFileEntries, legacyClaims });
+  const migratedRoutes = new Set(migrations.map((item) => item.from));
+  for (const item of migrations) {
+    if (item.action === "blocked") blocked.push(item.message);
+  }
+  const staleManaged = (!partialInstall
+    ? [...previousFileEntries, ...legacyOwnership.files].filter((item) => !liveOutputs.has(item.output))
+    : partialStaleManaged)
+    .filter((item) => !migratedRoutes.has(claimKey(item.output)))
+    .sort((left, right) => left.output.localeCompare(right.output));
   const staleManagedOutputs = new Set(staleManaged.map((item) => item.output));
   const staleRemovalActions = [];
   const configMerges = [];
@@ -955,6 +973,14 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
 
     staleRemovalActions.push({ output, relativeOutput: item.output, action: "remove" });
   }
+  // A migrated old route identical to its replacement goes after the writes, like any removal, so it
+  // is deleted only once the replacement has been written.
+  for (const item of migrations.filter((migration) => migration.action === "remove")) {
+    staleRemovalActions.push({ output: item.output, relativeOutput: item.from, action: "remove", migratedTo: item.to });
+  }
+  const warnings = migrations
+    .filter((item) => item.action === "retain")
+    .map((item) => `LEGACY_FILE_RETAINED: ${item.from} differs from its replacement ${item.to} and is kept, because ${item.ignoredBy} shows the client ignores it; remove it when you no longer need it`);
 
   // Per-target: record non-applicability as informational. Whether the *run* fails is decided
   // at the call site (a run with no installable outputs anywhere is the error, not one target).
@@ -963,10 +989,13 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     notApplicableCategories = `no installable outputs for categories: ${[...categoryFilter].sort().join(", ")}`;
   }
 
-  const retainedManaged = partialInstall
-    ? previousFileEntries
-      .filter((item) => !liveOutputs.has(item.output) && !staleManagedOutputs.has(item.output))
-    : [];
+  // A migrated old route stays claimed while it stays on disk: retained with a warning, or untouched
+  // because this selection writes no replacement.
+  const keptRoutes = new Set(migrations.filter((item) => ["retain", "untouched"].includes(item.action)).map((item) => item.from));
+  const retainedManaged = previousFileEntries.filter((item) => {
+    if (migratedRoutes.has(claimKey(item.output))) return keptRoutes.has(claimKey(item.output));
+    return partialInstall && !liveOutputs.has(item.output) && !staleManagedOutputs.has(item.output);
+  });
   const manifestManaged = [...retainedManaged, ...managed].sort((left, right) => left.output.localeCompare(right.output));
   const nextConfigEntries = mergedManifestConfigEntries(
     previousConfigEntries,
@@ -997,8 +1026,9 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     notApplicableCategories,
     nonApplicable: nonApplicable.sort((left, right) => left.localeCompare(right)),
     notices: await planNotices(target, writes, installRoot),
-    warnings: [],
+    warnings,
     releasedLegacyPaths: [],
+    routeMigrations: migrations,
     manifest,
     // Inputs to the cross-plan ownership decisions and to the pending manifest.
     rootClaims,
@@ -1007,6 +1037,58 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     previousConfigEntries,
     nextEntries: new Map(manifestManaged.map((entry) => [claimKey(entry.output), entry])),
   };
+}
+
+// The routes an adapter declares moved at this scope, as claim keys.
+function declaredRouteMigrations(adapter, scope) {
+  return (adapter.routeMigrations ?? []).flatMap((route) => {
+    const from = route.from({ scope });
+    const to = route.to({ scope });
+    return from && to ? [{ from: claimKey(from), to: claimKey(to), ignoredBy: route.ignoredBy }] : [];
+  });
+}
+
+// Declared route migrations (contract Migration step 4). An owned old route is removed only after
+// its replacement is written, and only when its bytes equal the replacement: anything else may carry
+// edits or an earlier rendering. A differing old route blocks unless a recorded qualification shows
+// the client ignores it, in which case it is kept and listed on every run until the operator removes
+// it. An old route this target does not own, or one this selection writes no replacement for, is
+// left alone. An identical old route another owner still claims is kept for that owner (step 3);
+// only this target's claim ends.
+async function planRouteMigrations(adapter, { scope, installRoot, writes, previousFileEntries, legacyClaims }) {
+  const owned = new Set([...previousFileEntries.map((item) => claimKey(item.output)), ...legacyClaims]);
+  const migrations = [];
+  for (const route of declaredRouteMigrations(adapter, scope)) {
+    const { from, to } = route;
+    const output = path.join(installRoot, from);
+    const replacement = writes.find((item) => claimKey(item.relativeOutput) === to);
+    if (!replacement || !owned.has(from)) {
+      migrations.push({ from, to, output, action: "untouched" });
+      continue;
+    }
+    const routeError = await installPathError(installRoot, output, `migrated route ${from}`);
+    if (routeError) {
+      migrations.push({ from, to, output, action: "blocked", message: routeError });
+      continue;
+    }
+    const current = await readFileIfExists(output);
+    if (current === null) {
+      migrations.push({ from, to, output, action: "missing" });
+    } else if (current.toString("utf8") === replacement.content) {
+      migrations.push({ from, to, output, action: "remove" });
+    } else if (route.ignoredBy) {
+      migrations.push({ from, to, output, action: "retain", ignoredBy: route.ignoredBy });
+    } else {
+      migrations.push({
+        from,
+        to,
+        output,
+        action: "blocked",
+        message: `MIGRATION_SOURCE_CONFLICT: ${from} differs from its replacement ${to}, and the client may still read it, which would load both; review it, then move or remove it and rerun`,
+      });
+    }
+  }
+  return migrations;
 }
 
 // Ownership claims on one install root (contract Migration step 2): every <id>-manifest.json directly
@@ -1450,7 +1532,9 @@ function printInstallPlan(plan) {
   for (const item of plan.writes) {
     console.log(`  ${path.relative(plan.installRoot, item.output)} <- ${item.source}`);
   }
-  const removes = plan.staleRemovalActions.filter((item) => item.action === "remove" || item.action === "missing").map((item) => item.relativeOutput);
+  const removes = plan.staleRemovalActions
+    .filter((item) => (item.action === "remove" || item.action === "missing") && !item.migratedTo)
+    .map((item) => item.relativeOutput);
   console.log("planned stale managed removals:");
   if (removes.length === 0) {
     console.log("  none");
@@ -1458,7 +1542,7 @@ function printInstallPlan(plan) {
     for (const item of removes) console.log(`  ${item}`);
   }
   const retained = plan.staleRemovalActions
-    .filter((item) => item.action === "retain")
+    .filter((item) => item.action === "retain" && !item.migratedTo)
     .map((item) => `${item.relativeOutput} (claimed by ${(item.retainedFor ?? []).join(", ")})`);
   console.log("planned stale managed paths retained for other owners:");
   if (retained.length === 0) {
@@ -1469,6 +1553,17 @@ function printInstallPlan(plan) {
   if (plan.releasedLegacyPaths.length > 0) {
     console.log("legacy paths left in place without a claim:");
     for (const item of plan.releasedLegacyPaths) console.log(`  ${item}`);
+  }
+  const migrationLines = [
+    ...plan.staleRemovalActions.filter((item) => item.migratedTo).map((item) => (item.action === "remove"
+      ? `${item.relativeOutput} -> ${item.migratedTo}: identical to the replacement; removed after it is written`
+      : `${item.relativeOutput} -> ${item.migratedTo}: identical to the replacement; kept, still claimed by ${(item.retainedFor ?? []).join(", ")}`)),
+    ...plan.routeMigrations.filter((item) => item.action === "retain").map((item) => `${item.from} -> ${item.to}: kept; see warnings`),
+    ...plan.routeMigrations.filter((item) => item.action === "missing").map((item) => `${item.from} -> ${item.to}: already gone; its claim ends`),
+  ];
+  if (migrationLines.length > 0) {
+    console.log("planned route migrations:");
+    for (const line of migrationLines) console.log(`  ${line}`);
   }
   console.log("planned manifest:");
   console.log(`  ${path.relative(plan.installRoot, plan.manifestPath)}`);
@@ -1620,7 +1715,7 @@ function applyOperations(plan) {
 
 async function applyInstallPlan(plan, progress) {
   const operations = applyOperations(plan);
-  const done = { written: 0, skipped: 0, removed: 0, merged: 0 };
+  const done = { written: 0, skipped: 0, removed: 0, migrated: 0, merged: 0 };
   Object.assign(progress, { operations, index: 0, failedPath: plan.installRoot });
   await mkdir(plan.installRoot, { recursive: true });
   for (const [index, operation] of operations.entries()) {
@@ -1633,6 +1728,7 @@ async function applyInstallPlan(plan, progress) {
   console.log(`  wrote: ${done.written}`);
   console.log(`  skipped unchanged: ${done.skipped}`);
   console.log(`  removed stale: ${done.removed}`);
+  if (done.migrated > 0) console.log(`  removed migrated routes: ${done.migrated}`);
   console.log(`  config merges: ${done.merged}`);
 }
 
@@ -1652,7 +1748,8 @@ async function applyOperation(plan, { kind, item }, done) {
   } else if (kind === "remove") {
     await assertInstallPath(plan.installRoot, item.output, `stale managed output ${item.relativeOutput}`);
     await rm(item.output, { force: true });
-    done.removed += 1;
+    if (item.migratedTo) done.migrated += 1;
+    else done.removed += 1;
   } else if (kind === "merge") {
     const result = await applyConfigMerge(item);
     done.merged += result.changed ? 1 : 0;

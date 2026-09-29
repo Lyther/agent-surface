@@ -191,8 +191,16 @@ export function poolSkillRoot(context) {
   return context.scope === "user" ? path.join(".config", "poolside", "skills") : path.join(".poolside", "skills");
 }
 
+// Poolside documents personal instructions at the default config home's AGENTS.md. Poolside honors
+// XDG_CONFIG_HOME, but agent-surface does not follow it: the client's environment is not known at
+// install time.
 export function poolInstructionPath(context) {
-  return context.scope === "user" ? path.join(".config", "poolside", ".poolside") : "AGENTS.md";
+  return context.scope === "user" ? path.join(".config", "poolside", "AGENTS.md") : "AGENTS.md";
+}
+
+// Where earlier installs wrote personal instructions, before the route followed Poolside's docs.
+export function poolLegacyInstructionPath(context) {
+  return context.scope === "user" ? path.join(".config", "poolside", ".poolside") : null;
 }
 
 export function poolConfigRoot(context) {

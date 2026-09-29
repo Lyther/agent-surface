@@ -26,7 +26,7 @@ Every host `agent-surface` renders into, and how much of the source model each r
 | Goose | 62 `.agents/skills/*/SKILL.md` | 5 compatibility skills in user builds; project installs use `recipes/*.yaml` | None | None | External skills; Synapse + Grimoire in user config | 4 |
 | Grok Build | 62 `.grok/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | Project `AGENTS.md` + 6 scoped refs | None | External skills; Synapse + Grimoire in `.grok/config.toml` | 4 |
 | Pi | 62 `.pi/agent/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.pi/agent/AGENTS.md` + 6 scoped refs | None | External skills | 4 |
-| Poolside | 62 `.config/poolside/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.poolside` instructions + 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
+| Poolside | 62 `.config/poolside/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.config/poolside/AGENTS.md` + 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
 | Windsurf | 62 `.codeium/windsurf/skills/*/SKILL.md` | 5 global workflows | Global rules + 6 scoped refs | None | External skills; Synapse + Grimoire | 5 |
 | Zed | 62 `.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.config/zed/AGENTS.md` + 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
 

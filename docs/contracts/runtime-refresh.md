@@ -1,6 +1,6 @@
 # Runtime Refresh Contract
 
-Status: PROPOSED; RT1.1 METADATA AND NOTICES AND RT2.0 DESTINATION OWNERSHIP IMPLEMENTED; OTHER SECTIONS NOT YET WIRED INTO THE COMPILER
+Status: PROPOSED; RT1.1 METADATA AND NOTICES, RT2.0 DESTINATION OWNERSHIP AND THE RT2.1 POOLSIDE ROUTE MIGRATION IMPLEMENTED; OTHER SECTIONS NOT YET WIRED INTO THE COMPILER
 Date: 2026-09-28; revised the same day after cross-review
 Derived from: [concept](../context/concept-zero.md), [architecture](../architecture.md), [roadmap](../roadmap.md).
 

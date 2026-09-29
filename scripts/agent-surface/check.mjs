@@ -1031,7 +1031,7 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".pi", "agent", "skills", "ctf-web", "SKILL.md"), skillFrontmatter);
   } else if (target === "pool") {
     requireContains(path.join(".config", "poolside", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
-    requireContains(path.join(".config", "poolside", ".poolside"), /agent-surface Poolside rules/);
+    requireContains(path.join(".config", "poolside", "AGENTS.md"), /agent-surface Poolside rules/);
     requireContains(path.join(".config", "poolside", "skills", "redteam-boundary-policy", "SKILL.md"), skillFrontmatter);
   } else if (target === "cline") {
     requirePath(path.join(".cline", "skills", "ops-flow", "SKILL.md"));

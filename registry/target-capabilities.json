@@ -538,7 +538,7 @@
       }
     },
     "pool": {
-      "summary": "Poolside supports AGENTS.md, user .poolside instructions, local skill directories, and MCP servers; agent-surface generates local skills, instructions, and external skill packs while generating MCP config (mcp_servers) via a non-destructive YAML merge.",
+      "summary": "Poolside CLI: agent-surface generates local skills, AGENTS.md instructions (personal ones at Poolside's default ~/.config/poolside/AGENTS.md; Poolside honors XDG_CONFIG_HOME, which agent-surface does not follow) and external skill packs, and merges MCP config (mcp_servers) non-destructively into settings.yaml.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -581,10 +581,10 @@
             "project"
           ],
           "paths": [
-            "~/.config/poolside/.poolside",
+            "~/.config/poolside/AGENTS.md",
             "AGENTS.md"
           ],
-          "notes": "User installs use .poolside personal instructions; project installs use AGENTS.md."
+          "notes": "User installs write the documented personal ~/.config/poolside/AGENTS.md; project installs use AGENTS.md. Earlier installs wrote ~/.config/poolside/.poolside. When a selection writes the personal instructions, an owned copy identical to the replacement is removed after the write, and a differing one blocks with MIGRATION_SOURCE_CONFLICT because no recorded qualification shows the client ignores it; other selections leave it in place and claimed. Native discovery of either route is not yet qualified."
         },
         "external": {
           "support": "native",

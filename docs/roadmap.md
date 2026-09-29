@@ -1,6 +1,6 @@
 # Runtime Refresh Roadmap
 
-Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT1.1, RT1.2 AND RT2.0 IMPLEMENTED; ALL OTHER TASKS NOT STARTED
+Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT1.1, RT1.2, RT2.0 AND RT2.1 IMPLEMENTED; ALL OTHER TASKS NOT STARTED
 Date: 2026-09-28; revised the same day after cross-review
 Baseline: `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 Inputs: [concept](context/concept-zero.md), [research](context/concept-zero-research.md), [architecture](architecture.md), [contract](contracts/runtime-refresh.md).
@@ -107,7 +107,7 @@ Exit: unowned files stay protected, identical or differing, with zero mutation; 
 
 ### RT2.1 Poolside Personal Route
 
-State: NOT STARTED. Depends on: `RT2.0`. Covers: `G-RT-05`, `Q-RT-04`.
+State: IMPLEMENTED; native discovery of both routes is not yet qualified (the local `pool exec` fails with a model-not-found error). Depends on: `RT2.0`. Covers: `G-RT-05`, `Q-RT-04`.
 
 Current personal output is `.poolside`; native documentation names `AGENTS.md`. Fix that one route and declare the old route for contract Migration step 4: remove the owned old file only after the replacement write and only when its bytes equal the replacement; otherwise block with `MIGRATION_SOURCE_CONFLICT`, or retain it with `LEGACY_FILE_RETAINED` once a recorded qualification proves the current client ignores `.poolside`. No general managed-file editor, backup store or journal.
 

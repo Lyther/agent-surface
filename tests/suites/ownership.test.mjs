@@ -15,7 +15,7 @@
 // - real-proof: a read-only `install --target all --scope user --dry-run` against the real HOME
 //   plans no unowned destination and no unreadable manifest (recorded in the RT2.0 review)
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -375,6 +375,208 @@ try {
       assert.ok(!existsSync(dest), "a conflicting run writes nothing");
     } finally {
       rmSync(checkout, { recursive: true, force: true });
+    }
+  }
+
+  // Step 4: an owned route migration. Poolside's personal instructions moved from .poolside to the
+  // documented AGENTS.md.
+  // SUBSTITUTE_JUSTIFICATION
+  // - substitute: a disposable checkout with the Poolside route and its migration declaration
+  //   reverted (two edits), standing in for the release before the move; a second copy whose
+  //   migration records an ignored-route qualification (one edit); a read-only skill file that
+  //   makes one write fail after the replacement has landed; and a hand-written manifest for an
+  //   unknown owner that co-claims the old route
+  // - replaces: installs made by earlier releases, a native qualification that does not exist yet,
+  //   and a real mid-apply I/O failure
+  // - necessity: the old layout must be produced without git history, the kept-with-a-warning branch
+  //   has no real qualification to trigger it, and the interrupted case needs a deterministic failure
+  //   between the replacement write and the old route's removal
+  // - real-option: every run uses the real CLI, planner, apply and filesystem
+  // - proof-limit: proves the migration rule, not whether Poolside reads or ignores either file
+  // - real-proof: the RT2.1 review upgraded real installs made from 67df0b3 and f237274 archives in
+  //   scratch roots: the identical route migrated and the differing one blocked. Native discovery
+  //   of both routes remains an open RT2.1 qualification
+  {
+    const legacy = path.join(".config", "poolside", ".poolside");
+    const current = path.join(".config", "poolside", "AGENTS.md");
+    const oldRelease = disposableCheckout("agent-surface-pool-old-");
+    const ignoring = disposableCheckout("agent-surface-pool-ignored-");
+    const patch = (checkout, relative, from, to) => {
+      const file = path.join(checkout, relative);
+      const source = readFileSync(file, "utf8");
+      assert.equal(count(source, new RegExp(escapeRegExp(from), "g")), 1, `${relative} holds the line this case patches`);
+      writeFileSync(file, source.replace(from, to));
+    };
+    try {
+      patch(oldRelease, "scripts/agent-surface/roots.mjs", 'path.join(".config", "poolside", "AGENTS.md") : "AGENTS.md"', 'path.join(".config", "poolside", ".poolside") : "AGENTS.md"');
+      patch(oldRelease, "scripts/agent-surface/targets.mjs", "routeMigrations: [{ from: poolLegacyInstructionPath, to: poolInstructionPath, ignoredBy: null }],", "routeMigrations: [],");
+      patch(ignoring, "scripts/agent-surface/targets.mjs", "ignoredBy: null }]", 'ignoredBy: "a recorded discovery qualification" }]');
+      const oldCli = path.join(oldRelease, "scripts", "agent-surface.mjs");
+      const ignoringCli = path.join(ignoring, "scripts", "agent-surface.mjs");
+      const user = (dest, extra = [], cli = null) => install(["--target", "pool", "--scope", "user", "--dest", dest, ...extra], cli);
+      const differ = (dest) => writeFileSync(path.join(dest, legacy), `${read(dest, legacy)}\n# operator note\n`);
+
+      {
+        // Identical old route: the replacement is written, then the old file removed.
+        const dest = path.join(scratch, "pool-identical");
+        assert.equal(user(dest, [], oldCli).code, 0);
+        assert.ok(claims(dest, "pool", legacy), "the earlier release owns .poolside");
+        const unrelated = path.join(".config", "poolside", "notes.md");
+        writeFileSync(path.join(dest, unrelated), "operator notes\n");
+        const upgrade = user(dest);
+        assert.equal(upgrade.code, 0, upgrade.out);
+        assert.match(upgrade.out, new RegExp(`^planned route migrations:\\n {2}${escapeRegExp(legacy)} -> ${escapeRegExp(current)}: identical to the replacement; removed after it is written$`, "m"));
+        assert.match(upgrade.out, /^planned stale managed removals:\n {2}none$/m, "the migration is not reported as stale cleanup");
+        assert.match(upgrade.out, /^ {2}removed stale: 0\n {2}removed migrated routes: 1$/m);
+        assert.ok(!existsSync(path.join(dest, legacy)) && existsSync(path.join(dest, current)));
+        assert.equal(read(dest, unrelated), "operator notes\n");
+        assert.ok(!claims(dest, "pool", legacy) && claims(dest, "pool", current));
+        const repeat = user(dest);
+        assert.equal(repeat.code, 0, repeat.out);
+        assert.match(repeat.out, /^ {2}wrote: 0$/m);
+        assert.match(repeat.out, /^ {2}removed stale: 0$/m);
+      }
+      {
+        // Differing old route, discovery unproven: refused before anything changes, and a selection
+        // that writes no replacement leaves the old route alone and claimed.
+        const dest = path.join(scratch, "pool-differing");
+        assert.equal(user(dest, [], oldCli).code, 0);
+        differ(dest);
+        const before = snapshot(dest);
+        const upgrade = user(dest);
+        assert.equal(upgrade.code, 1, upgrade.out);
+        assert.match(upgrade.out, new RegExp(`MIGRATION_SOURCE_CONFLICT: ${escapeRegExp(legacy)} differs from its replacement ${escapeRegExp(current)}, `));
+        assert.doesNotMatch(upgrade.out, /operator note/, "the diagnostic prints no file contents");
+        assert.deepEqual(snapshot(dest), before, "a refused migration changes nothing");
+        const skillsOnly = user(dest, ["--category", "skills"]);
+        assert.equal(skillsOnly.code, 0, skillsOnly.out);
+        assert.equal(read(dest, legacy), before[legacy]);
+        assert.ok(claims(dest, "pool", legacy), "the old route stays claimed while nothing replaces it");
+        // Following the advice clears it: once the old file is removed, the rerun writes the
+        // replacement and drops the old claim.
+        rmSync(path.join(dest, legacy));
+        const resolved = user(dest);
+        assert.equal(resolved.code, 0, resolved.out);
+        assert.match(resolved.out, new RegExp(`^ {2}${escapeRegExp(legacy)} -> ${escapeRegExp(current)}: already gone; its claim ends$`, "m"));
+        assert.ok(existsSync(path.join(dest, current)) && !claims(dest, "pool", legacy));
+      }
+      if (process.getuid?.() !== 0) {
+        // Interrupted after the replacement landed: the old route outlives every write, the pending
+        // manifest keeps it claimed, and the rerun finishes the migration.
+        const dest = path.join(scratch, "pool-interrupted");
+        assert.equal(user(dest, [], oldCli).code, 0);
+        const skill = path.join(".config", "poolside", "skills", "ops-ask", "SKILL.md");
+        writeFileSync(path.join(dest, skill), `${read(dest, skill)}\n# operator edit\n`);
+        chmodSync(path.join(dest, skill), 0o444);
+        const first = user(dest);
+        chmodSync(path.join(dest, skill), 0o644);
+        assert.notEqual(first.code, 0, first.out);
+        assert.match(first.out, new RegExp(`^install interrupted: pool: ${escapeRegExp(skill)}: `, "m"));
+        assert.ok(existsSync(path.join(dest, current)), "the replacement landed before the failure");
+        assert.ok(existsSync(path.join(dest, legacy)), "the old route is removed only after every write");
+        assert.ok(claims(dest, "pool", legacy) && claims(dest, "pool", current), "the pending manifest claims both routes");
+        const rerun = user(dest);
+        assert.equal(rerun.code, 0, rerun.out);
+        assert.ok(!existsSync(path.join(dest, legacy)) && !claims(dest, "pool", legacy));
+      }
+      {
+        // An old route reached through a symbolic link is refused before anything changes, and the
+        // link's target is left alone.
+        const dest = path.join(scratch, "pool-symlinked");
+        assert.equal(user(dest, [], oldCli).code, 0);
+        const target = path.join(scratch, "pool-symlink-target");
+        writeFileSync(target, read(dest, legacy));
+        rmSync(path.join(dest, legacy));
+        symlinkSync(target, path.join(dest, legacy));
+        const upgrade = user(dest);
+        assert.equal(upgrade.code, 1, upgrade.out);
+        assert.match(upgrade.out, new RegExp(`^ {2}migrated route ${escapeRegExp(legacy)} traverses symbolic link: `, "m"));
+        assert.ok(lstatSync(path.join(dest, legacy)).isSymbolicLink() && existsSync(target));
+        assert.ok(!existsSync(path.join(dest, current)), "a refused plan writes nothing");
+      }
+      {
+        // The moved document keeps the category contribution its old route recorded, even once the
+        // old file is gone: a narrower selection may not overwrite the development document.
+        const dest = path.join(scratch, "pool-category");
+        assert.equal(user(dest, ["--category", "development"], oldCli).code, 0);
+        rmSync(path.join(dest, legacy));
+        const before = snapshot(dest);
+        const rules = user(dest, ["--category", "rules"]);
+        assert.equal(rules.code, 1, rules.out);
+        assert.match(rules.out, new RegExp(`${escapeRegExp(current)} replaces ${escapeRegExp(legacy)}, which carries the development category's contribution`));
+        assert.deepEqual(snapshot(dest), before);
+        // The category that recorded the contribution still passes, and the moved document records it.
+        const development = user(dest, ["--category", "development"]);
+        assert.equal(development.code, 0, development.out);
+        assert.match(development.out, new RegExp(`^ {2}${escapeRegExp(legacy)} -> ${escapeRegExp(current)}: already gone; its claim ends$`, "m"));
+        assert.equal(manifest(dest, "pool").managed.find((entry) => entry.output === current)?.asset_category, "development");
+      }
+      {
+        // An identical old route another owner still claims stays for that owner: only this target's
+        // claim ends, and the route is listed once, as a migration.
+        const dest = path.join(scratch, "pool-co-claimed");
+        assert.equal(user(dest, [], oldCli).code, 0);
+        writeFileSync(path.join(dest, ".agent-surface", "foreign-manifest.json"), `${JSON.stringify({
+          target: "foreign",
+          scope: "user",
+          managed: [{ target: "foreign", source: "notes", output: legacy }],
+          config_entries: [],
+        })}\n`);
+        const upgrade = user(dest);
+        assert.equal(upgrade.code, 0, upgrade.out);
+        assert.match(upgrade.out, new RegExp(`^ {2}${escapeRegExp(legacy)} -> ${escapeRegExp(current)}: identical to the replacement; kept, still claimed by foreign$`, "m"));
+        assert.match(upgrade.out, /^planned stale managed paths retained for other owners:\n {2}none$/m);
+        assert.ok(existsSync(path.join(dest, legacy)) && existsSync(path.join(dest, current)));
+        assert.ok(!claims(dest, "pool", legacy) && claims(dest, "foreign", legacy));
+      }
+      {
+        // Differing old route proven ignored: the replacement is written and the old file kept,
+        // claimed and listed on every run until the operator removes it.
+        const dest = path.join(scratch, "pool-ignored");
+        assert.equal(user(dest, [], oldCli).code, 0);
+        differ(dest);
+        const kept = read(dest, legacy);
+        const upgrade = user(dest, [], ignoringCli);
+        assert.equal(upgrade.code, 0, upgrade.out);
+        assert.match(upgrade.out, new RegExp(`^ {2}LEGACY_FILE_RETAINED: ${escapeRegExp(legacy)} differs from its replacement ${escapeRegExp(current)} and is kept, because a recorded discovery qualification shows the client ignores it; `, "m"));
+        assert.equal(read(dest, legacy), kept);
+        assert.ok(existsSync(path.join(dest, current)) && claims(dest, "pool", legacy));
+        assert.match(user(dest, [], ignoringCli).out, /LEGACY_FILE_RETAINED/, "the warning repeats until the operator removes the file");
+      }
+      {
+        // An old route this target does not own is not its to remove.
+        const dest = path.join(scratch, "pool-unowned-legacy");
+        mkdirSync(path.join(dest, ".config", "poolside"), { recursive: true });
+        writeFileSync(path.join(dest, legacy), "operator notes\n");
+        const fresh = user(dest);
+        assert.equal(fresh.code, 0, fresh.out);
+        assert.equal(read(dest, legacy), "operator notes\n");
+        assert.doesNotMatch(fresh.out, /planned route migrations:|MIGRATION_SOURCE_CONFLICT/);
+      }
+      {
+        // A personal AGENTS.md the operator already has is theirs: the new route blocks through the
+        // unowned-destination rule and nothing changes.
+        const dest = path.join(scratch, "pool-unowned-current");
+        mkdirSync(path.join(dest, ".config", "poolside"), { recursive: true });
+        writeFileSync(path.join(dest, current), "my instructions\n");
+        const before = snapshot(dest);
+        const fresh = user(dest);
+        assert.equal(fresh.code, 1, fresh.out);
+        assert.match(fresh.out, new RegExp(`UNOWNED_DESTINATION: ${escapeRegExp(current)} exists `));
+        assert.deepEqual(snapshot(dest), before);
+      }
+      {
+        // The default root with XDG_CONFIG_HOME moved: the route stays under ~/.config/poolside,
+        // since agent-surface does not follow XDG_CONFIG_HOME.
+        const xdg = path.join(scratch, "xdg");
+        const result = status(["install", "--target", "pool", "--scope", "user", "--allow-scope-root"], { env: { ...env, XDG_CONFIG_HOME: xdg } });
+        assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+        assert.ok(existsSync(path.join(home, current)) && !existsSync(path.join(home, legacy)));
+        assert.ok(!existsSync(path.join(xdg, "poolside")));
+      }
+    } finally {
+      rmSync(oldRelease, { recursive: true, force: true });
+      rmSync(ignoring, { recursive: true, force: true });
     }
   }
 
