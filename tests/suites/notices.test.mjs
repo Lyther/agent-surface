@@ -10,6 +10,7 @@ import { files, root, run } from "../lib/helpers.mjs";
 const noticeCodes = [
   "ANTIGRAVITY_WORKFLOW_RETIREMENT",
   "DSH_REQUALIFY_AFTER_SECURITY_UPDATE",
+  "KIRO_MANUAL_STEERING_AUTOLOADED",
   "OPENHANDS_CLI_LEGACY",
   "SHARED_SKILL_ROOT_MANUAL_UNQUALIFIED",
   "WINDSURF_CASCADE_LEGACY",
@@ -136,6 +137,7 @@ try {
   for (const [target, code] of [
     ["antigravity", "ANTIGRAVITY_WORKFLOW_RETIREMENT"],
     ["dsh", "DSH_REQUALIFY_AFTER_SECURITY_UPDATE"],
+    ["kiro", "KIRO_MANUAL_STEERING_AUTOLOADED"],
     ["openhands", "OPENHANDS_CLI_LEGACY"],
     ["windsurf", "WINDSURF_CASCADE_LEGACY"],
     ["windsurf", "WINDSURF_RULE_SIZE_LIMITS"],

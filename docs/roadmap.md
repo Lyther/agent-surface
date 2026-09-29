@@ -1,6 +1,6 @@
 # Runtime Refresh Roadmap
 
-Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT1.1 AND RT2.0 IMPLEMENTED; ALL OTHER TASKS NOT STARTED
+Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT1.1, RT1.2 AND RT2.0 IMPLEMENTED; ALL OTHER TASKS NOT STARTED
 Date: 2026-09-28; revised the same day after cross-review
 Baseline: `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 Inputs: [concept](context/concept-zero.md), [research](context/concept-zero-research.md), [architecture](architecture.md), [contract](contracts/runtime-refresh.md).
@@ -83,7 +83,7 @@ Exit: schema validates real records; invalid references/date/evidence are reject
 
 ### RT1.2 Correct the Existing Capability Inventory
 
-State: NOT STARTED. Depends on: `RT1.1`. Covers: `G-RT-02`, `G-RT-05`, `G-RT-06`, `Q-RT-02`.
+State: IMPLEMENTED; the release observations in `skills/ops-swarm/references/runtime-catalog.md` wait for its owner. Depends on: `RT1.1`. Covers: `G-RT-02`, `G-RT-05`, `G-RT-06`, `Q-RT-02`.
 
 Narrow Codex project, VS Code harness, Cursor global-rule, config-home and edition claims to the actual supported contract. Distinguish package versions from Kiro harness labels; correct Kimi/OpenCode/Pi descriptions against current selected sources. Identify editor/CLI/exporter/cloud units. Retain every unaffected target and the current category boundaries. Do not remove existing files or add native features through wording.
 

@@ -5,9 +5,9 @@ Every host `agent-surface` renders into, and how much of the source model each r
 | Target | Auto-invocable skills | Manual-only workflows | Rules / instructions | Agents / subagents | External / MCP / ignores | Compat |
 |---|---|---|---|---|---|---:|
 | Claude Code | 62 `.claude/skills/*/SKILL.md` | 5 explicit-only skills | None | 6 `.claude/agents/*.md` | External skills; Synapse + Grimoire in `.claude.json` | 5 |
-| Codex | 62 `.agents/skills/*/SKILL.md` with implicit sidecars | 5 explicit-only `.agents/skills/*/SKILL.md` with non-implicit sidecars | `.codex/AGENTS.md` + 6 scoped refs | 6 `.codex/agents/*.toml` | External skills; Synapse + Grimoire in `.codex/config.toml` | 5 |
+| Codex | 62 `.agents/skills/*/SKILL.md` with implicit sidecars | 5 explicit-only `.agents/skills/*/SKILL.md` with non-implicit sidecars | `~/.codex/AGENTS.md` (user only) + 6 scoped refs | 6 `.codex/agents/*.toml` | External skills; Synapse + Grimoire in `.codex/config.toml` | 5 |
 | Deep Agents Code | 62 `.deepagents/agent/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.deepagents/agent/AGENTS.md` + 6 scoped refs | Worker only | External skills; Synapse + Grimoire in `.deepagents/.mcp.json` | 4 |
-| Cursor | 62 `.cursor/skills/*/SKILL.md` | 5 `.cursor/commands/*.md` | 12 native `.cursor/rules/*.mdc` | 6 `.cursor/agents/*.md` | External skills; Synapse + Grimoire; `.cursorignore` | 5 |
+| Cursor | 62 `.cursor/skills/*/SKILL.md` | 5 `.cursor/commands/*.md` | 12 `~/.cursor/rules/*.mdc` (loading unverified) | 6 `.cursor/agents/*.md` | External skills; Synapse + Grimoire; `.cursorignore` | 5 |
 | Droid | 62 `.factory/skills/*/SKILL.md` | 5 `.factory/commands/*.md` | `.factory/AGENTS.md` + 6 scoped refs | 6 `.factory/droids/*.md` | External skills; Synapse + Grimoire | 5 |
 | Cline | 62 `.cline/skills/*/SKILL.md` | 5 `~/Documents/Cline/Workflows/*.md` | Cline rules + 6 scoped refs | 6 `.cline/agents/*.yaml` | External skills; Synapse + Grimoire; `.clineignore` | 5 |
 | Kilo | 62 `~/.kilo/skills/*/SKILL.md` | 5 `.config/kilo/commands/*.md` | 6 always-on rules + 6 scoped refs | 6 `.config/kilo/agents/*.md` | External skills; Synapse + Grimoire; whole-object full-access permission; sharing disabled; `.kilocodeignore` | 5 |
@@ -30,7 +30,7 @@ Every host `agent-surface` renders into, and how much of the source model each r
 | Windsurf | 62 `.codeium/windsurf/skills/*/SKILL.md` | 5 global workflows | Global rules + 6 scoped refs | None | External skills; Synapse + Grimoire | 5 |
 | Zed | 62 `.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.config/zed/AGENTS.md` + 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
 
-Bundled instruction targets inline only `alwaysApply: true` rules. Cybersecurity (`04`) and language rules (`10`–`14`) ship as separate reference files under each target's config tree for explicit or project-aware selection. Cursor keeps all 12 as native `.mdc`; Kilo config-merges the 6 always-on rules and keeps the 6 scoped policies as references.
+Bundled instruction targets inline only `alwaysApply: true` rules. Cybersecurity (`04`) and language rules (`10`–`14`) ship as separate reference files under each target's config tree for explicit or project-aware selection. Cursor keeps all 12 as `.mdc` files under `~/.cursor/rules`, a home-directory location Cursor does not document; Kilo config-merges the 6 always-on rules and keeps the 6 scoped policies as references.
 
 Generated-file presence proves only distribution. `workflow-runtime` separately grades host discovery, native invocation, authentication, full-autonomy execution, exact materialized world state, output contract, and MCP tool calls. A target may therefore be generated while its installed CLI is `BLOCKED`, `PARTIAL`, or `UNREACHABLE` on a particular machine.
 
@@ -54,7 +54,7 @@ Kimi Code's TUI, web runtime, and official VS Code-compatible extension share `c
 
 The target uses Kimi-specific roots rather than generic `.agents` roots so user and project installs remain isolated from other hosts. Canonical `skills/*/SKILL.md` files are emitted unchanged and remain model-invocable. The five committed high-impact commands and any ignored local command overlays become explicit-only `type: flow` skills with `disableModelInvocation: true`. Subagent sources become native custom-agent Markdown with access-specific tool allowlists.
 
-Permission configuration is deliberately split. Full installs merge `default_permission_mode = "auto"` into Kimi's TOML config for unattended terminal/web execution. The official extension exposes only the persistent `kimi.yoloMode` toggle, so user installs set that to `true` in VS Code and Cursor settings while preserving sibling settings. YOLO approves regular tool calls but is not mislabeled as Auto; category-only MCP installs leave both host-wide permission controls untouched.
+Permission configuration is deliberately split. Full user installs merge `default_permission_mode = "auto"` into Kimi's `config.toml` for unattended terminal/web execution; a project install's `.kimi-code/config.toml` is not a documented Kimi file, so project Auto is not claimed. The official extension exposes only the persistent `kimi.yoloMode` toggle, so user installs set that to `true` in VS Code and Cursor settings while preserving sibling settings. YOLO approves regular tool calls but is not mislabeled as Auto; category-only MCP installs leave both host-wide permission controls untouched.
 
 Live Kimi CLI `0.29.1` probes on 2026-07-27 started the generated project target in the TUI, connected both first-party MCP servers, activated `/skill:ops-flow`, returned its IRON LAW, and called `mcp__synapse__lock_list` through the generated project `mcp.json`. Cursor extension `0.6.4` was inventoried and its shared-home contract was verified from installed code and official documentation, but no extension-originated task or MCP call was run.
 

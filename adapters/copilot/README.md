@@ -1,6 +1,6 @@
 # GitHub Copilot adapter
 
-This target covers current Copilot CLI customization and retains the VS Code user instruction file.
+This target covers current Copilot CLI customization in the default `~/.copilot` (`COPILOT_HOME` is not followed). User installs also write one VS Code profile instruction file, which only VS Code's Local agent reads; the Copilot Agent Host reads `~/.copilot/copilot-instructions.md` instead, which is not qualified here.
 
 User scope:
 

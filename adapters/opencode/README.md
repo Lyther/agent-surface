@@ -1,6 +1,6 @@
 # OpenCode adapter
 
-Canonical skills use OpenCode's native skill root. Available high-impact commands remain custom commands; normalized subagents and rules use their native OpenCode surfaces.
+The target is OpenCode (npm `opencode-ai`) in its default `~/.config/opencode` or project roots. OpenCode documents a terminal interface, desktop app and IDE extension; the latter two are backed only by that documentation here. agent-surface does not write into `OPENCODE_CONFIG_DIR`, an extra directory OpenCode loads after those roots, so definitions there can override the generated ones. OpenCode 2 (npm `@opencode/cli`), which uses the same `opencode` command and reads the same roots, is not targeted or tested. Canonical skills use OpenCode's native skill root. Available high-impact commands remain custom commands; normalized subagents and rules use their native OpenCode surfaces.
 
 Implemented target paths:
 
