@@ -28,7 +28,7 @@ Every host `agent-surface` renders into, and how much of the source model each r
 | Pi | 62 `.pi/agent/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.pi/agent/AGENTS.md` + 6 scoped refs | None | External skills | 4 |
 | Poolside | 62 `.config/poolside/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.config/poolside/AGENTS.md` + 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
 | Windsurf | 62 `.codeium/windsurf/skills/*/SKILL.md` | 5 global workflows | Global rules + 6 scoped refs | None | External skills; Synapse + Grimoire | 5 |
-| Zed | 62 `.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.config/zed/AGENTS.md` + 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
+| Zed | 62 `.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `AGENTS.md` in `.config/zed` (Windows: `AppData/Roaming/Zed`) + 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
 
 Bundled instruction targets inline only `alwaysApply: true` rules. Cybersecurity (`04`) and language rules (`10`–`14`) ship as separate reference files under each target's config tree for explicit or project-aware selection. Cursor keeps all 12 as `.mdc` files under `~/.cursor/rules`, a home-directory location Cursor does not document; Kilo config-merges the 6 always-on rules and keeps the 6 scoped policies as references.
 

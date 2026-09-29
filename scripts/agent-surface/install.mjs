@@ -901,7 +901,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   ].map((mcpConfig) => ({
     relativeOutput: outputRootFor(mcpConfig.relativeOutput, configRouteContext),
     format: mcpConfig.format,
-  }));
+  })).filter((route) => route.relativeOutput);
   const categorySelectsMcp = selectedCategories.size > 0 && (
     (await selectedMcpServiceEntries(true, configRouteContext)).length > 0
     || ownedConfigEntries.some((entry) => entry.ids.some(

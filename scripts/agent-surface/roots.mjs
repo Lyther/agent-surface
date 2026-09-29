@@ -228,12 +228,25 @@ export function ideUserDataRoot(product, context = {}) {
   const platform = context.platform ?? process.platform;
   if (platform === "darwin") return path.join("Library", "Application Support", product);
   if (platform === "win32") {
-    const windowsPath = path.win32;
     const appData = context.appData ?? process.env.APPDATA;
-    if (!context.relocateExternalRoutes && appData) return windowsPath.join(appData, product);
-    return windowsPath.join("AppData", "Roaming", product);
+    if (!context.relocateExternalRoutes && appData) return path.win32.join(appData, product);
+    return windowsRoamingPath(product);
   }
   return path.join(".config", product);
+}
+
+// The roaming AppData directory resolved from the profile home, as the VS Code root is: a
+// redirected %APPDATA% is not followed.
+function windowsRoamingPath(...segments) {
+  return path.win32.join("AppData", "Roaming", ...segments);
+}
+
+// Goose keeps config.yaml in ~/.config/goose on macOS and Linux (XDG_CONFIG_HOME is not followed)
+// and in the roaming AppData directory on Windows.
+export function gooseMcpPath(context) {
+  return (context.platform ?? process.platform) === "win32"
+    ? windowsRoamingPath("Block", "goose", "config", "config.yaml")
+    : path.join(".config", "goose", "config.yaml");
 }
 
 export function kiloWorkflowRoot(context) {
@@ -437,13 +450,27 @@ export function vsCodeUserRoot(product, context = {}) {
 export const zedSkillRoot = sharedAgentSkillRoot;
 
 export function zedInstructionPath(context) {
-  return context.scope === "user" ? path.join(".config", "zed", "AGENTS.md") : "AGENTS.md";
+  return context.scope === "user" ? zedConfigPath(context, "AGENTS.md") : "AGENTS.md";
 }
 
+// Zed's config directory is ~/.config/zed on macOS and Linux (Linux Zed also honors XDG_CONFIG_HOME,
+// which is not followed here) and the roaming AppData directory on Windows.
 export function zedConfigRoot(context) {
-  return context.scope === "user" ? path.join(".config", "zed") : ".zed";
+  if (context.scope !== "user") return ".zed";
+  return (context.platform ?? process.platform) === "win32" ? windowsRoamingPath("Zed") : path.join(".config", "zed");
 }
 
 export function zedMcpPath(context) {
-  return path.join(zedConfigRoot(context), "settings.json");
+  return zedConfigPath(context, "settings.json");
+}
+
+// Where Windows user installs wrote Zed's personal instructions before the per-OS route; Windows Zed
+// never reads it. Elsewhere this is still the live route, so there is nothing to migrate.
+export function zedLegacyInstructionPath(context) {
+  return context.scope === "user" && (context.platform ?? process.platform) === "win32" ? path.join(".config", "zed", "AGENTS.md") : null;
+}
+
+function zedConfigPath(context, name) {
+  const pathApi = (context.platform ?? process.platform) === "win32" ? path.win32 : path;
+  return pathApi.join(zedConfigRoot(context), name);
 }

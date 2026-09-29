@@ -14,7 +14,7 @@ import { readFileIfExists } from "./io.mjs";
 import { derivedNoticeCodes } from "./notices.mjs";
 import { gitIgnoredPaths, gitStagedGitlinkMap, gitSubmoduleStatusMap } from "./proc.mjs";
 import { readAssetCategories, readOptionalServices, readSourceKinds, relative, root } from "./registry.mjs";
-import { vsCodeUserRoot } from "./roots.mjs";
+import { vsCodeUserRoot, zedInstructionPath } from "./roots.mjs";
 import { readRules } from "./rules.mjs";
 import { readSkills } from "./skills.mjs";
 import { readSubagents, subagentValidationErrors } from "./source-primitives.mjs";
@@ -1179,7 +1179,7 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".codeium", "windsurf", "skills", "ctf-osint", "SKILL.md"), skillFrontmatter);
   } else if (target === "zed") {
     requireContains(path.join(".agents", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
-    requireContains(path.join(".config", "zed", "AGENTS.md"), /agent-surface Zed rules/);
+    requireContains(zedInstructionPath({ scope: "user" }), /agent-surface Zed rules/);
     requireContains(path.join(".agents", "skills", "redteam-boundary-policy", "SKILL.md"), skillFrontmatter);
   } else if (target === "codex-plugin") {
     // An exported package is only portable if its manifest is VALID. `$schema` is a required const

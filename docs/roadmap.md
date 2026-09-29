@@ -139,9 +139,13 @@ Exit: in a clean profile, the actual selected product discovers and invokes the 
 
 ### RT2.4 Remaining Platform/Edition Paths
 
-State: NOT STARTED. Depends on: `RT1.2`, `RT2.0`. Covers: `G-RT-05`, `Q-RT-02`, `Q-RT-04`.
+State: IN PROGRESS; the Zed and Goose per-OS routes are implemented (Windows loading is not natively qualified; the Windows CI job plans the routes). Depends on: `RT1.2`, `RT2.0`. Covers: `G-RT-05`, `Q-RT-02`, `Q-RT-04`.
 
-Separate small changes: Zed Windows AppData, selected Trae CN/global CLI route, and Cline's verified Devin extension config location. Each starts with the actual versioned path contract and one real reproducer; no universal config-home layer or writes to every candidate root.
+Separate small changes, one change each. Each starts with the actual versioned path contract and one real reproducer; no universal config-home layer or writes to every candidate root.
+
+- Zed and Goose: route user config through the per-OS roots: Zed `~/.config/zed` on macOS and Linux and the roaming AppData `Zed` directory on Windows; Goose `~/.config/goose` and `AppData\Roaming\Block\goose\config`. Pre-fix Windows `~/.config` settings go through declared obsolete-route cleanup, and Zed's personal `AGENTS.md` through Migration step 4, with Zed's pinned `config_dir()` source as the evidence that Windows Zed ignores the old route.
+- Trae: the selected CN, international and CLI routes.
+- Cline: the per-editor MCP files, including the Devin Desktop location.
 
 Files: corresponding `roots.mjs` helpers/adapter producers, metadata, focused roots/build/install tests. A native loader check is required only for that target's live claim.
 

@@ -31,6 +31,7 @@ const suites = [
   "notices.test.mjs",
   "build.test.mjs",
   "runtime.test.mjs",
+  "os-routes.test.mjs",
   "install.test.mjs",
   "ownership.test.mjs",
   "mcp-launch-resolve.test.mjs",

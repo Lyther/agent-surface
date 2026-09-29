@@ -32,10 +32,10 @@
         "Trae MCP: ~/.trae/mcp.json mcpServers.synapse (auto-generated/merged)",
         "TraeCode CLI MCP: ~/.trae/traecli.toml mcp_servers.synapse (auto-generated/merged, user-scope)",
         "Windsurf MCP: ~/.codeium/windsurf/mcp_config.json mcpServers.synapse (auto-generated/merged)",
-        "Zed MCP: ~/.config/zed/settings.json context_servers.synapse (auto-generated/merged)",
+        "Zed MCP: settings.json in Zed's config directory (~/.config/zed on macOS and Linux, AppData\\Roaming\\Zed on Windows) context_servers.synapse (auto-generated/merged)",
         "Grok Build MCP: ~/.grok/config.toml mcp_servers.synapse (auto-generated/merged)",
         "Antigravity CLI MCP: ~/.gemini/antigravity-cli/plugins/agent-surface/mcp_config.json mcpServers.synapse (auto-generated/merged)",
-        "Goose MCP: ~/.config/goose/config.yaml extensions.synapse (auto-generated/merged, user-scope)",
+        "Goose MCP: config.yaml in Goose's config directory (~/.config/goose on macOS and Linux, AppData\\Roaming\\Block\\goose\\config on Windows) extensions.synapse (auto-generated/merged, user-scope)",
         "Poolside MCP: ~/.config/poolside/settings.yaml mcp_servers.synapse (auto-generated/merged)"
       ],
       "notes": [
@@ -110,10 +110,10 @@
         "Trae MCP: ~/.trae/mcp.json mcpServers.grimoire (auto-generated/merged)",
         "TraeCode CLI MCP: ~/.trae/traecli.toml mcp_servers.grimoire (auto-generated/merged, user-scope)",
         "Windsurf MCP: ~/.codeium/windsurf/mcp_config.json mcpServers.grimoire (auto-generated/merged)",
-        "Zed MCP: ~/.config/zed/settings.json context_servers.grimoire (auto-generated/merged)",
+        "Zed MCP: settings.json in Zed's config directory (~/.config/zed on macOS and Linux, AppData\\Roaming\\Zed on Windows) context_servers.grimoire (auto-generated/merged)",
         "Grok Build MCP: ~/.grok/config.toml mcp_servers.grimoire (auto-generated/merged)",
         "Antigravity CLI MCP: ~/.gemini/antigravity-cli/plugins/agent-surface/mcp_config.json mcpServers.grimoire (auto-generated/merged)",
-        "Goose MCP: ~/.config/goose/config.yaml extensions.grimoire (auto-generated/merged, user-scope)",
+        "Goose MCP: config.yaml in Goose's config directory (~/.config/goose on macOS and Linux, AppData\\Roaming\\Block\\goose\\config on Windows) extensions.grimoire (auto-generated/merged, user-scope)",
         "Poolside MCP: ~/.config/poolside/settings.yaml mcp_servers.grimoire (auto-generated/merged)"
       ],
       "notes": [

@@ -280,6 +280,10 @@
         {
           "label": "Goose recipe reference",
           "url": "https://goose-docs.ai/docs/guides/recipes/recipe-reference/"
+        },
+        {
+          "label": "Goose config files",
+          "url": "https://goose-docs.ai/docs/guides/config-files"
         }
       ],
       "surfaces": {
@@ -301,9 +305,10 @@
             "user"
           ],
           "paths": [
-            "~/.config/goose/config.yaml"
+            "~/.config/goose/config.yaml",
+            "%APPDATA%\\Block\\goose\\config\\config.yaml"
           ],
-          "notes": "First-party secretless MCP services are non-destructively merged into Goose YAML `extensions` (type: stdio); user-scope only (config.yaml is user-global)."
+          "notes": "First-party secretless MCP services are non-destructively merged into Goose YAML `extensions` (type: stdio); user-scope only (config.yaml is user-global). The file is ~/.config/goose/config.yaml on macOS and Linux (XDG_CONFIG_HOME is not followed) and Block\\goose\\config\\config.yaml in the roaming AppData directory on Windows (%APPDATA% by default), resolved from the profile home, so a redirected %APPDATA% is not followed; the Windows route is not natively qualified. Windows installs made before the per-OS route merged into ~/.config/goose/config.yaml, which Windows Goose never reads; the next full install prunes those entries."
         },
         "skills": {
           "support": "native",
@@ -2506,7 +2511,7 @@
       ]
     },
     "zed": {
-      "summary": "Zed supports AGENTS.md instructions, Agent Skills, external agents, and MCP context servers; agent-surface generates skills, instructions, external skill packs, and first-party MCP wiring (Synapse + Grimoire).",
+      "summary": "Zed supports AGENTS.md instructions, Agent Skills, external agents, and MCP context servers; agent-surface generates skills, instructions, external skill packs, and first-party MCP wiring (Synapse + Grimoire) in Zed's per-OS config directory: ~/.config/zed on macOS and Linux (XDG_CONFIG_HOME is not followed) and the roaming AppData directory on Windows (%APPDATA%\\Zed by default), resolved from the profile home; a redirected %APPDATA% is not followed.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -2525,6 +2530,14 @@
         {
           "label": "Zed MCP",
           "url": "https://zed.dev/docs/ai/mcp.html"
+        },
+        {
+          "label": "Zed settings file locations (docs source, pinned)",
+          "url": "https://github.com/zed-industries/zed/blob/bd747337d7be138834e20972b9e203c7b239cc47/docs/src/configuring-zed.md"
+        },
+        {
+          "label": "Zed config_dir per OS (source, pinned)",
+          "url": "https://github.com/zed-industries/zed/blob/bd747337d7be138834e20972b9e203c7b239cc47/crates/paths/src/paths.rs"
         }
       ],
       "surfaces": {
@@ -2550,9 +2563,10 @@
           ],
           "paths": [
             "~/.config/zed/AGENTS.md",
+            "%APPDATA%\\Zed\\AGENTS.md",
             "AGENTS.md"
           ],
-          "notes": "Rules are bundled into AGENTS.md instruction files."
+          "notes": "Rules are bundled into AGENTS.md instruction files. The personal file is ~/.config/zed/AGENTS.md on macOS and Linux and %APPDATA%\\Zed\\AGENTS.md on Windows, which Zed documents as personal instructions for its native agent only. The Windows route is not natively qualified. A differing personal AGENTS.md that Windows installs made before the per-OS route left in ~/.config/zed is kept and listed as LEGACY_FILE_RETAINED, because Windows Zed never reads it; an identical one is removed after the replacement is written."
         },
         "external": {
           "support": "native",
@@ -2576,9 +2590,10 @@
           ],
           "paths": [
             "~/.config/zed/settings.json",
+            "%APPDATA%\\Zed\\settings.json",
             ".zed/settings.json"
           ],
-          "notes": "First-party secretless MCP services are generated/merged under context_servers; external or secret-bearing MCPs remain opt-in."
+          "notes": "First-party secretless MCP services are generated/merged under context_servers; external or secret-bearing MCPs remain opt-in. Windows installs made before the per-OS route merged into ~/.config/zed/settings.json, which Windows Zed never reads; the next full install prunes those entries there."
         }
       }
     },
