@@ -50,7 +50,7 @@ export function clineIdeUserDataRoot(product) {
 // - real-proof: a read-only `install --target cline --scope user --dry-run` against the operator's
 //   profile (RT2.4 review) planned the VS Code (Cline 3.86.2) and Cursor (4.1.21) routes and pruned the
 //   stray Windsurf one
-const clineExtensionDirs = { Code: ".vscode", Cursor: ".cursor", Windsurf: ".windsurf" };
+const clineExtensionDirs = { Code: ".vscode", Cursor: ".cursor", Windsurf: ".windsurf", Devin: ".devin" };
 export function installClineExtension(installRoot, editors = Object.keys(clineExtensionDirs)) {
   for (const editor of editors) {
     mkdirSync(path.join(installRoot, clineExtensionDirs[editor], "extensions", "saoudrizwan.claude-dev-3.86.2"), { recursive: true });
@@ -59,7 +59,7 @@ export function installClineExtension(installRoot, editors = Object.keys(clineEx
 
 export const clineUserMcpRoutes = [
   path.join(".cline", "data", "settings", "cline_mcp_settings.json"),
-  ...["Code", "Cursor", "Windsurf"].map((product) => path.join(
+  ...["Code", "Cursor", "Windsurf", "Devin"].map((product) => path.join(
     clineIdeUserDataRoot(product),
     "User",
     "globalStorage",

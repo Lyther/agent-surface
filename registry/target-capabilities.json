@@ -783,7 +783,7 @@
       ]
     },
     "cline": {
-      "summary": "Cline supports workflows, rules, Agent Skills, Configured Agents, MCP, plugins, hooks, scheduling, connectors, built-in spawn_agent delegation, and agent teams. The agent-surface subagents primitive compiles to Cline Configured Agent YAML; spawn_agent is separate runtime behavior that needs no generated artifact. agent-surface also generates workflows, rules, external skills, the ignore file, and first-party MCP wiring for the CLI plus installed VS Code/Cursor/Windsurf extension routes.",
+      "summary": "Cline supports workflows, rules, Agent Skills, Configured Agents, MCP, plugins, hooks, scheduling, connectors, built-in spawn_agent delegation, and agent teams. The agent-surface subagents primitive compiles to Cline Configured Agent YAML; spawn_agent is separate runtime behavior that needs no generated artifact. agent-surface also generates workflows, rules, external skills, the ignore file, and first-party MCP wiring for the CLI plus installed VS Code/Cursor/Windsurf/Devin Desktop extension routes.",
       "generated_render_tokens": [
         "skills",
         "commands-as-workflows",
@@ -845,6 +845,10 @@
         {
           "label": "Cline MCP settings loader",
           "url": "https://github.com/cline/cline/blob/c92d4e7553a5660eaef8472778add9880419ebd7/sdk/packages/core/src/extensions/mcp/config-loader.ts"
+        },
+        {
+          "label": "Devin Desktop paths (FAQ)",
+          "url": "https://docs.devin.ai/desktop/devin-desktop-faq"
         }
       ],
       "surfaces": {
@@ -921,9 +925,10 @@
             "~/.cline/data/settings/cline_mcp_settings.json",
             "<VS Code user data>/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
             "<Cursor user data>/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
-            "<Windsurf user data>/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
+            "<Windsurf user data>/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
+            "<Devin Desktop user data>/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
           ],
-          "notes": "Only the CLI and Cline's SDK-based extension (the Next bundle, rolling out from 4.1.0) read the shared ~/.cline/data/settings/cline_mcp_settings.json; the pre-SDK extension that 3.x and most 4.x installs run reads settings/cline_mcp_settings.json under its IDE's globalStorage. First-party secretless MCP services are merged into the shared route and into each per-IDE route whose IDE has the Cline extension installed (an extension folder, or a symlink to one, that the IDE has not marked obsolete); extension storage is not a signal because IDEs keep it after an uninstall, and a custom extensions directory is not detected. A full install prunes servers agent-surface merged into a per-IDE route whose IDE has no Cline, and plans list skipped routes with the reason. No Devin Desktop route is written. Scope-derived Windows installs honor APPDATA, and explicit --dest installs relocate the conventional AppData/Roaming subtree. External or secret-bearing MCPs remain opt-in. Documentation mentioning .cline/mcp.json is not backed by the current loaders."
+          "notes": "Only the CLI and Cline's SDK-based extension (the Next bundle, rolling out from 4.1.0) read the shared ~/.cline/data/settings/cline_mcp_settings.json; the pre-SDK extension that 3.x and most 4.x installs run reads settings/cline_mcp_settings.json under its IDE's globalStorage. First-party secretless MCP services are merged into the shared route and into each per-IDE route whose IDE has the Cline extension installed (an extension folder, or a symlink to one, that the IDE has not marked obsolete); extension storage is not a signal because IDEs keep it after an uninstall, and a custom extensions directory is not detected. A full install prunes servers agent-surface merged into a per-IDE route whose IDE has no Cline, and plans list skipped routes with the reason. Devin Desktop, the renamed Windsurf, gets the same guarded route under its Devin user-data folder, live when ~/.devin/extensions holds Cline, so an install does not create Devin's user data ahead of its first-run migration from Windsurf; Cline that Devin loads only from the legacy ~/.windsurf/extensions gets no Devin route. Scope-derived Windows installs honor APPDATA, and explicit --dest installs relocate the conventional AppData/Roaming subtree. External or secret-bearing MCPs remain opt-in. Documentation mentioning .cline/mcp.json is not backed by the current loaders."
         },
         "plugins": {
           "support": "native",

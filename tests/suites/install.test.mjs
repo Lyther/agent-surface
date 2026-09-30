@@ -659,6 +659,7 @@ assert.match(clineUserScope.stdout, /\.cline\/data\/settings\/cline_mcp_settings
 assert.match(clineUserScope.stdout, /Code\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
 assert.match(clineUserScope.stdout, /Cursor\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
 assert.match(clineUserScope.stdout, /Windsurf\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
+assert.match(clineUserScope.stdout, /Devin\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
 const clineDevelopmentUserScope = status(
   ["install", "--target", "cline", "--scope", "user", "--category", "development", "--dry-run"],
   { env: userScopeEnv },
@@ -1033,7 +1034,15 @@ for (const scope of ["user", "project"]) {
     assert.match(fresh, /\.cline\/data\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
     assert.doesNotMatch(fresh, /User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP/, "no editor has Cline, so no per-editor route");
     assert.match(fresh, skipped("Code", "no saoudrizwan\\.claude-dev extension folder under \\.vscode[\\\\/]extensions$"));
+    assert.match(fresh, skipped("Devin", "no saoudrizwan\\.claude-dev extension folder under \\.devin[\\\\/]extensions$"));
     assert.equal(existsSync(path.join(guardRoot, "fresh")), false, "a dry-run creates nothing");
+
+    // Devin Desktop, the renamed Windsurf, has its own extensions folder; the guard reads it, not the legacy ~/.windsurf one.
+    const devinDest = path.join(guardRoot, "devin");
+    installClineExtension(devinDest, ["Devin"]);
+    const devinPlan = plan(devinDest);
+    assert.match(devinPlan, added("Devin"));
+    assert.doesNotMatch(devinPlan, added("Windsurf"), "the legacy Windsurf route stays separate");
 
     const obsoleteDest = path.join(guardRoot, "obsolete");
     installClineExtension(obsoleteDest, ["Code"]);
@@ -1192,6 +1201,7 @@ for (const scope of ["user", "project"]) {
     assert.match(plan(strayDest), skipped("Windsurf", ".*; entries agent-surface merged there stay until a full install$"), "a partial install leaves them for the next full install");
     run(["install", "--target", "cline", "--scope", "user", "--dest", strayDest]);
     assert.deepEqual(JSON.parse(readFileSync(stray, "utf8")).mcpServers, { existing: { command: "keep" } }, "only the owned servers leave the stray file");
+    assert.equal(existsSync(path.join(strayDest, clineIdeUserDataRoot("Devin"))), false, "without Cline in Devin, an install creates no Devin user data, which would make Devin skip its migration from Windsurf");
     const strayManifest = JSON.parse(readFileSync(path.join(strayDest, ".agent-surface", "cline-manifest.json"), "utf8"));
     assert.ok(!strayManifest.config_entries.some((entry) => entry.path === perEditor("Windsurf")), "the pruned route is no longer claimed");
   } finally {

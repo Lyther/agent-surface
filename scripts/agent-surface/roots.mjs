@@ -227,6 +227,8 @@ function clineExtensionMcpPath(product) {
 export const clineVsCodeExtensionMcpPath = clineExtensionMcpPath("Code");
 export const clineCursorExtensionMcpPath = clineExtensionMcpPath("Cursor");
 export const clineWindsurfExtensionMcpPath = clineExtensionMcpPath("Windsurf");
+// Devin Desktop, the renamed Windsurf, keeps its own user data under Devin/ and extensions under ~/.devin.
+export const clineDevinExtensionMcpPath = clineExtensionMcpPath("Devin");
 
 export function ideUserDataRoot(product, context = {}) {
   const platform = context.platform ?? process.platform;

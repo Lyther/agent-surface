@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { clineCursorExtensionMcpPath, clineVsCodeExtensionMcpPath, gooseMcpPath, traeMcpPath, zedInstructionPath, zedMcpPath } from "../../scripts/agent-surface/roots.mjs";
+import { clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineVsCodeExtensionMcpPath, gooseMcpPath, traeMcpPath, zedInstructionPath, zedMcpPath } from "../../scripts/agent-surface/roots.mjs";
 import { status } from "../lib/helpers.mjs";
 
 const scratch = mkdtempSync(path.join(os.tmpdir(), "agent-surface-os-routes-"));
@@ -65,17 +65,19 @@ try {
   // the editor that has Cline gets a route.
   // SUBSTITUTE_JUSTIFICATION
   // - substitute: an empty saoudrizwan.claude-dev-<version> folder under a scratch profile's .vscode/extensions
-  // - replaces: Cline installed in VS Code
-  // - necessity: the planner's presence check reads only folder names, and installing VS Code and Cline
-  //   on a CI runner would launch an editor and download the extension
+  //   and .devin/extensions
+  // - replaces: Cline installed in VS Code and in Devin Desktop
+  // - necessity: the planner's presence check reads only folder names, and installing the editors and
+  //   Cline on a CI runner would launch editors and download the extension
   // - real-option: the real CLI plans against a real scratch profile with its own APPDATA
-  // - proof-limit: proves which per-editor route is planned on this OS, not that VS Code loads it
+  // - proof-limit: proves which per-editor route is planned on this OS, not that either editor loads it
   // - real-proof: none yet on Windows; on macOS the operator's profile dry-run in the RT2.4 review kept
   //   VS Code's and Cursor's routes
   {
     const clineHome = path.join(scratch, "cline-home");
     const appData = path.join(scratch, "cline-appdata");
     mkdirSync(path.join(clineHome, ".vscode", "extensions", "saoudrizwan.claude-dev-3.86.2"), { recursive: true });
+    mkdirSync(path.join(clineHome, ".devin", "extensions", "saoudrizwan.claude-dev-3.86.2"), { recursive: true });
     const result = status(["install", "--target", "cline", "--scope", "user", "--category", "mcps", "--dry-run"], {
       env: { ...env, HOME: clineHome, USERPROFILE: clineHome, APPDATA: appData },
     });
@@ -83,6 +85,7 @@ try {
     assert.equal(result.status, 0, out);
     assert.match(out, new RegExp(`^ {2}${escapeRegExp(clineVsCodeExtensionMcpPath({ scope: "user", appData }))} MCP \\+= `, "m"));
     assert.match(out, new RegExp(`^ {2}${escapeRegExp(clineCursorExtensionMcpPath({ scope: "user", appData }))}: no saoudrizwan\\.claude-dev extension folder under `, "m"));
+    assert.match(out, new RegExp(`^ {2}${escapeRegExp(clineDevinExtensionMcpPath({ scope: "user", appData }))} MCP \\+= `, "m"));
   }
 
   // Trae's IDE editions: the user MCP route sits beside each edition's per-OS User settings (under
