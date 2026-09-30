@@ -143,7 +143,7 @@ Verify `claude auth status` first. An IDE subscription session does not prove CL
 
 Resolve and version the exact binary before constructing a command. Current Cline releases have incompatible headless surfaces: recent Node CLI builds expose `--cwd`, `--provider`, `--model`, `--thinking`, `--auto-approve`, and `--json`; legacy Core CLI builds use `--oneshot`, `--yolo`, `--output-format`, and settings-owned model selection. This machine exposed both families during the 2026-09-03 probe, so no unversioned Cline command is a valid standing recipe.
 
-Use `ollama launch cline --model "$ollama_model" --config` when configuring the Ollama integration, then re-read the resolved `cline --help` and run a task-shaped probe. Cline CLI and the VS Code/Cursor/Windsurf extensions do not share one MCP settings file. A plain prompt without a skill-selection event proves the agent, not skill discovery.
+Use `ollama launch cline --model "$ollama_model" --config` when configuring the Ollama integration, then re-read the resolved `cline --help` and run a task-shaped probe. Only the Cline CLI and Cline's SDK-based extension read the shared `~/.cline` MCP settings file; the pre-SDK extension most installs run reads its IDE's `globalStorage` file. A plain prompt without a skill-selection event proves the agent, not skill discovery.
 
 ### Kilo and OpenCode
 

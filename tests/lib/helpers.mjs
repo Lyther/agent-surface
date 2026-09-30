@@ -38,6 +38,25 @@ export function clineIdeUserDataRoot(product) {
   return path.join(".config", product);
 }
 
+// SUBSTITUTE_JUSTIFICATION
+// - substitute: an empty saoudrizwan.claude-dev-<version> folder in an editor's extensions directory,
+//   used by install.test.mjs's user-scope MCP plan, scope-derived user plan, obsolete-route migration
+//   and per-editor guard cases
+// - replaces: a Cline extension installed in that editor
+// - necessity: install roots are disposable, and the planner's presence check reads only folder names
+// - real-option: installing the editor and a pinned Cline VSIX into a scratch extensions directory,
+//   rejected because it launches an editor client and downloads the extension
+// - proof-limit: proves which per-editor routes are planned, not that the editor loads Cline
+// - real-proof: a read-only `install --target cline --scope user --dry-run` against the operator's
+//   profile (RT2.4 review) planned the VS Code (Cline 3.86.2) and Cursor (4.1.21) routes and pruned the
+//   stray Windsurf one
+const clineExtensionDirs = { Code: ".vscode", Cursor: ".cursor", Windsurf: ".windsurf" };
+export function installClineExtension(installRoot, editors = Object.keys(clineExtensionDirs)) {
+  for (const editor of editors) {
+    mkdirSync(path.join(installRoot, clineExtensionDirs[editor], "extensions", "saoudrizwan.claude-dev-3.86.2"), { recursive: true });
+  }
+}
+
 export const clineUserMcpRoutes = [
   path.join(".cline", "data", "settings", "cline_mcp_settings.json"),
   ...["Code", "Cursor", "Windsurf"].map((product) => path.join(

@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // Per-OS install routes, planned through the real CLI on the OS that runs the suite. On macOS and Linux
-// (`npm test`) it confirms the unchanged ~/.config routes; the Windows CI job runs it natively, where
-// it covers the AppData routes and the cleanup of what pre-fix Windows installs left behind.
+// (`npm test`) it confirms the unchanged ~/.config routes and Cline's per-editor route; the Windows CI
+// job runs it natively, where it covers the AppData routes, the cleanup of what pre-fix Windows
+// installs left behind, and Cline's per-editor route under %APPDATA%.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { gooseMcpPath, zedInstructionPath, zedMcpPath } from "../../scripts/agent-surface/roots.mjs";
+import { clineCursorExtensionMcpPath, clineVsCodeExtensionMcpPath, gooseMcpPath, zedInstructionPath, zedMcpPath } from "../../scripts/agent-surface/roots.mjs";
 import { status } from "../lib/helpers.mjs";
 
 const scratch = mkdtempSync(path.join(os.tmpdir(), "agent-surface-os-routes-"));
@@ -57,6 +58,31 @@ try {
     const goose = plan("goose", path.join(scratch, "goose-fresh"));
     assert.equal(goose.code, 0, goose.out);
     assert.match(goose.out, new RegExp(`^ {2}${escapeRegExp(gooseConfig)} MCP \\+= `, "m"));
+  }
+
+  // Cline's per-editor MCP route on a scope-derived install: the editor's extensions directory is under
+  // the profile home and Cline's storage under the editor's user data (%APPDATA% on Windows), so only
+  // the editor that has Cline gets a route.
+  // SUBSTITUTE_JUSTIFICATION
+  // - substitute: an empty saoudrizwan.claude-dev-<version> folder under a scratch profile's .vscode/extensions
+  // - replaces: Cline installed in VS Code
+  // - necessity: the planner's presence check reads only folder names, and installing VS Code and Cline
+  //   on a CI runner would launch an editor and download the extension
+  // - real-option: the real CLI plans against a real scratch profile with its own APPDATA
+  // - proof-limit: proves which per-editor route is planned on this OS, not that VS Code loads it
+  // - real-proof: none yet on Windows; on macOS the operator's profile dry-run in the RT2.4 review kept
+  //   VS Code's and Cursor's routes
+  {
+    const clineHome = path.join(scratch, "cline-home");
+    const appData = path.join(scratch, "cline-appdata");
+    mkdirSync(path.join(clineHome, ".vscode", "extensions", "saoudrizwan.claude-dev-3.86.2"), { recursive: true });
+    const result = status(["install", "--target", "cline", "--scope", "user", "--category", "mcps", "--dry-run"], {
+      env: { ...env, HOME: clineHome, USERPROFILE: clineHome, APPDATA: appData },
+    });
+    const out = `${result.stdout}${result.stderr}`;
+    assert.equal(result.status, 0, out);
+    assert.match(out, new RegExp(`^ {2}${escapeRegExp(clineVsCodeExtensionMcpPath({ scope: "user", appData }))} MCP \\+= `, "m"));
+    assert.match(out, new RegExp(`^ {2}${escapeRegExp(clineCursorExtensionMcpPath({ scope: "user", appData }))}: no saoudrizwan\\.claude-dev extension folder under `, "m"));
   }
 
   // A Windows profile installed before the per-OS routes: the old ~/.config settings go through

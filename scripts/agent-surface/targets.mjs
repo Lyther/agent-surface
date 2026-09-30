@@ -16,6 +16,11 @@ import { readRulesForContext } from "./rules.mjs";
 import { ignoreOutputs, subagentOutputs } from "./source-primitives.mjs";
 import { exists, fail, isSafeRelativePath } from "./util.mjs";
 
+// The pre-SDK Cline extension that 3.x and most 4.x installs run reads MCP servers from its
+// per-editor storage; only the SDK-based extension reads the shared ~/.cline file (and imports a
+// per-editor file once). Per-editor routes are written only where the extension is installed.
+const CLINE_EXTENSION = { extensionId: "saoudrizwan.claude-dev" };
+
 export const targets = {
   "claude-code": {
     label: "Claude Code skills and subagents",
@@ -231,6 +236,7 @@ export const targets = {
         scopes: ["user"],
         emitOutput: false,
         allowAbsoluteOutput: true,
+        editorExtension: { ...CLINE_EXTENSION, extensionsDir: ".vscode" },
       },
       {
         relativeOutput: clineCursorExtensionMcpPath,
@@ -239,6 +245,7 @@ export const targets = {
         scopes: ["user"],
         emitOutput: false,
         allowAbsoluteOutput: true,
+        editorExtension: { ...CLINE_EXTENSION, extensionsDir: ".cursor" },
       },
       {
         relativeOutput: clineWindsurfExtensionMcpPath,
@@ -247,6 +254,7 @@ export const targets = {
         scopes: ["user"],
         emitOutput: false,
         allowAbsoluteOutput: true,
+        editorExtension: { ...CLINE_EXTENSION, extensionsDir: ".windsurf" },
       },
     ],
     cleanupConfigRoutes: [{

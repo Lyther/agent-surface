@@ -3,7 +3,7 @@
 // and MCP/Kilo config merges) into a host root. Both drive the shared producer
 // engine in targets.mjs; neither owns rendering or validation.
 import { randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -882,6 +882,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   const categoryRegistry = await readAssetCategories();
   const pruneMcpCategories = mcpPruneCategories(categoryFilter, optionalServices);
   const liveConfigRoutes = new Set();
+  const skippedConfigRoutes = [];
   const configRouteContext = {
     target,
     scope,
@@ -930,6 +931,23 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       const merge = await mcpConfigMerge(mcpConfig, installRoot, scope, {
         ...configRouteContext,
       });
+      // An absent editor's route is not live: a full install prunes entries this target owns there
+      // as an obsolete route, which stays declared for that cleanup.
+      if (mcpConfig.editorExtension) {
+        const presence = await editorExtensionPresence(mcpConfig.editorExtension, installRoot);
+        if (presence.error) {
+          blocked.push(presence.error);
+          // Its state is unknown, so the route is neither merged nor pruned as obsolete.
+          liveConfigRoutes.add(configEntryKey(merge.relativeOutput, merge.format));
+          continue;
+        }
+        if (!presence.present) {
+          const owned = ownedConfigEntries.some((entry) => configEntryKey(entry.path, entry.format) === configEntryKey(merge.relativeOutput, merge.format));
+          const file = owned ? await probePresence(() => lstat(merge.output), merge.output) : { value: null };
+          skippedConfigRoutes.push(`${merge.relativeOutput}: ${presence.reason}${skippedRouteCleanup(owned, file, partialInstall)}`);
+          continue;
+        }
+      }
       liveConfigRoutes.add(configEntryKey(merge.relativeOutput, merge.format));
       declaredConfigRoutes.push(merge);
       const prepared = await prepareMcpConfigMerge(merge, ownedConfigEntries, pruneMcpCategories, categoryRegistry);
@@ -1029,6 +1047,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     warnings,
     releasedLegacyPaths: [],
     routeMigrations: migrations,
+    skippedConfigRoutes,
     manifest,
     // Inputs to the cross-plan ownership decisions and to the pending manifest.
     rootClaims,
@@ -1222,6 +1241,65 @@ async function readDirectoryIfExists(directory) {
   }
 }
 
+// A per-editor extension file is read only by that editor's copy of the extension, so its route is
+// live only where the extension is installed: an extension folder (or a symlink to one) that the
+// editor has not marked obsolete. Extension storage is not a signal, because editors keep it after an
+// uninstall. The extensions directory is looked up under the install root, so a --dest install sees
+// only its destination. A location that cannot be read blocks the plan rather than guessing.
+async function editorExtensionPresence({ extensionsDir, extensionId }, installRoot) {
+  const extensions = path.join(installRoot, extensionsDir, "extensions");
+  const listed = await probePresence(() => readdir(extensions, { withFileTypes: true }), extensions);
+  if (listed.error) return listed;
+  const versioned = new RegExp(`^${extensionId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-\\d`, "i");
+  const installed = [];
+  for (const entry of listed.value ?? []) {
+    if (!versioned.test(entry.name) || !(entry.isDirectory() || entry.isSymbolicLink())) continue;
+    const target = await probePresence(() => stat(path.join(extensions, entry.name)), path.join(extensions, entry.name));
+    if (target.error) return target;
+    if (target.value?.isDirectory()) installed.push(entry.name.toLowerCase());
+  }
+  const where = path.join(extensionsDir, "extensions");
+  if (installed.length === 0) return { present: false, reason: `no ${extensionId} extension folder under ${where}` };
+  const obsoleteFile = path.join(extensions, ".obsolete");
+  const obsolete = await probePresence(() => readFile(obsoleteFile, "utf8"), obsoleteFile);
+  if (obsolete.error) return obsolete;
+  const marked = obsoleteNames(obsolete.value);
+  if (installed.every((name) => marked.has(name))) return { present: false, reason: `every ${extensionId} extension folder under ${where} is marked obsolete` };
+  return { present: true };
+}
+
+// One rule for every presence probe: a missing path, or a file or directory where the other belongs,
+// means absent (value null); anything else cannot be inspected safely and blocks.
+async function probePresence(read, location) {
+  try {
+    return { value: await read() };
+  } catch (error) {
+    if (["ENOENT", "ENOTDIR", "EISDIR"].includes(error?.code)) return { value: null };
+    return { error: `editor extension location cannot be inspected safely: ${location}: ${error.message}` };
+  }
+}
+
+// What happens to the entries this target recorded at a skipped route. A full install prunes a regular
+// file and ends the claim on a missing one; a partial install keeps both claims until the next full
+// install. A directory or symlink there blocks the full install, which the blocked line explains.
+function skippedRouteCleanup(owned, file, partialInstall) {
+  if (!owned || file.error) return "";
+  if (!file.value) return partialInstall ? "; its claim on the missing file ends at the next full install" : "; its claim on the missing file ends";
+  if (!file.value.isFile()) return "";
+  return partialInstall ? "; entries agent-surface merged there stay until a full install" : "; entries agent-surface merged there are pruned";
+}
+
+// VS Code-family editors list removed extension folders they have not deleted yet in extensions/.obsolete.
+function obsoleteNames(text) {
+  if (text === null) return new Set();
+  try {
+    const listed = JSON.parse(text);
+    return new Set(Object.entries(listed ?? {}).filter(([, value]) => value === true).map(([name]) => name.toLowerCase()));
+  } catch {
+    return new Set();
+  }
+}
+
 async function readLegacyOwnership(target) {
   const legacy = await readJsonIfExists(path.join(root, "registry", "legacy-owned.json")) ?? {};
   return {
@@ -1373,9 +1451,17 @@ async function addObsoleteConfigRouteMerges(
     try {
       info = await lstat(output);
     } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
+      // A missing file, or a file where a directory on its path belongs, holds nothing to prune: the
+      // claim simply ends. Anything else cannot be inspected safely.
+      if (error?.code === "ENOENT" || error?.code === "ENOTDIR") continue;
+      configMerges.push({
+        kind: "mcp",
+        action: "blocked",
+        relativeOutput: entry.path,
+        error: `obsolete MCP config route cannot be inspected safely: ${entry.path}: ${error.message}`,
+      });
+      continue;
     }
-    if (!info) continue;
     if (!info.isFile()) {
       configMerges.push({
         kind: "mcp",
@@ -1607,6 +1693,10 @@ function printInstallPlan(plan) {
         console.log(`  ${item.relativeOutput} config unchanged`);
       }
     }
+  }
+  if (plan.skippedConfigRoutes.length > 0) {
+    console.log("skipped config routes:");
+    for (const item of plan.skippedConfigRoutes) console.log(`  ${item}`);
   }
   if (plan.nonApplicable && plan.nonApplicable.length > 0) {
     console.log("non-applicable at this scope:");

@@ -134,7 +134,7 @@ Legacy retention applies even when no current manifest exists. Current manifest 
 
 OpenHands metadata names **V1 CLI (legacy; retained)**. No path, token, scope, source or MCP change is bundled with recommendation. Canvas/SDK require future independent targets/contracts, not an alias.
 
-Poolside corrects personal output to the documented config-home `AGENTS.md`; project `AGENTS.md` keeps its path, and its header becomes target-neutral in `RT2.0`. Qualify default/XDG roots before claiming both; no guessed process environment. Zed Windows uses the native AppData root; Trae changes are edition-specific; Cline's Devin location needs the installed extension contract. Codex/VS Code/Cursor scope corrections narrow claims without deleting files or asserting new GUI proof.
+Poolside corrects personal output to the documented config-home `AGENTS.md`; project `AGENTS.md` keeps its path, and its header becomes target-neutral in `RT2.0`. Qualify default/XDG roots before claiming both; no guessed process environment. Zed Windows uses the native AppData root; Trae changes are edition-specific; Cline's per-editor MCP files are written only where the Cline extension is installed, and no Devin Desktop route is added (operator decision, 2026-09-29). Codex/VS Code/Cursor scope corrections narrow claims without deleting files or asserting new GUI proof.
 
 ## Migration Consistency and Recovery
 
