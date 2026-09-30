@@ -580,6 +580,132 @@ try {
     }
   }
 
+  // Step 3, key split: the pre-split trae target also wrote the CN IDE's ~/.trae-cn/user_rules and the
+  // CLI's ~/.trae/traecli.toml. The international-IDE key keeps them claimed and untouched until
+  // trae-cn or trae-cli adopts them; the successor adopts them with their categories, so its own
+  // general reset removes opt-in files and prunes opt-in servers the former key recorded.
+  // SUBSTITUTE_JUSTIFICATION
+  // - substitute: a hand-written pre-split trae manifest with the files and config entries it recorded
+  // - replaces: a profile installed by a release before the Trae split
+  // - necessity: this checkout no longer renders the combined layout, and CI checkouts carry no history
+  //   to install an older release from
+  // - real-option: the real CLI, planner and apply run against a real root
+  // - proof-limit: proves the handover and adoption rules, not what either Trae edition loads
+  // - real-proof: the operator's profile holds a pre-split trae install; a read-only dry-run of the new
+  //   keys against it plans the same handover
+  {
+    const cnRule = (name) => path.join(".trae-cn", "user_rules", name);
+    const generalRules = [cnRule("00-precedence-and-safety.md"), cnRule("01-response-style.md")];
+    const optInRule = cnRule("04-cybersecurity.md");
+    const developmentAgent = path.join(".trae-cn", "agents", "boss.md");
+    const cli1Skill = path.join(".traecli", "skills", "ops-flow", "SKILL.md");
+    const cliConfig = path.join(".trae", "traecli.toml");
+    const unreadMcp = path.join(".trae", "mcp.json");
+    const sharedSkill = path.join(".trae", "skills", "ops-ask", "SKILL.md");
+    const preSplit = (dest, extra = []) => {
+      for (const file of [...generalRules, optInRule, developmentAgent, cli1Skill, ...extra.map((entry) => entry.output)]) {
+        mkdirSync(path.dirname(path.join(dest, file)), { recursive: true });
+        writeFileSync(path.join(dest, file), "written before the split\n");
+      }
+      mkdirSync(path.join(dest, ".trae"), { recursive: true });
+      writeFileSync(path.join(dest, cliConfig), 'model = "keep-me"\n\n[mcp_servers.chrome-devtools]\ncommand = "old"\n\n[mcp_servers.grimoire]\ncommand = "old"\n\n[mcp_servers.synapse]\ncommand = "old"\n');
+      writeFileSync(path.join(dest, unreadMcp), `${JSON.stringify({ mcpServers: { existing: { command: "keep" }, grimoire: { command: "old" }, synapse: { command: "old" } } }, null, 2)}\n`);
+      mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
+      writeFileSync(path.join(dest, ".agent-surface", "trae-manifest.json"), `${JSON.stringify({
+        target: "trae",
+        scope: "user",
+        managed: [
+          ...generalRules.map((output) => ({ target: "trae", source: "rules/*.mdc", output })),
+          { target: "trae", source: "rules/04-cybersecurity.mdc", output: optInRule, asset_category: "cybersecurity" },
+          { target: "trae", source: "subagents/boss.md", output: developmentAgent, asset_category: "development" },
+          { target: "trae", source: "skills/ops-flow/SKILL.md", output: cli1Skill },
+          ...extra.map((entry) => ({ target: "trae", ...entry })),
+        ],
+        config_entries: [
+          { path: cliConfig, format: "codex-toml", ids: ["chrome-devtools", "grimoire", "synapse"] },
+          { path: unreadMcp, format: "mcpServers", ids: ["grimoire", "synapse"] },
+        ],
+      }, null, 2)}\n`);
+    };
+    const user = (dest, selection) => install(["--target", selection, "--scope", "user", "--dest", dest]);
+    const configIds = (dest, target) => manifest(dest, target)?.config_entries.find((entry) => entry.path === cliConfig)?.ids ?? null;
+    {
+      // The former key alone keeps what its successors now own, and handles its own former files.
+      const dest = path.join(scratch, "trae-split-alone");
+      preSplit(dest);
+      const alone = user(dest, "trae");
+      assert.equal(alone.code, 0, alone.out);
+      assert.match(alone.out, /^planned handovers to successor targets:\n {2}trae-cn: 3 former paths kept in place until trae-cn claims them\n {2}trae-cli: \.trae\/traecli\.toml chrome-devtools, grimoire, synapse kept until trae-cli claims them$/m);
+      assert.ok([...generalRules, optInRule].every((file) => read(dest, file) === "written before the split\n" && claims(dest, "trae", file)));
+      assert.match(read(dest, cliConfig), /^\[mcp_servers\.chrome-devtools\]$/m, "nothing is pruned from a route kept for trae-cli");
+      assert.deepEqual(configIds(dest, "trae"), ["chrome-devtools", "grimoire", "synapse"]);
+      assert.ok(!existsSync(path.join(dest, developmentAgent)), "the international IDE's own opt-in agent goes with its general reset");
+      assert.ok(!existsSync(path.join(dest, cli1Skill)), "the CLI 1.0 copy has no successor");
+      assert.deepEqual(JSON.parse(read(dest, unreadMcp)).mcpServers, { existing: { command: "keep" } });
+
+      // trae-cn adopts the CN rules with their categories: its general reset keeps and rewrites the
+      // general rules and removes the opt-in one, although trae still claims it.
+      const cn = user(dest, "trae-cn");
+      assert.equal(cn.code, 0, cn.out);
+      assert.match(cn.out, /^adopted from former targets:\n {2}trae: 3 former paths$/m);
+      assert.ok(generalRules.every((file) => claims(dest, "trae-cn", file) && read(dest, file) !== "written before the split\n"));
+      assert.ok(!existsSync(path.join(dest, optInRule)) && !claims(dest, "trae-cn", optInRule));
+
+      // Once trae-cn has installed here, trae releases every CN path.
+      const again = user(dest, "trae");
+      assert.equal(again.code, 0, again.out);
+      assert.match(again.out, /^ {2}trae-cn: 3 former paths released to trae-cn$/m);
+      assert.ok([...generalRules, optInRule].every((file) => !claims(dest, "trae", file)));
+      assert.ok(generalRules.every((file) => existsSync(path.join(dest, file))));
+    }
+    {
+      // trae-cli alone first adopts the CLI config and prunes the opt-in server; trae then releases the
+      // route because trae-cli's manifest records it.
+      const dest = path.join(scratch, "trae-split-cli-first");
+      preSplit(dest);
+      const cli = user(dest, "trae-cli");
+      assert.equal(cli.code, 0, cli.out);
+      assert.match(cli.out, /^ {2}trae: \.trae\/traecli\.toml chrome-devtools, grimoire, synapse$/m);
+      assert.doesNotMatch(read(dest, cliConfig), /chrome-devtools/, "the adopted opt-in server goes with trae-cli's general reset");
+      assert.match(read(dest, cliConfig), /^model = "keep-me"$/m);
+      assert.deepEqual(configIds(dest, "trae-cli"), ["grimoire", "synapse"]);
+      const after = user(dest, "trae");
+      assert.equal(after.code, 0, after.out);
+      assert.match(after.out, /^ {2}trae-cli: \.trae\/traecli\.toml chrome-devtools, grimoire, synapse released to trae-cli$/m);
+      assert.equal(configIds(dest, "trae"), null);
+    }
+    {
+      // A joint run hands everything over at once, without a same-run conflict.
+      const dest = path.join(scratch, "trae-split-joint");
+      preSplit(dest);
+      const joint = user(dest, "trae,trae-cn,trae-cli");
+      assert.equal(joint.code, 0, joint.out);
+      assert.doesNotMatch(joint.out, /also planned by/);
+      assert.ok(generalRules.every((file) => !claims(dest, "trae", file) && claims(dest, "trae-cn", file)));
+      assert.ok(!existsSync(path.join(dest, optInRule)), "the opt-in CN rule goes with trae-cn's general reset");
+      assert.equal(configIds(dest, "trae"), null);
+      assert.deepEqual(configIds(dest, "trae-cli"), ["grimoire", "synapse"]);
+      assert.doesNotMatch(read(dest, cliConfig), /chrome-devtools/);
+      assert.ok(claims(dest, "trae", sharedSkill) && claims(dest, "trae-cli", sharedSkill), "the international IDE and the CLI co-own ~/.trae/skills");
+    }
+    {
+      // Category-filtered runs: trae keeps a handed-over path of the selected category in place, and
+      // trae-cn, knowing the category because adoption keeps it, removes only what that category no
+      // longer produces.
+      const dest = path.join(scratch, "trae-split-filtered");
+      const retiredRule = cnRule("19-retired.md");
+      preSplit(dest, [{ source: "rules/19-retired.mdc", output: retiredRule, asset_category: "development" }]);
+      const development = (selection) => install(["--target", selection, "--scope", "user", "--dest", dest, "--category", "development"]);
+      const partial = development("trae");
+      assert.equal(partial.code, 0, partial.out);
+      assert.ok(existsSync(path.join(dest, retiredRule)) && claims(dest, "trae", retiredRule), "a filtered trae run keeps the handed-over path");
+      const cn = development("trae-cn");
+      assert.equal(cn.code, 0, cn.out);
+      assert.ok(!existsSync(path.join(dest, retiredRule)), "trae-cn removes an adopted path of the category it installs");
+      assert.ok([...generalRules, optInRule].every((file) => read(dest, file) === "written before the split\n"), "and keeps the adopted paths its selection does not cover");
+    }
+  }
+
   // Steps 6 and 7: every participant's pending manifest lands before the run's first mutation and
   // keeps an interrupted run's paths claimed, so rerunning the same selection finishes without
   // deleting anything by hand.

@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { clineCursorExtensionMcpPath, clineVsCodeExtensionMcpPath, gooseMcpPath, zedInstructionPath, zedMcpPath } from "../../scripts/agent-surface/roots.mjs";
+import { clineCursorExtensionMcpPath, clineVsCodeExtensionMcpPath, gooseMcpPath, traeMcpPath, zedInstructionPath, zedMcpPath } from "../../scripts/agent-surface/roots.mjs";
 import { status } from "../lib/helpers.mjs";
 
 const scratch = mkdtempSync(path.join(os.tmpdir(), "agent-surface-os-routes-"));
@@ -83,6 +83,31 @@ try {
     assert.equal(result.status, 0, out);
     assert.match(out, new RegExp(`^ {2}${escapeRegExp(clineVsCodeExtensionMcpPath({ scope: "user", appData }))} MCP \\+= `, "m"));
     assert.match(out, new RegExp(`^ {2}${escapeRegExp(clineCursorExtensionMcpPath({ scope: "user", appData }))}: no saoudrizwan\\.claude-dev extension folder under `, "m"));
+  }
+
+  // Trae's IDE editions: the user MCP route sits beside each edition's per-OS User settings (under
+  // %APPDATA% on Windows) and is written only once that IDE has created its User directory.
+  // SUBSTITUTE_JUSTIFICATION
+  // - substitute: an empty Trae/User directory in a scratch profile, standing in for the international
+  //   IDE having run once; Trae CN's is left absent
+  // - replaces: Trae installed and started on this machine
+  // - necessity: installing and launching the IDE on a CI runner is out of scope for a planning check
+  // - real-option: the real CLI plans against a real scratch profile with its own APPDATA
+  // - proof-limit: proves which user MCP route is planned or skipped on this OS, not that Trae loads it
+  // - real-proof: none yet; the operator's macOS profile (Trae 3.5.25) plans the international route
+  {
+    const traeHome = path.join(scratch, "trae-home");
+    const appData = path.join(scratch, "trae-appdata");
+    const route = (product) => traeMcpPath(product)({ scope: "user", appData });
+    const userDirectory = (product) => (path.isAbsolute(route(product)) ? path.dirname(route(product)) : path.join(traeHome, path.dirname(route(product))));
+    mkdirSync(userDirectory("Trae"), { recursive: true });
+    const result = status(["install", "--target", "trae,trae-cn", "--scope", "user", "--category", "mcps", "--dry-run"], {
+      env: { ...env, HOME: traeHome, USERPROFILE: traeHome, APPDATA: appData },
+    });
+    const out = `${result.stdout}${result.stderr}`;
+    assert.equal(result.status, 0, out);
+    assert.match(out, new RegExp(`^ {2}${escapeRegExp(route("Trae"))} MCP \\+= `, "m"));
+    assert.match(out, new RegExp(`^ {2}${escapeRegExp(route("Trae CN"))}: .* does not exist yet; start the IDE once, then rerun$`, "m"));
   }
 
   // A Windows profile installed before the per-OS routes: the old ~/.config settings go through

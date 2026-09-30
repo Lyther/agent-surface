@@ -11,7 +11,7 @@ import { MCP_ENV_LAUNCHER, mcpLauncherInvocation, optionalServiceMcpServers, ren
 import { normalizeExternalSkillFile } from "./postprocess.mjs";
 import { assetCategoryAllowed, assetCategoryFor, packageVersion, readAssetCategories, readOptionalServices, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityCliSubagent, renderAntigravityWorkflow, renderClaudeSubagent, renderClineSubagent, renderClineWorkflow, renderCodexSubagent, renderCopilotSubagent, renderCursorCommand, renderCursorSubagent, renderDeepAgentsSubagent, renderDroidCommand, renderDroidSubagent, renderGooseRecipe, renderInstructionDocument, renderKiloRuleDocument, renderKiloSubagent, renderKiloWorkflow, renderKimiCodeSubagent, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderQwenCodeSubagent, renderScopedRuleReferenceDocument, renderTraeSubagent, renderVanillaSkill, renderVsCodeInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
-import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, clineAgentRoot, clineCursorExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, droidSkillRoot, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolLegacyInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCliSkillRoot, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedLegacyInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
+import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, clineAgentRoot, clineCursorExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, droidSkillRoot, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolLegacyInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedLegacyInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
 import { readRulesForContext } from "./rules.mjs";
 import { ignoreOutputs, subagentOutputs } from "./source-primitives.mjs";
 import { exists, fail, isSafeRelativePath } from "./util.mjs";
@@ -630,8 +630,73 @@ export const targets = {
       scopes: ["user"],
     },
   },
+  // Trae splits by root set (contract Target and Runtime Identity): the international IDE, the CN IDE
+  // and Trae CLI 2.0. The international IDE and the CLI co-own the ~/.trae skill and agent roots.
   trae: {
-    label: "Trae skills, rules, subagents, CLI policy, and MCP",
+    label: "Trae international IDE skills, rules, subagents, and MCP",
+    commandRenders: ["skills"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "trae",
+    subagentOutputRoot: traeCnAgentRoot,
+    skillRenders: ["skills"],
+    skillOutputRoot: traeSkillRoot,
+    skillOutputName: codexSkillOutputName,
+    renderSkill: renderVanillaSkill,
+    commandOutputRoot: traeSkillRoot,
+    commandOutputName: codexSkillOutputName,
+    renderCommand: renderManualPortableSkill,
+    renderSubagent: renderTraeSubagent,
+    staticRenders: ["rules"],
+    installRoot: installRootHomeOnly,
+    staticOutputs: traeStaticOutputs,
+    mcpConfigs: [{
+      relativeOutput: traeMcpPath("Trae"),
+      format: "mcpServers",
+      defaultEnabled: true,
+      emitOutput: false,
+      allowAbsoluteOutput: true,
+      ideUserData: true,
+    }],
+    // Before the split this key merged a user ~/.trae/mcp.json that no Trae build reads.
+    cleanupConfigRoutes: [{
+      relativeOutput: () => path.join(".trae", "mcp.json"),
+      format: "mcpServers",
+    }],
+    // What this key wrote for the CN IDE and the CLI before the split now belongs to their keys; the
+    // international IDE keeps writing ~/.trae-cn/agents, which its documentation names.
+    successors: [
+      { target: "trae-cn", paths: [path.join(".trae-cn", "user_rules")] },
+      { target: "trae-cli", configRoutes: [{ relativeOutput: traeCliConfigPath, format: "codex-toml" }] },
+    ],
+  },
+  "trae-cn": {
+    label: "Trae CN IDE skills, rules, subagents, and MCP",
+    commandRenders: ["skills"],
+    subagentRenders: ["subagents"],
+    subagentTarget: "trae",
+    subagentOutputRoot: traeCnAgentRoot,
+    skillRenders: ["skills"],
+    skillOutputRoot: traeCnSkillRoot,
+    skillOutputName: codexSkillOutputName,
+    renderSkill: renderVanillaSkill,
+    commandOutputRoot: traeCnSkillRoot,
+    commandOutputName: codexSkillOutputName,
+    renderCommand: renderManualPortableSkill,
+    renderSubagent: renderTraeSubagent,
+    staticRenders: ["rules"],
+    installRoot: installRootHomeOnly,
+    staticOutputs: traeCnStaticOutputs,
+    mcpConfigs: [{
+      relativeOutput: traeMcpPath("Trae CN"),
+      format: "mcpServers",
+      defaultEnabled: true,
+      emitOutput: false,
+      allowAbsoluteOutput: true,
+      ideUserData: true,
+    }],
+  },
+  "trae-cli": {
+    label: "Trae CLI skills, project rules, subagents, and config",
     commandRenders: ["skills"],
     subagentRenders: ["subagents"],
     subagentTarget: "trae",
@@ -640,32 +705,23 @@ export const targets = {
     skillOutputRoot: traeSkillRoot,
     skillOutputName: codexSkillOutputName,
     renderSkill: renderVanillaSkill,
-    additionalSkillOutputs: [traeCliSkillOutput],
     commandOutputRoot: traeSkillRoot,
     commandOutputName: codexSkillOutputName,
     renderCommand: renderManualPortableSkill,
-    additionalCommandOutputs: [traeCliCommandOutput],
     renderSubagent: renderTraeSubagent,
     staticRenders: ["rules"],
     installRoot: installRootHomeOnly,
-    staticOutputs: traeStaticOutputs,
-    mcpConfigs: [
-      {
-        relativeOutput: () => path.join(".trae", "mcp.json"),
-        format: "mcpServers",
-        defaultEnabled: true,
+    staticOutputs: traeCliStaticOutputs,
+    mcpConfigs: [{
+      relativeOutput: traeCliConfigPath,
+      format: "codex-toml",
+      defaultEnabled: true,
+      scopes: ["user"],
+      rootProperties: {
+        approval_policy: "never",
+        default_permissions: ":danger-full-access",
       },
-      {
-        relativeOutput: traeCliConfigPath,
-        format: "codex-toml",
-        defaultEnabled: true,
-        scopes: ["user"],
-        rootProperties: {
-          approval_policy: "never",
-          default_permissions: ":danger-full-access",
-        },
-      },
-    ],
+    }],
   },
   windsurf: {
     label: "Windsurf workflows, rules, and skills",
@@ -783,6 +839,8 @@ export const generatedOutputMinimums = new Map([
   ["opencode", 55],
   ["openhands", 250],
   ["trae", 1],
+  ["trae-cn", 1],
+  ["trae-cli", 1],
   ["windsurf", 250],
   ["zed", 250],
 ]);
@@ -932,11 +990,10 @@ export async function produceSkillOutputs(adapter, skills, context) {
       });
       outputs.push(...skillCompanionOutputs(skill, relativeOutput, assetCategory));
     }
-    // An additional destination that is itself a skill directory (Trae CLI's second skill root)
-    // carries the same companions as the primary one; the body it installs points at them.
+    // An additional output is metadata beside the skill (Codex's agents/openai.yaml), not a second
+    // skill directory, so it carries no companions.
     for (const buildOutput of adapter.additionalSkillOutputs ?? []) {
-      const output = { ...await buildOutput(skill, context), assetCategory };
-      outputs.push(output, ...skillCompanionOutputs(skill, output.relativeOutput, assetCategory));
+      outputs.push({ ...await buildOutput(skill, context), assetCategory });
     }
   }
   return outputs;
@@ -1660,8 +1717,10 @@ export async function poolStaticOutputs(_commands, context) {
   });
 }
 
+// The international IDE reads user rules from the single user_rules.md its current build still loads
+// beside the documented user_rules folder; projects get the per-rule files every edition reads.
 export async function traeStaticOutputs(_commands, context) {
-  const rules = await readRulesForContext(context);
+  if (context.scope !== "user") return traeProjectRuleOutputs(context);
   return [
     {
       source: "rules/*.mdc",
@@ -1669,31 +1728,39 @@ export async function traeStaticOutputs(_commands, context) {
       content: await renderInstructionDocument("agent-surface Trae user rules", "Trae user rules", context),
     },
     ...await scopedRuleReferenceOutputs(context, path.join(".trae", "references", "rules")),
-    ...rules.map((rule) => ({
-      sourceKind: "rules",
-      renderKind: "rules",
-      source: rule.file,
-      relativeOutput: path.join(traeRuleRoot(context), `${path.basename(rule.file, ".mdc")}.md`),
-      content: rule.text,
-      assetCategory: rule.assetCategory,
-    })),
   ];
 }
 
-export async function traeCliSkillOutput(source) {
-  return {
-    source: source.relativePath,
-    relativeOutput: path.join(traeCliSkillRoot(), codexSkillOutputName(source)),
-    content: await renderVanillaSkill(source),
-  };
+export async function traeCnStaticOutputs(_commands, context) {
+  if (context.scope !== "user") return traeProjectRuleOutputs(context);
+  return [
+    ...await traeRuleFileOutputs(context),
+    ...await scopedRuleReferenceOutputs(context, path.join(".trae-cn", "references", "rules")),
+  ];
 }
 
-export async function traeCliCommandOutput(source) {
-  return {
-    source: source.relativePath,
-    relativeOutput: path.join(traeCliSkillRoot(), codexSkillOutputName(source)),
-    content: await renderManualPortableSkill(source),
-  };
+// Trae CLI 2.0 reads AGENTS.md files and project rules; it documents no user-level instruction folder.
+export async function traeCliStaticOutputs(_commands, context) {
+  return context.scope === "user" ? [] : traeProjectRuleOutputs(context);
+}
+
+async function traeProjectRuleOutputs(context) {
+  return [
+    ...await traeRuleFileOutputs(context),
+    ...await scopedRuleReferenceOutputs(context, path.join(".trae", "references", "rules")),
+  ];
+}
+
+async function traeRuleFileOutputs(context) {
+  const rules = await readRulesForContext(context);
+  return rules.map((rule) => ({
+    sourceKind: "rules",
+    renderKind: "rules",
+    source: rule.file,
+    relativeOutput: path.join(traeRuleRoot(context), `${path.basename(rule.file, ".mdc")}.md`),
+    content: rule.text,
+    assetCategory: rule.assetCategory,
+  }));
 }
 
 export async function vscodeStaticOutputs(_commands, context) {

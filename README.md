@@ -2,7 +2,7 @@
 
 Write your coding-agent setup **once**, render it into **every** agent host.
 
-Reusable workflows, rules, subagents, external skill packs, ignore files, and first-party MCP services live once in this repo's source tree. `agent-surface` compiles them into the native formats of twenty-five host targets - Claude Code, Codex, Cursor, Droid, Kilo, Kimi Code, Qoder, Qwen Code, Kiro, DSH, Zed, OpenCode, OpenHands, and more - so you maintain one source instead of twenty-five bespoke configs.
+Reusable workflows, rules, subagents, external skill packs, ignore files, and first-party MCP services live once in this repo's source tree. `agent-surface` compiles them into the native formats of twenty-seven host targets - Claude Code, Codex, Cursor, Droid, Kilo, Kimi Code, Qoder, Qwen Code, Kiro, DSH, Zed, OpenCode, OpenHands, and more - so you maintain one source instead of twenty-seven bespoke configs.
 
 It is a **source compiler**, not an app: there is no `src/`. Typed source primitives in → host-native surfaces out, validated by `check` and tracked by per-target manifests.
 
@@ -29,12 +29,12 @@ The `install` step wires each host's MCP *config* to point at `~/.local/bin/syna
 
 - **Compiles source primitives** — `skills/`, manual-only `commands/`, `rules/`, `subagents/`, external packs, and `ignores/` become per-target outputs via explicit producers.
 - **Speaks each host natively** — each target gets the surfaces it understands: commands, workflows, skills, instructions, plugins, rules, subagents, MCP config, or ignore files.
-- **Wires first-party MCP** - Synapse (shared memory) and Grimoire (just-in-time skill retrieval) auto-merge, secretlessly and non-destructively, into all 22 MCP-capable hosts (JSON, TOML, and YAML config families).
+- **Wires first-party MCP** - Synapse (shared memory) and Grimoire (just-in-time skill retrieval) auto-merge, secretlessly and non-destructively, into all 24 MCP-capable hosts (JSON, TOML, and YAML config families).
 - **Installs deterministically** — dry-run previews, project-scope gating, manifest tracking, generated-file strict-sync, and non-destructive config merges that preserve unknown sibling entries.
 
 ## Supported targets
 
-Twenty-five targets, ranked 1–5 by how much of the source model maps to native surfaces. The general sync delivers the six general-purpose skills and the first-party MCP wiring; with `--category development` (see [Install behavior](#install-behavior)) full adapters receive the canonical skill catalog, configured external skill packs, and every high-impact manual command; the intentionally limited DSH adapter receives skills only. Commands use a native explicit surface where one exists and an explicit-invocation compatibility skill otherwise.
+Twenty-seven targets, ranked 1–5 by how much of the source model maps to native surfaces. The general sync delivers the six general-purpose skills and the first-party MCP wiring; with `--category development` (see [Install behavior](#install-behavior)) full adapters receive the canonical skill catalog, configured external skill packs, and every high-impact manual command; the intentionally limited DSH adapter receives skills only. Commands use a native explicit surface where one exists and an explicit-invocation compatibility skill otherwise.
 
 **Full matrix - per-target surfaces and MCP wiring: [docs/reference/targets.md](docs/reference/targets.md).**
 
@@ -89,7 +89,7 @@ For all assets with only the two primary MCPs, run the general full sync, then `
 
 ## First-party MCP services
 
-Built from `mcps/`, installed once, then auto-wired (non-destructive merge) into all 22 MCP-capable hosts across JSON/TOML/YAML config families - see [docs/reference/targets.md](docs/reference/targets.md):
+Built from `mcps/`, installed once, then auto-wired (non-destructive merge) into all 24 MCP-capable hosts across JSON/TOML/YAML config families - see [docs/reference/targets.md](docs/reference/targets.md):
 
 - **Synapse** — shared multi-agent memory + file-lock coordination.
 - **Grimoire** — read-only, just-in-time retrieval over large Agent-Skill packs (`anthropic-cybersecurity-skills`, `rev-skills`, and `hack-skills`) so the model searches instead of loading those catalogs at startup.

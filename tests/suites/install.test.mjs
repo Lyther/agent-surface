@@ -1276,6 +1276,7 @@ const mergeFixtures = [
     }
   },
   { target: "trae", rel: ".trae/mcp.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } } },
+  { target: "trae-cn", rel: ".trae/mcp.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } } },
   {
     target: "qoder", rel: ".qoder/settings.json", root: "mcpServers", pre: { general: { theme: "keep" }, mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } },
     keep: (parsed) => assert.equal(parsed.general.theme, "keep", "qoder settings sibling preserved"),
@@ -1432,11 +1433,11 @@ for (const fx of [
     assert.equal(existsSync(path.join(dest, ".trae", "agents", "boss.md")), false);
     const nativeRule = readFileSync(path.join(dest, ".trae", "rules", "00-precedence-and-safety.md"), "utf8");
     assert.match(nativeRule, /^alwaysApply: true$/m);
+    assert.equal(existsSync(path.join(dest, ".trae", "user_rules.md")), false, "no Trae edition reads a project user_rules.md");
     run(["install", "--target", "trae", "--scope", "project", "--dest", dest, "--category", "development"]);
     assert.equal(existsSync(path.join(dest, ".trae", "agents", "boss.md")), true);
-    assert.equal(existsSync(path.join(dest, ".traecli", "agents", "boss.md")), true);
     assert.equal(existsSync(path.join(dest, ".trae", "skills", "workflow-runtime", "SKILL.md")), true);
-    assert.equal(existsSync(path.join(dest, ".traecli", "skills", "workflow-runtime", "SKILL.md")), true);
+    assert.equal(existsSync(path.join(dest, ".traecli")), false, "Trae CLI 1.0 routes are not written");
   } finally {
     rmSync(dest, { recursive: true, force: true });
   }
@@ -1448,7 +1449,7 @@ for (const fx of [
     mkdirSync(path.join(dest, ".trae"), { recursive: true });
     const configPath = path.join(dest, ".trae", "traecli.toml");
     writeFileSync(configPath, '[profile.default] # keep\nmodel = "keep-me"\n');
-    const args = ["install", "--target", "trae", "--scope", "user", "--dest", dest];
+    const args = ["install", "--target", "trae-cli", "--scope", "user", "--dest", dest];
     run(args);
     const config = readFileSync(configPath, "utf8");
     const parsed = TOML.parse(config);

@@ -275,6 +275,30 @@
         "mcps"
       ]
     },
+    "trae-cn": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "skills",
+        "rules",
+        "subagents",
+        "external",
+        "mcps"
+      ]
+    },
+    "trae-cli": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "skills",
+        "rules",
+        "subagents",
+        "external",
+        "mcps"
+      ]
+    },
     "windsurf": {
       "status": "implemented",
       "build_supported": true,

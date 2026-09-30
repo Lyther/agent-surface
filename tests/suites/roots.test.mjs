@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import path from "node:path";
-import { gooseMcpPath, ideUserDataRoot, vsCodeUserRoot, zedConfigRoot, zedInstructionPath, zedLegacyInstructionPath, zedMcpPath } from "../../scripts/agent-surface/roots.mjs";
+import { gooseMcpPath, ideUserDataRoot, traeMcpPath, vsCodeUserRoot, zedConfigRoot, zedInstructionPath, zedLegacyInstructionPath, zedMcpPath } from "../../scripts/agent-surface/roots.mjs";
 import { targets } from "../../scripts/agent-surface/targets.mjs";
 
 assert.equal(
@@ -50,5 +50,14 @@ for (const route of windowsOnlyRoutes) {
   for (const context of [{ scope: "user", platform: "darwin" }, { scope: "user", platform: "linux" }, { scope: "project", platform: "win32" }]) {
     assert.equal(route(context), null, `${JSON.stringify(context)} has no pre-fix Windows route`);
   }
+}
+// Each Trae IDE edition reads user MCP servers from mcp.json beside its per-OS User settings; a
+// scope-derived Windows install honors %APPDATA%, and a project keeps .trae/mcp.json.
+for (const [product, folder] of [["Trae", "Trae"], ["Trae CN", "Trae CN"]]) {
+  const route = traeMcpPath(product);
+  assert.equal(route({ scope: "user", platform: "darwin" }), path.join("Library", "Application Support", folder, "User", "mcp.json"));
+  assert.equal(route({ scope: "user", platform: "linux" }), path.join(".config", folder, "User", "mcp.json"));
+  assert.equal(route({ scope: "user", platform: "win32", appData: "D:\\Profiles\\agent\\AppData\\Roaming" }), path.join(`D:\\Profiles\\agent\\AppData\\Roaming\\${folder}`, "User", "mcp.json"));
+  assert.equal(route({ scope: "project", platform: "win32" }), path.join(".trae", "mcp.json"));
 }
 console.log("roots: ok");

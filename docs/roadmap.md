@@ -139,13 +139,13 @@ Exit: in a clean profile, the actual selected product discovers and invokes the 
 
 ### RT2.4 Remaining Platform/Edition Paths
 
-State: IN PROGRESS; the Zed and Goose per-OS routes and the Cline per-IDE presence guard are implemented (Windows loading is not natively qualified; the Windows CI job plans the routes). Depends on: `RT1.2`, `RT2.0`. Covers: `G-RT-05`, `Q-RT-02`, `Q-RT-04`.
+State: IN PROGRESS; the Zed and Goose per-OS routes, the Cline per-IDE presence guard and the Trae split are implemented; none is natively qualified: Windows loading, the international IDE's user rules file, agents root and user MCP route, the Trae CN IDE and Trae CLI 2.0 are untested apart from `traecli mcp list` reading the generated servers, and the Windows CI job plans the per-OS routes. Depends on: `RT1.2`, `RT2.0`. Covers: `G-RT-02`, `G-RT-05`, `Q-RT-02`, `Q-RT-04`.
 
 Separate small changes, one change each. Each starts with the actual versioned path contract and one real reproducer; no universal config-home layer or writes to every candidate root.
 
 - Zed and Goose: route user config through the per-OS roots: Zed `~/.config/zed` on macOS and Linux and the roaming AppData `Zed` directory on Windows; Goose `~/.config/goose` and `AppData\Roaming\Block\goose\config`. Pre-fix Windows `~/.config` settings go through declared obsolete-route cleanup, and Zed's personal `AGENTS.md` through Migration step 4, with Zed's pinned `config_dir()` source as the evidence that Windows Zed ignores the old route.
-- Trae: the selected CN, international and CLI routes.
 - Cline: write each per-editor MCP file only for an editor where Cline is present, and add no Devin Desktop route (operator decision, 2026-09-29). The pre-SDK extension that most 4.x installs still run reads its per-editor file; only the CLI and the SDK-based extension, rolling out from 4.1.0, read the shared `~/.cline` file.
+- Trae: split the mixed target into three runtimes by root set (operator decision, 2026-09-29): `trae` (international IDE), `trae-cn` (CN IDE) and `trae-cli` (Trae CLI 2.0), each writing only the roots its product reads ([contract](contracts/runtime-refresh.md#target-and-runtime-identity)); the former key keeps its CN rules and CLI servers until the successor adopts them under Migration step 3. The same rule decides other editor/CLI pairs: Kilo's CLI and editor extension read the same roots, so Kilo stays one target.
 
 Files: corresponding `roots.mjs` helpers/adapter producers, metadata, focused roots/build/install tests. A native loader check is required only for that target's live claim.
 

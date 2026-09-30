@@ -393,24 +393,35 @@ export function droidSkillRoot() {
   return path.join(".factory", "skills");
 }
 
+// Trae splits by root set: the international IDE and Trae CLI 2.0 read ~/.trae, the CN IDE reads
+// ~/.trae-cn, and every edition reads the project's .trae directory.
 export function traeSkillRoot() {
   return path.join(".trae", "skills");
 }
 
-export function traeCliSkillRoot() {
-  return path.join(".traecli", "skills");
+export function traeCnSkillRoot(context) {
+  return context.scope === "user" ? path.join(".trae-cn", "skills") : traeSkillRoot();
 }
 
-export function traeAgentRoot(context) {
-  return context.scope === "user"
-    ? [path.join(".trae-cn", "agents"), path.join(".traecli", "agents")]
-    : [path.join(".trae", "agents"), path.join(".traecli", "agents")];
+export function traeAgentRoot() {
+  return path.join(".trae", "agents");
 }
 
+export function traeCnAgentRoot(context) {
+  return context.scope === "user" ? path.join(".trae-cn", "agents") : traeAgentRoot();
+}
+
+// Per-rule project rules every edition reads, and the CN IDE's user rules folder.
 export function traeRuleRoot(context) {
-  return context.scope === "user"
-    ? path.join(".trae-cn", "user_rules")
-    : path.join(".trae", "rules");
+  return context.scope === "user" ? path.join(".trae-cn", "user_rules") : path.join(".trae", "rules");
+}
+
+// Each IDE edition reads user MCP servers from mcp.json beside its per-OS User settings; a project
+// keeps .trae/mcp.json.
+export function traeMcpPath(product) {
+  return (context) => context.scope === "user"
+    ? path.join(ideUserDataRoot(product, context), "User", "mcp.json")
+    : path.join(".trae", "mcp.json");
 }
 
 export function traeCliConfigPath() {

@@ -19,6 +19,8 @@ for (const target of [
   "kiro",
   "opencode",
   "trae",
+  "trae-cn",
+  "trae-cli",
   "kilo",
   "kimi-code",
   "droid",

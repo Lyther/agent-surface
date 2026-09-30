@@ -1169,6 +1169,13 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".trae", "user_rules.md"), /agent-surface Trae user rules/);
     requirePath(path.join(".trae", "skills", "ops-flow", "SKILL.md"));
     requireContains(path.join(".trae-cn", "agents", "boss.md"), /^---\nname: boss\n/);
+  } else if (target === "trae-cn") {
+    requirePath(path.join(".trae-cn", "user_rules", "00-precedence-and-safety.md"));
+    requirePath(path.join(".trae-cn", "skills", "ops-flow", "SKILL.md"));
+    requireContains(path.join(".trae-cn", "agents", "boss.md"), /^---\nname: boss\n/);
+  } else if (target === "trae-cli") {
+    requirePath(path.join(".trae", "skills", "ops-flow", "SKILL.md"));
+    requireContains(path.join(".trae", "agents", "boss.md"), /^---\nname: boss\n/);
     requireContains(path.join(".trae", "traecli.toml"), /^approval_policy = "never"$/m);
     requireContains(path.join(".trae", "traecli.toml"), /^default_permissions = ":danger-full-access"$/m);
     requireContains(path.join(".trae", "traecli.toml"), /^\[mcp_servers\.synapse\]$/m);

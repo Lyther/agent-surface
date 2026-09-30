@@ -71,10 +71,14 @@ const mustExist = [
   ["copilot", path.join(".copilot", "mcp-config.json")],
   ["antigravity-cli", path.join("antigravity-cli", "plugins", "agent-surface", "plugin.json")],
   ["trae", path.join(".trae-cn", "agents", "boss.md")],
-  ["trae", path.join(".traecli", "agents", "boss.md")],
-  ["trae", path.join(".traecli", "skills", "workflow-runtime", "SKILL.md")],
-  ["trae", path.join(".trae-cn", "user_rules", "00-precedence-and-safety.md")],
-  ["trae", path.join(".trae", "traecli.toml")],
+  ["trae", path.join(".trae", "skills", "workflow-runtime", "SKILL.md")],
+  ["trae", path.join(".trae", "user_rules.md")],
+  ["trae-cn", path.join(".trae-cn", "agents", "boss.md")],
+  ["trae-cn", path.join(".trae-cn", "skills", "workflow-runtime", "SKILL.md")],
+  ["trae-cn", path.join(".trae-cn", "user_rules", "00-precedence-and-safety.md")],
+  ["trae-cli", path.join(".trae", "agents", "boss.md")],
+  ["trae-cli", path.join(".trae", "skills", "workflow-runtime", "SKILL.md")],
+  ["trae-cli", path.join(".trae", "traecli.toml")],
   ["openhands", path.join(".openhands", "mcp.json")],
   ["goose", path.join(".config", "goose", "config.yaml")],
 ];
@@ -120,6 +124,8 @@ for (const target of [
   "qoder",
   "qwen-code",
   "trae",
+  "trae-cn",
+  "trae-cli",
   "vscode",
   "windsurf",
   "zed",
@@ -330,7 +336,7 @@ assert.equal(qoderSettings.general.defaultPermissionMode, "bypass_permissions");
 assert.equal(qoderSettings.skills.loadFromAgentsDirectory, false);
 const qwenSettings = JSON.parse(readFileSync(path.join(root, "dist", "qwen-code", ".qwen", "settings.json"), "utf8"));
 assert.equal(qwenSettings.tools.approvalMode, "yolo");
-const traeCliConfig = readFileSync(path.join(root, "dist", "trae", ".trae", "traecli.toml"), "utf8");
+const traeCliConfig = readFileSync(path.join(root, "dist", "trae-cli", ".trae", "traecli.toml"), "utf8");
 assert.match(traeCliConfig, /^approval_policy = "never"$/m);
 assert.match(traeCliConfig, /^default_permissions = ":danger-full-access"$/m);
 assert.match(traeCliConfig, /^\[mcp_servers\.synapse\]$/m);
@@ -414,19 +420,6 @@ run(["build", "--target", "all"]);
   assert.equal(byOutput.get(path.join(skillDir, "references", "note.md"))?.mode, undefined, "an ordinary companion declares no mode");
   assert.equal(byOutput.get(path.join(skillDir, "scripts", "run.sh"))?.mode, 0o755, "an executable companion declares the mode that keeps it runnable");
 
-  // A second directory-shaped destination is a second install of the same skill, so it carries the
-  // same companions: Trae installs every skill into both `.trae/skills` and `.traecli/skills`, and
-  // a body under either root points at `references/…` beside itself. The CLI root used to receive
-  // the body alone, leaving those references dangling there.
-  const traeProduced = await produceSkillOutputs(targets.trae, [probe], { scope: "user", mode: "build", categoryFilter: null });
-  const traeByOutput = new Map(traeProduced.map((output) => [output.relativeOutput, output]));
-  for (const skillRoot of [path.join(".trae", "skills"), path.join(".traecli", "skills")]) {
-    const traeSkillDir = path.join(skillRoot, "probe-skill");
-    assert.ok(traeByOutput.has(path.join(traeSkillDir, "SKILL.md")), `${skillRoot}: the skill is produced`);
-    assert.equal(traeByOutput.get(path.join(traeSkillDir, "references", "note.md"))?.content, "note", `${skillRoot}: the companion rides beside the body`);
-    assert.equal(traeByOutput.get(path.join(traeSkillDir, "scripts", "run.sh"))?.mode, 0o755, `${skillRoot}: the executable companion keeps its mode`);
-  }
-  assert.equal(traeProduced.length, 6, "each Trae destination carries exactly the body and its two companions");
   // A metadata sidecar is not a skill directory: Codex's agents/openai.yaml gets no companions.
   assert.ok(
     produced.every((output) => !output.relativeOutput.startsWith(path.join(skillDir, "agents", "references"))),

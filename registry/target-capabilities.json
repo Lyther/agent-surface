@@ -2272,7 +2272,7 @@
       }
     },
     "trae": {
-      "summary": "Current TraeCode exposes native skills, rules, Markdown subagents, CLI permission policy, and IDE/CLI MCP config; agent-surface generates each documented file surface.",
+      "summary": "Trae international IDE (TraeCode), which reads ~/.trae, the documented ~/.trae-cn/agents and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, the user_rules.md rules file, subagents and MCP. The CN IDE (trae-cn) and Trae CLI 2.0 (trae-cli) read other roots and are separate targets; ~/.trae/skills is co-owned with trae-cli and ~/.trae-cn/agents with trae-cn.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -2283,23 +2283,19 @@
       "evidence": [
         {
           "label": "Trae rules",
-          "url": "https://docs.trae.cn/ide_rules"
+          "url": "https://docs.trae.ai/ide/rules"
         },
         {
-          "label": "Trae MCP",
-          "url": "https://docs.trae.ai/ide/mcp"
+          "label": "Trae skills",
+          "url": "https://docs.trae.ai/ide/skills"
         },
         {
-          "label": "TraeCode CLI skills",
-          "url": "https://docs.trae.cn/cli_skills"
+          "label": "Trae subagents",
+          "url": "https://docs.trae.ai/ide/subagents"
         },
         {
-          "label": "TraeCode CLI agents",
-          "url": "https://docs.trae.cn/cli_agent"
-        },
-        {
-          "label": "TraeCode CLI config",
-          "url": "https://docs.trae.cn/cli_config-file"
+          "label": "Trae MCP servers",
+          "url": "https://docs.trae.ai/ide/add-mcp-servers"
         }
       ],
       "surfaces": {
@@ -2312,11 +2308,9 @@
           ],
           "paths": [
             "~/.trae/user_rules.md",
-            "~/.trae-cn/user_rules/<name>.md",
-            ".trae/user_rules.md",
             ".trae/rules/<name>.md"
           ],
-          "notes": "Current native rule files are emitted for both scopes; the combined user_rules.md route remains for the installed IDE generation that still consumes it."
+          "notes": "User installs write the single user_rules.md, which the locally installed 3.5.25 build loads beside the documented ~/.trae/user_rules/ folder (read from its app bundle); current documentation describes only the folder, and newer builds are unverified. Loading both would duplicate the rules. Projects get per-rule files every edition reads."
         },
         "mcp": {
           "support": "native",
@@ -2326,10 +2320,10 @@
             "project"
           ],
           "paths": [
-            ".trae/mcp.json",
-            "~/.trae/traecli.toml"
+            "<Trae user data>/User/mcp.json",
+            ".trae/mcp.json"
           ],
-          "notes": "First-party secretless MCP services are generated for the IDE JSON route and the user CLI TOML route; external or secret-bearing MCPs remain opt-in."
+          "notes": "First-party secretless MCP services are merged into mcp.json beside the per-OS User settings (macOS Library/Application Support/Trae, Windows %APPDATA%\\Trae), only once the IDE has created that User directory; the route comes from the locally installed 3.5.25 app bundle, not the documentation, and the Linux location is unverified. Project .trae/mcp.json is documented. Servers the pre-split target merged into a user ~/.trae/mcp.json, which neither the macOS nor the Windows build reads, are pruned. External or secret-bearing MCPs remain opt-in."
         },
         "subagents": {
           "support": "native",
@@ -2340,22 +2334,9 @@
           ],
           "paths": [
             "~/.trae-cn/agents/<name>.md",
-            "~/.traecli/agents/<name>.md",
-            ".trae/agents/<name>.md",
-            ".traecli/agents/<name>.md"
+            ".trae/agents/<name>.md"
           ],
-          "notes": "IDE and CLI-native agent routes are both generated; IDE discovery may require its Subagents beta directory toggle."
-        },
-        "settings": {
-          "support": "native",
-          "generation": "generated",
-          "scope": [
-            "user"
-          ],
-          "paths": [
-            "~/.trae/traecli.toml"
-          ],
-          "notes": "The CLI config merges approval_policy never and :danger-full-access without replacing sibling settings."
+          "notes": "The international subagents page documents ~/.trae-cn/agents, the same text as the CN page, so the route is co-owned with trae-cn; IDE discovery may need the Subagents directory beta toggle. Not runtime-tested."
         },
         "skills": {
           "support": "native",
@@ -2366,11 +2347,9 @@
           ],
           "paths": [
             "~/.trae/skills/<name>/SKILL.md",
-            "~/.traecli/skills/<name>/SKILL.md",
-            ".trae/skills/<name>/SKILL.md",
-            ".traecli/skills/<name>/SKILL.md"
+            ".trae/skills/<name>/SKILL.md"
           ],
-          "notes": "Canonical and explicit-only compatibility skills are emitted to the retained IDE root and the CLI-native root. Host enforcement of disable-model-invocation remains unproven."
+          "notes": "Canonical and explicit-only compatibility skills; host enforcement of disable-model-invocation remains unproven."
         },
         "external": {
           "support": "native",
@@ -2383,7 +2362,192 @@
             "~/.trae/skills/<external-skill>/...",
             ".trae/skills/<external-skill>/..."
           ],
-          "notes": "Reviewed external Agent Skill packs stay single-copy in the IDE root, which current TraeCode CLI also reads."
+          "notes": "Reviewed external Agent Skill packs use the same skill root."
+        }
+      }
+    },
+    "trae-cn": {
+      "summary": "Trae CN IDE, which reads ~/.trae-cn and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, per-rule user rules, subagents and MCP. User paths follow the CN documentation and are not runtime-tested.",
+      "generated_render_tokens": [
+        "skills",
+        "rules",
+        "subagents",
+        "external",
+        "mcps"
+      ],
+      "evidence": [
+        {
+          "label": "Trae CN rules",
+          "url": "https://docs.trae.cn/ide_rules"
+        },
+        {
+          "label": "Trae CN skills",
+          "url": "https://docs.trae.cn/ide_skills"
+        },
+        {
+          "label": "Trae CN subagents",
+          "url": "https://docs.trae.cn/ide_subagents"
+        }
+      ],
+      "surfaces": {
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae-cn/user_rules/<name>.md",
+            ".trae/rules/<name>.md"
+          ],
+          "notes": "Per-rule files in the documented user_rules folder; projects share .trae/rules with the other Trae targets."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "<Trae CN user data>/User/mcp.json",
+            ".trae/mcp.json"
+          ],
+          "notes": "The user mcp.json location beside the per-OS User settings comes from a third-party installer and is unverified; it is written only once the IDE has created that User directory. Project .trae/mcp.json is shared with trae. External or secret-bearing MCPs remain opt-in."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae-cn/agents/<name>.md",
+            ".trae/agents/<name>.md"
+          ],
+          "notes": "Documented CN route, co-owned with trae; IDE discovery may need the Subagents directory beta toggle. Not runtime-tested."
+        },
+        "skills": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae-cn/skills/<name>/SKILL.md",
+            ".trae/skills/<name>/SKILL.md"
+          ],
+          "notes": "Canonical and explicit-only compatibility skills. CN 3.3.63 makes both editions' global skill folders compatible, so installing trae and trae-cn together may list skills twice. Enforcement of disable-model-invocation remains unproven."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae-cn/skills/<external-skill>/...",
+            ".trae/skills/<external-skill>/..."
+          ],
+          "notes": "Reviewed external Agent Skill packs use the same skill root."
+        }
+      }
+    },
+    "trae-cli": {
+      "summary": "Trae CLI 2.0 (traecli, TRAE Enterprise), which reads ~/.trae (TRAE_HOME is not followed) and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, subagents, project rules and the traecli.toml config with first-party MCP servers. Trae CLI 1.0 is not targeted. traecli 0.201.6 lists the generated MCP servers; the other surfaces are not runtime-tested.",
+      "generated_render_tokens": [
+        "skills",
+        "rules",
+        "subagents",
+        "external",
+        "mcps"
+      ],
+      "evidence": [
+        {
+          "label": "Trae CLI config file",
+          "url": "https://docs.trae.cn/cli_config-file"
+        },
+        {
+          "label": "Trae CLI environment variables",
+          "url": "https://docs.trae.cn/cli_environment-variables"
+        }
+      ],
+      "surfaces": {
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "project"
+          ],
+          "paths": [
+            ".trae/rules/<name>.md"
+          ],
+          "notes": "The CLI reads AGENTS.md files and project rules and documents no user-level instruction folder, so user installs write no rules; where it reads a global AGENTS.md is unverified."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.trae/traecli.toml"
+          ],
+          "notes": "First-party secretless MCP services are merged into mcp_servers; external or secret-bearing MCPs remain opt-in. traecli 0.201.6 lists them as enabled (traecli mcp list, 2026-09-30)."
+        },
+        "settings": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.trae/traecli.toml"
+          ],
+          "notes": "The config merge sets approval_policy never and default_permissions :danger-full-access without replacing sibling settings."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae/agents/<name>.md",
+            ".trae/agents/<name>.md"
+          ],
+          "notes": "The paths come from the installed traecli 0.201.6 binary; project agents load only in trusted projects. Not runtime-tested."
+        },
+        "skills": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae/skills/<name>/SKILL.md",
+            ".trae/skills/<name>/SKILL.md"
+          ],
+          "notes": "The user root is $TRAE_HOME/skills at its default (from the installed traecli 0.201.6 binary), shared with trae; the project skills folder is unverified for the CLI."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae/skills/<external-skill>/...",
+            ".trae/skills/<external-skill>/..."
+          ],
+          "notes": "Reviewed external Agent Skill packs use the same skill root."
         }
       }
     },
