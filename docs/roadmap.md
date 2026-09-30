@@ -1,6 +1,6 @@
 # Runtime Refresh Roadmap
 
-Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT1.1, RT1.2, RT2.0 AND RT2.1 IMPLEMENTED; ALL OTHER TASKS NOT STARTED
+Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT1.1, RT1.2, RT2.0, RT2.1 AND RT2.4 IMPLEMENTED; ALL OTHER TASKS NOT STARTED
 Date: 2026-09-28; revised the same day after cross-review
 Baseline: `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 Inputs: [concept](context/concept-zero.md), [research](context/concept-zero-research.md), [architecture](architecture.md), [contract](contracts/runtime-refresh.md).
@@ -139,7 +139,7 @@ Exit: in a clean profile, the actual selected product discovers and invokes the 
 
 ### RT2.4 Remaining Platform/Edition Paths
 
-State: IN PROGRESS; the Zed and Goose per-OS routes, the Cline per-IDE presence guard and the Trae split are implemented; none is natively qualified: Windows loading, the international IDE's user rules file, agents root and user MCP route, the Trae CN IDE and Trae CLI 2.0 are untested apart from `traecli mcp list` reading the generated servers, and the Windows CI job plans the per-OS routes. Depends on: `RT1.2`, `RT2.0`. Covers: `G-RT-02`, `G-RT-05`, `Q-RT-02`, `Q-RT-04`.
+State: IMPLEMENTED (the Zed and Goose per-OS routes, the Cline per-IDE presence guard and the Trae split); none is natively qualified: Windows loading, the international IDE's user rules file, agents root and user MCP route, the Trae CN IDE and Trae CLI 2.0 are untested apart from `traecli mcp list` reading the generated servers, and the Windows CI job plans the per-OS routes. Gaps found along the way are listed in `RT5.3`. Depends on: `RT1.2`, `RT2.0`. Covers: `G-RT-02`, `G-RT-05`, `Q-RT-02`, `Q-RT-04`.
 
 Separate small changes, one change each. Each starts with the actual versioned path contract and one real reproducer; no universal config-home layer or writes to every candidate root.
 
@@ -212,6 +212,16 @@ Exit for any admission: current exact component, package/license/security review
 ### RT5.2 Task-Shaped Distribution Comparison
 
 State: DEFERRED. Depends on: `RT4.1`. Compare direct files, native plugins and on-demand retrieval only on matched tasks and actual outcomes, including child costs when exposed. Keep failures and contaminated runs visible. Do not infer quality/cost from body size or tool-list bytes. No code change or efficiency claim is required just to close this design.
+
+### RT5.3 Gaps Found During RT2.4
+
+State: DEFERRED; none blocks a completed task. Each needs its own reproducer before a change.
+
+- Kilo personal rules: user-scope `instructions` entries are `./rules/<name>.md`, which Kilo's source resolves against the project directory, so `~/.config/kilo/rules` may never load (source reading only; confirm with the installed `kilo` CLI first). The declared user MCP route is also computed from a context object and reads `kilo.jsonc`; plans and writes use `~/.config/kilo/kilo.jsonc`, so no install output changes.
+- Cline global workflows: the extension reads the OS Documents folder (OneDrive-redirected on Windows, `xdg-user-dir DOCUMENTS` on Linux), while agent-surface writes `~/Documents/Cline/Workflows`, which the CLI reads.
+- An unreadable MCP config file stops a plan with a bare `EACCES` error rather than a named blocked line, for every target; nothing is written.
+- Trae successors re-adopt the former key's claims on every run until `trae` runs again, listing phantom stale removals and deleting a same-named file recreated in that window; a CN-only profile keeps pre-split development agents in the co-owned `~/.trae-cn/agents` until `trae` or `--target all` runs a general install.
+- Test isolation: suites that run real installs regenerate the operator's `~/.local/bin/agent-surface-mcp-env`, so a run from a temporary checkout leaves the shared launcher pointing into it.
 
 ## Requirement Coverage and First Handoff
 
