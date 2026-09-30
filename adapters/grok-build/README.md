@@ -16,7 +16,7 @@ Agents use Grok's camelCase frontmatter. Each normalized access tier maps to the
 
 Grok always also loads `.claude/agents`, with no setting to turn that off. Within one directory the native file wins, so a project with both targets installed uses these agents; a project `.claude/agents` copy, or one in a deeper directory, shadows a user-scope native agent. Grok's bundled `reviewer` role adds high reasoning effort to any agent named `reviewer`.
 
-Qualification (grok 1.0.40, macOS arm64, 2026-09-30): `grok inspect --json` lists all six from `.grok/agents` in a clean project and beside Claude Code's `.claude/agents` copies, and the generated files set no model or permission mode. A delegated task, the child's inherited model and the allowed and denied tool behavior of a spawned child are not yet observed: the run stopped at the account's exhausted Grok Build usage balance (HTTP 402).
+Qualification (grok 1.0.44, macOS arm64, 2026-09-30): `grok inspect --json` lists all six from `.grok/agents` in a clean project and beside Claude Code's `.claude/agents` copies, and the generated files set no model or permission mode. A delegated task, the child's inherited model and the allowed and denied tool behavior of a spawned child are not yet observed: the run stopped at the account's exhausted Grok Build usage balance (HTTP 402).
 
 References:
 

@@ -406,7 +406,7 @@
             "~/.grok/agents/<name>.md",
             ".grok/agents/<name>.md"
           ],
-          "notes": "Normalized access maps to a typed capabilityMode (read-only, read-write or all) narrowed by a tools allowlist, with mcpInheritance none. No model is written, so the child inherits the parent's model, and no permissionMode, since Grok wires only bypassPermissions. Grok always also loads .claude/agents: within one directory the native file wins, but a project or deeper .claude/agents copy shadows a user-scope native agent. grok 1.0.40 lists all six from .grok/agents in a clean project and beside .claude/agents copies (grok inspect --json, 2026-09-30); tool enforcement on a spawned child is not yet observed."
+          "notes": "Normalized access maps to a typed capabilityMode (read-only, read-write or all) narrowed by a tools allowlist, with mcpInheritance none. No model is written, so the child inherits the parent's model, and no permissionMode, since Grok wires only bypassPermissions. Grok always also loads .claude/agents: within one directory the native file wins, but a project or deeper .claude/agents copy shadows a user-scope native agent. grok 1.0.44 lists all six from .grok/agents in a clean project and beside .claude/agents copies (grok inspect --json, 2026-09-30); tool enforcement on a spawned child is not yet observed."
         },
         "external": {
           "support": "native",
@@ -453,7 +453,7 @@
           "surface": "subagents",
           "scope": "project",
           "platform": "darwin",
-          "component_build": "1.0.40 (eb1a2256660d)",
+          "component_build": "1.0.44 (5b807183dd79)",
           "scenario": "Clean project after install --target grok-build --scope project --category development: grok inspect --json lists all six agents.",
           "level": "discovery",
           "outcome": "pass",
@@ -461,8 +461,7 @@
             "agent-surface b3abacd render; grok inspect --json with a scratch HOME and GROK_HOME reported agents[].source.path under <project>/.grok/agents for boss, reviewer, researcher, worker, analyzer and adversary."
           ],
           "limitations": [
-            "Project scope only; user scope and Windows were not checked by this record.",
-            "The latest stable grok 1.0.44 is not tested."
+            "Project scope only; user scope and Windows were not checked by this record."
           ]
         },
         {
@@ -471,7 +470,7 @@
           "surface": "subagents",
           "scope": "project",
           "platform": "darwin",
-          "component_build": "1.0.40 (eb1a2256660d)",
+          "component_build": "1.0.44 (5b807183dd79)",
           "scenario": "The same project with Claude Code's .claude/agents copies of the six also installed.",
           "level": "discovery",
           "outcome": "pass",
@@ -479,8 +478,7 @@
             "grok inspect --json still reported all six from <project>/.grok/agents: the native file wins over .claude/agents in the same directory."
           ],
           "limitations": [
-            "A .claude/agents copy in a directory deeper than the project root, or a project copy over a user-scope native agent, still shadows the native file; that case is not recorded as a pass.",
-            "The latest stable grok 1.0.44 is not tested."
+            "A .claude/agents copy in a directory deeper than the project root, or a project copy over a user-scope native agent, still shadows the native file; that case is not recorded as a pass."
           ]
         },
         {
@@ -489,14 +487,13 @@
           "surface": "subagents",
           "scope": "project",
           "platform": "darwin",
-          "component_build": "1.0.40 (eb1a2256660d)",
+          "component_build": "1.0.44 (5b807183dd79)",
           "scenario": "Headless parent limited to spawn_subagent delegates a harmless read of a nonce file to the reviewer agent.",
           "level": "task",
           "outcome": "blocked",
           "evidence": [],
           "limitations": [
-            "The first model call returned HTTP 402 (Grok Build usage balance exhausted); no child ran and the inherited model was not observed.",
-            "The latest stable grok 1.0.44 is not tested."
+            "The first model call returned HTTP 402 (Grok Build usage balance exhausted) on 1.0.40 and again on 1.0.44; no child ran and the inherited model was not observed."
           ]
         },
         {
@@ -505,14 +502,13 @@
           "surface": "subagents",
           "scope": "project",
           "platform": "darwin",
-          "component_build": "1.0.40 (eb1a2256660d)",
+          "component_build": "1.0.44 (5b807183dd79)",
           "scenario": "The reviewer child is denied file writes and shell while the worker child is allowed both.",
           "level": "policy",
           "outcome": "blocked",
           "evidence": [],
           "limitations": [
-            "Blocked by the same exhausted usage balance; capabilityMode and tools enforcement on a spawned child is read from Grok's source, not observed.",
-            "The latest stable grok 1.0.44 is not tested."
+            "Blocked by the same exhausted usage balance; capabilityMode and tools enforcement on a spawned child is read from Grok's source, not observed."
           ]
         }
       ]
@@ -696,7 +692,7 @@
             "~/.config/poolside/AGENTS.md",
             "AGENTS.md"
           ],
-          "notes": "User installs write the documented personal ~/.config/poolside/AGENTS.md; project installs use AGENTS.md. Earlier installs wrote ~/.config/poolside/.poolside. When a selection writes the personal instructions, an owned copy identical to the replacement is removed after the write, and a differing one blocks with MIGRATION_SOURCE_CONFLICT because no recorded qualification shows the client ignores it; other selections leave it in place and claimed. The personal AGENTS.md needs pool 1.0.7 or later: a pool 1.0.2 capture in standalone mode sent .poolside and never the personal AGENTS.md (2026-09-30). The current 1.0.16 is not yet qualified."
+          "notes": "User installs write the documented personal ~/.config/poolside/AGENTS.md; project installs use AGENTS.md. Earlier installs wrote ~/.config/poolside/.poolside. When a selection writes the personal instructions, an owned copy identical to the replacement is removed after the write, and a differing one blocks with MIGRATION_SOURCE_CONFLICT because the current client still reads it (pool 1.0.16 capture); other selections leave it in place and claimed. The personal AGENTS.md needs pool 1.0.7 or later: a pool 1.0.2 capture in standalone mode sent .poolside and never the personal AGENTS.md (2026-09-30), and pool 1.0.16 sends both it and .poolside."
         },
         "external": {
           "support": "native",
@@ -751,8 +747,26 @@
             "All 12 captured requests carried the project AGENTS.md and ~/.config/poolside/.poolside markers and none carried the ~/.config/poolside/AGENTS.md marker (agent-surface b3abacd render)."
           ],
           "limitations": [
-            "Poolside switched to the global AGENTS.md in v1.0.7 (2026-06-26), which 1.0.2 predates; the latest 1.0.16 is not tested.",
+            "Poolside switched to the global AGENTS.md in v1.0.7 (2026-06-26), which 1.0.2 predates; 1.0.16 is recorded separately.",
             "Standalone mode only; a tenant-mode pool exec on this build failed with 404 Not Found: please check the model you provided."
+          ]
+        },
+        {
+          "client": "pool",
+          "surface": "rules",
+          "scope": "user",
+          "platform": "darwin",
+          "component_build": "1.0.16",
+          "scenario": "pool exec in standalone mode against a local capture endpoint (no model call), with the generated ~/.config/poolside/AGENTS.md, a .poolside and a project AGENTS.md each holding a unique marker.",
+          "level": "discovery",
+          "outcome": "pass",
+          "checked_at": "2026-09-30",
+          "evidence": [
+            "All 12 captured requests carried the ~/.config/poolside/AGENTS.md marker, and also the ~/.config/poolside/.poolside and project AGENTS.md markers (agent-surface 3b121b0 render)."
+          ],
+          "limitations": [
+            "1.0.16 still sends ~/.config/poolside/.poolside, so both files load when both exist; that is why an identical .poolside is removed and a differing one blocks.",
+            "Standalone mode against a local capture endpoint only; tenant mode and a model-backed session are not tested."
           ]
         }
       ],
@@ -2607,7 +2621,7 @@
       }
     },
     "trae-cli": {
-      "summary": "Trae CLI 2.0 (traecli, TRAE Enterprise), which reads ~/.trae (TRAE_HOME is not followed) and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, subagents, project rules and the traecli.toml config with first-party MCP servers. Trae CLI 1.0 is not targeted. traecli 0.201.6 lists the generated MCP servers; the other surfaces are not runtime-tested.",
+      "summary": "Trae CLI 2.0 (traecli, TRAE Enterprise), which reads ~/.trae (TRAE_HOME is not followed) and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, subagents, project rules and the traecli.toml config with first-party MCP servers. Trae CLI 1.0 is not targeted. traecli 0.207.1-tob reads the generated MCP servers, project skills and project rules; agents and the user roots are not runtime-tested.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -2646,7 +2660,7 @@
           "paths": [
             "~/.trae/traecli.toml"
           ],
-          "notes": "First-party secretless MCP services are merged into mcp_servers; external or secret-bearing MCPs remain opt-in. traecli 0.201.6 lists them as enabled (traecli mcp list, 2026-09-30)."
+          "notes": "First-party secretless MCP services are merged into mcp_servers; external or secret-bearing MCPs remain opt-in. traecli 0.207.1-tob lists them as enabled (traecli mcp list, 2026-09-30)."
         },
         "settings": {
           "support": "native",
@@ -2683,7 +2697,7 @@
             "~/.trae/skills/<name>/SKILL.md",
             ".trae/skills/<name>/SKILL.md"
           ],
-          "notes": "The user root is $TRAE_HOME/skills at its default (from the installed traecli 0.201.6 binary), shared with trae; traecli 0.201.6-tob reads the project skills folder (offline prompt render, 2026-09-30)."
+          "notes": "The user root is $TRAE_HOME/skills at its default (from the installed traecli 0.201.6 binary), shared with trae; traecli 0.207.1-tob reads the project skills folder (offline prompt render, 2026-09-30)."
         },
         "external": {
           "support": "native",
@@ -2717,21 +2731,21 @@
           "surface": "mcp",
           "scope": "user",
           "platform": "darwin",
-          "component_build": "0.201.6-tob",
+          "component_build": "0.207.1-tob",
           "scenario": "install --target trae-cli --scope user into a scratch home, then traecli mcp list with that HOME.",
           "level": "discovery",
           "outcome": "pass",
           "evidence": [
-            "agent-surface 0b4d593 config render; traecli mcp list listed grimoire and synapse from ~/.trae/traecli.toml as enabled."
+            "agent-surface 3b121b0 config render; traecli mcp list listed grimoire and synapse from ~/.trae/traecli.toml as enabled."
           ],
           "limitations": [
-            "traecli mcp list reads the config signed out; a model-backed session and enterprise MCP policy were not exercised; the newer 0.207.1-tob is not tested."
+            "traecli mcp list reads the config signed out; a model-backed session and enterprise MCP policy were not exercised."
           ]
         },
         {
           "client": "traecli",
           "platform": "darwin",
-          "component_build": "0.201.6-tob",
+          "component_build": "0.207.1-tob",
           "checked_at": "2026-09-30",
           "surface": "skills",
           "scope": "project",
@@ -2739,17 +2753,17 @@
           "level": "discovery",
           "outcome": "pass",
           "evidence": [
-            "The rendered prompt input listed ops-ask, ops-docs, ops-learn, ops-monitor, ops-report and ops-swarm from <project>/.trae/skills/<name>/SKILL.md (agent-surface 0b4d593 render)."
+            "The rendered prompt input listed ops-ask, ops-docs, ops-learn, ops-monitor, ops-report and ops-swarm from <project>/.trae/skills/<name>/SKILL.md (agent-surface 3b121b0 render)."
           ],
           "limitations": [
             "Rendered offline with a placeholder model catalog and local provider supplied through -c (keys not in Trae's docs): no sign-in and no model call, so no task ran.",
-            "Agents, the user roots and enterprise policy are not covered; model-backed use needs a TRAE Enterprise flagship plan; the newer 0.207.1-tob is not tested."
+            "Agents, the user roots and enterprise policy are not covered; model-backed use needs a TRAE Enterprise flagship plan."
           ]
         },
         {
           "client": "traecli",
           "platform": "darwin",
-          "component_build": "0.201.6-tob",
+          "component_build": "0.207.1-tob",
           "checked_at": "2026-09-30",
           "surface": "rules",
           "scope": "project",
@@ -2761,7 +2775,7 @@
           ],
           "limitations": [
             "Rendered offline with a placeholder model catalog and local provider supplied through -c (keys not in Trae's docs): no sign-in and no model call, so no task ran.",
-            "Agents, the user roots and enterprise policy are not covered; model-backed use needs a TRAE Enterprise flagship plan; the newer 0.207.1-tob is not tested."
+            "Agents, the user roots and enterprise policy are not covered; model-backed use needs a TRAE Enterprise flagship plan."
           ]
         }
       ]
