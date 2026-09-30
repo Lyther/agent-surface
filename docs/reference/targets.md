@@ -26,7 +26,7 @@ Every host `agent-surface` renders into, and how much of the source model each r
 | Trae CN | 62 `.trae-cn/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | 12 `.trae-cn/user_rules/*.md` + 6 scoped refs | 6 `.trae-cn/agents/*.md` (co-owned with Trae) | External skills; Synapse + Grimoire in the IDE's `User/mcp.json` | 5 |
 | Trae CLI | 62 `.trae/skills/*/SKILL.md` (co-owned with Trae) | 5 explicit-invocation compatibility skills | Project `.trae/rules` only | 6 `.trae/agents/*.md` | External skills; Synapse + Grimoire and full CLI policy in `.trae/traecli.toml` | 5 |
 | Goose | 62 `.agents/skills/*/SKILL.md` | 5 compatibility skills in user builds; project installs use `recipes/*.yaml` | None | None | External skills; Synapse + Grimoire in user config | 4 |
-| Grok Build | 62 `.grok/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | Project `AGENTS.md` + 6 scoped refs | None | External skills; Synapse + Grimoire in `.grok/config.toml` | 4 |
+| Grok Build | 62 `.grok/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | Project `AGENTS.md` + 6 scoped refs | 6 `.grok/agents/*.md` | External skills; Synapse + Grimoire in `.grok/config.toml` | 5 |
 | Pi | 62 `.pi/agent/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.pi/agent/AGENTS.md` + 6 scoped refs | None | External skills | 4 |
 | Poolside | 62 `.config/poolside/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.config/poolside/AGENTS.md` + 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
 | Windsurf | 62 `.codeium/windsurf/skills/*/SKILL.md` | 5 global workflows | Global rules + 6 scoped refs | None | External skills; Synapse + Grimoire | 5 |

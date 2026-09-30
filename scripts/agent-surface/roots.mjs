@@ -99,6 +99,10 @@ export function grokBuildSkillRoot() {
   return path.join(".grok", "skills");
 }
 
+export function grokBuildAgentRoot() {
+  return path.join(".grok", "agents");
+}
+
 export function dshSkillRoot() {
   return path.join(".dsh", "skills");
 }

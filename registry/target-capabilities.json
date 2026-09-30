@@ -339,10 +339,11 @@
       }
     },
     "grok-build": {
-      "summary": "Grok Build supports Agent Skills, project AGENTS.md instructions, TOML configuration, and MCP; agent-surface generates skills, instructions, first-party MCP wiring, and always-approve execution policy.",
+      "summary": "Grok Build supports Agent Skills, project AGENTS.md instructions, custom agents, TOML configuration, and MCP; agent-surface generates skills, instructions, native agents, first-party MCP wiring, and always-approve execution policy.",
       "generated_render_tokens": [
         "skills",
         "rules",
+        "subagents",
         "external",
         "mcps"
       ],
@@ -354,6 +355,18 @@
         {
           "label": "Grok Build modes and config",
           "url": "https://docs.x.ai/build/modes-and-commands"
+        },
+        {
+          "label": "Grok Build subagents",
+          "url": "https://docs.x.ai/build/features/subagents"
+        },
+        {
+          "label": "Grok Build agent definition fields (source)",
+          "url": "https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-agent/src/config.rs"
+        },
+        {
+          "label": "Grok Build agent discovery (source)",
+          "url": "https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-agent/src/discovery.rs"
         }
       ],
       "surfaces": {
@@ -381,6 +394,19 @@
             ".grok/references/rules/<rule>.md"
           ],
           "notes": "Project instructions use the AGENTS.md compatibility family; scoped policies remain separate references."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.grok/agents/<name>.md",
+            ".grok/agents/<name>.md"
+          ],
+          "notes": "Normalized access maps to a typed capabilityMode (read-only, read-write or all) narrowed by a tools allowlist, with mcpInheritance none. No model is written, so the child inherits the parent's model, and no permissionMode, since Grok wires only bypassPermissions. Grok always also loads .claude/agents: within one directory the native file wins, but a project or deeper .claude/agents copy shadows a user-scope native agent. grok 1.0.40 lists all six from .grok/agents in a clean project and beside .claude/agents copies (grok inspect --json, 2026-09-30); tool enforcement on a spawned child is not yet observed."
         },
         "external": {
           "support": "native",

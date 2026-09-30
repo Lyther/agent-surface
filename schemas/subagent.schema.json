@@ -47,7 +47,8 @@
         "trae",
         "antigravity-cli",
         "antigravity",
-        "opencode"
+        "opencode",
+        "grok-build"
       ],
       "properties": {
         "claude-code": {
@@ -96,6 +97,9 @@
           "type": "boolean"
         },
         "opencode": {
+          "type": "boolean"
+        },
+        "grok-build": {
           "type": "boolean"
         }
       },

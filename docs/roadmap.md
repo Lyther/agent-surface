@@ -1,6 +1,6 @@
 # Runtime Refresh Roadmap
 
-Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT1.1, RT1.2, RT2.0, RT2.1 AND RT2.4 IMPLEMENTED; ALL OTHER TASKS NOT STARTED
+Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT1.1, RT1.2, RT2.0, RT2.1, RT2.4 AND RT3.2 IMPLEMENTED (RT3.2 MODEL-BACKED ACCEPTANCE BLOCKED); ALL OTHER TASKS NOT STARTED
 Date: 2026-09-28; revised the same day after cross-review
 Baseline: `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 Inputs: [concept](context/concept-zero.md), [research](context/concept-zero-research.md), [architecture](architecture.md), [contract](contracts/runtime-refresh.md).
@@ -165,7 +165,7 @@ Exit: generated command/skill/MCP output consumed by the actual CLI, useful harm
 
 ### RT3.2 Grok Build Native Agents
 
-State: SPIKE_REQUIRED then implementation. Depends on: `RT1.2`. Covers: `G-RT-07`, `Q-RT-02`, `G-RT-06`.
+State: IMPLEMENTED; on grok 1.0.40 (eb1a2256660d, macOS arm64) `grok inspect --json` verifies clean-root discovery from `.grok/agents` and the co-installed case (native wins over `.claude/agents` in the same directory), and the generated agents and project config set no model, permission mode, `[agent]`, `[subagents]` or `[model.*]` entry; the harmless delegated task, the child's inherited model and allowed/denied tool behavior are BLOCKED because the account's Grok Build usage balance is exhausted (HTTP 402, 2026-09-30). Open: the default `promptMode` (`extend` appends each role to Grok's base prompt), the bundled `reviewer` role's `default_fork_context`, Windows and `GROK_HOME` user routing, and newer builds. Depends on: `RT1.2`. Covers: `G-RT-07`, `Q-RT-02`, `G-RT-06`.
 
 Resolve the complete current custom-agent format and exact selected release; public latest is allowed under the user's security-first policy without claiming a named stable pointer. Prove inherited model and effective role/tool restrictions; do not treat `allowed-tools` metadata as enforcement by spelling alone. Then add only the native producer/role declarations the contract supports.
 

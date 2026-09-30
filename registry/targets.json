@@ -53,6 +53,7 @@
       "renders": [
         "skills",
         "rules",
+        "subagents",
         "external",
         "mcps"
       ]

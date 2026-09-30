@@ -223,6 +223,7 @@ for (const [target, patterns] of [
   planHas(dryRun(target, ["--category", "development"]), patterns, `${target} development`);
 }
 planHas(dryRun("grok-build"), [/\.grok\/config\.toml MCP \+= grimoire, synapse/], "grok-build default");
+planHas(dryRun("grok-build", ["--category", "development"]), [/\.grok\/agents\/boss\.md <- subagents\/boss\.md/, /\.grok\/agents\/worker\.md <- subagents\/worker\.md/], "grok-build development");
 
 // OpenHands MCP is user-scope only on project dry-run.
 planLacks(dryRun("openhands"), [/\.openhands\/mcp\.json MCP/], "openhands project");

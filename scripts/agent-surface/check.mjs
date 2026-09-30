@@ -1020,6 +1020,15 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".grok", "config.toml"), /^\[ui\]$/m);
     requireContains(path.join(".grok", "config.toml"), /^permission_mode = "always-approve"$/m);
     requireContains(path.join(".grok", "config.toml"), /^\[mcp_servers\.synapse\]$/m);
+    requireContains(path.join(".grok", "agents", "boss.md"), /^---\nname: boss\n[\s\S]*^capabilityMode: read-only$/m);
+    requireContains(path.join(".grok", "agents", "worker.md"), /^capabilityMode: all$/m);
+    // Grok silently drops an agent it cannot parse, and a .claude/agents copy of the same name then
+    // loads instead, so every generated agent must keep exactly this frontmatter: no model (it would
+    // override the parent's) and no permissionMode (bypassPermissions escalates the child).
+    const grokAgentShape = /^---\nname: [a-z][a-z0-9-]*\ndescription: "(?:[^"\\\n]|\\.)+"\ntools: [A-Za-z]+(?:, [A-Za-z]+)*\ncapabilityMode: (?:read-only|read-write|all)\nmcpInheritance: none\nmaxTurns: [1-9]\d*\n---\n\n\S/;
+    for (const output of outputs.filter((item) => item.relativeOutput.startsWith(`${path.join(".grok", "agents")}${path.sep}`))) {
+      if (!grokAgentShape.test(output.content)) errors.push(`${output.relativeOutput} does not match the Grok agent frontmatter agent-surface renders`);
+    }
   } else if (target === "dsh") {
     requireContains(path.join(".dsh", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     if (outputs.some((output) => output.source.startsWith("commands/"))) {

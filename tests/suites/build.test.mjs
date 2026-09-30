@@ -79,6 +79,7 @@ const mustExist = [
   ["trae-cli", path.join(".trae", "agents", "boss.md")],
   ["trae-cli", path.join(".trae", "skills", "workflow-runtime", "SKILL.md")],
   ["trae-cli", path.join(".trae", "traecli.toml")],
+  ["grok-build", path.join(".grok", "agents", "boss.md")],
   ["openhands", path.join(".openhands", "mcp.json")],
   ["goose", path.join(".config", "goose", "config.yaml")],
 ];
@@ -253,6 +254,12 @@ const bossWorker = [
     worker: path.join(root, "dist", "copilot", ".copilot", "agents", "worker.agent.md"),
     bossOk: (t) => /^tools: \["read", "search"\]$/m.test(t),
     workerOk: (t) => /^tools: \["\*"\]$/m.test(t),
+  },
+  {
+    boss: path.join(root, "dist", "grok-build", ".grok", "agents", "boss.md"),
+    worker: path.join(root, "dist", "grok-build", ".grok", "agents", "worker.md"),
+    bossOk: (t) => /^tools: Read, Glob, Grep$/m.test(t) && /^capabilityMode: read-only$/m.test(t) && /^mcpInheritance: none$/m.test(t) && !/^(?:model|permissionMode):/m.test(t),
+    workerOk: (t) => /^tools: Read, Glob, Grep, Edit, Write, Bash$/m.test(t) && /^capabilityMode: all$/m.test(t) && /^mcpInheritance: none$/m.test(t) && !/^(?:model|permissionMode):/m.test(t),
   },
   {
     boss: path.join(root, "dist", "trae", ".trae-cn", "agents", "boss.md"),
