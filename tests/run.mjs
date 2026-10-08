@@ -34,6 +34,7 @@ const suites = [
   "os-routes.test.mjs",
   "install.test.mjs",
   "ownership.test.mjs",
+  "limits.test.mjs",
   "mcp-launch-resolve.test.mjs",
   "install-live.test.mjs",
   "skill-packages.test.mjs",

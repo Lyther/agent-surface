@@ -72,9 +72,14 @@ try {
   }
 
   // Build prints each target's notices before any write; doctor lists every stored notice.
-  const windsurfBuild = run(["build", "--target", "windsurf", "--dry-run"]);
-  assert.match(windsurfBuild, /^windsurf notice: WINDSURF_CASCADE_LEGACY \(retirement; target; /m);
-  assert.ok(windsurfBuild.indexOf("windsurf notice:") < windsurfBuild.indexOf("[dry-run]"), "notices precede the planned writes");
+  const windsurfPlan = run(["install", "--target", "windsurf", "--scope", "project", "--dest", path.join(scratch, "windsurf"), "--dry-run"], {
+    env: { ...process.env, HOME: home },
+  });
+  assert.match(windsurfPlan, /^  WINDSURF_CASCADE_LEGACY \(retirement; target; /m);
+  assert.match(windsurfPlan, /^  WINDSURF_RULE_SIZE_LIMITS \(compatibility; rules\)/m);
+  const poolBuild = run(["build", "--target", "pool", "--dry-run"]);
+  assert.match(poolBuild, /^pool notice: POOL_AGENTS_MD_CLIENT_FLOOR \(/m);
+  assert.ok(poolBuild.indexOf("pool notice:") < poolBuild.indexOf("[dry-run]"), "notices precede the planned writes");
   const doctor = run(["doctor"], { env: { ...process.env, HOME: home } });
   assert.match(doctor, /^notice kiro: KIRO_MANUAL_STEERING_AUTOLOADED \(/m);
   assert.match(doctor, /^notice pool: POOL_AGENTS_MD_CLIENT_FLOOR \(/m);

@@ -22,7 +22,7 @@ import { provisioningDecision, runProvisioning } from "./provision-exec.mjs";
 import { formatProvisioningPlan, launchNameOf, PLATFORM, provisioningActions, provisioningStatus, unrecipedRequired } from "./provision.mjs";
 import { assertJsonPropertyType, isMcpLauncherCommand, MCP_ENV_LAUNCHER, mcpLauncherInvocation, mergeCodexMcpToml, mergeJsonMcpConfig, mergeKiroPermissions, mergeYamlMcpConfig, optionalServiceMcpServers, renderMcpConfig, YAML_MCP_FORMATS } from "./merge.mjs";
 import { formatNotice, localDate, planNotices } from "./notices.mjs";
-import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, relative, root, selectedAssetCategories } from "./registry.mjs";
+import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { readRules } from "./rules.mjs";
 import { adapterMcpConfigs, kiloRuleInstructionPaths, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets } from "./targets.mjs";
 import { argValue, argValues, fail, isPathInside, isSafeRelativePath, isSafeTargetName, splitArgValues, uniqueStrings } from "./util.mjs";
@@ -30,13 +30,18 @@ import { argValue, argValues, fail, isPathInside, isSafeRelativePath, isSafeTarg
 export async function build(args) {
   const target = argValue(args, "--target") ?? "all";
   const dryRun = args.includes("--dry-run");
+  const registry = await readTargetRegistry();
 
   if (target !== "all") {
     if (!isSafeTargetName(target)) fail(`unsafe build target: ${target}`);
     if (!Object.hasOwn(targets, target)) fail(`unsupported build target: ${target}`);
+    // Build renders the full user-scope output, which an unbuildable target's host cannot load.
+    if (!registry[target].build_supported) fail(`${target} is not buildable: install it with --target ${target} and a selection its host can load`);
   }
 
-  const selected = target === "all" ? Object.keys(targets) : [target];
+  const excluded = target === "all" ? deprecatedTargets(registry) : [];
+  const selected = target === "all" ? Object.keys(targets).filter((item) => !excluded.includes(item)) : [target];
+  for (const item of excluded) console.log(`${item}: excluded from --target all (deprecated; not buildable)`);
   const catalog = await exportableCatalog();
   const sourceKindsConfig = await readSourceKinds();
   const today = localDate();
@@ -86,8 +91,9 @@ export async function build(args) {
 }
 
 export async function install(args) {
-  const selectedTargets = selectedInstallTargets(args);
   const allTargetsSelected = installTargetsIncludeAll(args);
+  const excludedTargets = allTargetsSelected ? deprecatedTargets(await readTargetRegistry()) : [];
+  const selectedTargets = selectedInstallTargets(args).filter((target) => !excludedTargets.includes(target));
   const scope = argValue(args, "--scope") ?? "project";
   const dryRun = args.includes("--dry-run");
   const allowScopeRoot = args.includes("--allow-scope-root");
@@ -149,6 +155,9 @@ export async function install(args) {
   const unprovisionable = provisioning.blockers.length > 0
     ? `missing required prerequisites with no ${PLATFORM} recipe: ${provisioning.blockers.map((item) => `${item.service}/${item.id}`).join(", ")}`
     : null;
+  for (const target of excludedTargets) {
+    console.log(`${target}: excluded from --target all (deprecated); its installed files and manifest stay as they are; name --target ${target} to install it`);
+  }
   for (const plan of plans) {
     printInstallPlan(plan);
   }
@@ -264,6 +273,11 @@ async function buildInstallPlans(context) {
   protectCrossPlanLiveOutputs(plans);
   resolveSharedOwnership(plans);
   return plans;
+}
+
+// Deprecated targets stay addressable by name; `all` leaves them out and says so (contract, Selection).
+function deprecatedTargets(registry) {
+  return Object.keys(targets).filter((target) => registry[target].status === "deprecated");
 }
 
 function installTargetsIncludeAll(args) {
@@ -694,6 +708,16 @@ async function applyOutputMode(target, mode) {
   await chmod(target, mode).catch(() => { /* best effort on platforms without POSIX modes */ });
 }
 
+// Checked on the effective selection only, so an unselected oversized document never blocks. A host
+// that states a character limit without naming the unit gets a document that fits both as Unicode
+// code points and as UTF-16 units (contract, Validation Ownership).
+export function outputLimitError({ relativeOutput, content, characterLimit }) {
+  if (characterLimit === undefined) return null;
+  const codePoints = [...content].length;
+  if (codePoints <= characterLimit && content.length <= characterLimit) return null;
+  return `OUTPUT_LIMIT_EXCEEDED: ${relativeOutput} is ${codePoints} code points (${content.length} UTF-16 units, ${Buffer.byteLength(content)} bytes) and its host reads at most ${characterLimit} characters; narrow the selection until this file fits or is left out, for example with --category skills`;
+}
+
 async function installPlan(target, adapter, installRoot, scope, rootSource, options = {}) {
   const categoryFilter = options.categoryFilter ?? null;
   const optionalServices = options.optionalServices ?? null;
@@ -744,7 +768,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       continue;
     }
 
-    writes.push({ source: item.source, output, relativeOutput, content: item.content, mode: item.mode });
+    writes.push({ source: item.source, output, relativeOutput, content: item.content, mode: item.mode, characterLimit: item.characterLimit });
     managed.push({
       target,
       source: item.source,
@@ -755,6 +779,12 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   }
 
   for (const item of writes) {
+    const limitError = outputLimitError(item);
+    if (limitError) {
+      blocked.push(limitError);
+      item.action = "blocked";
+      continue;
+    }
     const routeError = await installPathError(installRoot, item.output, `managed output ${item.relativeOutput}`);
     if (routeError) {
       blocked.push(routeError);

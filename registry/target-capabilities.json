@@ -2677,8 +2677,8 @@
           "code": "WINDSURF_CASCADE_LEGACY",
           "kind": "retirement",
           "surface": "target",
-          "message": "Devin Desktop removed the Cascade harness in 3.9.19. This adapter targets legacy Cascade installs only; it is not Devin Local or CLI support.",
-          "action": "Use it only with an existing Cascade install; Devin Local and CLI need a separate target that agent-surface does not generate yet.",
+          "message": "Devin Desktop removed the Cascade harness in 3.9.19. This adapter targets legacy Cascade installs only; it is not Devin Local or CLI support, and --target all no longer selects it.",
+          "action": "Name --target windsurf only for an existing Cascade install.",
           "source_url": "https://docs.devin.ai/desktop/changelog",
           "checked_at": "2026-09-28",
           "effective_on": "2026-09-08"
@@ -2687,8 +2687,8 @@
           "code": "WINDSURF_RULE_SIZE_LIMITS",
           "kind": "compatibility",
           "surface": "rules",
-          "message": "Cascade documents a 6,000-character limit for the global rules file and 12,000 characters per workspace rule file. agent-surface's user-scope rules and any development rules exceed those limits today, and the installer does not block them yet.",
-          "action": "For complete rules in Cascade, use a project-scope general install, whose rules file fits one workspace file; user-scope or development rules may not load completely.",
+          "message": "Cascade documents a 6,000-character limit for the global rules file and 12,000 characters per workspace rule file. agent-surface's user-scope rules and any development rules exceed them, so the installer refuses a selection that includes them (OUTPUT_LIMIT_EXCEEDED) and writes nothing.",
+          "action": "For complete rules in Cascade, use a project-scope general install, whose rules file fits one workspace file; at user scope leave rules out, for example with --category skills,commands-as-workflows,external,mcps.",
           "source_url": "https://docs.devin.ai/desktop/cascade/memories",
           "checked_at": "2026-09-28"
         }

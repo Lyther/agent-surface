@@ -26,6 +26,13 @@ export async function readTargetCapabilities() {
   return targetCapabilitiesCache;
 }
 
+let targetRegistryCache;
+export async function readTargetRegistry() {
+  if (targetRegistryCache !== undefined) return targetRegistryCache;
+  targetRegistryCache = JSON.parse(await readFile(path.join(root, "registry", "targets.json"), "utf8")).in_scope;
+  return targetRegistryCache;
+}
+
 let optionalServicesCache;
 export async function readOptionalServices() {
   if (optionalServicesCache !== undefined) return optionalServicesCache;

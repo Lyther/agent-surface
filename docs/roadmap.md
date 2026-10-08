@@ -1,7 +1,7 @@
 # Runtime Refresh Roadmap
 
-Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT1.1, RT1.2, RT2.0, RT2.1, RT2.4 AND RT3.2 IMPLEMENTED (RT3.2 MODEL-BACKED ACCEPTANCE BLOCKED); RT4.1 IN PROGRESS; RT0.3 AND RT2.3 DEFERRED TO THE COMPUTER-USE EFFORT; ALL OTHER TASKS NOT STARTED
-Date: 2026-09-28; revised the same day after cross-review
+Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT0.2 DISCOVERY DONE; RT1.1, RT1.2, RT2.0, RT2.1, RT2.2, RT2.4 AND RT3.2 IMPLEMENTED (RT3.2 MODEL-BACKED ACCEPTANCE BLOCKED); RT3.1 DROPPED; RT4.1 IN PROGRESS; RT0.3 AND RT2.3 DEFERRED TO THE COMPUTER-USE EFFORT; ALL OTHER TASKS NOT STARTED
+Date: 2026-09-28; last revised 2026-10-08
 Baseline: `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 Inputs: [concept](context/concept-zero.md), [research](context/concept-zero-research.md), [architecture](architecture.md), [contract](contracts/runtime-refresh.md).
 
@@ -26,7 +26,7 @@ First vertical: RT1.1 metadata/notices -> RT1.2 inventory corrections
 Ownership:      RT2.0 installer ownership protection (independent)
 Antigravity:    RT0.3 + RT1.1 + RT2.0 -> RT2.3, before November 1
 Path repair:    RT2.0 -> RT2.1 Poolside route
-Cutover:        RT0.2 + RT1.1 + RT2.0 -> RT3.1 Devin; RT1.1 -> RT2.2, whose selector change and RT3.1's `all` admission land as one change
+Cutover:        RT1.1 -> RT2.2 Cascade cutover; RT0.2 -> RT3.1 Devin (dropped: Devin CLI lists the other targets' output)
 Other paths:    RT1.2 + RT2.0 -> RT2.4
 Grok agents:    RT1.2 -> RT3.2
 Delivery:       each completed applicable slice -> RT4.1 -> RT4.2
@@ -51,7 +51,7 @@ Exit for the deferred remainder: the requalification names the exact build and r
 
 ### RT0.2 Devin Native Root and Conflict Preflight
 
-State: SPIKE_REQUIRED. Depends on: none. Covers: `G-RT-02`, `Q-RT-02`, `Q-RT-04`.
+State: DONE (discovery) on Devin CLI 3000.11.3, macOS arm64, 2026-10-08: Devin CLI already lists the rules, skills and MCP servers the other targets write, through its default imports, so no `devin` target is built ([contract](contracts/runtime-refresh.md#cascade-compatibility-and-devin) has the roots and the decision). No model-backed check ran because the CLI was not signed in; Windows and Devin Desktop's Local harness were not run. Depends on: none. Covers: `G-RT-02`, `Q-RT-02`, `Q-RT-04`.
 
 Use a current security-appropriate Devin CLI in a disposable profile. Verify the documented home/project rule roots, config directory on the selected platform, native manual skills and dedicated MCP configuration. Run from another repository for the user-scope claim. Then introduce only the relevant legacy/shared roots and observe duplicate/precedence behavior. Do not disable imports or copy an entire operator profile. Local GUI qualification remains separate.
 
@@ -117,13 +117,13 @@ Exit: real disposable default/XDG destinations show old/new behavior; an identic
 
 ### RT2.2 Windsurf Cutover: Deprecation, Size Guard and Build Availability
 
-State: NOT STARTED. Depends on: `RT1.1`; its selector change lands in the same change as `RT3.1`'s `all` admission. Covers: `G-RT-02`, `G-RT-04`, `G-RT-05`, `Q-RT-02`, `Q-RT-05`, `Q-RT-06`.
+State: IMPLEMENTED without a Devin admission (`RT3.1` dropped): `windsurf` is `deprecated` and `build_supported: false`, build and install `all` list it as excluded, `build --target windsurf` refuses, and the planner refuses a selected Windsurf rules document over Cascade's limit (`OUTPUT_LIMIT_EXCEEDED`, before any write). No Cascade client was run; the limits are the documented ones. Depends on: `RT1.1`. Covers: `G-RT-02`, `G-RT-04`, `G-RT-05`, `Q-RT-02`, `Q-RT-05`, `Q-RT-06`.
 
 Implement the contract's cutover invariant and build-availability rule: mark `windsurf` deprecated compatibility, preserve explicit selection/manifest, visibly exclude deprecated targets from build/install `all`, make `windsurf` `build_supported: false` and enforce that registry field in the build selector together with the `check.mjs` change. Keep OpenHands implemented/included. Measure complete output, but apply blocking checks after effective category/scope filtering and before build deletes dist or install provisions/writes. Global full-policy remains blocked; install can still select skills only. No new build filters, truncation or compact policy. The size-guard code may land earlier, but it must not block `windsurf` inside `all` before the cutover.
 
 Files: targets registry/schema semantics, selectors in `install.mjs`, pure renderer/producer and root helpers, `check.mjs`, matrix/build/install cases; capability/adapter docs. No `retiredInstallTargets` entry or automatic old profile cleanup.
 
-Exit: exact/over boundaries, conservative Unicode counting, `all` exclusions, build availability and explicit compatibility selection tested; old dist/destination/manifests remain unchanged on invalid selected output; unselected oversized rules do not block skills-only installation; no default `all` holds both harnesses, and none loses both for a profile without a Cascade overlap. No unsafe old client is installed for a demo. Global limitations remain visible, not a full-parity claim.
+Exit: exact/over boundaries, conservative Unicode counting, `all` exclusions, build availability and explicit compatibility selection tested; old dist/destination/manifests remain unchanged on invalid selected output; unselected oversized rules do not block skills-only installation; no default `all` writes Cascade output. No unsafe old client is installed for a demo. Global limitations remain visible, not a full-parity claim.
 
 ### RT2.3 Antigravity Successor Before November 1
 
@@ -153,13 +153,13 @@ Exit: chosen platform/edition loads the installed artifact; foreign/unmanaged st
 
 ### RT3.1 Devin Local/CLI Artifact Target
 
-State: NOT STARTED. Depends on: `RT0.2`, `RT1.1`, `RT2.0`. Covers: `G-RT-02`, `Q-RT-02`, `Q-RT-04`.
+State: DROPPED (decision 2026-10-08) after `RT0.2`: a native target would add one more copy of every skill and server Devin CLI already imports, and removing the copies would mean turning off imports the operator may rely on. The design below is kept for a reopening, whose triggers the [contract](contracts/runtime-refresh.md#cascade-compatibility-and-devin) names. Depends on: `RT0.2`, `RT1.1`, `RT2.0`. Covers: `G-RT-02`, `Q-RT-02`, `Q-RT-04`.
 
-Add one `devin` adapter for the qualified native subset: complete rules, directory skills, manual command skills and dedicated MCP files. Reuse existing format-aware merge and source readers. Keep Local/CLI proof separate; custom subagents wait for model/tool-policy resolution. Detect the Cascade overlap on every Devin plan, and on `windsurf` plans for profiles holding Devin output, from the co-discovered state itself rather than a manifest, over the surfaces `RT0.2` records: an explicit Devin selection with an existing overlap, an explicit `windsurf` selection that would create one, or an explicit `windsurf,devin` selection whose plans would create one, blocks as `CASCADE_TRANSITION_REQUIRED`; `all` lists Devin as excluded under that label, naming the transition, and proceeds. A fresh nonconflicting install is the first supported journey, not a whole-profile migration.
+Add one `devin` adapter for the qualified native subset: complete rules, directory skills, manual command skills and dedicated MCP files. Reuse existing format-aware merge and source readers. Keep Local/CLI proof separate; custom subagents wait for model/tool-policy resolution. A fresh nonconflicting install is the first supported journey, not a whole-profile migration.
 
-Files: targets/capabilities/schemas, roots/render/producer, one adapter README, selected role metadata only if a later agent surface is qualified, focused build/install/matrix cases. No duplicate `devin-local`/`devin-cli` artifact writers.
+Files: targets/capabilities/schemas, roots/render/producer, one adapter README, focused build/install/matrix cases. No duplicate `devin-local`/`devin-cli` artifact writers.
 
-Exit: generated command/skill/MCP output consumed by the actual CLI, useful harmless MCP call, manual command loading, source/companion provenance and repeat install verified. Local GUI remains a separately labelled result until run. `all` admission occurs only with implementation and native CLI evidence, with release notes for the selector delta, in the same change as `RT2.2`'s selector change per the cutover invariant.
+Exit: generated command/skill/MCP output consumed by the actual CLI, useful harmless MCP call, manual command loading, source/companion provenance and repeat install verified. Local GUI remains a separately labelled result until run.
 
 ### RT3.2 Grok Build Native Agents
 

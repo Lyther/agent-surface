@@ -218,8 +218,10 @@ export async function check() {
     }
   }
 
+  // `build --target all` skips only deprecated targets, so every other adapter must stay buildable.
   for (const name of Object.keys(targets)) {
-    if (!targetsConfig.in_scope[name]?.build_supported) {
+    const entry = targetsConfig.in_scope[name];
+    if (!entry?.build_supported && entry?.status !== "deprecated") {
       errors.push(`CLI build target is not marked build_supported in registry: ${name}`);
     }
   }

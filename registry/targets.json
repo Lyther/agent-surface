@@ -301,8 +301,8 @@
       ]
     },
     "windsurf": {
-      "status": "implemented",
-      "build_supported": true,
+      "status": "deprecated",
+      "build_supported": false,
       "install_supported": true,
       "renders": [
         "skills",

@@ -1538,14 +1538,24 @@ assert.equal([...packedPaths].some((file) => file.startsWith(".agent-surface/"))
 
 const allTargetsDest = mkdtempSync(path.join(os.tmpdir(), "agent-surface-all-targets-"));
 try {
-  run(["install", "--target", "all", "--scope", "user", "--dest", allTargetsDest]);
+  const allTargetsInstall = run(["install", "--target", "all", "--scope", "user", "--dest", allTargetsDest]);
   const manifestRoot = path.join(allTargetsDest, ".agent-surface");
   // `--target all` covers every INSTALLABLE target. An export format has no install destination of
   // its own — its package is handed to the host's own plugin manager — so it is skipped rather than
-  // written somewhere invented. Asserted explicitly so the skip stays deliberate.
+  // written somewhere invented. Asserted explicitly so the skip stays deliberate. A deprecated
+  // target stays out of `all` too, and the plan says so.
+  const deprecated = Object.entries(JSON.parse(readFileSync(path.join(root, "registry", "targets.json"), "utf8")).in_scope)
+    .filter(([, entry]) => entry.status === "deprecated")
+    .map(([target]) => target);
+  assert.ok(deprecated.length > 0, "the registry still holds a deprecated target to exercise");
+  const runtimeAllPlan = run(["install", "--runtime", "all", "--scope", "user", "--dest", allTargetsDest, "--dry-run"]);
+  for (const target of deprecated) {
+    assert.match(allTargetsInstall, new RegExp(`^${target}: excluded from --target all \\(deprecated\\)`, "m"));
+    assert.match(runtimeAllPlan, new RegExp(`^${target}: excluded from --target all \\(deprecated\\)`, "m"), "the --runtime alias selects the same set");
+  }
   for (const [target, adapter] of Object.entries(targets)) {
-    if (adapter.buildOnly) {
-      assert.ok(!existsSync(path.join(manifestRoot, `${target}-manifest.json`)), `${target}: an export format is not installed by --target all`);
+    if (adapter.buildOnly || deprecated.includes(target)) {
+      assert.ok(!existsSync(path.join(manifestRoot, `${target}-manifest.json`)), `${target}: not installed by --target all`);
       continue;
     }
     const manifest = JSON.parse(

@@ -1786,12 +1786,14 @@ export async function vscodeStaticOutputs(_commands, context) {
 }
 
 export async function windsurfStaticOutputs(_commands, context) {
-  return rulesDocumentOutputs(context, {
+  const [document, ...references] = await rulesDocumentOutputs(context, {
     title: "agent-surface Windsurf rules",
     label: "Windsurf instructions",
     relativeOutput: windsurfRulePath(context),
     referencesRoot: path.join(windsurfConfigRoot(context), "references", "rules"),
   });
+  // Cascade reads at most 6,000 characters of the global rules file and 12,000 of a workspace rule file.
+  return [{ ...document, characterLimit: context.scope === "user" ? 6000 : 12000 }, ...references];
 }
 
 export async function zedStaticOutputs(_commands, context) {
