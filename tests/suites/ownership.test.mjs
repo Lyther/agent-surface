@@ -298,6 +298,10 @@ try {
     assert.doesNotMatch(all.out, /also planned by/);
     assert.ok(claims(joint, "trae-cn", cnRule) && read(joint, cnRule) !== "written before the split\n", "trae-cn takes over the CN rules");
     assert.deepEqual(cliIds(joint, "trae-cli"), ["grimoire", "synapse"]);
+    // Successors in the same run are judged by their next manifests, so trae lets go in this run.
+    assert.ok(!claims(joint, "trae", cnRule), "trae releases the path trae-cn claims in the same run");
+    assert.equal(cliIds(joint, "trae"), null, "and the servers trae-cli records in the same run");
+    assert.match(all.out, new RegExp(`^  ${cnRule.replaceAll("/", "\\/").replaceAll(".", "\\.")} \\(claimed by trae-cn\\)$`, "m"), "the plan reports the path as kept for trae-cn");
   }
 
   // Step 4, moved route: Poolside's personal instructions moved from .poolside to AGENTS.md. The new

@@ -270,6 +270,7 @@ async function buildInstallPlans(context) {
     plans.push(await planFor(target, adapter, installRoot));
   }
   addCrossPlanInstallConflicts(plans);
+  releaseSameRunHandovers(plans);
   protectCrossPlanLiveOutputs(plans);
   resolveSharedOwnership(plans);
   return plans;
@@ -300,6 +301,27 @@ function addCrossPlanInstallConflicts(plans) {
       if (item.content !== null && previous.content !== null && item.content === previous.content) continue;
       plan.blocked.push(`output ${item.relativeOutput} also planned by ${previous.target}`);
       previous.plan.blocked.push(`output ${previous.relativeOutput} also planned by ${plan.target}`);
+    }
+  }
+}
+
+// A successor taking part in this run is judged by its next manifest, like every other participant
+// (contract Migration step 3): a handed-over path or server ID it now records leaves the former key's
+// record in this run, and the path is reported as kept for the successor rather than held.
+function releaseSameRunHandovers(plans) {
+  const participants = new Map(plans.map((plan) => [participantKey(plan.installRoot, plan.target), plan]));
+  for (const plan of plans) {
+    for (const successor of targets[plan.target]?.successors ?? []) {
+      const next = participants.get(participantKey(plan.installRoot, successor.target));
+      if (!next) continue;
+      const released = plan.manifest.managed.filter((entry) => next.nextEntries.has(claimKey(entry.output))
+        && (successor.paths ?? []).some((prefix) => isPathInside(prefix, claimKey(entry.output))));
+      plan.manifest.managed = plan.manifest.managed.filter((entry) => !released.includes(entry));
+      plan.nextEntries = new Map(plan.manifest.managed.map((entry) => [claimKey(entry.output), entry]));
+      for (const entry of released) {
+        plan.staleRemovalActions.push({ output: path.join(plan.installRoot, entry.output), relativeOutput: entry.output, action: "retain", retainedFor: [successor.target] });
+      }
+      plan.manifest.config_entries = releaseSuccessorIds(plan.manifest.config_entries, plan.handedRoutes, new Map([[successor.target, next.manifest]]));
     }
   }
 }
@@ -1049,6 +1071,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     selectedCategories,
     previousFileEntries,
     previousConfigEntries,
+    handedRoutes,
     nextEntries: new Map(manifestManaged.map((entry) => [claimKey(entry.output), entry])),
   };
 }
