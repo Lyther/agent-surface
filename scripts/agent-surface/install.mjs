@@ -1860,8 +1860,10 @@ async function installPathError(safetyRoot, candidate, label) {
       // a home directory reached through a symbolic link still installs; a link below it is refused.
       info = index === 0 ? await stat(item) : await lstat(item);
     } catch (error) {
-      if (error?.code === "ENOENT") return null;
-      return `${label} cannot be inspected safely: ${error.message}`;
+      if (error?.code !== "ENOENT") return `${label} cannot be inspected safely: ${error.message}`;
+      // A root link whose target is gone would otherwise pass as a root not created yet.
+      if (index === 0 && (await lstatIfExists(item))?.isSymbolicLink()) return `${label} root is a dangling symbolic link: ${item}`;
+      return null;
     }
     if (info.isSymbolicLink()) {
       return `${label} traverses symbolic link: ${item}`;

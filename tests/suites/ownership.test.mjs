@@ -391,6 +391,24 @@ try {
     assert.notEqual(refused.code, 0, refused.out);
     assert.match(refused.out, /traverses symbolic link: .*inner-link\/\.agents/);
     assert.deepEqual(readdirSync(elsewhere), [], "nothing is written through a link inside the root");
+    assert.deepEqual(readdirSync(inner), [".agents"], "nothing is written beside the link either");
+
+    const dangling = path.join(scratch, "dangling-root");
+    symlinkSync(path.join(scratch, "gone"), dangling, "dir");
+    const deadRoot = project(dangling, "openhands");
+    assert.notEqual(deadRoot.code, 0, deadRoot.out);
+    assert.match(deadRoot.out, /root is a dangling symbolic link: .*dangling-root/);
+    assert.equal(existsSync(path.join(scratch, "gone")), false, "a dangling root is not created through its link");
+
+    // The case that motivated following the root: HOME itself is a link, and a user-scope install
+    // merges MCP config under it.
+    const linkedHome = path.join(scratch, "linked-home");
+    symlinkSync(home, linkedHome, "dir");
+    const userViaLink = status(["install", "--target", "claude-code", "--scope", "user", "--allow-scope-root", "--category", "mcps"], {
+      env: { ...env, HOME: linkedHome, XDG_CONFIG_HOME: path.join(linkedHome, ".config") },
+    });
+    assert.equal(userViaLink.status, 0, `${userViaLink.stdout}${userViaLink.stderr}`);
+    assert.ok(Object.hasOwn(JSON.parse(read(home, ".claude.json")).mcpServers, "synapse"), "the MCP merge lands in the linked home");
   }
 } finally {
   rmSync(scratch, { recursive: true, force: true });
