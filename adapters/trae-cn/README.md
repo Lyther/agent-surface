@@ -15,7 +15,7 @@ Notes:
 
 - The user paths follow the CN documentation. No CN build was installed to confirm them, and the `mcp.json` location comes from a third-party installer. Not runtime-tested.
 - CN 3.3.63 notes that the personal edition's global skill folders of both editions are compatible, so installing `trae` and `trae-cn` together may show skills twice in an IDE that reads both.
-- The first `trae-cn` install adopts the `~/.trae-cn/user_rules` files the pre-split `trae` target recorded, with their categories: a general install rewrites what it produces and removes the rest, opt-in rules included, while a category-filtered install keeps what it does not select. `trae` releases those files once `trae-cn` has installed.
+- The `~/.trae-cn/user_rules` files the pre-split `trae` target wrote stay claimed by `trae` and untouched until `trae-cn` claims each of them by writing it; `trae` then lets go of it.
 
 References:
 

@@ -11,14 +11,13 @@ import { readCommands } from "./commands.mjs";
 import { approximateTokens } from "./format.mjs";
 import { directDirectories, files, filesUnder } from "./fs-tree.mjs";
 import { readFileIfExists } from "./io.mjs";
-import { derivedNoticeCodes } from "./notices.mjs";
 import { gitIgnoredPaths, gitStagedGitlinkMap, gitSubmoduleStatusMap } from "./proc.mjs";
 import { readAssetCategories, readOptionalServices, readSourceKinds, relative, root } from "./registry.mjs";
 import { vsCodeUserRoot, zedInstructionPath } from "./roots.mjs";
 import { readRules } from "./rules.mjs";
 import { readSkills } from "./skills.mjs";
 import { readSubagents, subagentValidationErrors } from "./source-primitives.mjs";
-import { CODEX_PLUGIN_NAME, CODEX_PLUGIN_SCHEMA, generatedOutputMinimums, producerDefaultRenderKind, producerEmitsFor, sourceKindPolicy, targetOutputs, targetProducers, targets } from "./targets.mjs";
+import { CODEX_PLUGIN_NAME, CODEX_PLUGIN_SCHEMA, generatedOutputMinimums, producerEmitsFor, sourceKindPolicy, targetOutputs, targetProducers, targets } from "./targets.mjs";
 import { argValue, exists, fail, globMatches, isPathInside, isSafeTargetName, sha256 } from "./util.mjs";
 
 export const commandMetadataFields = new Set(["name", "aliases", "phase", "description"]);
@@ -691,65 +690,21 @@ export async function checkTargetCapabilities(targetsConfig, errors) {
   }
 
   for (const name of capabilityTargets) {
-    const record = capabilities.targets[name];
-    errors.push(...capabilityExtensionErrors(name, record, await noticeSurfaceRenderKinds(name, record)));
+    errors.push(...noticeErrors(name, capabilities.targets[name]));
   }
 }
 
-// A plan decides whether a notice's surface is part of the selection from the render kinds it
-// writes. Some capability keys never appear as one: `mcp` is merged config, not a written file, and
-// Goose renders its `recipes` surface as `commands`. A notice on such a key would always claim the
-// selection is unaffected, so a surface-specific notice must name a kind the adapter really renders
-// at some scope. Only targets with such a notice are rendered. External skill packs always render
-// as `external`, and rendering them needs every submodule checked out, which this check does not.
-async function noticeSurfaceRenderKinds(name, record) {
-  const notices = Array.isArray(record?.notices) ? record.notices : [];
-  if (!Object.hasOwn(targets, name) || notices.every((notice) => notice?.surface === "target")) return null;
-  const catalog = await exportableCatalog();
-  const kinds = new Set();
-  for (const producer of targetProducers(targets[name])) {
-    if (producer.id === "external-skills") {
-      kinds.add("external");
-      continue;
-    }
-    for (const scope of ["user", "project"]) {
-      for (const output of await producer.produce(catalog, { target: name, scope, mode: "build" })) {
-        kinds.add(output.renderKind ?? producerDefaultRenderKind(producer));
-      }
-    }
-  }
-  return kinds;
-}
-
-// Moving release channels, not builds: a qualification naming one has not established what ran.
-const channelBuildLabels = new Set(["latest", "stable", "next", "preview", "beta", "nightly", "canary", "unknown"]);
-
-// Cross-field rules the capability schema cannot express. Schema-invalid input is tolerated here
-// because the schema pass reports it separately.
-export function capabilityExtensionErrors(name, record, renderedKinds = null) {
+// Notice rules the capability schema cannot express: a code is unique within its target, and a
+// surface is `target` or one of the target's capability keys.
+function noticeErrors(name, record) {
   const errors = [];
   const surfaces = new Set(Object.keys(record?.surfaces ?? {}));
   const codes = new Set();
   for (const notice of Array.isArray(record?.notices) ? record.notices : []) {
     if (codes.has(notice?.code)) errors.push(`target capabilities ${name} repeats notice code ${notice?.code}`);
     codes.add(notice?.code);
-    if (derivedNoticeCodes.has(notice?.code)) {
-      errors.push(`target capabilities ${name} notice ${notice?.code} reuses a code the install planner derives`);
-    }
     if (notice?.surface !== "target" && !surfaces.has(notice?.surface)) {
       errors.push(`target capabilities ${name} notice ${notice?.code} names unknown surface ${notice?.surface}`);
-    } else if (notice?.surface !== "target" && renderedKinds && !renderedKinds.has(notice?.surface)) {
-      errors.push(`target capabilities ${name} notice ${notice?.code} names surface ${notice?.surface}, which the adapter never renders under that kind; use target or a rendered kind`);
-    }
-  }
-  const clients = new Set(Array.isArray(record?.runtime?.clients) ? record.runtime.clients : []);
-  for (const qualification of Array.isArray(record?.qualifications) ? record.qualifications : []) {
-    const label = `target capabilities ${name} qualification ${qualification?.client}/${qualification?.surface}`;
-    if (!clients.has(qualification?.client)) errors.push(`${label} names a client missing from runtime.clients`);
-    if (!surfaces.has(qualification?.surface)) errors.push(`${label} names an unknown surface`);
-    const build = qualification?.component_build;
-    if (typeof build === "string" && channelBuildLabels.has(build.trim().toLowerCase())) {
-      errors.push(`${label} records channel label ${build} as component_build; name the exact build or use null`);
     }
   }
   return errors;
@@ -1022,13 +977,6 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".grok", "config.toml"), /^\[mcp_servers\.synapse\]$/m);
     requireContains(path.join(".grok", "agents", "boss.md"), /^---\nname: boss\n[\s\S]*^capabilityMode: read-only$/m);
     requireContains(path.join(".grok", "agents", "worker.md"), /^capabilityMode: all$/m);
-    // Grok silently drops an agent it cannot parse, and a .claude/agents copy of the same name then
-    // loads instead, so every generated agent must keep exactly this frontmatter: no model (it would
-    // override the parent's) and no permissionMode (bypassPermissions escalates the child).
-    const grokAgentShape = /^---\nname: [a-z][a-z0-9-]*\ndescription: "(?:[^"\\\n]|\\.)+"\ntools: [A-Za-z]+(?:, [A-Za-z]+)*\ncapabilityMode: (?:read-only|read-write|all)\nmcpInheritance: none\nmaxTurns: [1-9]\d*\n---\n\n\S/;
-    for (const output of outputs.filter((item) => item.relativeOutput.startsWith(`${path.join(".grok", "agents")}${path.sep}`))) {
-      if (!grokAgentShape.test(output.content)) errors.push(`${output.relativeOutput} does not match the Grok agent frontmatter agent-surface renders`);
-    }
   } else if (target === "dsh") {
     requireContains(path.join(".dsh", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     if (outputs.some((output) => output.source.startsWith("commands/"))) {

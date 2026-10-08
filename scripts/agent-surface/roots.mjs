@@ -202,11 +202,6 @@ export function poolInstructionPath(context) {
   return context.scope === "user" ? path.join(".config", "poolside", "AGENTS.md") : "AGENTS.md";
 }
 
-// Where earlier installs wrote personal instructions, before the route followed Poolside's docs.
-export function poolLegacyInstructionPath(context) {
-  return context.scope === "user" ? path.join(".config", "poolside", ".poolside") : null;
-}
-
 export function poolConfigRoot(context) {
   return context.scope === "user" ? path.join(".config", "poolside") : ".poolside";
 }
@@ -479,12 +474,6 @@ export function zedConfigRoot(context) {
 
 export function zedMcpPath(context) {
   return zedConfigPath(context, "settings.json");
-}
-
-// Where Windows user installs wrote Zed's personal instructions before the per-OS route; Windows Zed
-// never reads it. Elsewhere this is still the live route, so there is nothing to migrate.
-export function zedLegacyInstructionPath(context) {
-  return context.scope === "user" && (context.platform ?? process.platform) === "win32" ? path.join(".config", "zed", "AGENTS.md") : null;
 }
 
 function zedConfigPath(context, name) {

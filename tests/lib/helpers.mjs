@@ -1,31 +1,10 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
-import os from "node:os";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 export const cli = path.join(root, "scripts", "agent-surface.mjs");
-
-// Copy the WORKING TREE's tracked sources (not HEAD — the point is to exercise the current code),
-// minus the external submodules, which are large and read-only here and so are linked instead.
-// Suites that must change a tracked file do it in this copy, never in the shared checkout.
-export function disposableCheckout(prefix) {
-  const checkout = mkdtempSync(path.join(os.tmpdir(), prefix));
-  const tracked = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
-    .split("\0")
-    .filter((file) => file.length > 0 && !file.startsWith("external/"));
-  for (const file of tracked) {
-    const destination = path.join(checkout, file);
-    mkdirSync(path.dirname(destination), { recursive: true });
-    cpSync(path.join(root, file), destination);
-  }
-  for (const linked of ["node_modules", "external"]) {
-    const source = path.join(root, linked);
-    if (existsSync(source)) symlinkSync(source, path.join(checkout, linked));
-  }
-  return checkout;
-}
 export const stripAiAttributionHook = path.join(root, "hooks", "strip-ai-attribution.sh");
 const opsServerCommandPath = path.join(root, "commands", "ops-server.md");
 export const hasLocalOpsServerCommand = existsSync(opsServerCommandPath);
@@ -39,17 +18,14 @@ export function clineIdeUserDataRoot(product) {
 }
 
 // SUBSTITUTE_JUSTIFICATION
-// - substitute: an empty saoudrizwan.claude-dev-<version> folder in an editor's extensions directory,
-//   used by install.test.mjs's user-scope MCP plan, scope-derived user plan, obsolete-route migration
-//   and per-editor guard cases
+// - substitute: an empty saoudrizwan.claude-dev-<version> folder in an editor's extensions directory
 // - replaces: a Cline extension installed in that editor
-// - necessity: install roots are disposable, and the planner's presence check reads only folder names
-// - real-option: installing the editor and a pinned Cline VSIX into a scratch extensions directory,
-//   rejected because it launches an editor client and downloads the extension
+// - necessity: the planner's presence check reads only folder names; installing editors and Cline
+//   in a test would launch editor clients and download the extension
+// - real-option: the real CLI plans against a disposable root
 // - proof-limit: proves which per-editor routes are planned, not that the editor loads Cline
 // - real-proof: a read-only `install --target cline --scope user --dry-run` against the operator's
-//   profile (RT2.4 review) planned the VS Code (Cline 3.86.2) and Cursor (4.1.21) routes and pruned the
-//   stray Windsurf one
+//   profile planned the VS Code and Cursor routes
 const clineExtensionDirs = { Code: ".vscode", Cursor: ".cursor", Windsurf: ".windsurf", Devin: ".devin" };
 export function installClineExtension(installRoot, editors = Object.keys(clineExtensionDirs)) {
   for (const editor of editors) {
@@ -113,7 +89,6 @@ const guardedRepoFiles = [
   path.join(root, "registry", "private-secret.json"),
   path.join(root, "registry", "modding.json"),
   path.join(root, "registry", "legacy-owned.json"),
-  path.join(root, "registry", "target-capabilities.json"),
   path.join(root, "subagents", "boss.md"),
 ];
 const guardedSnapshots = new Map();

@@ -9,7 +9,7 @@ Source baseline: `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 
 Preserve the single-process Node compiler, canonical assets, plain target adapters, maintained format parsers, managed install manifests and separate first-party MCP products. The selected delta adds precise runtime identity/lifecycle evidence and selected-target notices, corrects known paths and rule-limit handling, separates distinct harnesses, and migrates Antigravity's retiring workflow format. Security release selection is a prerequisite to affected runtime execution, not a new automatic updater inside compilation. OpenHands remains implemented and selectable with a legacy recommendation. No new daemon, database, transport, provider manager, profile engine or universal permission system is introduced.
 
-The [previous architecture](history/2026-09-21-runtime-portfolio-architecture.md) records the earlier refresh. This document distinguishes source-verified existing behavior from future contracts. Nothing in this design certifies all hosts, updates a client, or upgrades historical acceptance to current releases.
+The [previous architecture](https://github.com/Lyther/agent-surface/blob/3dbdbfe9c67fa7a95cf72a25280d2aa588782956/docs/architecture.md) records the earlier refresh. This document distinguishes source-verified existing behavior from future contracts. Nothing in this design certifies all hosts, updates a client, or upgrades historical acceptance to current releases.
 
 ## Architecture Drivers
 
@@ -32,7 +32,7 @@ The concept's `Q-RT-01` through `Q-RT-07` are the quality scenarios. Gates below
 - `VERIFIED_EXISTING`: since `RT2.0`, ownership is read from every manifest in the install root plus the target's legacy entries and legacy nested manifests. An existing file nobody claims blocks as `UNOWNED_DESTINATION`, identical bytes included; a co-owned file is regenerated for the selection with a `SHARED_CONTRIBUTION_REPLACED` warning when another owner's recorded category is dropped; stale cleanup retains a file another owner still claims; every participant's pending manifest is written before the run's first mutation. Before `RT2.0`, an unowned file was overwritten or adopted and a shared file could be deleted while another manifest claimed it. Preserving unknown config siblings is a different, key-level contract.
 - `VERIFIED_EXISTING`: `--dest` is an install-root override, not a universal native config-home adapter. `doctor` is a set of current probes, not a complete runtime inventory or security scanner.
 - `USER_DECISION`: retain OpenHands, warn and replace Antigravity workflows, separate Cascade/Devin, and prioritize security-fixed releases including preview/public channels when necessary.
-- `PROPOSED`: migration guards, harness-separated producers and new qualification records; capability metadata and notices (`RT1.1`) and installer ownership protection (`RT2.0`) are implemented. Native unknowns remain bounded spikes, detailed in [research](context/concept-zero-research.md) and [contracts](contracts/runtime-refresh.md).
+- `PROPOSED`: harness-separated producers; capability metadata and notices (`RT1.1`) and installer ownership protection (`RT2.0`) are implemented. Native unknowns remain bounded spikes, detailed in [research](context/concept-zero-research.md) and [contracts](contracts/runtime-refresh.md).
 
 ## System Context and Boundaries
 
@@ -141,7 +141,7 @@ agent-surface/
   mcps/{synapse,grimoire}/              - Separate existing stores/protocols/installers; no changes in this batch.
 ```
 
-The design schema was a pre-code artifact, not a new runtime schema registry. `RT1.1` moved its adopted definitions into the existing capability schema and removed the draft; the stored records in `registry/target-capabilities.json` are the examples. Do not maintain two mutable copies.
+The design schema was a pre-code artifact, not a new runtime schema registry. `RT1.1` moved its notice definition into the existing capability schema and removed the draft; the stored notices in `registry/target-capabilities.json` are the examples. Runtime and qualification records were dropped because no command reads them; native results live in each adapter README. Do not maintain two mutable copies.
 
 ## Data and State
 
@@ -155,7 +155,7 @@ Domain/data: **REQUIRED**, because registry facts and install manifests persist 
 - **Qualification** is a dated result tied to one surface, component/version, platform, scope and scenario. Not-run/blocked results are not empty successes; source-contract evidence does not inherit a task's authority.
 - **Install plan** is transient: selected operations, rendered outputs, conflict diagnostics and removals. It is not desired fleet state and must not persist credentials or raw runtime inspect dumps.
 - **Install manifest** remains target/scope ownership of files and named config entries. Manifests of other targets in the same install root are read as ownership claims, not rewritten. It is not a saved selection profile, rollback journal or authorization policy. Root policy values already written to host config are not automatically reversible lifecycle-owned snapshots.
-- **No recovery-copy store.** A route migration removes an old owned file only when its bytes match the replacement; otherwise it blocks or retains the file. No backup directory, digest catalog or retention job is introduced.
+- **No recovery-copy store.** A moved route's old owned file is retired with its replacement, and the category guard treats the two as one document. No backup directory, digest catalog or retention job is introduced.
 - **Native runtime state** remains external. No sessions, account tokens, provider keys, learned skills or schedules are imported into registry or manifest metadata.
 
 The [contract](contracts/runtime-refresh.md) and `schemas/target-capabilities.schema.json` define required/optional fields, source validation, notice projection and evidence limits. JSON registry updates are normal reviewed source changes; existing manifests do not require a version bump for metadata-only changes.
@@ -230,7 +230,7 @@ Status: PROPOSED. Small capability metadata and transient notices; no updater, v
 
 ### ADR-RT5: Protect destinations before writes and cleanup
 
-Status: PROPOSED. Every whole-file output reads ownership from all manifests in its install root: unowned files block instead of being overwritten or adopted, replacing another owner's category contribution is regenerated with a warning rather than vetoed, and cleanup retains files another owner still claims. Route migrations remove an old owned file only when its bytes match the replacement. No general content merge, backup store or claimed atomic rollback. This is required by reproduced installer behavior, not hypothetical local-host hardening.
+Status: PROPOSED. Every whole-file output reads ownership from all manifests in its install root: unowned files block instead of being overwritten or adopted, replacing another owner's category contribution is regenerated with a warning rather than vetoed, and cleanup retains files another owner still claims. A moved route's old owned file is retired with its replacement. No general content merge, backup store or claimed atomic rollback. This is required by reproduced installer behavior, not hypothetical local-host hardening.
 
 ## Risks, Revisit Triggers, and Guardrails
 

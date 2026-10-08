@@ -434,84 +434,7 @@
           ],
           "notes": "First-party secretless MCP services are merged into mcp_servers; the ui.permission_mode setting is always-approve. External or secret-bearing MCPs remain opt-in."
         }
-      },
-      "runtime": {
-        "product": "Grok Build",
-        "component": "grok CLI",
-        "clients": [
-          "grok"
-        ],
-        "lifecycle": "active",
-        "recommendation": "evaluate",
-        "source_url": "https://docs.x.ai/build/overview",
-        "checked_at": "2026-09-30"
-      },
-      "qualifications": [
-        {
-          "checked_at": "2026-09-30",
-          "client": "grok",
-          "surface": "subagents",
-          "scope": "project",
-          "platform": "darwin",
-          "component_build": "1.0.44 (5b807183dd79)",
-          "scenario": "Clean project after install --target grok-build --scope project --category development: grok inspect --json lists all six agents.",
-          "level": "discovery",
-          "outcome": "pass",
-          "evidence": [
-            "agent-surface b3abacd render; grok inspect --json with a scratch HOME and GROK_HOME reported agents[].source.path under <project>/.grok/agents for boss, reviewer, researcher, worker, analyzer and adversary."
-          ],
-          "limitations": [
-            "Project scope only; user scope and Windows were not checked by this record."
-          ]
-        },
-        {
-          "checked_at": "2026-09-30",
-          "client": "grok",
-          "surface": "subagents",
-          "scope": "project",
-          "platform": "darwin",
-          "component_build": "1.0.44 (5b807183dd79)",
-          "scenario": "The same project with Claude Code's .claude/agents copies of the six also installed.",
-          "level": "discovery",
-          "outcome": "pass",
-          "evidence": [
-            "grok inspect --json still reported all six from <project>/.grok/agents: the native file wins over .claude/agents in the same directory."
-          ],
-          "limitations": [
-            "A .claude/agents copy in a directory deeper than the project root, or a project copy over a user-scope native agent, still shadows the native file; that case is not recorded as a pass."
-          ]
-        },
-        {
-          "checked_at": "2026-09-30",
-          "client": "grok",
-          "surface": "subagents",
-          "scope": "project",
-          "platform": "darwin",
-          "component_build": "1.0.44 (5b807183dd79)",
-          "scenario": "Headless parent limited to spawn_subagent delegates a harmless read of a nonce file to the reviewer agent.",
-          "level": "task",
-          "outcome": "blocked",
-          "evidence": [],
-          "limitations": [
-            "The first model call returned HTTP 402 (Grok Build usage balance exhausted) on 1.0.40 and again on 1.0.44; no child ran and the inherited model was not observed."
-          ]
-        },
-        {
-          "checked_at": "2026-09-30",
-          "client": "grok",
-          "surface": "subagents",
-          "scope": "project",
-          "platform": "darwin",
-          "component_build": "1.0.44 (5b807183dd79)",
-          "scenario": "The reviewer child is denied file writes and shell while the worker child is allowed both.",
-          "level": "policy",
-          "outcome": "blocked",
-          "evidence": [],
-          "limitations": [
-            "Blocked by the same exhausted usage balance; capabilityMode and tools enforcement on a spawned child is read from Grok's source, not observed."
-          ]
-        }
-      ]
+      }
     },
     "dsh": {
       "summary": "DSH Developer Preview natively discovers Agent Skills; agent-surface limits this adapter to canonical and reviewed external skills while its profile and MCP contracts remain unstable.",
@@ -692,7 +615,7 @@
             "~/.config/poolside/AGENTS.md",
             "AGENTS.md"
           ],
-          "notes": "User installs write the documented personal ~/.config/poolside/AGENTS.md; project installs use AGENTS.md. Earlier installs wrote ~/.config/poolside/.poolside. When a selection writes the personal instructions, an owned copy identical to the replacement is removed after the write, and a differing one blocks with MIGRATION_SOURCE_CONFLICT because the current client still reads it (pool 1.0.16 capture); other selections leave it in place and claimed. The personal AGENTS.md needs pool 1.0.7 or later: a pool 1.0.2 capture in standalone mode sent .poolside and never the personal AGENTS.md (2026-09-30), and pool 1.0.16 sends both it and .poolside."
+          "notes": "User installs write the documented personal ~/.config/poolside/AGENTS.md; project installs use AGENTS.md. Earlier installs wrote ~/.config/poolside/.poolside, which an install that writes AGENTS.md retires with it; a narrower selection than the one that wrote it stops instead. The personal AGENTS.md needs pool 1.0.7 or later: a pool 1.0.2 capture in standalone mode sent .poolside and never the personal AGENTS.md (2026-09-30), and pool 1.0.16 sends both it and .poolside."
         },
         "external": {
           "support": "native",
@@ -721,62 +644,13 @@
           "notes": "First-party secretless MCP services are non-destructively merged into Poolside YAML `mcp_servers`; external or secret-bearing MCPs remain opt-in."
         }
       },
-      "runtime": {
-        "product": "Poolside",
-        "component": "pool CLI",
-        "clients": [
-          "pool"
-        ],
-        "lifecycle": "active",
-        "recommendation": "evaluate",
-        "source_url": "https://docs.poolside.ai/cli/install",
-        "checked_at": "2026-09-30"
-      },
-      "qualifications": [
-        {
-          "client": "pool",
-          "surface": "rules",
-          "scope": "user",
-          "platform": "darwin",
-          "component_build": "1.0.2",
-          "scenario": "pool exec in standalone mode against a local capture endpoint (no model call), with the generated ~/.config/poolside/AGENTS.md, a .poolside and a project AGENTS.md each holding a unique marker.",
-          "level": "discovery",
-          "outcome": "fail",
-          "checked_at": "2026-09-30",
-          "evidence": [
-            "All 12 captured requests carried the project AGENTS.md and ~/.config/poolside/.poolside markers and none carried the ~/.config/poolside/AGENTS.md marker (agent-surface b3abacd render)."
-          ],
-          "limitations": [
-            "Poolside switched to the global AGENTS.md in v1.0.7 (2026-06-26), which 1.0.2 predates; 1.0.16 is recorded separately.",
-            "Standalone mode only; a tenant-mode pool exec on this build failed with 404 Not Found: please check the model you provided."
-          ]
-        },
-        {
-          "client": "pool",
-          "surface": "rules",
-          "scope": "user",
-          "platform": "darwin",
-          "component_build": "1.0.16",
-          "scenario": "pool exec in standalone mode against a local capture endpoint (no model call), with the generated ~/.config/poolside/AGENTS.md, a .poolside and a project AGENTS.md each holding a unique marker.",
-          "level": "discovery",
-          "outcome": "pass",
-          "checked_at": "2026-09-30",
-          "evidence": [
-            "All 12 captured requests carried the ~/.config/poolside/AGENTS.md marker, and also the ~/.config/poolside/.poolside and project AGENTS.md markers (agent-surface 3b121b0 render)."
-          ],
-          "limitations": [
-            "1.0.16 still sends ~/.config/poolside/.poolside, so both files load when both exist; that is why an identical .poolside is removed and a differing one blocks.",
-            "Standalone mode against a local capture endpoint only; tenant mode and a model-backed session are not tested."
-          ]
-        }
-      ],
       "notices": [
         {
           "code": "POOL_AGENTS_MD_CLIENT_FLOOR",
           "kind": "compatibility",
           "surface": "rules",
-          "message": "The Poolside CLI reads the personal ~/.config/poolside/AGENTS.md only from 1.0.7 (released 2026-06-26). Earlier builds read ~/.config/poolside/.poolside instead, which an upgrading user install removes when it is identical to the new file, and a pool 1.0.2 capture sent .poolside and never the personal AGENTS.md.",
-          "action": "Update the pool CLI to 1.0.7 or later before a user install. On an older build, keep a copy of ~/.config/poolside/.poolside, because the install may remove it.",
+          "message": "The Poolside CLI reads the personal ~/.config/poolside/AGENTS.md only from 1.0.7 (released 2026-06-26). Earlier builds read ~/.config/poolside/.poolside instead, which an install that writes AGENTS.md now removes; a pool 1.0.2 capture sent .poolside and never the personal AGENTS.md.",
+          "action": "Update the pool CLI to 1.0.7 or later before a user install. On an older build, keep a copy of ~/.config/poolside/.poolside, because an install that writes AGENTS.md removes it.",
           "source_url": "https://github.com/poolsideai/pool/releases/tag/v1.0.7",
           "checked_at": "2026-09-30"
         }
@@ -2042,17 +1916,6 @@
           "notes": "Plugin packaging can bundle skills, hooks, agents, commands, and .mcp.json, but is not needed for the minimal generated target. Hook and setup-script surfaces stay project-owned and are not generated by default."
         }
       },
-      "runtime": {
-        "product": "OpenHands",
-        "component": "V1 CLI (legacy; retained)",
-        "clients": [
-          "openhands-cli"
-        ],
-        "lifecycle": "legacy",
-        "recommendation": "legacy",
-        "source_url": "https://github.com/OpenHands/OpenHands-CLI#project-status",
-        "checked_at": "2026-09-28"
-      },
       "notices": [
         {
           "code": "OPENHANDS_CLI_LEGACY",
@@ -2717,73 +2580,7 @@
           ],
           "notes": "Reviewed external Agent Skill packs use the same skill root."
         }
-      },
-      "runtime": {
-        "product": "Trae CLI",
-        "component": "traecli (CLI 2.0)",
-        "clients": [
-          "traecli"
-        ],
-        "lifecycle": "active",
-        "recommendation": "evaluate",
-        "source_url": "https://docs.trae.cn/cli_about-trae-code-cli-2",
-        "checked_at": "2026-09-30"
-      },
-      "qualifications": [
-        {
-          "checked_at": "2026-09-30",
-          "client": "traecli",
-          "surface": "mcp",
-          "scope": "user",
-          "platform": "darwin",
-          "component_build": "0.207.1-tob",
-          "scenario": "install --target trae-cli --scope user into a scratch home, then traecli mcp list with that HOME.",
-          "level": "discovery",
-          "outcome": "pass",
-          "evidence": [
-            "agent-surface 3b121b0 config render; traecli mcp list listed grimoire and synapse from ~/.trae/traecli.toml as enabled."
-          ],
-          "limitations": [
-            "traecli mcp list reads the config signed out; a model-backed session and enterprise MCP policy were not exercised."
-          ]
-        },
-        {
-          "client": "traecli",
-          "platform": "darwin",
-          "component_build": "0.207.1-tob",
-          "checked_at": "2026-09-30",
-          "surface": "skills",
-          "scope": "project",
-          "scenario": "traecli debug prompt-input in a project installed with --target trae-cli --scope project.",
-          "level": "discovery",
-          "outcome": "pass",
-          "evidence": [
-            "The rendered prompt input listed ops-ask, ops-docs, ops-learn, ops-monitor, ops-report and ops-swarm from <project>/.trae/skills/<name>/SKILL.md (agent-surface 3b121b0 render)."
-          ],
-          "limitations": [
-            "Rendered offline with a placeholder model catalog and local provider supplied through -c (keys not in Trae's docs): no sign-in and no model call, so no task ran.",
-            "Agents, the user roots and enterprise policy are not covered; model-backed use needs a TRAE Enterprise flagship plan."
-          ]
-        },
-        {
-          "client": "traecli",
-          "platform": "darwin",
-          "component_build": "0.207.1-tob",
-          "checked_at": "2026-09-30",
-          "surface": "rules",
-          "scope": "project",
-          "scenario": "The same offline prompt render in that project.",
-          "level": "discovery",
-          "outcome": "pass",
-          "evidence": [
-            "Both generated .trae/rules files were injected as Project Rule entries."
-          ],
-          "limitations": [
-            "Rendered offline with a placeholder model catalog and local provider supplied through -c (keys not in Trae's docs): no sign-in and no model call, so no task ran.",
-            "Agents, the user roots and enterprise policy are not covered; model-backed use needs a TRAE Enterprise flagship plan."
-          ]
-        }
-      ]
+      }
     },
     "windsurf": {
       "summary": "Windsurf supports workflows, rule files, skills, and MCP configuration; agent-surface generates workflows, rules, external skills, and first-party MCP wiring (Synapse + Grimoire).",
@@ -2875,17 +2672,6 @@
           "notes": "Canonical skills are emitted unchanged for automatic skill discovery. Available high-impact commands remain native workflows."
         }
       },
-      "runtime": {
-        "product": "Windsurf / Devin Desktop",
-        "component": "Cascade (legacy Windsurf harness)",
-        "clients": [
-          "cascade"
-        ],
-        "lifecycle": "legacy",
-        "recommendation": "legacy",
-        "source_url": "https://docs.devin.ai/desktop/changelog",
-        "checked_at": "2026-09-28"
-      },
       "notices": [
         {
           "code": "WINDSURF_CASCADE_LEGACY",
@@ -2964,7 +2750,7 @@
             "%APPDATA%\\Zed\\AGENTS.md",
             "AGENTS.md"
           ],
-          "notes": "Rules are bundled into AGENTS.md instruction files. The personal file is ~/.config/zed/AGENTS.md on macOS and Linux and %APPDATA%\\Zed\\AGENTS.md on Windows, which Zed documents as personal instructions for its native agent only. The Windows route is not natively qualified. A differing personal AGENTS.md that Windows installs made before the per-OS route left in ~/.config/zed is kept and listed as LEGACY_FILE_RETAINED, because Windows Zed never reads it; an identical one is removed after the replacement is written."
+          "notes": "Rules are bundled into AGENTS.md instruction files. The personal file is ~/.config/zed/AGENTS.md on macOS and Linux and %APPDATA%\\Zed\\AGENTS.md on Windows, which Zed documents as personal instructions for its native agent only. The Windows route is not natively qualified. The personal AGENTS.md that Windows installs made before the per-OS route left in ~/.config/zed, which Windows Zed never reads, is retired when an install writes the new one."
         },
         "external": {
           "support": "native",

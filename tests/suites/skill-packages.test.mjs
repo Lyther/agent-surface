@@ -7,12 +7,32 @@
 //
 // The installer, the registry, and the skill sources are the real ones; only their location differs.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { disposableCheckout, root } from "../lib/helpers.mjs";
+import { root } from "../lib/helpers.mjs";
 
-const checkout = disposableCheckout("as-skill-pkg-");
+// Copy the WORKING TREE's tracked sources (not HEAD — the point is to exercise the current code),
+// minus the external submodules, which are large and read-only here and so are linked instead.
+function disposableCheckout() {
+  const checkout = mkdtempSync(path.join(os.tmpdir(), "as-skill-pkg-"));
+  const tracked = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
+    .split("\0")
+    .filter((file) => file.length > 0 && !file.startsWith("external/"));
+  for (const file of tracked) {
+    const destination = path.join(checkout, file);
+    mkdirSync(path.dirname(destination), { recursive: true });
+    cpSync(path.join(root, file), destination);
+  }
+  for (const linked of ["node_modules", "external"]) {
+    const source = path.join(root, linked);
+    if (existsSync(source)) symlinkSync(source, path.join(checkout, linked));
+  }
+  return checkout;
+}
+
+const checkout = disposableCheckout();
 const dest = path.join(checkout, "installed");
 try {
   const cli = path.join(checkout, "scripts", "agent-surface.mjs");

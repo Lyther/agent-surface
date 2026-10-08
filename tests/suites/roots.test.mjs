@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import path from "node:path";
-import { gooseMcpPath, ideUserDataRoot, traeMcpPath, vsCodeUserRoot, zedConfigRoot, zedInstructionPath, zedLegacyInstructionPath, zedMcpPath } from "../../scripts/agent-surface/roots.mjs";
+import { gooseMcpPath, ideUserDataRoot, traeMcpPath, vsCodeUserRoot, zedConfigRoot, zedInstructionPath, zedMcpPath } from "../../scripts/agent-surface/roots.mjs";
 import { targets } from "../../scripts/agent-surface/targets.mjs";
 
 assert.equal(
@@ -38,10 +38,9 @@ for (const platform of ["darwin", "linux"]) {
   assert.equal(gooseMcpPath({ scope: "user", platform }), path.join(".config", "goose", "config.yaml"));
 }
 assert.equal(gooseMcpPath(windowsUser), "AppData\\Roaming\\Block\\goose\\config\\config.yaml");
-// The pre-fix Windows routes exist only for Windows user installs; anywhere else the old path is the
-// live route or was never written, so no migration or cleanup may name it.
+// The pre-fix Windows config routes exist only for Windows user installs; anywhere else the old path
+// is the live route or was never written, so no cleanup may name it.
 const windowsOnlyRoutes = [
-  zedLegacyInstructionPath,
   targets.zed.cleanupConfigRoutes[0].relativeOutput,
   targets.goose.cleanupConfigRoutes[0].relativeOutput,
 ];

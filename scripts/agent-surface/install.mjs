@@ -52,8 +52,8 @@ export async function build(args) {
     if (sourceKindErrors.length > 0) fail(sourceKindErrors.join("; "));
     rendered.push({ item, outputs });
   }
-  for (const { item, outputs } of rendered) {
-    for (const notice of await planNotices(item, outputs)) {
+  for (const { item } of rendered) {
+    for (const notice of await planNotices(item)) {
       const [heading, ...details] = formatNotice(notice, today);
       console.log(`${item} notice: ${heading}`);
       for (const line of details) console.log(line);
@@ -263,7 +263,6 @@ async function buildInstallPlans(context) {
   addCrossPlanInstallConflicts(plans);
   protectCrossPlanLiveOutputs(plans);
   resolveSharedOwnership(plans);
-  releaseHandovers(plans);
   return plans;
 }
 
@@ -336,61 +335,13 @@ function resolveSharedOwnership(plans) {
       item.retainedFor = holders;
     }
   }
-  // Only once every removal in the run is settled can a released legacy file be known to stay.
-  const removedInRun = new Set(plans.flatMap((plan) => plan.staleRemovalActions
-    .filter((item) => item.action === "remove")
-    .map((item) => `${plan.installRoot}\0${claimKey(item.relativeOutput)}`)));
-  for (const plan of plans) plan.releasedLegacyPaths = releasedLegacyPaths(plan, participants, removedInRun);
 }
 
-// A split key drops its claim on a handed-over path or config route once the successor has adopted
-// it: the successor takes part in the run, or has already installed into this root (contract
-// Migration step 3). Until then the claim and the file or entries stay as they are.
-function releaseHandovers(plans) {
-  for (const plan of plans) {
-    const adopted = (successor) => plan.rootClaims.manifests.has(successor)
-      || plans.some((other) => other.installRoot === plan.installRoot && other.target === successor);
-    for (const item of plan.handovers) {
-      if (!adopted(item.successor)) continue;
-      item.released = true;
-      plan.manifest.managed = plan.manifest.managed.filter((entry) => claimKey(entry.output) !== item.output);
-    }
-    for (const item of plan.configHandovers) {
-      if (!adopted(item.successor)) continue;
-      item.released = true;
-      const key = configEntryKey(item.path, item.format);
-      plan.manifest.config_entries = plan.manifest.config_entries.filter((entry) => configEntryKey(entry.path, entry.format) !== key);
-    }
-  }
-}
-
-// The former keys that declare this target a successor, with what each hands over.
-function predecessorsOf(target) {
-  return Object.entries(targets).flatMap(([from, adapter]) => (adapter.successors ?? [])
-    .filter((successor) => successor.target === target)
-    .map((successor) => ({ from, paths: successor.paths ?? [], configRoutes: successor.configRoutes ?? [] })));
-}
-
-function summarizeAdoptions(adoptedFrom, adoptedConfig) {
-  return adoptedConfig.flatMap(({ from, entries }) => {
-    const paths = [...adoptedFrom.values()].filter((owner) => owner === from).length;
-    return [
-      ...(paths > 0 ? [`${from}: ${paths} former path${paths === 1 ? "" : "s"}`] : []),
-      ...entries.map((entry) => `${from}: ${entry.path} ${entry.ids.join(", ")}`),
-    ];
-  });
-}
-
-// One warning per path, naming every owner whose recorded category this selection drops. The advice
-// to restore a contribution names only owners and categories this checkout can still select.
+// One warning per path, naming every owner whose recorded category this selection drops.
 function sharedContributionWarning(relativeOutput, dropped) {
-  const plural = dropped.length > 1;
   const contributions = dropped.map(([owner, category]) => `${owner}'s ${category}`).join(" and ");
-  const restorable = dropped.filter(([owner, category]) => Object.hasOwn(targets, owner) && assetCategoryNames.has(category));
-  const advice = restorable.length === 0
-    ? `no selectable target restores ${plural ? "them" : "it"}`
-    : `installing ${restorable.map(([owner, category]) => `--target ${owner} --category ${category}`).join(" or ")} into this root restores ${restorable.length > 1 ? "them" : "it"}`;
-  return `SHARED_CONTRIBUTION_REPLACED: ${relativeOutput} drops ${contributions} contribution${plural ? "s" : ""}; ${advice}`;
+  const restore = dropped.map(([owner, category]) => `--target ${owner} --category ${category}`).join(" or ");
+  return `SHARED_CONTRIBUTION_REPLACED: ${relativeOutput} drops ${contributions}; install ${restore} into this root to restore it`;
 }
 
 // Blocks that belong to an install root rather than one plan, listed once however many plans share it.
@@ -404,39 +355,21 @@ function participantKey(installRoot, target) {
 
 // Owners other than `plan` that still claim a path once this run completes. A nested legacy
 // manifest is never a participant, so its claims count for every other owner even when that owner
-// takes part in the run; `exceptNested` sets one nested manifest aside.
-function otherClaims(plan, relativeOutput, participants, exceptNested = null) {
+// takes part in the run.
+function otherClaims(plan, relativeOutput, participants) {
   const key = claimKey(relativeOutput);
-  // A path this plan adopted from a split's former key is no longer held by that key's claim.
-  const formerOwner = plan.adoptedFrom?.get(key) ?? null;
   const holders = [];
   for (const other of participants.values()) {
-    if (other.installRoot !== plan.installRoot || other.target === plan.target || other.target === formerOwner) continue;
+    if (other.installRoot !== plan.installRoot || other.target === plan.target) continue;
     const entry = other.nextEntries.get(key);
     if (entry) holders.push({ owner: other.target, category: entry.asset_category });
   }
   for (const claim of plan.rootClaims.byPath.get(key) ?? []) {
-    if (claim.owner === plan.target || claim.owner === formerOwner || (claim.nested !== null && claim.nested === exceptNested)) continue;
-    if (claim.nested === null && participants.has(participantKey(plan.installRoot, claim.owner))) continue;
+    if (claim.owner === plan.target) continue;
+    if (!claim.nested && participants.has(participantKey(plan.installRoot, claim.owner))) continue;
     holders.push({ owner: claim.owner, category: claim.assetCategory });
   }
   return holders;
-}
-
-// Removing a nested legacy manifest ends its claims without authorizing any removal; list the
-// recorded files that stay on disk with no claim at all, so their release is visible. A file this
-// run deletes on other authority, such as the target's own legacy entry, is not left in place.
-function releasedLegacyPaths(plan, participants, removedInRun) {
-  return plan.staleRemovalActions
-    .filter((item) => item.action === "remove")
-    .flatMap((item) => {
-      const nestedKey = claimKey(item.relativeOutput);
-      const present = plan.rootClaims.nested.get(nestedKey) ?? [];
-      return present.filter((output) => !plan.nextEntries.has(output)
-        && !removedInRun.has(`${plan.installRoot}\0${output}`)
-        && otherClaims(plan, output, participants, nestedKey).length === 0);
-    })
-    .sort((left, right) => left.localeCompare(right));
 }
 
 // `all` selects the WHOLE set, so pairing it with a sibling is ambiguous rather than additive:
@@ -811,7 +744,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       continue;
     }
 
-    writes.push({ source: item.source, output, relativeOutput, content: item.content, mode: item.mode, renderKind: item.renderKind });
+    writes.push({ source: item.source, output, relativeOutput, content: item.content, mode: item.mode });
     managed.push({
       target,
       source: item.source,
@@ -852,19 +785,15 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
 
   const partialInstall = categoryFilter !== null || optionalServices !== null;
   const liveOutputs = new Set(managed.map((item) => item.output));
-  // A successor adopts what its former key recorded on the paths a split hands it, categories
-  // included, so its own stale cleanup and category rules apply to them (contract Migration step 3).
-  const ownFileEntries = manifestFileEntries(previousManifest, target);
-  const ownOutputs = new Set(ownFileEntries.map((entry) => claimKey(entry.output)));
-  const adoptedFrom = new Map();
-  const adoptedFileEntries = predecessorsOf(target).flatMap(({ from, paths }) => manifestFileEntries(rootClaims.manifests.get(from), from)
-    .filter((entry) => !ownOutputs.has(claimKey(entry.output)) && paths.some((prefix) => isPathInside(prefix, claimKey(entry.output))))
-    .map((entry) => {
-      adoptedFrom.set(claimKey(entry.output), from);
-      return { ...entry, target };
-    }));
-  const previousFileEntries = [...ownFileEntries, ...adoptedFileEntries];
+  const previousFileEntries = manifestFileEntries(previousManifest, target);
   const selectedCategories = selectedAssetCategories(categoryFilter);
+  // A moved document keeps its identity (contract Migration step 4): until the new route records its
+  // own category, the guard below reads the old route's, and once a selection plans the new route the
+  // owned old route is retired with it, so a client that reads both never loads two copies.
+  const movedRoutes = (adapter.movedRoutes ?? []).flatMap((route) => {
+    const from = route.from({ scope });
+    return from ? [{ from: claimKey(from), to: claimKey(route.to({ scope })) }] : [];
+  });
 
   // An aggregate instruction document (Codex's AGENTS.md and its kin) holds several categories'
   // always-on rules in ONE file. Regenerating it under a narrower selection therefore erases what
@@ -880,13 +809,11 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   // resets it deliberately, which is its documented meaning.
   if (partialInstall) {
     const previousOwner = new Map(previousFileEntries.filter((item) => item.asset_category).map((item) => [claimKey(item.output), item.asset_category]));
-    // A moved document inherits the contribution its old route recorded until it records its own,
-    // even once the old file is gone.
-    const inheritedFrom = new Map();
-    for (const route of declaredRouteMigrations(adapter, scope)) {
+    const movedFrom = new Map();
+    for (const route of movedRoutes) {
       if (previousOwner.has(route.to) || !previousOwner.has(route.from)) continue;
       previousOwner.set(route.to, previousOwner.get(route.from));
-      inheritedFrom.set(route.to, route.from);
+      movedFrom.set(route.to, route.from);
     }
     for (const item of writes) {
       // Only a real content change can lose anything: an unchanged file is a skip either way.
@@ -894,10 +821,8 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       const key = claimKey(item.relativeOutput);
       const owner = previousOwner.get(key);
       if (owner === undefined || selectedCategories.has(owner)) continue;
-      const holder = inheritedFrom.has(key)
-        ? `${item.relativeOutput} replaces ${inheritedFrom.get(key)}, which carries`
-        : `${item.relativeOutput} carries`;
-      blocked.push(`${holder} the ${owner} category's contribution and this selection would overwrite it; re-run --category ${owner} to refresh that document, or run the general install to reset it`);
+      const document = movedFrom.has(key) ? `${item.relativeOutput} replaces ${movedFrom.get(key)}, which` : item.relativeOutput;
+      blocked.push(`${document} carries the ${owner} category's contribution and this selection would overwrite it; re-run --category ${owner} to refresh that document, or run the general install to reset it`);
     }
   }
   const staleExternalManaged = categoryFilter?.has("external")
@@ -912,40 +837,28 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       (item) => selectedCategories.has(item.asset_category) && !liveOutputs.has(item.output),
     )
     : [];
+  const plannedOutputs = new Set([...liveOutputs].map(claimKey));
+  const retiredRoutes = new Set(movedRoutes.filter((route) => plannedOutputs.has(route.to)).map((route) => route.from));
+  const staleMovedRoutes = previousFileEntries.filter((item) => retiredRoutes.has(claimKey(item.output)));
   const partialStaleManaged = [...new Map(
-    [...staleExternalManaged, ...staleCategoryManaged].map((item) => [item.output, item]),
+    [...staleExternalManaged, ...staleCategoryManaged, ...staleMovedRoutes].map((item) => [item.output, item]),
   ).values()];
-  // A declared old route is handled only by its migration, never by generic stale cleanup.
-  const migrations = await planRouteMigrations(adapter, { scope, installRoot, writes, previousFileEntries, legacyClaims });
-  const migratedRoutes = new Set(migrations.map((item) => item.from));
-  for (const item of migrations) {
-    if (item.action === "blocked") blocked.push(item.message);
-  }
-  const staleCandidates = (!partialInstall
+  // A split key (contract Migration step 3) keeps what it wrote for a successor claimed and untouched
+  // until the successor's own manifest in this root claims it. A path the successor claims is then
+  // ordinary stale output, kept while the successor holds it; a server ID the successor records on a
+  // handed-over config route leaves this key's record unpruned (releaseSuccessorIds).
+  const successors = adapter.successors ?? [];
+  const isHeld = (output) => successors.some((item) => (item.paths ?? []).some((prefix) => isPathInside(prefix, claimKey(output)))
+    && !(rootClaims.byPath.get(claimKey(output)) ?? []).some((claim) => claim.owner === item.target && !claim.nested));
+  const staleManaged = (!partialInstall
     ? [...previousFileEntries, ...legacyOwnership.files].filter((item) => !liveOutputs.has(item.output))
     : partialStaleManaged)
-    .filter((item) => !migratedRoutes.has(claimKey(item.output)));
-  // A split key keeps a former path its successor now produces claimed and in place, never stale
-  // (contract Migration step 3); the cross-plan pass releases it once another owner holds it.
-  const handovers = uniqueStrings(staleCandidates.map((item) => claimKey(item.output))).flatMap((output) => {
-    const successor = (adapter.successors ?? []).find((item) => (item.paths ?? []).some((prefix) => isPathInside(prefix, output)));
-    return successor ? [{ output, successor: successor.target, released: false }] : [];
-  });
-  const handedOver = new Set(handovers.map((item) => item.output));
-  const staleManaged = staleCandidates
-    .filter((item) => !handedOver.has(claimKey(item.output)))
+    .filter((item) => !isHeld(item.output))
     .sort((left, right) => left.output.localeCompare(right.output));
   const staleManagedOutputs = new Set(staleManaged.map((item) => item.output));
   const staleRemovalActions = [];
   const configMerges = [];
-  const adoptedConfig = predecessorsOf(target).map(({ from, configRoutes }) => {
-    const routes = new Set(configRoutes.map((route) => configEntryKey(
-      outputRootFor(route.relativeOutput, { target, scope, mode: "install", relocateExternalRoutes: rootSource === "explicit --dest" }),
-      route.format,
-    )));
-    return { from, entries: manifestConfigEntries(rootClaims.manifests.get(from)).filter((entry) => routes.has(configEntryKey(entry.path, entry.format))) };
-  });
-  const previousConfigEntries = groupedConfigEntries([...manifestConfigEntries(previousManifest), ...adoptedConfig.flatMap((item) => item.entries)]);
+  const previousConfigEntries = manifestConfigEntries(previousManifest);
   const ownedConfigEntries = [...previousConfigEntries, ...legacyOwnership.config_entries];
   const categoryRegistry = await readAssetCategories();
   const pruneMcpCategories = mcpPruneCategories(categoryFilter, optionalServices);
@@ -1007,9 +920,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
         continue;
       }
       if (absence) {
-        const owned = ownedConfigEntries.some((entry) => configEntryKey(entry.path, entry.format) === configEntryKey(merge.relativeOutput, merge.format));
-        const file = owned ? await probePresence(() => lstat(merge.output), merge.output) : { value: null };
-        skippedConfigRoutes.push(`${merge.relativeOutput}: ${absence.reason}${skippedRouteCleanup(owned, file, partialInstall)}`);
+        skippedConfigRoutes.push(`${merge.relativeOutput}: ${absence.reason}`);
         continue;
       }
       liveConfigRoutes.add(configEntryKey(merge.relativeOutput, merge.format));
@@ -1019,15 +930,11 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     }
   }
 
-  // Config entries on a route a successor now merges stay recorded and unpruned, as handed-over paths do.
-  const successorRoutes = new Map((adapter.successors ?? []).flatMap((successor) => (successor.configRoutes ?? []).map((route) => [
+  const handedRoutes = new Map(successors.flatMap((item) => (item.configRoutes ?? []).map((route) => [
     configEntryKey(outputRootFor(route.relativeOutput, configRouteContext), route.format),
-    successor.target,
+    item.target,
   ])));
-  const configHandovers = groupedConfigEntries(ownedConfigEntries)
-    .filter((entry) => successorRoutes.has(configEntryKey(entry.path, entry.format)) && !liveConfigRoutes.has(configEntryKey(entry.path, entry.format)))
-    .map((entry) => ({ path: entry.path, format: entry.format, ids: entry.ids, successor: successorRoutes.get(configEntryKey(entry.path, entry.format)), released: false }));
-  const keptConfigRoutes = new Set([...liveConfigRoutes, ...configHandovers.map((entry) => configEntryKey(entry.path, entry.format))]);
+  const keptConfigRoutes = new Set([...liveConfigRoutes, ...handedRoutes.keys()]);
   const pruneObsoleteConfigRoutes = !partialInstall;
   if (pruneObsoleteConfigRoutes) {
     await addObsoleteConfigRouteMerges(
@@ -1064,14 +971,6 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
 
     staleRemovalActions.push({ output, relativeOutput: item.output, action: "remove" });
   }
-  // A migrated old route identical to its replacement goes after the writes, like any removal, so it
-  // is deleted only once the replacement has been written.
-  for (const item of migrations.filter((migration) => migration.action === "remove")) {
-    staleRemovalActions.push({ output: item.output, relativeOutput: item.from, action: "remove", migratedTo: item.to });
-  }
-  const warnings = migrations
-    .filter((item) => item.action === "retain")
-    .map((item) => `LEGACY_FILE_RETAINED: ${item.from} differs from its replacement ${item.to} and is kept, because ${item.ignoredBy} shows the client ignores it; remove it when you no longer need it`);
 
   // Per-target: record non-applicability as informational. Whether the *run* fails is decided
   // at the call site (a run with no installable outputs anywhere is the error, not one target).
@@ -1080,20 +979,14 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     notApplicableCategories = `no installable outputs for categories: ${[...categoryFilter].sort().join(", ")}`;
   }
 
-  // A migrated old route stays claimed while it stays on disk: retained with a warning, or untouched
-  // because this selection writes no replacement.
-  const keptRoutes = new Set(migrations.filter((item) => ["retain", "untouched"].includes(item.action)).map((item) => item.from));
-  const retainedManaged = previousFileEntries.filter((item) => {
-    if (migratedRoutes.has(claimKey(item.output))) return keptRoutes.has(claimKey(item.output));
-    if (handedOver.has(claimKey(item.output))) return true;
-    return partialInstall && !liveOutputs.has(item.output) && !staleManagedOutputs.has(item.output);
-  });
+  const retainedManaged = previousFileEntries.filter((item) => !liveOutputs.has(item.output)
+    && (isHeld(item.output) || (partialInstall && !staleManagedOutputs.has(item.output))));
   const manifestManaged = [...retainedManaged, ...managed].sort((left, right) => left.output.localeCompare(right.output));
-  const nextConfigEntries = mergedManifestConfigEntries(
+  const nextConfigEntries = releaseSuccessorIds(mergedManifestConfigEntries(
     previousConfigEntries,
     configMerges,
     pruneObsoleteConfigRoutes ? keptConfigRoutes : null,
-  );
+  ), handedRoutes, rootClaims.manifests);
   const manifest = {
     target,
     scope,
@@ -1118,14 +1011,8 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     notApplicableCategories,
     nonApplicable: nonApplicable.sort((left, right) => left.localeCompare(right)),
     notices: await planNotices(target, writes, installRoot),
-    warnings,
-    releasedLegacyPaths: [],
-    routeMigrations: migrations,
+    warnings: [],
     skippedConfigRoutes,
-    handovers,
-    configHandovers,
-    adoptedFrom,
-    adoptions: summarizeAdoptions(adoptedFrom, adoptedConfig),
     manifest,
     // Inputs to the cross-plan ownership decisions and to the pending manifest.
     rootClaims,
@@ -1136,67 +1023,32 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   };
 }
 
-// The routes an adapter declares moved at this scope, as claim keys.
-function declaredRouteMigrations(adapter, scope) {
-  return (adapter.routeMigrations ?? []).flatMap((route) => {
-    const from = route.from({ scope });
-    const to = route.to({ scope });
-    return from && to ? [{ from: claimKey(from), to: claimKey(to), ignoredBy: route.ignoredBy }] : [];
+// Server IDs a successor's manifest records on a config route handed over to it leave the former
+// key's record; the former key never prunes that route (contract Migration step 3).
+function releaseSuccessorIds(entries, handedRoutes, manifests) {
+  return entries.flatMap((entry) => {
+    const key = configEntryKey(entry.path, entry.format);
+    const successor = handedRoutes.get(key);
+    if (!successor) return [entry];
+    const taken = new Set(manifestConfigEntries(manifests.get(successor))
+      .filter((item) => configEntryKey(item.path, item.format) === key)
+      .flatMap((item) => item.ids));
+    const ids = entry.ids.filter((id) => !taken.has(id));
+    if (ids.length === 0) return [];
+    const categories = Object.fromEntries(Object.entries(entry.asset_categories ?? {}).filter(([id]) => ids.includes(id)));
+    return [{ path: entry.path, format: entry.format, ids, ...(Object.keys(categories).length > 0 ? { asset_categories: categories } : {}) }];
   });
-}
-
-// Declared route migrations (contract Migration step 4). An owned old route is removed only after
-// its replacement is written, and only when its bytes equal the replacement: anything else may carry
-// edits or an earlier rendering. A differing old route blocks unless a recorded qualification shows
-// the client ignores it, in which case it is kept and listed on every run until the operator removes
-// it. An old route this target does not own, or one this selection writes no replacement for, is
-// left alone. An identical old route another owner still claims is kept for that owner (step 3);
-// only this target's claim ends.
-async function planRouteMigrations(adapter, { scope, installRoot, writes, previousFileEntries, legacyClaims }) {
-  const owned = new Set([...previousFileEntries.map((item) => claimKey(item.output)), ...legacyClaims]);
-  const migrations = [];
-  for (const route of declaredRouteMigrations(adapter, scope)) {
-    const { from, to } = route;
-    const output = path.join(installRoot, from);
-    const replacement = writes.find((item) => claimKey(item.relativeOutput) === to);
-    if (!replacement || !owned.has(from)) {
-      migrations.push({ from, to, output, action: "untouched" });
-      continue;
-    }
-    const routeError = await installPathError(installRoot, output, `migrated route ${from}`);
-    if (routeError) {
-      migrations.push({ from, to, output, action: "blocked", message: routeError });
-      continue;
-    }
-    const current = await readFileIfExists(output);
-    if (current === null) {
-      migrations.push({ from, to, output, action: "missing" });
-    } else if (current.toString("utf8") === replacement.content) {
-      migrations.push({ from, to, output, action: "remove" });
-    } else if (route.ignoredBy) {
-      migrations.push({ from, to, output, action: "retain", ignoredBy: route.ignoredBy });
-    } else {
-      migrations.push({
-        from,
-        to,
-        output,
-        action: "blocked",
-        message: `MIGRATION_SOURCE_CONFLICT: ${from} differs from its replacement ${to}, and the client may still read it, which would load both; review it, then move or remove it and rerun`,
-      });
-    }
-  }
-  return migrations;
 }
 
 // Ownership claims on one install root (contract Migration step 2): every <id>-manifest.json directly
 // in its .agent-surface/ (retired and unknown IDs included; other files there are not manifests), and
 // every legacy-listed nested manifest present under it, whose outputs are rebased to its own root.
 // A claim grants ownership and cleanup retention; removal stays with a target's own manifest and
-// legacy entries. A manifest that cannot be read or has the wrong shape blocks every plan in the root.
+// legacy entries. A manifest that cannot be read or parsed blocks every plan in the root.
 const MANIFEST_FILE = /^(.+)-manifest\.json$/;
 
 async function readRootClaims(installRoot) {
-  const claims = { manifests: new Map(), byPath: new Map(), nested: new Map(), blocked: [] };
+  const claims = { manifests: new Map(), byPath: new Map(), blocked: [] };
   const directory = path.join(installRoot, ".agent-surface");
   const directoryError = await installPathError(installRoot, directory, "manifest directory");
   if (directoryError) {
@@ -1209,7 +1061,7 @@ async function readRootClaims(installRoot) {
     const manifest = await readClaimManifest(installRoot, path.join(directory, entry.name), entry, claims.blocked);
     if (!manifest) continue;
     claims.manifests.set(owner, manifest);
-    for (const item of manifest.managed) addClaim(claims, item.output, { owner, assetCategory: recordedCategory(item), nested: null });
+    for (const item of manifest.managed) addClaim(claims, item?.output, { owner, assetCategory: item?.asset_category, nested: false });
   }
   for (const legacy of await legacyNestedManifests()) {
     const file = path.join(installRoot, legacy.output);
@@ -1217,14 +1069,9 @@ async function readRootClaims(installRoot) {
     if (!info) continue;
     const manifest = await readClaimManifest(installRoot, file, info, claims.blocked);
     if (!manifest) continue;
-    const nested = claimKey(legacy.output);
-    const present = [];
     for (const item of manifest.managed) {
-      const output = path.join(legacy.root, item.output);
-      addClaim(claims, output, { owner: legacy.target, assetCategory: recordedCategory(item), nested });
-      if (await lstatIfExists(path.join(installRoot, output))) present.push(claimKey(output));
+      if (typeof item?.output === "string") addClaim(claims, path.join(legacy.root, item.output), { owner: legacy.target, assetCategory: item.asset_category, nested: true });
     }
-    claims.nested.set(nested, present);
   }
   return claims;
 }
@@ -1233,16 +1080,8 @@ function claimKey(relativeOutput) {
   return path.normalize(relativeOutput);
 }
 
-// A manifest another tool or version wrote may hold any value here; only a category-shaped name is
-// kept, and anything else still counts as a recorded contribution without echoing the value.
-function recordedCategory(entry) {
-  if (entry.asset_category === undefined) return undefined;
-  return typeof entry.asset_category === "string" && /^[a-z][a-z0-9-]*$/.test(entry.asset_category)
-    ? entry.asset_category
-    : "unrecognized";
-}
-
 function addClaim(claims, output, claim) {
+  if (typeof output !== "string") return;
   const key = claimKey(output);
   const list = claims.byPath.get(key);
   if (list) list.push(claim);
@@ -1272,17 +1111,10 @@ async function readClaimManifest(installRoot, file, info, blocked) {
   return shapeError ? unreadable(shapeError) : manifest;
 }
 
+// Entries without a usable output, path or ids are skipped where they are read.
 function manifestShapeError(manifest) {
   if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest)) return "is not a JSON object";
-  if (!Array.isArray(manifest.managed)) return "has no managed array";
-  const entry = manifest.managed.findIndex((item) => typeof item?.output !== "string" || !isSafeRelativePath(item.output));
-  if (entry !== -1) return `managed entry ${entry} has no safe relative output`;
-  if (manifest.config_entries === undefined) return null;
-  if (!Array.isArray(manifest.config_entries)) return "has a config_entries value that is not an array";
-  const config = manifest.config_entries.findIndex(
-    (item) => typeof item?.path !== "string" || typeof item?.format !== "string" || !Array.isArray(item?.ids),
-  );
-  return config === -1 ? null : `config entry ${config} lacks a string path, a string format or an ids array`;
+  return Array.isArray(manifest.managed) ? null : "has no managed array";
 }
 
 // Legacy-listed manifests that live under another root's .agent-surface/ (a former install root).
@@ -1340,30 +1172,16 @@ async function routeAbsence(mcpConfig, merge, installRoot, scope) {
 }
 
 // A per-editor extension file is read only by that editor's copy of the extension, so its route is
-// live only where the extension is installed: an extension folder (or a symlink to one) that the
-// editor has not marked obsolete. Extension storage is not a signal, because editors keep it after an
-// uninstall. The extensions directory is looked up under the install root, so a --dest install sees
-// only its destination. A location that cannot be read blocks the plan rather than guessing.
+// live only where the editor's extensions folder holds the extension. Extension storage is not a
+// signal, because editors keep it after an uninstall. The folder is looked up under the install
+// root, so a --dest install sees only its destination. A folder that cannot be read blocks the plan.
 async function editorExtensionPresence({ extensionsDir, extensionId }, installRoot) {
   const extensions = path.join(installRoot, extensionsDir, "extensions");
-  const listed = await probePresence(() => readdir(extensions, { withFileTypes: true }), extensions);
+  const listed = await probePresence(() => readdir(extensions), extensions);
   if (listed.error) return listed;
   const versioned = new RegExp(`^${extensionId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-\\d`, "i");
-  const installed = [];
-  for (const entry of listed.value ?? []) {
-    if (!versioned.test(entry.name) || !(entry.isDirectory() || entry.isSymbolicLink())) continue;
-    const target = await probePresence(() => stat(path.join(extensions, entry.name)), path.join(extensions, entry.name));
-    if (target.error) return target;
-    if (target.value?.isDirectory()) installed.push(entry.name.toLowerCase());
-  }
-  const where = path.join(extensionsDir, "extensions");
-  if (installed.length === 0) return { present: false, reason: `no ${extensionId} extension folder under ${where}` };
-  const obsoleteFile = path.join(extensions, ".obsolete");
-  const obsolete = await probePresence(() => readFile(obsoleteFile, "utf8"), obsoleteFile);
-  if (obsolete.error) return obsolete;
-  const marked = obsoleteNames(obsolete.value);
-  if (installed.every((name) => marked.has(name))) return { present: false, reason: `every ${extensionId} extension folder under ${where} is marked obsolete` };
-  return { present: true };
+  if ((listed.value ?? []).some((name) => versioned.test(name))) return { present: true };
+  return { present: false, reason: `no ${extensionId} extension folder under ${path.join(extensionsDir, "extensions")}` };
 }
 
 // One rule for every presence probe: a missing path, or a file or directory where the other belongs,
@@ -1374,27 +1192,6 @@ async function probePresence(read, location, label = "editor extension location"
   } catch (error) {
     if (["ENOENT", "ENOTDIR", "EISDIR"].includes(error?.code)) return { value: null };
     return { error: `${label} cannot be inspected safely: ${location}: ${error.message}` };
-  }
-}
-
-// What happens to the entries this target recorded at a skipped route. A full install prunes a regular
-// file and ends the claim on a missing one; a partial install keeps both claims until the next full
-// install. A directory or symlink there blocks the full install, which the blocked line explains.
-function skippedRouteCleanup(owned, file, partialInstall) {
-  if (!owned || file.error) return "";
-  if (!file.value) return partialInstall ? "; its claim on the missing file ends at the next full install" : "; its claim on the missing file ends";
-  if (!file.value.isFile()) return "";
-  return partialInstall ? "; entries agent-surface merged there stay until a full install" : "; entries agent-surface merged there are pruned";
-}
-
-// VS Code-family editors list removed extension folders they have not deleted yet in extensions/.obsolete.
-function obsoleteNames(text) {
-  if (text === null) return new Set();
-  try {
-    const listed = JSON.parse(text);
-    return new Set(Object.entries(listed ?? {}).filter(([, value]) => value === true).map(([name]) => name.toLowerCase()));
-  } catch {
-    return new Set();
   }
 }
 
@@ -1717,7 +1514,7 @@ function printInstallPlan(plan) {
     console.log(`  ${path.relative(plan.installRoot, item.output)} <- ${item.source}`);
   }
   const removes = plan.staleRemovalActions
-    .filter((item) => (item.action === "remove" || item.action === "missing") && !item.migratedTo)
+    .filter((item) => item.action === "remove" || item.action === "missing")
     .map((item) => item.relativeOutput);
   console.log("planned stale managed removals:");
   if (removes.length === 0) {
@@ -1726,50 +1523,13 @@ function printInstallPlan(plan) {
     for (const item of removes) console.log(`  ${item}`);
   }
   const retained = plan.staleRemovalActions
-    .filter((item) => item.action === "retain" && !item.migratedTo)
+    .filter((item) => item.action === "retain")
     .map((item) => `${item.relativeOutput} (claimed by ${(item.retainedFor ?? []).join(", ")})`);
   console.log("planned stale managed paths retained for other owners:");
   if (retained.length === 0) {
     console.log("  none");
   } else {
     for (const item of retained) console.log(`  ${item}`);
-  }
-  if (plan.releasedLegacyPaths.length > 0) {
-    console.log("legacy paths left in place without a claim:");
-    for (const item of plan.releasedLegacyPaths) console.log(`  ${item}`);
-  }
-  const migrationLines = [
-    ...plan.staleRemovalActions.filter((item) => item.migratedTo).map((item) => (item.action === "remove"
-      ? `${item.relativeOutput} -> ${item.migratedTo}: identical to the replacement; removed after it is written`
-      : `${item.relativeOutput} -> ${item.migratedTo}: identical to the replacement; kept, still claimed by ${(item.retainedFor ?? []).join(", ")}`)),
-    ...plan.routeMigrations.filter((item) => item.action === "retain").map((item) => `${item.from} -> ${item.to}: kept; see warnings`),
-    ...plan.routeMigrations.filter((item) => item.action === "missing").map((item) => `${item.from} -> ${item.to}: already gone; its claim ends`),
-  ];
-  if (migrationLines.length > 0) {
-    console.log("planned route migrations:");
-    for (const line of migrationLines) console.log(`  ${line}`);
-  }
-  const handoverLines = [
-    ...uniqueStrings(plan.handovers.map((item) => item.successor)).flatMap((successor) => {
-      const items = plan.handovers.filter((item) => item.successor === successor);
-      const released = items.filter((item) => item.released).length;
-      const kept = items.length - released;
-      return [
-        ...(kept > 0 ? [`${successor}: ${kept} former path${kept === 1 ? "" : "s"} kept in place until ${successor} claims them`] : []),
-        ...(released > 0 ? [`${successor}: ${released} former path${released === 1 ? "" : "s"} released to ${successor}`] : []),
-      ];
-    }),
-    ...plan.configHandovers.map((item) => (item.released
-      ? `${item.successor}: ${item.path} ${item.ids.join(", ")} released to ${item.successor}`
-      : `${item.successor}: ${item.path} ${item.ids.join(", ")} kept until ${item.successor} claims them`)),
-  ];
-  if (handoverLines.length > 0) {
-    console.log("planned handovers to successor targets:");
-    for (const line of handoverLines) console.log(`  ${line}`);
-  }
-  if (plan.adoptions.length > 0) {
-    console.log("adopted from former targets:");
-    for (const line of plan.adoptions) console.log(`  ${line}`);
   }
   console.log("planned manifest:");
   console.log(`  ${path.relative(plan.installRoot, plan.manifestPath)}`);
@@ -1839,41 +1599,22 @@ function printInstallPlan(plan) {
 // Migration steps 6 and 7). There is no multi-file transaction: a late failure is reported, never
 // rolled back, and the pending manifests let the same install be rerun to finish.
 async function applyInstallPlans(plans) {
-  const progress = { applying: false, plan: null, operations: [], index: 0, failedPath: null };
+  let current = null;
   try {
     for (const plan of plans) {
-      Object.assign(progress, { plan, failedPath: path.relative(plan.installRoot, plan.manifestPath) });
+      current = plan;
       await writeManifestFile(plan, pendingManifest(plan));
     }
-    progress.applying = true;
     for (const plan of plans) {
-      progress.plan = plan;
-      await applyInstallPlan(plan, progress);
+      current = plan;
+      await applyInstallPlan(plan);
     }
     return true;
   } catch (error) {
-    reportInterruptedInstall(progress, plans, error);
+    console.log(`install interrupted: ${current.target}: ${error.message}`);
+    console.log("  nothing was rolled back; the pending manifests still claim every planned path, so rerun the same install to finish");
     return false;
   }
-}
-
-// Names what landed and what did not, path by path and without content (contract Migration step 7).
-function reportInterruptedInstall({ applying, plan, operations, index, failedPath }, plans, error) {
-  console.log(`install interrupted: ${plan.target}: ${failedPath}: ${error.message}`);
-  if (!applying) {
-    console.log("  no planned write, removal or config merge ran; rerun the same install");
-    return;
-  }
-  const position = plans.indexOf(plan);
-  const applied = plans.slice(0, position).map((item) => item.target);
-  console.log(`  targets applied before it: ${applied.length > 0 ? applied.join(", ") : "none"}`);
-  for (const [label, list] of [["completed", operations.slice(0, index)], ["pending", operations.slice(index)]]) {
-    console.log(`  ${label} for ${plan.target}: ${list.length}`);
-    for (const operation of list) console.log(`    ${operation.kind} ${operation.path}`);
-  }
-  const notApplied = plans.slice(position + 1).map((item) => item.target);
-  if (notApplied.length > 0) console.log(`  not applied: ${notApplied.join(", ")}`);
-  console.log("  nothing was rolled back; the pending manifests still claim every planned path, so rerun the same install to finish");
 }
 
 // The union of what the plan held and what it will hold: a path in both keeps its next entry, and a
@@ -1910,62 +1651,49 @@ function unionConfigEntries(previousEntries, nextEntries) {
   );
 }
 
-// One ordered list of what applying a plan does: writes, then removals of stale paths, then config
-// merges, then the final manifest. The same list drives the apply and the interrupted report.
-function applyOperations(plan) {
-  return [
-    ...plan.writes.map((item) => ({ kind: item.action === "skip" ? "unchanged" : "write", path: item.relativeOutput, item })),
-    ...plan.staleRemovalActions
-      .filter((item) => item.action === "remove")
-      .map((item) => ({ kind: "remove", path: item.relativeOutput, item })),
-    ...plan.configMerges.map((item) => ({ kind: "merge", path: item.relativeOutput, item })),
-    { kind: "manifest", path: path.relative(plan.installRoot, plan.manifestPath) },
-  ];
-}
+async function applyInstallPlan(plan) {
+  let written = 0;
+  let skipped = 0;
+  let removed = 0;
+  let configMerges = 0;
 
-async function applyInstallPlan(plan, progress) {
-  const operations = applyOperations(plan);
-  const done = { written: 0, skipped: 0, removed: 0, migrated: 0, merged: 0 };
-  Object.assign(progress, { operations, index: 0, failedPath: plan.installRoot });
   await mkdir(plan.installRoot, { recursive: true });
-  for (const [index, operation] of operations.entries()) {
-    Object.assign(progress, { index, failedPath: operation.path });
-    await applyOperation(plan, operation, done);
-  }
-  progress.index = operations.length;
 
-  console.log("installed:");
-  console.log(`  wrote: ${done.written}`);
-  console.log(`  skipped unchanged: ${done.skipped}`);
-  console.log(`  removed stale: ${done.removed}`);
-  if (done.migrated > 0) console.log(`  removed migrated routes: ${done.migrated}`);
-  console.log(`  config merges: ${done.merged}`);
-}
-
-async function applyOperation(plan, { kind, item }, done) {
-  if (kind === "unchanged") {
-    // Identical content, but a mode the output declares still has to hold: a companion script
-    // restored from a non-executable copy would otherwise stay unrunnable forever.
-    if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
-    done.skipped += 1;
-  } else if (kind === "write") {
+  for (const item of plan.writes) {
+    if (item.action === "skip") {
+      // Identical content, but a mode the output declares still has to hold: a companion script
+      // restored from a non-executable copy would otherwise stay unrunnable forever.
+      if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
+      skipped += 1;
+      continue;
+    }
     await assertInstallPath(plan.installRoot, item.output, `managed output ${item.relativeOutput}`);
     await mkdir(path.dirname(item.output), { recursive: true });
     await assertInstallPath(plan.installRoot, item.output, `managed output ${item.relativeOutput}`);
     await writeFile(item.output, item.content);
     if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
-    done.written += 1;
-  } else if (kind === "remove") {
+    written += 1;
+  }
+
+  for (const item of plan.staleRemovalActions) {
+    if (item.action !== "remove") continue;
     await assertInstallPath(plan.installRoot, item.output, `stale managed output ${item.relativeOutput}`);
     await rm(item.output, { force: true });
-    if (item.migratedTo) done.migrated += 1;
-    else done.removed += 1;
-  } else if (kind === "merge") {
-    const result = await applyConfigMerge(item);
-    done.merged += result.changed ? 1 : 0;
-  } else {
-    await writeManifestFile(plan, plan.manifest);
+    removed += 1;
   }
+
+  for (const item of plan.configMerges) {
+    const result = await applyConfigMerge(item);
+    configMerges += result.changed ? 1 : 0;
+  }
+
+  await writeManifestFile(plan, plan.manifest);
+
+  console.log("installed:");
+  console.log(`  wrote: ${written}`);
+  console.log(`  skipped unchanged: ${skipped}`);
+  console.log(`  removed stale: ${removed}`);
+  console.log(`  config merges: ${configMerges}`);
 }
 
 // Replaced atomically, so a crash leaves the previous or the new manifest, never a torn one.

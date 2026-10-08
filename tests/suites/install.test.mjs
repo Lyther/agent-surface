@@ -2,7 +2,7 @@
 import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -1000,189 +1000,43 @@ for (const scope of ["user", "project"]) {
 }
 
 // A per-editor Cline MCP file is read only by that editor's Cline, so its route is live only where the
-// extension is installed: an extension folder (or a symlink to one) the editor has not marked
-// obsolete. Extension storage is not a signal. An owned entry at a route whose editor has no Cline is
-// pruned by a full install, as the stray Windsurf file on the operator's profile needs; a skipped
-// route is listed with its reason; a location that cannot be read blocks the plan.
+// editor's extensions folder holds Cline; extension storage is not a signal. A skipped route is listed
+// with its reason, and a full install prunes what agent-surface merged into a route whose editor has no
+// Cline, as the stray Windsurf file on the operator's profile needed.
 // SUBSTITUTE_JUSTIFICATION
-// - substitute: seeded editor directories: .obsolete lists (true, false and upper-case keys, and a
-//   malformed one), extension folders with case and suffix variants, an older version folder marked
-//   obsolete beside the installed one, a valid, a dangling and a self-referencing symlink, Cline
-//   storage with state and a settings file but no extension, a file or directory where a folder,
-//   list or settings file belongs, unreadable locations, and a stray per-editor settings file with
-//   the historical manifest entry that claimed it
-// - replaces: editor states that follow installing, uninstalling or relinking Cline, a damaged
-//   profile, and the pre-guard install that created the Windsurf file
-// - necessity: each state needs an exact shape, and none can be produced by installing the editors
-//   in a disposable root
-// - real-option: installing each editor and a pinned Cline VSIX into a scratch profile, rejected
-//   because it launches editor clients and downloads extensions
-// - proof-limit: proves which routes the planner makes live, skips, prunes or blocks, not that an
-//   editor loads the file
+// - substitute: empty Cline extension folders, Cline storage without an extension, and a stray
+//   per-editor settings file with the historical manifest entry that claimed it
+// - replaces: editors with and without Cline, and the pre-guard install that created the stray file
+// - necessity: installing editors and Cline in a test would launch editor clients and download the
+//   extension
+// - real-option: the real CLI plans and applies against disposable roots
+// - proof-limit: proves which routes the planner makes live, skips or prunes, not that an editor loads
+//   the file
 // - real-proof: a read-only `install --target cline --scope user --dry-run` against the operator's
-//   profile (RT2.4 review) kept the VS Code and Cursor routes and pruned only the stray Windsurf one
+//   profile kept the VS Code and Cursor routes and pruned only the stray Windsurf one
 {
   const perEditor = (product) => path.join(clineIdeUserDataRoot(product), "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json");
   const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const added = (product) => new RegExp(`${escaped(perEditor(product))} MCP \\+= grimoire, synapse`);
-  const skipped = (product, reason) => new RegExp(`^ {2}${escaped(perEditor(product))}: ${reason}`, "m");
   const guardRoot = mkdtempSync(path.join(os.tmpdir(), "agent-surface-cline-editors-"));
   const plan = (dest, extra = ["--category", "mcps"]) => run(["install", "--target", "cline", "--scope", "user", "--dest", dest, ...extra, "--dry-run"]);
-  const extensions = (dest, editorDir) => path.join(dest, editorDir, "extensions");
   try {
     const fresh = plan(path.join(guardRoot, "fresh"));
     assert.match(fresh, /\.cline\/data\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
     assert.doesNotMatch(fresh, /User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP/, "no editor has Cline, so no per-editor route");
-    assert.match(fresh, skipped("Code", "no saoudrizwan\\.claude-dev extension folder under \\.vscode[\\\\/]extensions$"));
-    assert.match(fresh, skipped("Devin", "no saoudrizwan\\.claude-dev extension folder under \\.devin[\\\\/]extensions$"));
-    assert.equal(existsSync(path.join(guardRoot, "fresh")), false, "a dry-run creates nothing");
+    assert.match(fresh, new RegExp(`^ {2}${escaped(perEditor("Code"))}: no saoudrizwan\\.claude-dev extension folder under \\.vscode[\\\\/]extensions$`, "m"));
 
-    // Devin Desktop, the renamed Windsurf, has its own extensions folder; the guard reads it, not the legacy ~/.windsurf one.
-    const devinDest = path.join(guardRoot, "devin");
-    installClineExtension(devinDest, ["Devin"]);
-    const devinPlan = plan(devinDest);
-    assert.match(devinPlan, added("Devin"));
-    assert.doesNotMatch(devinPlan, added("Windsurf"), "the legacy Windsurf route stays separate");
-
-    const obsoleteDest = path.join(guardRoot, "obsolete");
-    installClineExtension(obsoleteDest, ["Code"]);
-    const obsoleteList = path.join(extensions(obsoleteDest, ".vscode"), ".obsolete");
-    writeFileSync(obsoleteList, `${JSON.stringify({ "SAOUDRIZWAN.CLAUDE-DEV-3.86.2": true })}\n`);
-    const obsoletePlan = plan(obsoleteDest);
-    assert.doesNotMatch(obsoletePlan, added("Code"), "an extension folder marked obsolete, in any case, is not installed");
-    assert.match(obsoletePlan, skipped("Code", "every saoudrizwan\\.claude-dev extension folder under .* is marked obsolete$"));
-    writeFileSync(obsoleteList, `${JSON.stringify({ "saoudrizwan.claude-dev-3.86.2": false })}\n`);
-    assert.match(plan(obsoleteDest), added("Code"), "only a true entry marks a folder obsolete");
-
-    const namesDest = path.join(guardRoot, "names");
-    mkdirSync(path.join(extensions(namesDest, ".cursor"), "SaoudRizwan.Claude-Dev-4.1.21-universal"), { recursive: true });
-    mkdirSync(path.join(extensions(namesDest, ".vscode"), "saoudrizwan.claude-dev-nightly"), { recursive: true });
-    mkdirSync(extensions(namesDest, ".windsurf"), { recursive: true });
-    writeFileSync(path.join(extensions(namesDest, ".windsurf"), "saoudrizwan.claude-dev-3.86.2"), "not a folder\n");
-    const namesPlan = plan(namesDest);
-    assert.match(namesPlan, added("Cursor"), "extension folder names match without regard to case");
-    assert.doesNotMatch(namesPlan, added("Code"), "a folder without a version after the extension ID is another extension");
-    assert.doesNotMatch(namesPlan, added("Windsurf"), "a file named like the extension is not an installed extension");
-
-    const linkDest = path.join(guardRoot, "links");
-    const realExtension = path.join(guardRoot, "real-extension");
-    mkdirSync(realExtension, { recursive: true });
-    mkdirSync(extensions(linkDest, ".vscode"), { recursive: true });
-    mkdirSync(extensions(linkDest, ".cursor"), { recursive: true });
-    symlinkSync(realExtension, path.join(extensions(linkDest, ".vscode"), "saoudrizwan.claude-dev-3.86.2"));
-    symlinkSync(path.join(guardRoot, "missing-extension"), path.join(extensions(linkDest, ".cursor"), "saoudrizwan.claude-dev-4.1.21"));
-    const linkPlan = plan(linkDest);
-    assert.match(linkPlan, added("Code"), "a symlink to an extension folder is an installed extension");
-    assert.doesNotMatch(linkPlan, added("Cursor"), "a dangling symlink is not an installed extension");
-
-    const updatedDest = path.join(guardRoot, "updated");
-    mkdirSync(path.join(extensions(updatedDest, ".vscode"), "saoudrizwan.claude-dev-3.86.2"), { recursive: true });
-    mkdirSync(path.join(extensions(updatedDest, ".vscode"), "saoudrizwan.claude-dev-3.89.2"), { recursive: true });
-    writeFileSync(path.join(extensions(updatedDest, ".vscode"), ".obsolete"), `${JSON.stringify({ "saoudrizwan.claude-dev-3.86.2": true })}\n`);
-    mkdirSync(path.join(extensions(updatedDest, ".cursor"), "saoudrizwan.claude-dev-4.1.21"), { recursive: true });
-    writeFileSync(path.join(extensions(updatedDest, ".cursor"), ".obsolete"), "{not json\n");
-    const updatedPlan = plan(updatedDest);
-    assert.match(updatedPlan, added("Code"), "an update leaves the old folder obsolete beside the installed one");
-    assert.match(updatedPlan, added("Cursor"), "a malformed .obsolete list marks nothing obsolete");
-
-    const loopDest = path.join(guardRoot, "loop");
-    mkdirSync(extensions(loopDest, ".vscode"), { recursive: true });
-    symlinkSync("saoudrizwan.claude-dev-3.86.2", path.join(extensions(loopDest, ".vscode"), "saoudrizwan.claude-dev-3.86.2"));
-    const loop = status(["install", "--target", "cline", "--scope", "user", "--dest", loopDest, "--category", "mcps", "--dry-run"]);
-    assert.equal(loop.status, 1, `${loop.stdout}${loop.stderr}`);
-    assert.match(loop.stdout, /^ {2}editor extension location cannot be inspected safely: .*saoudrizwan\.claude-dev-3\.86\.2: /m, "a candidate that cannot be resolved blocks");
-
-    const stateDest = path.join(guardRoot, "state");
-    const cursorSettings = path.join(stateDest, perEditor("Cursor"));
-    mkdirSync(path.join(path.dirname(path.dirname(cursorSettings)), "tasks"), { recursive: true });
-    mkdirSync(path.dirname(cursorSettings), { recursive: true });
-    writeFileSync(cursorSettings, `${JSON.stringify({ mcpServers: {} })}\n`);
-    assert.doesNotMatch(plan(stateDest), added("Cursor"), "extension storage outlives an uninstall, so it is not a signal");
-
-    const oddDest = path.join(guardRoot, "odd");
-    mkdirSync(oddDest, { recursive: true });
-    writeFileSync(path.join(oddDest, ".windsurf"), "a file where a folder belongs\n");
-    installClineExtension(oddDest, ["Code"]);
-    mkdirSync(path.join(extensions(oddDest, ".vscode"), ".obsolete"));
-    const oddPlan = plan(oddDest);
-    assert.match(oddPlan, added("Code"), "an .obsolete directory is not a list");
-    assert.match(oddPlan, skipped("Windsurf", "no saoudrizwan\\.claude-dev extension folder"));
-    if (process.getuid?.() !== 0) {
-      const blockedPlan = (dest) => status(["install", "--target", "cline", "--scope", "user", "--dest", dest, "--category", "mcps", "--dry-run"]);
-      const lockedDest = path.join(guardRoot, "locked");
-      mkdirSync(extensions(lockedDest, ".cursor"), { recursive: true });
-      chmodSync(extensions(lockedDest, ".cursor"), 0o000);
-      const locked = blockedPlan(lockedDest);
-      chmodSync(extensions(lockedDest, ".cursor"), 0o755);
-      assert.equal(locked.status, 1, `${locked.stdout}${locked.stderr}`);
-      assert.match(locked.stdout, /^ {2}editor extension location cannot be inspected safely: .*\.cursor\/extensions: /m);
-
-      const lockedListDest = path.join(guardRoot, "locked-list");
-      installClineExtension(lockedListDest, ["Code"]);
-      mkdirSync(extensions(lockedListDest, ".cursor"), { recursive: true });
-      for (const dir of [".vscode", ".cursor"]) writeFileSync(path.join(extensions(lockedListDest, dir), ".obsolete"), "{}\n");
-      for (const dir of [".vscode", ".cursor"]) chmodSync(path.join(extensions(lockedListDest, dir), ".obsolete"), 0o000);
-      const lockedList = blockedPlan(lockedListDest);
-      for (const dir of [".vscode", ".cursor"]) chmodSync(path.join(extensions(lockedListDest, dir), ".obsolete"), 0o644);
-      assert.equal(lockedList.status, 1, `${lockedList.stdout}${lockedList.stderr}`);
-      assert.match(lockedList.stdout, /^ {2}editor extension location cannot be inspected safely: .*\.vscode\/extensions\/\.obsolete: /m, "an unreadable list beside an extension folder blocks");
-      assert.doesNotMatch(lockedList.stdout, /\.cursor\/extensions\/\.obsolete/, "the list is not read where no extension folder exists");
-    }
-
-    const ownedRoute = (dest, extra) => {
-      mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
-      writeFileSync(path.join(dest, ".agent-surface", "cline-manifest.json"), `${JSON.stringify({
-        target: "cline",
-        scope: "user",
-        managed: [],
-        config_entries: [{ path: perEditor("Windsurf"), format: "mcpServers", ids: ["grimoire", "synapse"] }],
-      }, null, 2)}\n`);
-      extra();
-    };
-    const displacedDest = path.join(guardRoot, "displaced");
-    ownedRoute(displacedDest, () => {
-      mkdirSync(path.dirname(path.join(displacedDest, clineIdeUserDataRoot("Windsurf"))), { recursive: true });
-      writeFileSync(path.join(displacedDest, clineIdeUserDataRoot("Windsurf")), "a file where the editor's user data belongs\n");
-    });
-    assert.match(plan(displacedDest), skipped("Windsurf", ".*; its claim on the missing file ends at the next full install$"), "a partial install keeps the claim");
-    const displaced = status(["install", "--target", "cline", "--scope", "user", "--dest", displacedDest]);
-    assert.equal(displaced.status, 0, `${displaced.stdout}${displaced.stderr}`);
-    assert.match(displaced.stdout, skipped("Windsurf", ".*; its claim on the missing file ends$"));
-    assert.ok(!JSON.parse(readFileSync(path.join(displacedDest, ".agent-surface", "cline-manifest.json"), "utf8")).config_entries.some((entry) => entry.path === perEditor("Windsurf")), "a route whose path cannot hold the file drops its claim");
-    if (process.getuid?.() !== 0) {
-      const unreadableDest = path.join(guardRoot, "unreadable-storage");
-      const settingsDirectory = path.dirname(path.join(unreadableDest, perEditor("Windsurf")));
-      ownedRoute(unreadableDest, () => {
-        mkdirSync(settingsDirectory, { recursive: true });
-        writeFileSync(path.join(unreadableDest, perEditor("Windsurf")), `${JSON.stringify({ mcpServers: { grimoire: {}, synapse: {} } })}\n`);
-      });
-      chmodSync(settingsDirectory, 0o000);
-      const unreadable = status(["install", "--target", "cline", "--scope", "user", "--dest", unreadableDest, "--dry-run"]);
-      chmodSync(settingsDirectory, 0o755);
-      assert.equal(unreadable.status, 1, `${unreadable.stdout}${unreadable.stderr}`);
-      assert.match(unreadable.stdout, /^ {2}obsolete MCP config route cannot be inspected safely: .*cline_mcp_settings\.json: /m, "an owned route that cannot be read blocks the plan");
-      assert.doesNotMatch(unreadable.stderr, /^\s+at /m, "no stack trace");
-
-      const lockedPruneDest = path.join(guardRoot, "locked-prune");
-      ownedRoute(lockedPruneDest, () => {
-        installClineExtension(lockedPruneDest, ["Windsurf"]);
-        mkdirSync(path.dirname(path.join(lockedPruneDest, perEditor("Windsurf"))), { recursive: true });
-        writeFileSync(path.join(lockedPruneDest, perEditor("Windsurf")), `${JSON.stringify({ mcpServers: { grimoire: {}, synapse: {} } })}\n`);
-      });
-      chmodSync(extensions(lockedPruneDest, ".windsurf"), 0o000);
-      const lockedPrune = status(["install", "--target", "cline", "--scope", "user", "--dest", lockedPruneDest, "--dry-run"]);
-      chmodSync(extensions(lockedPruneDest, ".windsurf"), 0o755);
-      assert.equal(lockedPrune.status, 1, `${lockedPrune.stdout}${lockedPrune.stderr}`);
-      assert.match(lockedPrune.stdout, /^ {2}editor extension location cannot be inspected safely: .*\.windsurf\/extensions: /m);
-      assert.doesNotMatch(lockedPrune.stdout, new RegExp(`${escaped(perEditor("Windsurf"))} MCP -= `), "a route whose editor cannot be inspected is not pruned");
-    }
-
-    const directoryDest = path.join(guardRoot, "directory-route");
-    ownedRoute(directoryDest, () => mkdirSync(path.join(directoryDest, perEditor("Windsurf")), { recursive: true }));
-    const directoryPlan = status(["install", "--target", "cline", "--scope", "user", "--dest", directoryDest, "--dry-run"]);
-    assert.equal(directoryPlan.status, 1, `${directoryPlan.stdout}${directoryPlan.stderr}`);
-    assert.match(directoryPlan.stdout, /^ {2}obsolete MCP config route is not a regular file: /m);
-    assert.match(directoryPlan.stdout, skipped("Windsurf", "no saoudrizwan\\.claude-dev extension folder under [^;]*$"), "the skip line promises no pruning beside the block");
+    // Devin Desktop, the renamed Windsurf, has its own extensions folder and route.
+    const present = path.join(guardRoot, "present");
+    installClineExtension(present, ["Code", "Devin"]);
+    const cursorStorage = path.join(present, perEditor("Cursor"));
+    mkdirSync(path.dirname(cursorStorage), { recursive: true });
+    writeFileSync(cursorStorage, `${JSON.stringify({ mcpServers: {} })}\n`);
+    const presentPlan = plan(present);
+    assert.match(presentPlan, added("Code"));
+    assert.match(presentPlan, added("Devin"));
+    assert.doesNotMatch(presentPlan, added("Windsurf"), "the legacy Windsurf route stays separate");
+    assert.doesNotMatch(presentPlan, added("Cursor"), "extension storage outlives an uninstall, so it is not a signal");
 
     const strayDest = path.join(guardRoot, "stray");
     const stray = path.join(strayDest, perEditor("Windsurf"));
@@ -1195,13 +1049,10 @@ for (const scope of ["user", "project"]) {
       managed: [],
       config_entries: [{ path: perEditor("Windsurf"), format: "mcpServers", ids: ["grimoire", "synapse"] }],
     }, null, 2)}\n`);
-    const strayPlan = plan(strayDest, []);
-    assert.match(strayPlan, new RegExp(`${escaped(perEditor("Windsurf"))} MCP -= grimoire, synapse`));
-    assert.match(strayPlan, skipped("Windsurf", "no saoudrizwan\\.claude-dev extension folder under .*; entries agent-surface merged there are pruned$"));
-    assert.match(plan(strayDest), skipped("Windsurf", ".*; entries agent-surface merged there stay until a full install$"), "a partial install leaves them for the next full install");
+    assert.match(plan(strayDest, []), new RegExp(`${escaped(perEditor("Windsurf"))} MCP -= grimoire, synapse`));
     run(["install", "--target", "cline", "--scope", "user", "--dest", strayDest]);
     assert.deepEqual(JSON.parse(readFileSync(stray, "utf8")).mcpServers, { existing: { command: "keep" } }, "only the owned servers leave the stray file");
-    assert.equal(existsSync(path.join(strayDest, clineIdeUserDataRoot("Devin"))), false, "without Cline in Devin, an install creates no Devin user data, which would make Devin skip its migration from Windsurf");
+    assert.equal(existsSync(path.join(strayDest, clineIdeUserDataRoot("Devin"))), false, "without Cline in Devin, an install creates no Devin user data");
     const strayManifest = JSON.parse(readFileSync(path.join(strayDest, ".agent-surface", "cline-manifest.json"), "utf8"));
     assert.ok(!strayManifest.config_entries.some((entry) => entry.path === perEditor("Windsurf")), "the pruned route is no longer claimed");
   } finally {

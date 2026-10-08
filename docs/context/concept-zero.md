@@ -8,7 +8,7 @@ Baseline: `main` at `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 
 Keep agent-surface as a canonical-practice compiler, native-adapter catalog and managed installer. This batch makes runtime identity, security-aware release selection, lifecycle and proof boundaries explicit; repairs demonstrated path/format defects; separates different harnesses hidden behind one editor brand; and adds a controlled successor path for Antigravity workflows. Retain OpenHands V1 CLI, but recommend it only for existing users. Expand Grok Build only where native contracts and task evidence justify it; evaluate Grok Bot as a separate private workplace pilot. Do not build a runtime manager, vulnerability scanner, provider router, scheduler, saved-profile engine, or universal permissions layer.
 
-The previous [concept](../history/2026-09-02-runtime-portfolio-concept.md) and [roadmap](../history/2026-09-21-runtime-portfolio-roadmap.md) are historical. Their completed work is not reopened, and their old version/target counts are not the baseline for this batch. The current source has 26 implemented outputs: 25 runtime/host adapters plus the build-only plugin exporter.
+The previous [concept](https://github.com/Lyther/agent-surface/blob/3dbdbfe9c67fa7a95cf72a25280d2aa588782956/docs/context/concept-zero.md) and [roadmap](https://github.com/Lyther/agent-surface/blob/3dbdbfe9c67fa7a95cf72a25280d2aa588782956/docs/roadmap.md) are historical. Their completed work is not reopened, and their old version/target counts are not the baseline for this batch. The current source has 26 implemented outputs: 25 runtime/host adapters plus the build-only plugin exporter.
 
 ## Problem and Evidence
 

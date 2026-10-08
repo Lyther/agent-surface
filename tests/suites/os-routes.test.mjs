@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Per-OS install routes, planned through the real CLI on the OS that runs the suite. On macOS and Linux
-// (`npm test`) it confirms the unchanged ~/.config routes and Cline's per-editor route; the Windows CI
-// job runs it natively, where it covers the AppData routes, the cleanup of what pre-fix Windows
-// installs left behind, and Cline's per-editor route under %APPDATA%.
+// (`npm test`) it confirms the unchanged ~/.config routes and the per-editor routes; the Windows CI job
+// runs it natively, where it covers the AppData routes, the cleanup of what pre-fix Windows installs
+// left behind, and the per-editor routes under %APPDATA%.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -64,15 +64,12 @@ try {
   // the profile home and Cline's storage under the editor's user data (%APPDATA% on Windows), so only
   // the editor that has Cline gets a route.
   // SUBSTITUTE_JUSTIFICATION
-  // - substitute: an empty saoudrizwan.claude-dev-<version> folder under a scratch profile's .vscode/extensions
-  //   and .devin/extensions
+  // - substitute: an empty Cline extension folder under a scratch profile's .vscode and .devin
   // - replaces: Cline installed in VS Code and in Devin Desktop
-  // - necessity: the planner's presence check reads only folder names, and installing the editors and
-  //   Cline on a CI runner would launch editors and download the extension
+  // - necessity: installing editors and Cline on a CI runner would launch editors and download it
   // - real-option: the real CLI plans against a real scratch profile with its own APPDATA
   // - proof-limit: proves which per-editor route is planned on this OS, not that either editor loads it
-  // - real-proof: none yet on Windows; on macOS the operator's profile dry-run in the RT2.4 review kept
-  //   VS Code's and Cursor's routes
+  // - real-proof: none yet on Windows
   {
     const clineHome = path.join(scratch, "cline-home");
     const appData = path.join(scratch, "cline-appdata");
@@ -91,13 +88,12 @@ try {
   // Trae's IDE editions: the user MCP route sits beside each edition's per-OS User settings (under
   // %APPDATA% on Windows) and is written only once that IDE has created its User directory.
   // SUBSTITUTE_JUSTIFICATION
-  // - substitute: an empty Trae/User directory in a scratch profile, standing in for the international
-  //   IDE having run once; Trae CN's is left absent
-  // - replaces: Trae installed and started on this machine
+  // - substitute: an empty Trae/User directory in a scratch profile; Trae CN's is left absent
+  // - replaces: the international IDE installed and started once
   // - necessity: installing and launching the IDE on a CI runner is out of scope for a planning check
   // - real-option: the real CLI plans against a real scratch profile with its own APPDATA
   // - proof-limit: proves which user MCP route is planned or skipped on this OS, not that Trae loads it
-  // - real-proof: none yet; the operator's macOS profile (Trae 3.5.25) plans the international route
+  // - real-proof: the operator's macOS profile (Trae 3.5.25) plans the international route
   {
     const traeHome = path.join(scratch, "trae-home");
     const appData = path.join(scratch, "trae-appdata");
@@ -114,8 +110,7 @@ try {
   }
 
   // A Windows profile installed before the per-OS routes: the old ~/.config settings go through
-  // obsolete-route cleanup, a differing personal AGENTS.md is kept with a warning because Windows Zed
-  // never reads it, and nothing blocks.
+  // obsolete-route cleanup, the old personal AGENTS.md is ordinary stale output, and nothing blocks.
   // SUBSTITUTE_JUSTIFICATION
   // - substitute: hand-written manifests and files in the shape the pre-fix installer recorded
   // - replaces: a Windows profile installed by a release before the per-OS routes
@@ -135,9 +130,7 @@ try {
     });
     const zed = plan("zed", zedDest);
     assert.equal(zed.code, 0, zed.out);
-    assert.match(zed.out, new RegExp(`^ {2}LEGACY_FILE_RETAINED: ${escapeRegExp(oldZedInstructions)} differs from its replacement ${escapeRegExp(zedInstructions)} and is kept, because `, "m"));
-    assert.match(zed.out, new RegExp(`^planned route migrations:\\n {2}${escapeRegExp(oldZedInstructions)} -> ${escapeRegExp(zedInstructions)}: kept; see warnings$`, "m"));
-    assert.doesNotMatch(zed.out, new RegExp(`^planned stale managed removals:\\n(?: {2}.*\\n)*? {2}${escapeRegExp(oldZedInstructions)}$`, "m"));
+    assert.match(zed.out, new RegExp(`^planned stale managed removals:\\n(?: {2}.*\\n)*? {2}${escapeRegExp(oldZedInstructions)}$`, "m"));
     assert.match(zed.out, new RegExp(`^ {2}${escapeRegExp(oldZedSettings)} MCP -= grimoire, synapse$`, "m"));
     assert.match(zed.out, new RegExp(`^ {2}${escapeRegExp(zedInstructions)} <- `, "m"));
     assert.match(zed.out, /^blocked:\n {2}none$/m);

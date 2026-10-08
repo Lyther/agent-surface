@@ -13,7 +13,7 @@ Project scope (`--dest`): `.trae/skills`, `.trae/agents` (read only in trusted p
 Notes:
 
 - The CLI documents no user-level instruction folder; it reads `AGENTS.md` files and project rules, so user installs write no rules. Where it reads a global `AGENTS.md` is unverified.
-- The first `trae-cli` install adopts the `traecli.toml` servers the pre-split `trae` target recorded, so a general install prunes the optional ones among them and keeps the first-party servers. `trae` releases them once `trae-cli` has installed.
+- The `traecli.toml` servers the pre-split `trae` target merged stay recorded by `trae`, unpruned, until `trae-cli` records each of them; `trae` then drops its record without pruning it.
 - Trae CLI 1.0 (`trae_cli.yaml`, `~/.traecli`) is not targeted; CLI 2.0 migrates its files itself.
 - The `~/.trae/agents`, `.trae/agents` and `$TRAE_HOME/skills` routes come from the installed `traecli` 0.201.6 binary, which embeds them and no `.traecli` skills or agents path; the CLI 2.0 pages document only `traecli.toml` and `TRAE_HOME`. `traecli` 0.207.1-tob lists the servers merged into `~/.trae/traecli.toml` as enabled (`traecli mcp list`, 2026-09-30), and, rendered offline with a placeholder model catalog and provider (no sign-in, no model call), its prompt input lists the six project skills and both project rules; agent loading and the user roots are not runtime-tested, and model-backed use needs a TRAE Enterprise flagship plan.
 

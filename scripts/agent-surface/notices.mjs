@@ -17,9 +17,6 @@ const SHARED_SKILL_ROOT_NOTICE = {
   checked_at: "2026-09-28",
 };
 
-// Codes the planner derives per operation. A stored notice reusing one would print twice per plan.
-export const derivedNoticeCodes = new Set([SHARED_SKILL_ROOT_NOTICE.code]);
-
 export async function storedNotices(target) {
   const capabilities = await readTargetCapabilities();
   return capabilities.targets?.[target]?.notices ?? [];
@@ -32,15 +29,10 @@ export async function allStoredNotices() {
     .flatMap(([target, record]) => (record.notices ?? []).map((notice) => ({ target, notice })));
 }
 
-// `outputs` carry `renderKind`; a notice surface counts as selected when an output renders it.
-// Every stored notice is shown for its target, including one whose surface is filtered out.
-export async function planNotices(target, outputs, installRoot = null) {
-  const renderedSurfaces = new Set(outputs.map((item) => item.renderKind));
-  const derived = installRoot === null ? null : sharedSkillRootNotice(outputs, installRoot);
-  return [...await storedNotices(target), ...(derived ? [derived] : [])].map((notice) => ({
-    ...notice,
-    selected: notice.surface === "target" || renderedSurfaces.has(notice.surface),
-  }));
+// Every stored notice is shown for its target; an install also gets the notices its writes derive.
+export async function planNotices(target, writes = [], installRoot = null) {
+  const derived = installRoot === null ? null : sharedSkillRootNotice(writes, installRoot);
+  return [...await storedNotices(target), ...(derived ? [derived] : [])];
 }
 
 // The home root is excluded: its .agents/skills is a workspace root only when the home directory
@@ -82,7 +74,6 @@ export function noticeHeading(notice, today) {
   const details = [notice.kind, notice.surface];
   const timing = noticeTiming(notice, today);
   if (timing) details.push(timing);
-  if (notice.selected === false) details.push(`${notice.surface} is not part of this selection`);
   return `${notice.code} (${details.join("; ")})`;
 }
 
