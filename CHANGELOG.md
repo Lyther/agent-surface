@@ -46,6 +46,7 @@ Notable changes to agent-surface and its first-party MCP services. Format: [Keep
 
 ### Fixed
 
+- **npm advisories in the CLI and both MCP servers** - all three packages move their `fast-uri` override from 3.1.6, now inside the vulnerable 3.0.0-3.1.7 range, to 3.1.8. Synapse and Grimoire also resolve `@modelcontextprotocol/sdk` 1.32.1, `proxy-addr` 2.0.8 and `ip-address` 10.7.3, so `npm audit --omit=dev` reports nothing in any of them. Installed servers pick this up on the next `npm run install:mcps`.
 - **Install roots reached through a symbolic link** - an install whose root is itself a symbolic link, such as a home directory that points to another volume, was refused with `traverses symbolic link` for every target. The root is now followed like the directories above it; a link below the root still refuses the plan before anything is written.
 - **MCP opt-in** — `--category mcps` without `--service` now selects first-party services only; external MCPs such as `pentest-ai` require an explicit `--service`.
 - **Install correctness** — `grimoire-index` wrapper resolves the real entrypoint (derived from `package.json#bin`); a missing required pack fails the install (exit 1) non-destructively instead of silently succeeding.
