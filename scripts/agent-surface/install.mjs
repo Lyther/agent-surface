@@ -1114,7 +1114,9 @@ async function readRootClaims(installRoot) {
     const manifest = await readClaimManifest(installRoot, path.join(directory, entry.name), entry, claims.blocked);
     if (!manifest) continue;
     claims.manifests.set(owner, manifest);
-    for (const item of manifest.managed) addClaim(claims, item?.output, { owner, assetCategory: item?.asset_category, nested: false });
+    for (const item of manifest.managed) {
+      if (usableOutput(item)) addClaim(claims, item.output, { owner, assetCategory: item.asset_category, nested: false });
+    }
   }
   for (const legacy of await legacyNestedManifests()) {
     const file = path.join(installRoot, legacy.output);
@@ -1123,10 +1125,16 @@ async function readRootClaims(installRoot) {
     const manifest = await readClaimManifest(installRoot, file, info, claims.blocked);
     if (!manifest) continue;
     for (const item of manifest.managed) {
-      if (typeof item?.output === "string") addClaim(claims, path.join(legacy.root, item.output), { owner: legacy.target, assetCategory: item.asset_category, nested: true });
+      if (usableOutput(item)) addClaim(claims, path.join(legacy.root, item.output), { owner: legacy.target, assetCategory: item.asset_category, nested: true });
     }
   }
   return claims;
+}
+
+// An entry claims only a safe relative path; normalizing `generated/../AGENTS.md` would otherwise
+// claim a file the manifest never wrote, and joining a nested root would hide its `..`.
+function usableOutput(item) {
+  return typeof item?.output === "string" && isSafeRelativePath(item.output);
 }
 
 function claimKey(relativeOutput) {

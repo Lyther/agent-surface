@@ -375,6 +375,24 @@ try {
     assert.ok(existsSync(path.join(dest, "AGENTS.md")), "the rerun finished the install");
   }
 
+  // A manifest entry whose output is not a safe relative path is unusable and claims nothing, so
+  // `generated/../AGENTS.md` cannot make an operator's AGENTS.md look owned.
+  {
+    const dest = path.join(scratch, "unsafe-claim");
+    mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
+    writeFileSync(path.join(dest, "AGENTS.md"), "operator notes\n");
+    writeFileSync(path.join(dest, ".agent-surface", "codex-manifest.json"), `${JSON.stringify({
+      target: "codex",
+      scope: "project",
+      managed: [{ target: "codex", source: "rules/*.mdc", output: "generated/../AGENTS.md" }],
+      config_entries: [],
+    }, null, 2)}\n`);
+    const refused = project(dest, "openhands");
+    assert.notEqual(refused.code, 0, refused.out);
+    assert.match(refused.out, /UNOWNED_DESTINATION: AGENTS\.md exists/);
+    assert.equal(read(dest, "AGENTS.md"), "operator notes\n");
+  }
+
   // An install root reached through a symbolic link, such as a home directory on another volume, is
   // followed like the directories above it; a link below the root still refuses the plan untouched.
   {
