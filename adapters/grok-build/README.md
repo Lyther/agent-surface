@@ -16,7 +16,10 @@ Agents use Grok's camelCase frontmatter. Each normalized access tier maps to the
 
 Grok always also loads `.claude/agents`, with no setting to turn that off. Within one directory the native file wins, so a project with both targets installed uses these agents; a project `.claude/agents` copy, or one in a deeper directory, shadows a user-scope native agent. Grok's bundled `reviewer` role adds high reasoning effort to any agent named `reviewer`.
 
-Qualification (grok 1.0.44, macOS arm64, 2026-09-30): `grok inspect --json` lists all six from `.grok/agents` in a clean project and beside Claude Code's `.claude/agents` copies, and the generated files set no model or permission mode. A delegated task, the child's inherited model and the allowed and denied tool behavior of a spawned child are not yet observed: the run stopped at the account's exhausted Grok Build usage balance (HTTP 402).
+Qualification (macOS arm64), in a disposable project holding only this target's development install:
+
+- grok 1.0.46 (2765805b9442, 2026-10-08): `spawn_subagent` offers the six agents as `subagent_type` values. Asked to delegate to `researcher`, the parent spawned that type; its only tool calls were the spawn and the output retrieval, the child's only call was `read_file` on a probe file, and the parent reported the token written in it. With the parent on `-m grok-4.6` (the default is grok-4.7), the `researcher` and `worker` children both ran on grok-4.6. The `researcher` child's tools were `read_file`, `list_dir` and `grep`; asked to write a file under `--always-approve`, it had no tool for it and the file was not created, while the `worker` child wrote one with `write`. The `worker` keeps Grok's `search_tool` and `use_tool`, but its `search_tool` found no MCP tools although the project config wires one server.
+- grok 1.0.44 (5b807183dd79, 2026-09-30 and 2026-10-08): `grok inspect --json` lists all six from `.grok/agents` in a clean project and beside Claude Code's `.claude/agents` copies, but `spawn_subagent` has no type parameter, so a delegated task runs as the built-in `general-purpose` agent; that build's documentation offers such definitions only as the session agent (`--agent <name>` or `[agent]`). Delegating to these agents needs 1.0.46; 1.0.45 was not checked.
 
 References:
 
