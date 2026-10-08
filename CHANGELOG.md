@@ -94,6 +94,7 @@ Notable changes to agent-surface and its first-party MCP services. Format: [Keep
 - **Reinstall safety** - cleans exact declared Gemini/VSCodium and adapter-migration routes while preserving outputs still shared with active targets; maintained JSONC, TOML, and YAML libraries preserve unrelated config; Claude Code and Copilot can share the standard project `.mcp.json` route.
 - **Synapse cross-project reads** - binds the cursor to the selected project and returns non-mutable cross-project ids, preventing row-id collisions from reaching local `memory_get` or `memory_forget`.
 - **Kilo credential file** - Kilo's launch commands for credentialed MCP servers now carry `--as-env-file` for the selected credential file, as the other targets' commands already did. Before, credentials kept only in that file, whether the default `.env` or one given with `--credentials-file`, never reached Kilo's MCP servers.
+- **Synapse request text** - the sidecar decodes a request body once it has all of it. Before, a multi-byte UTF-8 character split across two network chunks was stored as replacement characters, and the request still reported success.
 
 ## Components
 
