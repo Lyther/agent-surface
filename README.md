@@ -45,20 +45,19 @@ Planned and out-of-scope hosts are listed at the end of [docs/reference/targets.
 ## Project layout
 
 ```text
-skills/      Vanilla Agent Skills, model-invocable by default; a skill is a directory and
-             may carry the reference material its SKILL.md points at
-commands/    High-impact workflows that require explicit user invocation
-rules/       Always-on or scoped behavior policy
-subagents/   Normalized subagent definitions
-mcps/        First-party MCP services (synapse, grimoire)
-ignores/     Project ignore templates
-registry/    Target, capability, asset-category, optional-service, and source-kind policy
-schemas/     JSON schemas for registry and workflow artifacts
-scripts/     CLI compiler and helpers
-adapters/    Per-target install docs (one README each)
-hooks/       Commit-message hook that strips AI attribution (install: CONTRIBUTING.md)
-tests/       Suites behind `npm test`: build, check, install matrix, MCP wiring
-external/    Reviewed git-submodule sources; registries decide what is distributed or indexed
+skills/      - Vanilla Agent Skills, model-invocable by default; a skill is a directory and may carry the reference material its SKILL.md points at
+commands/    - High-impact workflows that require explicit user invocation
+rules/       - Always-on or scoped behavior policy
+subagents/   - Normalized subagent definitions
+mcps/        - First-party MCP services (synapse, grimoire)
+ignores/     - Project ignore templates
+registry/    - Target, capability, asset-category, optional-service, and source-kind policy
+schemas/     - JSON schemas for registry and workflow artifacts
+scripts/     - CLI compiler and helpers
+adapters/    - Per-target install docs (one README each)
+hooks/       - Commit-message hook that strips AI attribution (install: CONTRIBUTING.md)
+tests/       - Suites behind `npm test`: build, check, install matrix, MCP wiring
+external/    - Reviewed git-submodule sources; registries decide what is distributed or indexed
 ```
 
 ## Commands
