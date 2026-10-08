@@ -1,6 +1,6 @@
 # Runtime Refresh Roadmap
 
-Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT1.1, RT1.2, RT2.0, RT2.1, RT2.4 AND RT3.2 IMPLEMENTED (RT3.2 MODEL-BACKED ACCEPTANCE BLOCKED); RT4.1 IN PROGRESS; ALL OTHER TASKS NOT STARTED
+Status: DESIGN READY FOR SCOPED IMPLEMENTATION; RT0.1 UPGRADE DONE; RT1.1, RT1.2, RT2.0, RT2.1, RT2.4 AND RT3.2 IMPLEMENTED (RT3.2 MODEL-BACKED ACCEPTANCE BLOCKED); RT4.1 IN PROGRESS; RT0.3 AND RT2.3 DEFERRED TO THE COMPUTER-USE EFFORT; ALL OTHER TASKS NOT STARTED
 Date: 2026-09-28; revised the same day after cross-review
 Baseline: `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 Inputs: [concept](context/concept-zero.md), [research](context/concept-zero-research.md), [architecture](architecture.md), [contract](contracts/runtime-refresh.md).
@@ -61,7 +61,7 @@ Exit: CLI path/schema/semantic evidence plus exact conflict cases is enough to i
 
 ### RT0.3 Antigravity Manual-Rule Qualification
 
-State: SPIKE_REQUIRED; OPERATOR-OWNED GUI; START NOW, IN PARALLEL WITH RT1.1 AND RT2.0. Depends on: none. Covers: `G-RT-03`, `Q-RT-03`, `Q-RT-06`.
+State: DEFERRED (user decision, 2026-10-08): this GUI-only qualification becomes the first desktop task of the separate computer-use effort, run in a disposable computer instead of the operator's profile. Depends on: none. Covers: `G-RT-03`, `Q-RT-03`, `Q-RT-06`.
 
 On an identified Antigravity 2.0 build, qualify the documented `trigger: manual` direct-rule surface with a harmless command-sized probe. Observe that a normal related prompt does not automatically load it and explicit `@` selection does. Also establish whether the product still discovers the workflows this repository currently emits under `~/.gemini/antigravity/global_workflows`, whether it discovers skills in a workspace `.agents/skills` (the route `--scope project --dest` already writes), and whether it invokes a `disable-model-invocation: true` skill found there without an explicit request; that last result decides whether `RT2.3`'s co-discovery warning should ever block. Verify global versus project roots and any native includes used. Independently test the standalone IDE before claiming it. No release, deployment, deletion, account migration or vendor conversion command is run; `/migrate-workflows` is never run.
 
@@ -127,7 +127,7 @@ Exit: exact/over boundaries, conservative Unicode counting, `all` exclusions, bu
 
 ### RT2.3 Antigravity Successor Before November 1
 
-State: NOT STARTED. Depends on: `RT0.3`, `RT1.1`, `RT2.0`. Covers: `G-RT-03`, `Q-RT-03`, `Q-RT-04`, `Q-RT-06`.
+State: DEFERRED with `RT0.3` (user decision, 2026-10-08). Antigravity stops reading workflows on November 1, so the generated workflows go unread until the successor ships; the `ANTIGRAVITY_WORKFLOW_RETIREMENT` notice already says so, and nothing is deleted. Depends on: `RT0.3`, `RT1.1`, `RT2.0`. Covers: `G-RT-03`, `Q-RT-03`, `Q-RT-04`, `Q-RT-06`.
 
 Implement the qualified native manual-rule producer and correct user/project root handling, retaining ordinary directory skills/companions. Update tokens to rules while preserving command source identity. Document `@` invocation and source/render category matching. Preserve legacy workflow files from current manifests and `legacy-owned.json`, including the former manifest, on full and partial installs; no generic stale deletion. A workflow-only old selector must not silently delete without replacement. Keep CLI plugin staging/registration unchanged. Build no co-discovery warning ahead of evidence: if `RT0.3` shows Antigravity invokes other targets' manual-only skills autonomously, decide then between a `CO_DISCOVERED_MANUAL_SKILL` warning and moving those skills out of the shared root.
 
