@@ -79,7 +79,7 @@
       }
     },
     "codex": {
-      "summary": "Codex supports Agent Skills, custom agent TOML files, AGENTS.md instructions, and MCP config; agent-surface generates canonical auto-invocable skills, explicit-only manual skills, custom agents, global instructions, first-party MCP wiring (Synapse + Grimoire), and external skills.",
+      "summary": "Codex CLI and IDE extension, which Codex documents as sharing one configuration (the ChatGPT desktop app is documented to share their MCP configuration; neither the extension nor the app is runtime-tested here): agent-surface generates canonical auto-invocable skills, explicit-only manual skills, custom agents, global AGENTS.md instructions, first-party MCP wiring (Synapse + Grimoire) and external skills in the default ~/.codex and ~/.agents; project paths only via --dest; CODEX_HOME is not followed. Codex cloud is not targeted.",
       "generated_render_tokens": [
         "skills",
         "subagents",
@@ -99,6 +99,14 @@
         {
           "label": "Codex MCP",
           "url": "https://developers.openai.com/codex/mcp"
+        },
+        {
+          "label": "Codex AGENTS.md discovery",
+          "url": "https://learn.chatgpt.com/docs/agent-configuration/agents-md"
+        },
+        {
+          "label": "Codex config basics",
+          "url": "https://learn.chatgpt.com/docs/config-file/config-basic"
         }
       ],
       "surfaces": {
@@ -114,7 +122,7 @@
             ".agents/skills/<name>/SKILL.md",
             "~/.agents/skills/<manual>/SKILL.md"
           ],
-          "notes": "Canonical and manual workflows use the shared Agent Skills root. Canonical skills set allow_implicit_invocation: true; available high-impact workflows set it to false and require explicit $<name> invocation."
+          "notes": "Canonical and manual workflows use the shared Agent Skills root. Canonical skills set allow_implicit_invocation: true; available high-impact workflows set it to false and require explicit $<name> invocation. Project paths only via --dest."
         },
         "subagents": {
           "support": "native",
@@ -127,20 +135,19 @@
             "~/.codex/agents/<name>.toml",
             ".codex/agents/<name>.toml"
           ],
-          "notes": "Custom agents render as standalone TOML with name, description, developer_instructions, and sandbox_mode. Writable shell workers use danger-full-access; read-only roles remain read-only."
+          "notes": "Custom agents render as standalone TOML with name, description, developer_instructions, and sandbox_mode. Writable shell workers use danger-full-access; read-only roles remain read-only. Project paths only via --dest."
         },
         "rules": {
           "support": "native",
           "generation": "generated",
           "scope": [
-            "user",
-            "project"
+            "user"
           ],
           "paths": [
             "~/.codex/AGENTS.md",
             ".codex/AGENTS.md"
           ],
-          "notes": "Rules are bundled into the Codex AGENTS.md instruction surface."
+          "notes": "Always-on rules bundle into ~/.codex/AGENTS.md. A --dest project install also writes .codex/AGENTS.md there, which Codex does not discover."
         },
         "mcp": {
           "support": "native",
@@ -153,7 +160,7 @@
             "~/.codex/config.toml",
             ".codex/config.toml"
           ],
-          "notes": "First-party secretless MCP services are merged into mcp_servers; external or secret-bearing MCPs remain opt-in."
+          "notes": "First-party secretless MCP services are merged into mcp_servers; external or secret-bearing MCPs remain opt-in. Project paths only via --dest; Codex reads project config only in trusted projects."
         },
         "external": {
           "support": "native",
@@ -166,7 +173,7 @@
             "~/.agents/skills/<skill>/...",
             ".agents/skills/<skill>/..."
           ],
-          "notes": "Registry-backed external Agent Skills are copied only from configured skill_roots that contain SKILL.md."
+          "notes": "Registry-backed external Agent Skills are copied only from configured skill_roots that contain SKILL.md. Project paths only via --dest."
         }
       }
     },
@@ -273,6 +280,10 @@
         {
           "label": "Goose recipe reference",
           "url": "https://goose-docs.ai/docs/guides/recipes/recipe-reference/"
+        },
+        {
+          "label": "Goose config files",
+          "url": "https://goose-docs.ai/docs/guides/config-files"
         }
       ],
       "surfaces": {
@@ -294,9 +305,10 @@
             "user"
           ],
           "paths": [
-            "~/.config/goose/config.yaml"
+            "~/.config/goose/config.yaml",
+            "%APPDATA%\\Block\\goose\\config\\config.yaml"
           ],
-          "notes": "First-party secretless MCP services are non-destructively merged into Goose YAML `extensions` (type: stdio); user-scope only (config.yaml is user-global)."
+          "notes": "First-party secretless MCP services are non-destructively merged into Goose YAML `extensions` (type: stdio); user-scope only (config.yaml is user-global). The file is ~/.config/goose/config.yaml on macOS and Linux (XDG_CONFIG_HOME is not followed) and Block\\goose\\config\\config.yaml in the roaming AppData directory on Windows (%APPDATA% by default), resolved from the profile home, so a redirected %APPDATA% is not followed; the Windows route is not natively qualified. Windows installs made before the per-OS route merged into ~/.config/goose/config.yaml, which Windows Goose never reads; the next full install prunes those entries."
         },
         "skills": {
           "support": "native",
@@ -327,10 +339,11 @@
       }
     },
     "grok-build": {
-      "summary": "Grok Build supports Agent Skills, project AGENTS.md instructions, TOML configuration, and MCP; agent-surface generates skills, instructions, first-party MCP wiring, and always-approve execution policy.",
+      "summary": "Grok Build supports Agent Skills, project AGENTS.md instructions, custom agents, TOML configuration, and MCP; agent-surface generates skills, instructions, native agents, first-party MCP wiring, and always-approve execution policy.",
       "generated_render_tokens": [
         "skills",
         "rules",
+        "subagents",
         "external",
         "mcps"
       ],
@@ -342,6 +355,18 @@
         {
           "label": "Grok Build modes and config",
           "url": "https://docs.x.ai/build/modes-and-commands"
+        },
+        {
+          "label": "Grok Build subagents",
+          "url": "https://docs.x.ai/build/features/subagents"
+        },
+        {
+          "label": "Grok Build agent definition fields (source)",
+          "url": "https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-agent/src/config.rs"
+        },
+        {
+          "label": "Grok Build agent discovery (source)",
+          "url": "https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-agent/src/discovery.rs"
         }
       ],
       "surfaces": {
@@ -369,6 +394,19 @@
             ".grok/references/rules/<rule>.md"
           ],
           "notes": "Project instructions use the AGENTS.md compatibility family; scoped policies remain separate references."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.grok/agents/<name>.md",
+            ".grok/agents/<name>.md"
+          ],
+          "notes": "Normalized access maps to a typed capabilityMode (read-only, read-write or all) narrowed by a tools allowlist, with mcpInheritance none. No model is written, so the child inherits the parent's model, and no permissionMode, since Grok wires only bypassPermissions. Grok always also loads .claude/agents: within one directory the native file wins, but a project or deeper .claude/agents copy shadows a user-scope native agent. grok 1.0.44 lists all six from .grok/agents in a clean project and beside .claude/agents copies (grok inspect --json, 2026-09-30); tool enforcement on a spawned child is not yet observed."
         },
         "external": {
           "support": "native",
@@ -437,10 +475,21 @@
           ],
           "notes": "Reviewed external Agent Skills use the same discovery roots."
         }
-      }
+      },
+      "notices": [
+        {
+          "code": "DSH_REQUALIFY_AFTER_SECURITY_UPDATE",
+          "kind": "security",
+          "surface": "target",
+          "message": "CVE-2026-82533 (critical) affects DeepSeek Harness builds before 0.1.2-alpha.1. This notice does not check the installed build.",
+          "action": "Read the installed package version without launching the client and upgrade an affected build before using it. This adapter is not requalified on fixed builds.",
+          "source_url": "https://cveawg.mitre.org/api/cve/CVE-2026-82533",
+          "checked_at": "2026-09-28"
+        }
+      ]
     },
     "pi": {
-      "summary": "Pi supports AGENTS.md instructions and Agent Skills; agent-surface generates Pi skill folders, instructions, and external skill packs.",
+      "summary": "Pi coding agent CLI (npm @earendil-works/pi-coding-agent; the @mariozechner package is deprecated): agent-surface generates skills, explicit-only compatibility skills, AGENTS.md instructions and external skill packs in the default ~/.pi/agent (PI_CODING_AGENT_DIR is not followed) or project roots.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -458,6 +507,14 @@
         {
           "label": "Pi settings",
           "url": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/docs/settings.md"
+        },
+        {
+          "label": "Pi configuration",
+          "url": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/docs/configuration.md"
+        },
+        {
+          "label": "npm @mariozechner/pi-coding-agent (deprecated)",
+          "url": "https://www.npmjs.com/package/@mariozechner/pi-coding-agent"
         }
       ],
       "surfaces": {
@@ -472,7 +529,7 @@
             "~/.pi/agent/skills/<name>/SKILL.md",
             ".pi/skills/<name>/SKILL.md"
           ],
-          "notes": "Canonical skills are emitted unchanged. Available high-impact commands are emitted as explicit-invocation compatibility skills with disable-model-invocation: true; host enforcement remains unproven."
+          "notes": "Canonical skills are emitted unchanged. Available high-impact commands are emitted as explicit-invocation compatibility skills with disable-model-invocation: true, which Pi documents as hiding the skill from automatic selection; not runtime-tested. Project .pi/skills need project trust."
         },
         "rules": {
           "support": "native",
@@ -512,7 +569,7 @@
       }
     },
     "pool": {
-      "summary": "Poolside supports AGENTS.md, user .poolside instructions, local skill directories, and MCP servers; agent-surface generates local skills, instructions, and external skill packs while generating MCP config (mcp_servers) via a non-destructive YAML merge.",
+      "summary": "Poolside CLI: agent-surface generates local skills, AGENTS.md instructions (personal ones at Poolside's default ~/.config/poolside/AGENTS.md; Poolside honors XDG_CONFIG_HOME, which agent-surface does not follow) and external skill packs, and merges MCP config (mcp_servers) non-destructively into settings.yaml.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -555,10 +612,10 @@
             "project"
           ],
           "paths": [
-            "~/.config/poolside/.poolside",
+            "~/.config/poolside/AGENTS.md",
             "AGENTS.md"
           ],
-          "notes": "User installs use .poolside personal instructions; project installs use AGENTS.md."
+          "notes": "User installs write the documented personal ~/.config/poolside/AGENTS.md; project installs use AGENTS.md. Earlier installs wrote ~/.config/poolside/.poolside, which an install that writes AGENTS.md retires with it; a narrower selection than the one that wrote it stops instead. The personal AGENTS.md needs pool 1.0.7 or later: a pool 1.0.2 capture in standalone mode sent .poolside and never the personal AGENTS.md (2026-09-30), and pool 1.0.16 sends both it and .poolside."
         },
         "external": {
           "support": "native",
@@ -586,10 +643,21 @@
           ],
           "notes": "First-party secretless MCP services are non-destructively merged into Poolside YAML `mcp_servers`; external or secret-bearing MCPs remain opt-in."
         }
-      }
+      },
+      "notices": [
+        {
+          "code": "POOL_AGENTS_MD_CLIENT_FLOOR",
+          "kind": "compatibility",
+          "surface": "rules",
+          "message": "The Poolside CLI reads the personal ~/.config/poolside/AGENTS.md only from 1.0.7 (released 2026-06-26). Earlier builds read ~/.config/poolside/.poolside instead, which an install that writes AGENTS.md now removes; a pool 1.0.2 capture sent .poolside and never the personal AGENTS.md.",
+          "action": "Update the pool CLI to 1.0.7 or later before a user install. On an older build, keep a copy of ~/.config/poolside/.poolside, because an install that writes AGENTS.md removes it.",
+          "source_url": "https://github.com/poolsideai/pool/releases/tag/v1.0.7",
+          "checked_at": "2026-09-30"
+        }
+      ]
     },
     "cline": {
-      "summary": "Cline supports workflows, rules, Agent Skills, Configured Agents, MCP, plugins, hooks, scheduling, connectors, built-in spawn_agent delegation, and agent teams. The agent-surface subagents primitive compiles to Cline Configured Agent YAML; spawn_agent is separate runtime behavior that needs no generated artifact. agent-surface also generates workflows, rules, external skills, the ignore file, and first-party MCP wiring for the CLI plus installed VS Code/Cursor/Windsurf extension routes.",
+      "summary": "Cline supports workflows, rules, Agent Skills, Configured Agents, MCP, plugins, hooks, scheduling, connectors, built-in spawn_agent delegation, and agent teams. The agent-surface subagents primitive compiles to Cline Configured Agent YAML; spawn_agent is separate runtime behavior that needs no generated artifact. agent-surface also generates workflows, rules, external skills, the ignore file, and first-party MCP wiring for the CLI plus installed VS Code/Cursor/Windsurf/Devin Desktop extension routes.",
       "generated_render_tokens": [
         "skills",
         "commands-as-workflows",
@@ -651,6 +719,10 @@
         {
           "label": "Cline MCP settings loader",
           "url": "https://github.com/cline/cline/blob/c92d4e7553a5660eaef8472778add9880419ebd7/sdk/packages/core/src/extensions/mcp/config-loader.ts"
+        },
+        {
+          "label": "Devin Desktop paths (FAQ)",
+          "url": "https://docs.devin.ai/desktop/devin-desktop-faq"
         }
       ],
       "surfaces": {
@@ -727,9 +799,10 @@
             "~/.cline/data/settings/cline_mcp_settings.json",
             "<VS Code user data>/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
             "<Cursor user data>/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
-            "<Windsurf user data>/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
+            "<Windsurf user data>/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
+            "<Devin Desktop user data>/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
           ],
-          "notes": "The CLI reads its .cline data settings path, while each IDE extension reads the extension globalStorage path supplied by that IDE. First-party secretless MCP services are merged into all four user routes; scope-derived Windows installs honor APPDATA and explicit --dest installs relocate the conventional AppData/Roaming subtree. External or secret-bearing MCPs remain opt-in. Documentation mentioning .cline/mcp.json is not backed by the current loaders."
+          "notes": "Only the CLI and Cline's SDK-based extension (the Next bundle, rolling out from 4.1.0) read the shared ~/.cline/data/settings/cline_mcp_settings.json; the pre-SDK extension that 3.x and most 4.x installs run reads settings/cline_mcp_settings.json under its IDE's globalStorage. First-party secretless MCP services are merged into the shared route and into each per-IDE route whose IDE has the Cline extension installed (an extension folder, or a symlink to one, that the IDE has not marked obsolete); extension storage is not a signal because IDEs keep it after an uninstall, and a custom extensions directory is not detected. A full install prunes servers agent-surface merged into a per-IDE route whose IDE has no Cline, and plans list skipped routes with the reason. Devin Desktop, the renamed Windsurf, gets the same guarded route under its Devin user-data folder, live when ~/.devin/extensions holds Cline, so an install does not create Devin's user data ahead of its first-run migration from Windsurf; Cline that Devin loads only from the legacy ~/.windsurf/extensions gets no Devin route. Scope-derived Windows installs honor APPDATA, and explicit --dest installs relocate the conventional AppData/Roaming subtree. External or secret-bearing MCPs remain opt-in. Documentation mentioning .cline/mcp.json is not backed by the current loaders."
         },
         "plugins": {
           "support": "native",
@@ -947,7 +1020,7 @@
       }
     },
     "kimi-code": {
-      "summary": "Kimi Code supports native Agent Skills, AGENTS.md instructions, custom agents and sub-agents, MCP, plugins, hooks, and shared CLI/extension state; agent-surface generates the shared file-backed surfaces and separately configures terminal Auto and editor YOLO permission modes.",
+      "summary": "Kimi Code CLI (TUI, print and web) and the Kimi Code for VS Code extension (in VS Code and Cursor), sharing KIMI_CODE_HOME: agent-surface generates skills, instructions, custom agents and MCP, and configures terminal Auto and editor kimi.yoloMode. Kimi Code Desktop is not targeted.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -1017,7 +1090,7 @@
             "$KIMI_CODE_HOME/agents/<name>.md",
             ".kimi-code/agents/<name>.md"
           ],
-          "notes": "Custom agent Markdown maps normalized access to Kimi tool allowlists. The generated profiles are available to native delegation; selecting one as the main agent is currently limited to experimental print mode."
+          "notes": "Custom agent Markdown maps normalized access to Kimi tool allowlists. The generated profiles are available to native delegation; --agent can also select one as the main agent in print mode or the TUI, which agent-surface does not configure."
         },
         "mcp": {
           "support": "native",
@@ -1036,8 +1109,7 @@
           "support": "native",
           "generation": "generated",
           "scope": [
-            "user",
-            "project"
+            "user"
           ],
           "paths": [
             "$KIMI_CODE_HOME/config.toml",
@@ -1045,7 +1117,7 @@
             "<VS Code user data>/User/settings.json",
             "<Cursor user data>/User/settings.json"
           ],
-          "notes": "Full installs set terminal default_permission_mode to auto and editor kimi.yoloMode to true without replacing sibling settings. The extension exposes YOLO, not persistent Auto; category-only MCP installs preserve host-wide policy."
+          "notes": "Full installs set terminal default_permission_mode to auto and editor kimi.yoloMode to true without replacing sibling settings. The extension exposes YOLO, not persistent Auto; category-only MCP installs preserve host-wide policy. Project .kimi-code/config.toml is not a documented Kimi config file (the project file is .kimi-code/local.toml), so project Auto and merge_all_available_skills are not claimed."
         },
         "runtime-subagents": {
           "support": "native",
@@ -1084,8 +1156,7 @@
           "support": "native",
           "generation": "not-generated",
           "scope": [
-            "user",
-            "project"
+            "user"
           ],
           "paths": [
             "$KIMI_CODE_HOME/config.toml",
@@ -1321,7 +1392,7 @@
       }
     },
     "kiro": {
-      "summary": "Kiro IDE 1.x and CLI 3.x share skills, steering, custom agents, capability permissions, and MCP files; agent-surface generates one current-format target for both surfaces.",
+      "summary": "Kiro IDE 1.x and Kiro CLI package 2.x on its V3 agent engine ('CLI 3.0', selected with --v3 or --agent-engine v3), which share ~/.kiro and .kiro files: agent-surface generates one V3-format target for both. The CLI's V1 and V2 engines and Kiro Web and Mobile are not targeted. Kiro documents inconsistently whether Kiro CLI honors steering inclusion modes; not runtime-tested.",
       "generated_render_tokens": [
         "skills",
         "commands-as-workflows",
@@ -1342,6 +1413,22 @@
         {
           "label": "Kiro permissions",
           "url": "https://kiro.dev/docs/cli/chat/permissions/"
+        },
+        {
+          "label": "Kiro steering",
+          "url": "https://kiro.dev/docs/steering/"
+        },
+        {
+          "label": "Kiro CLI 3.0",
+          "url": "https://kiro.dev/docs/cli/v3/"
+        },
+        {
+          "label": "Kiro CLI 3.0 new features",
+          "url": "https://kiro.dev/docs/cli/v3/new-features/"
+        },
+        {
+          "label": "Kiro headless mode",
+          "url": "https://kiro.dev/docs/cli/headless/"
         }
       ],
       "surfaces": {
@@ -1369,7 +1456,7 @@
             "~/.kiro/steering/command-<name>.md",
             ".kiro/steering/command-<name>.md"
           ],
-          "notes": "High-impact workflows use manual-inclusion steering, which is available through slash completion but never auto-loads."
+          "notes": "Manual-inclusion steering, invoked as #command-<name> or from / completion. Every generated agent lists all steering files as file:// resources, which Kiro loads when the agent starts, so those agents receive these files too. Kiro's steering page says Kiro CLI ignores inclusion modes and loads every steering file, while that page's capability table and the CLI 3.0 pages list inclusion front matter as supported: documented, conflicting, not runtime-tested. Manual inclusion is documented to hold where Kiro applies steering itself, as in the IDE."
         },
         "rules": {
           "support": "native",
@@ -1382,7 +1469,7 @@
             "~/.kiro/steering/<rule>.md",
             ".kiro/steering/<rule>.md"
           ],
-          "notes": "Always and fileMatch inclusion modes preserve the source rule scope."
+          "notes": "Always and fileMatch inclusion modes preserve the source rule scope where Kiro applies steering itself and honors them, which is documented for the IDE; generated agents load every rule through file:// regardless, and for Kiro CLI the documentation conflicts (see commands-as-workflows)."
         },
         "subagents": {
           "support": "native",
@@ -1395,7 +1482,7 @@
             "~/.kiro/agents/<name>.md",
             ".kiro/agents/<name>.md"
           ],
-          "notes": "Current v3 Markdown agents use tool tags, skill/steering resources, and capability permissions."
+          "notes": "V3-format Markdown agents use tool tags, skill and steering resources, and capability permissions; their file:// steering glob loads every steering file at agent start, manual workflow files included (documented, not runtime-tested)."
         },
         "mcp": {
           "support": "native",
@@ -1419,7 +1506,7 @@
           "paths": [
             "~/.kiro/settings/permissions.yaml"
           ],
-          "notes": "User installs grant capability all with effect allow. Headless acceptance also passes --trust-all-tools; immutable Kiro restrictions still apply."
+          "notes": "User installs grant capability all with effect allow. Headless acceptance selects the V3 engine and trusts all tools (kiro-cli chat --v3 --no-interactive --trust-all-tools); immutable Kiro restrictions still apply."
         },
         "external": {
           "support": "native",
@@ -1434,7 +1521,18 @@
           ],
           "notes": "Reviewed external Agent Skills use the same native roots."
         }
-      }
+      },
+      "notices": [
+        {
+          "code": "KIRO_MANUAL_STEERING_AUTOLOADED",
+          "kind": "compatibility",
+          "surface": "commands-as-workflows",
+          "message": "agent-surface writes its high-impact workflows as manual-inclusion steering files (.kiro/steering/command-*.md). Every generated Kiro agent lists all steering files as file:// resources, which Kiro loads when the agent starts, so those agents receive the workflows without #command-<name>. Kiro's documentation also disagrees on whether Kiro CLI honors inclusion modes: its steering page says the CLI loads every steering file, while its CLI 3.0 pages list inclusion front matter. Neither behavior is runtime-tested.",
+          "action": "Where a workflow must not load without explicit invocation, install Kiro without the asset categories that carry high-impact commands: --category development, and --category private when its local commands/ops-server.md overlay exists. To remove files an earlier install wrote, run the general Kiro install, which removes previously managed opt-in files, or delete the command-*.md steering files that the install root's .agent-surface/kiro-manifest.json lists.",
+          "source_url": "https://kiro.dev/docs/steering/",
+          "checked_at": "2026-09-29"
+        }
+      ]
     },
     "antigravity": {
       "summary": "The legacy Antigravity desktop target supports workflow files; current Antigravity CLI plugin packaging is generated by antigravity-cli.",
@@ -1492,7 +1590,19 @@
           ],
           "notes": "Reviewed external Agent Skill packs use the same native skill roots."
         }
-      }
+      },
+      "notices": [
+        {
+          "code": "ANTIGRAVITY_WORKFLOW_RETIREMENT",
+          "kind": "retirement",
+          "surface": "commands-as-workflows",
+          "message": "Antigravity retires its workflow format; Antigravity itself and its skills continue.",
+          "action": "Keep the generated workflow files; a replacement using native manual rules is not yet qualified. Do not convert them with /migrate-workflows, which turns manual commands into autonomously invoked skills.",
+          "source_url": "https://antigravity.google/docs/migration/workflows-to-skills/",
+          "checked_at": "2026-09-28",
+          "effective_on": "2026-11-01"
+        }
+      ]
     },
     "antigravity-cli": {
       "summary": "The Antigravity CLI target packages agent-surface as an agy plugin with skills, agents, always-on rules, scoped references, and external skills.",
@@ -1586,7 +1696,7 @@
       }
     },
     "opencode": {
-      "summary": "OpenCode supports AGENTS.md, commands, agents, skills, MCP, and plugins; agent-surface generates rules, command files, agent files, first-party MCP wiring (Synapse + Grimoire), full-access execution, and disabled automatic sharing while keeping skills/plugins manual.",
+      "summary": "OpenCode (npm opencode-ai), documented as a terminal interface, desktop app and IDE extension (the desktop app and extension are not runtime-tested here): agent-surface generates rules, commands, agents, canonical and external skills, first-party MCP wiring (Synapse + Grimoire), full-access execution and disabled sharing in the default ~/.config/opencode or project roots. It does not write into OPENCODE_CONFIG_DIR, an extra directory OpenCode loads after those roots and lets override them, and plugins are not generated. OpenCode 2 (npm @opencode/cli), which uses the same opencode command and roots, is not targeted or tested.",
       "generated_render_tokens": [
         "skills",
         "commands",
@@ -1607,6 +1717,22 @@
         {
           "label": "OpenCode rules",
           "url": "https://opencode.ai/docs/rules/"
+        },
+        {
+          "label": "OpenCode intro",
+          "url": "https://opencode.ai/docs/"
+        },
+        {
+          "label": "OpenCode config",
+          "url": "https://opencode.ai/docs/config/"
+        },
+        {
+          "label": "OpenCode 2 install",
+          "url": "https://opencode.ai/v2/docs/"
+        },
+        {
+          "label": "OpenCode 2 migration",
+          "url": "https://opencode.ai/v2/docs/migrate-v1/"
         }
       ],
       "surfaces": {
@@ -1789,10 +1915,21 @@
           ],
           "notes": "Plugin packaging can bundle skills, hooks, agents, commands, and .mcp.json, but is not needed for the minimal generated target. Hook and setup-script surfaces stay project-owned and are not generated by default."
         }
-      }
+      },
+      "notices": [
+        {
+          "code": "OPENHANDS_CLI_LEGACY",
+          "kind": "maintenance",
+          "surface": "target",
+          "message": "The OpenHands V1 CLI is no longer actively maintained. This retained adapter targets that CLI; it does not represent Agent Canvas or OpenHands SDK support.",
+          "action": "Existing CLI users can keep this target; evaluate a maintained OpenHands component separately before adopting it for new work.",
+          "source_url": "https://github.com/OpenHands/OpenHands-CLI#project-status",
+          "checked_at": "2026-09-28"
+        }
+      ]
     },
     "vscode": {
-      "summary": "VS Code/Copilot supports Agent Skills, instruction files, MCP, and preview agent plugins; agent-surface generates user instruction files, canonical and manual-only skills, plus first-party MCP wiring (Synapse + Grimoire).",
+      "summary": "Default profile of stable VS Code, for the built-in Local agent harness: agent-surface generates profile instruction files, the profile mcp.json with first-party MCP wiring (Synapse + Grimoire), and canonical and manual-only skills in ~/.agents/skills. Other profiles, Agent Host and cloud harnesses, Insiders and agent plugins are not targeted.",
       "generated_render_tokens": [
         "skills",
         "instructions",
@@ -1811,6 +1948,10 @@
         {
           "label": "VS Code Agent Skills",
           "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills"
+        },
+        {
+          "label": "VS Code custom instructions",
+          "url": "https://code.visualstudio.com/docs/agent-customization/custom-instructions"
         }
       ],
       "surfaces": {
@@ -1823,19 +1964,18 @@
           "paths": [
             "instructions/agent-surface.instructions.md"
           ],
-          "notes": "Path is relative to the VS Code user data directory."
+          "notes": "Local agent only; relative to stable VS Code's default-profile Code/User directory. Agent Host sessions read their harness folders (~/.copilot/instructions, ~/.copilot/copilot-instructions.md, ~/.claude/rules) instead, and a co-installed copilot target can mask a missing file."
         },
         "mcp": {
           "support": "native",
           "generation": "generated",
           "scope": [
-            "user",
-            "project"
+            "user"
           ],
           "paths": [
             "mcp.json"
           ],
-          "notes": "First-party secretless MCP services are generated into the VS Code user MCP config; external or secret-bearing MCPs remain opt-in."
+          "notes": "First-party secretless MCP services are generated into the VS Code user MCP config; external or secret-bearing MCPs remain opt-in. Agent Host receives forwarded VS Code MCP config except servers that need interactive input; unverified for these entries."
         },
         "plugins": {
           "support": "native",
@@ -1844,7 +1984,7 @@
             "user"
           ],
           "paths": [],
-          "notes": "Preview agent plugins are kept out of the direct file adapter."
+          "notes": "Agent plugins (chat.plugins.enabled) are not generated."
         },
         "skills": {
           "support": "native",
@@ -1855,7 +1995,7 @@
           "paths": [
             "~/.agents/skills/<name>/SKILL.md"
           ],
-          "notes": "Canonical skills use VS Code Agent Skills discovery. Available high-impact commands install into the same root as explicit-only skills (disable-model-invocation: true). The mapping was read from the installed 1.116.0 build, whose built-in user-scope skill locations include ~/.agents/skills and which describes that attribute as keeping a workflow manual; discovery and invocation in a live session are not yet verified. Prompt files were the legacy Local-agent route and are no longer generated."
+          "notes": "Canonical skills use VS Code Agent Skills discovery. Available high-impact commands install into the same root as explicit-only skills (disable-model-invocation: true). Current docs list ~/.agents/skills as a personal location without naming a harness and define disable-model-invocation: true as slash-only; live discovery is unverified. Prompt files were the legacy Local-agent route and are no longer generated."
         },
         "external": {
           "support": "native",
@@ -1871,7 +2011,7 @@
       }
     },
     "cursor": {
-      "summary": "Cursor supports rules, commands, agents, MCP, and ignore files; agent-surface generates rules, commands, subagents, ignore files, and first-party MCP wiring (Synapse + Grimoire).",
+      "summary": "Cursor desktop editor: agent-surface generates home-directory skills, commands, subagents and MDC rules (rule loading unverified), project .cursorignore files and first-party MCP wiring (Synapse + Grimoire). Cursor CLI documents only project .cursor/rules and mcp.json, so for the CLI only MCP and, through --dest, project rules are documented; the home-directory surfaces are unverified there. Cloud Agents are not targeted.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -1884,20 +2024,24 @@
       "evidence": [
         {
           "label": "Cursor rules",
-          "url": "https://cursor.com/docs/context/rules"
+          "url": "https://cursor.com/docs/rules"
         },
         {
-          "label": "Cursor commands",
-          "url": "https://cursor.com/docs/commands"
+          "label": "Cursor skills (command migration)",
+          "url": "https://cursor.com/docs/skills"
         },
         {
           "label": "Cursor MCP",
-          "url": "https://cursor.com/docs/context/model-context-protocol"
+          "url": "https://cursor.com/docs/mcp"
+        },
+        {
+          "label": "Cursor CLI",
+          "url": "https://cursor.com/docs/cli/using"
         }
       ],
       "surfaces": {
         "rules": {
-          "support": "native",
+          "support": "unknown",
           "generation": "generated",
           "scope": [
             "user"
@@ -1905,7 +2049,7 @@
           "paths": [
             "~/.cursor/rules/*.mdc"
           ],
-          "notes": "Rules are emitted as individual MDC files."
+          "notes": "MDC files under the home-only root. Cursor documents .cursor/rules as project rules and User Rules as a settings entry; loading from ~/.cursor/rules is undocumented and unverified. Existing files are retained."
         },
         "commands": {
           "support": "native",
@@ -1916,7 +2060,7 @@
           "paths": [
             "~/.cursor/commands/*.md"
           ],
-          "notes": "Available high-impact commands remain native Cursor commands; safe reusable procedures are native skills."
+          "notes": "Available high-impact commands remain native Cursor commands; safe reusable procedures are native skills. Current docs cover commands only through /migrate-to-skills, which converts user-level and workspace-level commands and keeps their explicit invocation; the former commands page redirects to Skills. Documented, not runtime-tested."
         },
         "subagents": {
           "support": "native",
@@ -2071,7 +2215,7 @@
       }
     },
     "copilot": {
-      "summary": "GitHub Copilot CLI supports native Agent Skills, custom agents, instruction files, and MCP; agent-surface generates those CLI surfaces and retains the VS Code user instruction output.",
+      "summary": "GitHub Copilot CLI (default ~/.copilot; COPILOT_HOME is not followed): agent-surface generates skills, custom agents, instructions and MCP at user and project scope; user installs also write one VS Code profile instruction file that only VS Code's Local agent reads.",
       "generated_render_tokens": [
         "skills",
         "instructions",
@@ -2102,7 +2246,7 @@
             ".github/copilot-instructions.md",
             "instructions/agent-surface-copilot.instructions.md"
           ],
-          "notes": "CLI-native instructions are generated at user/project scope; user installs also retain the VS Code instruction file."
+          "notes": "CLI-native instructions are generated at user/project scope; user installs also write a VS Code profile file that only VS Code's Local agent reads. The Copilot Agent Host reads ~/.copilot/copilot-instructions.md, which is not qualified here."
         },
         "mcp": {
           "support": "native",
@@ -2159,7 +2303,7 @@
       }
     },
     "trae": {
-      "summary": "Current TraeCode exposes native skills, rules, Markdown subagents, CLI permission policy, and IDE/CLI MCP config; agent-surface generates each documented file surface.",
+      "summary": "Trae international IDE (TraeCode), which reads ~/.trae, the documented ~/.trae-cn/agents and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, the user_rules.md rules file, subagents and MCP. The CN IDE (trae-cn) and Trae CLI 2.0 (trae-cli) read other roots and are separate targets; ~/.trae/skills is co-owned with trae-cli and ~/.trae-cn/agents with trae-cn.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -2170,23 +2314,19 @@
       "evidence": [
         {
           "label": "Trae rules",
-          "url": "https://docs.trae.cn/ide_rules"
+          "url": "https://docs.trae.ai/ide/rules"
         },
         {
-          "label": "Trae MCP",
-          "url": "https://docs.trae.ai/ide/mcp"
+          "label": "Trae skills",
+          "url": "https://docs.trae.ai/ide/skills"
         },
         {
-          "label": "TraeCode CLI skills",
-          "url": "https://docs.trae.cn/cli_skills"
+          "label": "Trae subagents",
+          "url": "https://docs.trae.ai/ide/subagents"
         },
         {
-          "label": "TraeCode CLI agents",
-          "url": "https://docs.trae.cn/cli_agent"
-        },
-        {
-          "label": "TraeCode CLI config",
-          "url": "https://docs.trae.cn/cli_config-file"
+          "label": "Trae MCP servers",
+          "url": "https://docs.trae.ai/ide/add-mcp-servers"
         }
       ],
       "surfaces": {
@@ -2199,11 +2339,9 @@
           ],
           "paths": [
             "~/.trae/user_rules.md",
-            "~/.trae-cn/user_rules/<name>.md",
-            ".trae/user_rules.md",
             ".trae/rules/<name>.md"
           ],
-          "notes": "Current native rule files are emitted for both scopes; the combined user_rules.md route remains for the installed IDE generation that still consumes it."
+          "notes": "User installs write the single user_rules.md, which the locally installed 3.5.25 build loads beside the documented ~/.trae/user_rules/ folder (read from its app bundle); current documentation describes only the folder, and newer builds are unverified. Loading both would duplicate the rules. Projects get per-rule files every edition reads."
         },
         "mcp": {
           "support": "native",
@@ -2213,10 +2351,10 @@
             "project"
           ],
           "paths": [
-            ".trae/mcp.json",
-            "~/.trae/traecli.toml"
+            "<Trae user data>/User/mcp.json",
+            ".trae/mcp.json"
           ],
-          "notes": "First-party secretless MCP services are generated for the IDE JSON route and the user CLI TOML route; external or secret-bearing MCPs remain opt-in."
+          "notes": "First-party secretless MCP services are merged into mcp.json beside the per-OS User settings (macOS Library/Application Support/Trae, Windows %APPDATA%\\Trae), only once the IDE has created that User directory; the route comes from the locally installed 3.5.25 app bundle, not the documentation, and the Linux location is unverified. Project .trae/mcp.json is documented. Servers the pre-split target merged into a user ~/.trae/mcp.json, which neither the macOS nor the Windows build reads, are pruned. External or secret-bearing MCPs remain opt-in."
         },
         "subagents": {
           "support": "native",
@@ -2227,22 +2365,9 @@
           ],
           "paths": [
             "~/.trae-cn/agents/<name>.md",
-            "~/.traecli/agents/<name>.md",
-            ".trae/agents/<name>.md",
-            ".traecli/agents/<name>.md"
+            ".trae/agents/<name>.md"
           ],
-          "notes": "IDE and CLI-native agent routes are both generated; IDE discovery may require its Subagents beta directory toggle."
-        },
-        "settings": {
-          "support": "native",
-          "generation": "generated",
-          "scope": [
-            "user"
-          ],
-          "paths": [
-            "~/.trae/traecli.toml"
-          ],
-          "notes": "The CLI config merges approval_policy never and :danger-full-access without replacing sibling settings."
+          "notes": "The international subagents page documents ~/.trae-cn/agents, the same text as the CN page, so the route is co-owned with trae-cn; IDE discovery may need the Subagents directory beta toggle. Not runtime-tested."
         },
         "skills": {
           "support": "native",
@@ -2253,11 +2378,9 @@
           ],
           "paths": [
             "~/.trae/skills/<name>/SKILL.md",
-            "~/.traecli/skills/<name>/SKILL.md",
-            ".trae/skills/<name>/SKILL.md",
-            ".traecli/skills/<name>/SKILL.md"
+            ".trae/skills/<name>/SKILL.md"
           ],
-          "notes": "Canonical and explicit-only compatibility skills are emitted to the retained IDE root and the CLI-native root. Host enforcement of disable-model-invocation remains unproven."
+          "notes": "Canonical and explicit-only compatibility skills; host enforcement of disable-model-invocation remains unproven."
         },
         "external": {
           "support": "native",
@@ -2270,7 +2393,192 @@
             "~/.trae/skills/<external-skill>/...",
             ".trae/skills/<external-skill>/..."
           ],
-          "notes": "Reviewed external Agent Skill packs stay single-copy in the IDE root, which current TraeCode CLI also reads."
+          "notes": "Reviewed external Agent Skill packs use the same skill root."
+        }
+      }
+    },
+    "trae-cn": {
+      "summary": "Trae CN IDE, which reads ~/.trae-cn and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, per-rule user rules, subagents and MCP. User paths follow the CN documentation and are not runtime-tested.",
+      "generated_render_tokens": [
+        "skills",
+        "rules",
+        "subagents",
+        "external",
+        "mcps"
+      ],
+      "evidence": [
+        {
+          "label": "Trae CN rules",
+          "url": "https://docs.trae.cn/ide_rules"
+        },
+        {
+          "label": "Trae CN skills",
+          "url": "https://docs.trae.cn/ide_skills"
+        },
+        {
+          "label": "Trae CN subagents",
+          "url": "https://docs.trae.cn/ide_subagents"
+        }
+      ],
+      "surfaces": {
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae-cn/user_rules/<name>.md",
+            ".trae/rules/<name>.md"
+          ],
+          "notes": "Per-rule files in the documented user_rules folder; projects share .trae/rules with the other Trae targets."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "<Trae CN user data>/User/mcp.json",
+            ".trae/mcp.json"
+          ],
+          "notes": "The user mcp.json location beside the per-OS User settings comes from a third-party installer and is unverified; it is written only once the IDE has created that User directory. Project .trae/mcp.json is shared with trae. External or secret-bearing MCPs remain opt-in."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae-cn/agents/<name>.md",
+            ".trae/agents/<name>.md"
+          ],
+          "notes": "Documented CN route, co-owned with trae; IDE discovery may need the Subagents directory beta toggle. Not runtime-tested."
+        },
+        "skills": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae-cn/skills/<name>/SKILL.md",
+            ".trae/skills/<name>/SKILL.md"
+          ],
+          "notes": "Canonical and explicit-only compatibility skills. CN 3.3.63 makes both editions' global skill folders compatible, so installing trae and trae-cn together may list skills twice. Enforcement of disable-model-invocation remains unproven."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae-cn/skills/<external-skill>/...",
+            ".trae/skills/<external-skill>/..."
+          ],
+          "notes": "Reviewed external Agent Skill packs use the same skill root."
+        }
+      }
+    },
+    "trae-cli": {
+      "summary": "Trae CLI 2.0 (traecli, TRAE Enterprise), which reads ~/.trae (TRAE_HOME is not followed) and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, subagents, project rules and the traecli.toml config with first-party MCP servers. Trae CLI 1.0 is not targeted. traecli 0.207.1-tob reads the generated MCP servers, project skills and project rules; agents and the user roots are not runtime-tested.",
+      "generated_render_tokens": [
+        "skills",
+        "rules",
+        "subagents",
+        "external",
+        "mcps"
+      ],
+      "evidence": [
+        {
+          "label": "Trae CLI config file",
+          "url": "https://docs.trae.cn/cli_config-file"
+        },
+        {
+          "label": "Trae CLI environment variables",
+          "url": "https://docs.trae.cn/cli_environment-variables"
+        }
+      ],
+      "surfaces": {
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "project"
+          ],
+          "paths": [
+            ".trae/rules/<name>.md"
+          ],
+          "notes": "The CLI reads AGENTS.md files and project rules and documents no user-level instruction folder, so user installs write no rules; where it reads a global AGENTS.md is unverified."
+        },
+        "mcp": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.trae/traecli.toml"
+          ],
+          "notes": "First-party secretless MCP services are merged into mcp_servers; external or secret-bearing MCPs remain opt-in. traecli 0.207.1-tob lists them as enabled (traecli mcp list, 2026-09-30)."
+        },
+        "settings": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user"
+          ],
+          "paths": [
+            "~/.trae/traecli.toml"
+          ],
+          "notes": "The config merge sets approval_policy never and default_permissions :danger-full-access without replacing sibling settings."
+        },
+        "subagents": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae/agents/<name>.md",
+            ".trae/agents/<name>.md"
+          ],
+          "notes": "The paths come from the installed traecli 0.201.6 binary; project agents load only in trusted projects. Not runtime-tested."
+        },
+        "skills": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae/skills/<name>/SKILL.md",
+            ".trae/skills/<name>/SKILL.md"
+          ],
+          "notes": "The user root is $TRAE_HOME/skills at its default (from the installed traecli 0.201.6 binary), shared with trae; traecli 0.207.1-tob reads the project skills folder (offline prompt render, 2026-09-30)."
+        },
+        "external": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.trae/skills/<external-skill>/...",
+            ".trae/skills/<external-skill>/..."
+          ],
+          "notes": "Reviewed external Agent Skill packs use the same skill root."
         }
       }
     },
@@ -2363,10 +2671,31 @@
           ],
           "notes": "Canonical skills are emitted unchanged for automatic skill discovery. Available high-impact commands remain native workflows."
         }
-      }
+      },
+      "notices": [
+        {
+          "code": "WINDSURF_CASCADE_LEGACY",
+          "kind": "retirement",
+          "surface": "target",
+          "message": "Devin Desktop removed the Cascade harness in 3.9.19. This adapter targets legacy Cascade installs only; it is not Devin Local or CLI support, and --target all no longer selects it.",
+          "action": "Name --target windsurf only for an existing Cascade install.",
+          "source_url": "https://docs.devin.ai/desktop/changelog",
+          "checked_at": "2026-09-28",
+          "effective_on": "2026-09-08"
+        },
+        {
+          "code": "WINDSURF_RULE_SIZE_LIMITS",
+          "kind": "compatibility",
+          "surface": "rules",
+          "message": "Cascade documents a 6,000-character limit for the global rules file and 12,000 characters per workspace rule file. agent-surface's user-scope rules and any development rules exceed them, so the installer refuses a selection that includes them (OUTPUT_LIMIT_EXCEEDED) and writes nothing.",
+          "action": "For complete rules in Cascade, use a project-scope general install, whose rules file fits one workspace file; at user scope leave rules out, for example with --category skills,commands-as-workflows,external,mcps.",
+          "source_url": "https://docs.devin.ai/desktop/cascade/memories",
+          "checked_at": "2026-09-28"
+        }
+      ]
     },
     "zed": {
-      "summary": "Zed supports AGENTS.md instructions, Agent Skills, external agents, and MCP context servers; agent-surface generates skills, instructions, external skill packs, and first-party MCP wiring (Synapse + Grimoire).",
+      "summary": "Zed supports AGENTS.md instructions, Agent Skills, external agents, and MCP context servers; agent-surface generates skills, instructions, external skill packs, and first-party MCP wiring (Synapse + Grimoire) in Zed's per-OS config directory: ~/.config/zed on macOS and Linux (XDG_CONFIG_HOME is not followed) and the roaming AppData directory on Windows (%APPDATA%\\Zed by default), resolved from the profile home; a redirected %APPDATA% is not followed.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -2385,6 +2714,14 @@
         {
           "label": "Zed MCP",
           "url": "https://zed.dev/docs/ai/mcp.html"
+        },
+        {
+          "label": "Zed settings file locations (docs source, pinned)",
+          "url": "https://github.com/zed-industries/zed/blob/bd747337d7be138834e20972b9e203c7b239cc47/docs/src/configuring-zed.md"
+        },
+        {
+          "label": "Zed config_dir per OS (source, pinned)",
+          "url": "https://github.com/zed-industries/zed/blob/bd747337d7be138834e20972b9e203c7b239cc47/crates/paths/src/paths.rs"
         }
       ],
       "surfaces": {
@@ -2410,9 +2747,10 @@
           ],
           "paths": [
             "~/.config/zed/AGENTS.md",
+            "%APPDATA%\\Zed\\AGENTS.md",
             "AGENTS.md"
           ],
-          "notes": "Rules are bundled into AGENTS.md instruction files."
+          "notes": "Rules are bundled into AGENTS.md instruction files. The personal file is ~/.config/zed/AGENTS.md on macOS and Linux and %APPDATA%\\Zed\\AGENTS.md on Windows, which Zed documents as personal instructions for its native agent only. The Windows route is not natively qualified. The personal AGENTS.md that Windows installs made before the per-OS route left in ~/.config/zed, which Windows Zed never reads, is retired when an install writes the new one."
         },
         "external": {
           "support": "native",
@@ -2436,9 +2774,10 @@
           ],
           "paths": [
             "~/.config/zed/settings.json",
+            "%APPDATA%\\Zed\\settings.json",
             ".zed/settings.json"
           ],
-          "notes": "First-party secretless MCP services are generated/merged under context_servers; external or secret-bearing MCPs remain opt-in."
+          "notes": "First-party secretless MCP services are generated/merged under context_servers; external or secret-bearing MCPs remain opt-in. Windows installs made before the per-OS route merged into ~/.config/zed/settings.json, which Windows Zed never reads; the next full install prunes those entries there."
         }
       }
     },

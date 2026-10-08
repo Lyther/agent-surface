@@ -19,6 +19,20 @@ export async function readSourceKinds() {
   return sourceKindsCache;
 }
 
+let targetCapabilitiesCache;
+export async function readTargetCapabilities() {
+  if (targetCapabilitiesCache !== undefined) return targetCapabilitiesCache;
+  targetCapabilitiesCache = JSON.parse(await readFile(path.join(root, "registry", "target-capabilities.json"), "utf8"));
+  return targetCapabilitiesCache;
+}
+
+let targetRegistryCache;
+export async function readTargetRegistry() {
+  if (targetRegistryCache !== undefined) return targetRegistryCache;
+  targetRegistryCache = JSON.parse(await readFile(path.join(root, "registry", "targets.json"), "utf8")).in_scope;
+  return targetRegistryCache;
+}
+
 let optionalServicesCache;
 export async function readOptionalServices() {
   if (optionalServicesCache !== undefined) return optionalServicesCache;

@@ -9,7 +9,7 @@ import { PassThrough, Writable } from "node:stream";
 import {
   collectMissingRequired, CredentialPromptCancelled, credentialStatus, ensureSecretIgnored,
   envExampleContent, envValueLiteral, formatMissingCredentialError, missingRequiredKeys, promptHidden,
-  readEnvFile, resolveEnvFilePath, secretIgnorePatterns, writeEnvValues,
+  readEnvFile, resolveEnvFilePath, secretIgnorePatterns, writeEnvExample, writeEnvValues,
 } from "../../scripts/agent-surface/credentials.mjs";
 
 const dir = mkdtempSync(path.join(tmpdir(), "as-credentials-"));
@@ -162,6 +162,21 @@ try {
   assert.match(template, /^ACME_REGION=$/m, "template lists missing optional key");
   assert.doesNotMatch(template, /^SHODAN_API_KEY=/m, "already-satisfied keys are not re-listed");
   assert.doesNotMatch(template, /from-file|from-env/, "template carries no values");
+
+  // The template is written when absent or generated earlier, never over an operator's own file.
+  {
+    const templatePath = path.join(dir, "template", ".env.example");
+    await mkdir(path.dirname(templatePath), { recursive: true });
+    assert.equal(await writeEnvExample(templatePath, status), true, "an absent template is written");
+    assert.equal(await readFile(templatePath, "utf8"), template);
+    await writeFile(templatePath, `${template}# stale generated line\n`);
+    assert.equal(await writeEnvExample(templatePath, status), true, "a generated template is refreshed");
+    assert.equal(await readFile(templatePath, "utf8"), template);
+    const operatorTemplate = "DATABASE_URL=postgres://localhost/app\n";
+    await writeFile(templatePath, operatorTemplate);
+    assert.equal(await writeEnvExample(templatePath, status), false, "an operator template is left alone");
+    assert.equal(await readFile(templatePath, "utf8"), operatorTemplate);
+  }
 
   // ---- interactive collection (injected prompt; no TTY) -----------------
   const asked = [];

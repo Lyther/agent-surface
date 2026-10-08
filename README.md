@@ -2,7 +2,7 @@
 
 Write your coding-agent setup **once**, render it into **every** agent host.
 
-Reusable workflows, rules, subagents, external skill packs, ignore files, and first-party MCP services live once in this repo's source tree. `agent-surface` compiles them into the native formats of twenty-five host targets - Claude Code, Codex, Cursor, Droid, Kilo, Kimi Code, Qoder, Qwen Code, Kiro, DSH, Zed, OpenCode, OpenHands, and more - so you maintain one source instead of twenty-five bespoke configs.
+Reusable workflows, rules, subagents, external skill packs, ignore files, and first-party MCP services live once in this repo's source tree. `agent-surface` compiles them into the native formats of twenty-seven host targets - Claude Code, Codex, Cursor, Droid, Kilo, Kimi Code, Qoder, Qwen Code, Kiro, DSH, Zed, OpenCode, OpenHands, and more - so you maintain one source instead of twenty-seven bespoke configs.
 
 It is a **source compiler**, not an app: there is no `src/`. Typed source primitives in → host-native surfaces out, validated by `check` and tracked by per-target manifests.
 
@@ -29,12 +29,12 @@ The `install` step wires each host's MCP *config* to point at `~/.local/bin/syna
 
 - **Compiles source primitives** — `skills/`, manual-only `commands/`, `rules/`, `subagents/`, external packs, and `ignores/` become per-target outputs via explicit producers.
 - **Speaks each host natively** — each target gets the surfaces it understands: commands, workflows, skills, instructions, plugins, rules, subagents, MCP config, or ignore files.
-- **Wires first-party MCP** - Synapse (shared memory) and Grimoire (just-in-time skill retrieval) auto-merge, secretlessly and non-destructively, into all 22 MCP-capable hosts (JSON, TOML, and YAML config families).
+- **Wires first-party MCP** - Synapse (shared memory) and Grimoire (just-in-time skill retrieval) auto-merge, secretlessly and non-destructively, into all 24 MCP-capable hosts (JSON, TOML, and YAML config families).
 - **Installs deterministically** — dry-run previews, project-scope gating, manifest tracking, generated-file strict-sync, and non-destructive config merges that preserve unknown sibling entries.
 
 ## Supported targets
 
-Twenty-five targets, ranked 1–5 by how much of the source model maps to native surfaces. The general sync delivers the six general-purpose skills and the first-party MCP wiring; with `--category development` (see [Install behavior](#install-behavior)) full adapters receive the canonical skill catalog, configured external skill packs, and every high-impact manual command; the intentionally limited DSH adapter receives skills only. Commands use a native explicit surface where one exists and an explicit-invocation compatibility skill otherwise.
+Twenty-seven targets, ranked 1–5 by how much of the source model maps to native surfaces. The general sync delivers the six general-purpose skills and the first-party MCP wiring; with `--category development` (see [Install behavior](#install-behavior)) full adapters receive the canonical skill catalog, configured external skill packs, and every high-impact manual command; the intentionally limited DSH adapter receives skills only. Commands use a native explicit surface where one exists and an explicit-invocation compatibility skill otherwise.
 
 **Full matrix - per-target surfaces and MCP wiring: [docs/reference/targets.md](docs/reference/targets.md).**
 
@@ -45,20 +45,19 @@ Planned and out-of-scope hosts are listed at the end of [docs/reference/targets.
 ## Project layout
 
 ```text
-skills/      Vanilla Agent Skills, model-invocable by default; a skill is a directory and
-             may carry the reference material its SKILL.md points at
-commands/    High-impact workflows that require explicit user invocation
-rules/       Always-on or scoped behavior policy
-subagents/   Normalized subagent definitions
-mcps/        First-party MCP services (synapse, grimoire)
-ignores/     Project ignore templates
-registry/    Target, capability, asset-category, optional-service, and source-kind policy
-schemas/     JSON schemas for registry and workflow artifacts
-scripts/     CLI compiler and helpers
-adapters/    Per-target install docs (one README each)
-hooks/       Commit-message hook that strips AI attribution (install: CONTRIBUTING.md)
-tests/       Suites behind `npm test`: build, check, install matrix, MCP wiring
-external/    Reviewed git-submodule sources; registries decide what is distributed or indexed
+skills/      - Vanilla Agent Skills, model-invocable by default; a skill is a directory and may carry the reference material its SKILL.md points at
+commands/    - High-impact workflows that require explicit user invocation
+rules/       - Always-on or scoped behavior policy
+subagents/   - Normalized subagent definitions
+mcps/        - First-party MCP services (synapse, grimoire)
+ignores/     - Project ignore templates
+registry/    - Target, capability, asset-category, optional-service, and source-kind policy
+schemas/     - JSON schemas for registry and workflow artifacts
+scripts/     - CLI compiler and helpers
+adapters/    - Per-target install docs (one README each)
+hooks/       - Commit-message hook that strips AI attribution (install: CONTRIBUTING.md)
+tests/       - Suites behind `npm test`: build, check, install matrix, MCP wiring
+external/    - Reviewed git-submodule sources; registries decide what is distributed or indexed
 ```
 
 ## Commands
@@ -78,6 +77,7 @@ node scripts/agent-surface.mjs install --target <t> --scope user --dry-run
 ## Install behavior
 
 - Sync-oriented: existing managed files are overwritten; manifests let stale outputs be pruned on the next install.
+- Ownership comes from every manifest in the install root. An existing file that no manifest claims blocks the install (`UNOWNED_DESTINATION`) instead of being overwritten; move or remove it and rerun. A file several targets own stays until the last owner releases it, and an interrupted install can be rerun to finish.
 - Project-only artifacts (`ignores/`) are skipped on user-scope installs — pass `--dest <project>` to write them.
 - A live write to the real scope root needs `--allow-scope-root` (or an explicit `--dest`) after a dry-run.
 - First-party secretless MCPs (Synapse, Grimoire) are generated by default for MCP-capable targets and **merged** into existing host config. Categorized MCPs require their asset category; other external/secret-bearing MCPs require `--category mcps --service <id>`.
@@ -88,7 +88,7 @@ For all assets with only the two primary MCPs, run the general full sync, then `
 
 ## First-party MCP services
 
-Built from `mcps/`, installed once, then auto-wired (non-destructive merge) into all 22 MCP-capable hosts across JSON/TOML/YAML config families - see [docs/reference/targets.md](docs/reference/targets.md):
+Built from `mcps/`, installed once, then auto-wired (non-destructive merge) into all 24 MCP-capable hosts across JSON/TOML/YAML config families - see [docs/reference/targets.md](docs/reference/targets.md):
 
 - **Synapse** — shared multi-agent memory + file-lock coordination.
 - **Grimoire** — read-only, just-in-time retrieval over large Agent-Skill packs (`anthropic-cybersecurity-skills`, `rev-skills`, and `hack-skills`) so the model searches instead of loading those catalogs at startup.

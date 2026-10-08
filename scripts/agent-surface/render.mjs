@@ -83,6 +83,29 @@ export function renderKimiCodeSubagent(source) {
   ].join("\n");
 }
 
+// Grok Build reads camelCase agent frontmatter. capabilityMode is the typed, fail-closed tier; the
+// tools allowlist narrows it but fails open on an unknown entry. No model (the child inherits the
+// parent's) and no permissionMode (only bypassPermissions is wired, and it escalates).
+export function renderGrokBuildSubagent(source) {
+  if (source.metadata.model !== "inherit") {
+    fail(`grok-build subagent model ${source.metadata.model} is not representable; use inherit`);
+  }
+  const mapped = grokBuildSubagentAccess(source.metadata.access);
+  return [
+    "---",
+    `name: ${source.metadata.name}`,
+    `description: "${quotedScalar(source.metadata.description)}"`,
+    `tools: ${mapped.tools}`,
+    `capabilityMode: ${mapped.capabilityMode}`,
+    "mcpInheritance: none",
+    `maxTurns: ${mapped.maxTurns}`,
+    "---",
+    "",
+    source.body.trim(),
+    "",
+  ].join("\n");
+}
+
 export function renderQwenCodeSubagent(source) {
   const mapped = qwenCodeSubagentAccess(source.metadata.access);
   const lines = [
@@ -541,6 +564,12 @@ export function claudeSubagentAccess(access) {
   if (access === "read-write") return { tools: "Read, Glob, Grep, Edit, Write", permissionMode: "acceptEdits", maxTurns: 30 };
   if (access === "read-write-shell") return { tools: "Read, Glob, Grep, Edit, Write, Bash", permissionMode: "bypassPermissions", maxTurns: 40 };
   fail(`unsupported subagent access: ${access}`);
+}
+
+export function grokBuildSubagentAccess(access) {
+  const { tools, maxTurns } = claudeSubagentAccess(access);
+  const capabilityMode = { "read-only": "read-only", "read-write": "read-write", "read-write-shell": "all" }[access];
+  return { tools, capabilityMode, maxTurns };
 }
 
 export function clineSubagentAccess(access) {

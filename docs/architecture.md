@@ -1,266 +1,242 @@
 # Architecture
 
-Status: IMPLEMENTED; REAL-RUNTIME QUALIFICATION PARTIAL
-Source concept: `docs/context/concept-zero.md`
-Last updated: 2026-09-21
+Status: VERIFIED_EXISTING COMPILER; PROPOSED RUNTIME-REFRESH DELTA
+Source concept: [concept-zero.md](context/concept-zero.md)
+Last updated: 2026-09-28
+Source baseline: `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 
 ## Executive Decision
 
-`agent-surface` remains a single-process Node source-to-native compiler using Ajv and maintained JSONC, TOML, and YAML format libraries. The runtime refresh changes the curated portfolio from 22 to 25 implemented targets: retain 21 existing targets, add DSH, Qoder, Qwen Code, and Kiro, and retire VSCodium. Copilot, Grok Build, Antigravity CLI, and Trae receive in-place contract upgrades. The architecture keeps the existing registry + adapter table + renderer + non-destructive merge pipeline; it adds no adapter framework, daemon, datastore, provider manager, or general compatibility layer. Generated output and schema checks prove compiler behavior; only real host discovery and task-shaped execution prove runtime usability.
+Preserve the single-process Node compiler, canonical assets, plain target adapters, maintained format parsers, managed install manifests and separate first-party MCP products. The selected delta adds precise runtime identity/lifecycle evidence and selected-target notices, corrects known paths and rule-limit handling, separates distinct harnesses, and migrates Antigravity's retiring workflow format. Security release selection is a prerequisite to affected runtime execution, not a new automatic updater inside compilation. OpenHands remains implemented and selectable with a legacy recommendation. No new daemon, database, transport, provider manager, profile engine or universal permission system is introduced.
+
+The [previous architecture](https://github.com/Lyther/agent-surface/blob/3dbdbfe9c67fa7a95cf72a25280d2aa588782956/docs/architecture.md) records the earlier refresh. This document distinguishes source-verified existing behavior from future contracts. Nothing in this design certifies all hosts, updates a client, or upgrades historical acceptance to current releases.
 
 ## Architecture Drivers
 
-- `G-01` Curated portfolio: every target needs a current executable host, primary-source native contract, maintainer value, and an honest proof boundary.
-- `G-02` Four additions: DSH, Qoder, Qwen Code, and Kiro must reuse existing compiler primitives where possible.
-- `G-03` Four upgrades: Copilot CLI/Agent Host, Grok TOML, Antigravity CLI discovery, and Trae subagents must replace stale claims on their real paths.
-- `G-04` One retirement: VSCodium-owned output must become removable by full-sync ownership rather than remain as dead configuration.
-- `C-01` Preserve the existing Node ES-module stack; use maintained format libraries instead of local JSONC, TOML, or YAML parsers.
-- `C-02` Keep configuration merging non-destructive and block malformed shared config.
-- `C-03` Match implementation depth to evidence. DSH is developer preview and receives a skills-only adapter, not unstable profile/MCP composition.
-- `Q-01` Registry, capabilities, adapter producers, docs, and generated output agree for every target.
-- `Q-02` Unknown user config siblings survive semantically; comments outside regenerated owned subtrees remain intact.
-- `Q-03` Native runtime inventory and task execution, not file presence alone, establish usability.
-- `Q-04` Retirement removes only manifest-owned files and config entries.
+- `G-RT-01` Security-aware release selection: a verified patched current release wins over a vulnerable stable-channel build. Proof gate: exact advisory/product/version reconciliation before executing the client; see research ledger and roadmap `RT0.1`.
+- `G-RT-02` Runtime identity: editor, harness, CLI, plugin exporter and cloud workspace are different boundaries. Proof gate: selected-root native discovery, plus controlled co-installation for changed loaders.
+- `G-RT-03` Antigravity transition: a visible warning and a qualified successor are separate deliverables. Proof gate: native manual-rule invocation and skill companions before the retirement date, with owned legacy workflows retained rather than retired.
+- `G-RT-04` OpenHands retention: implementation status and recommendation are different facts. Proof gate: explicit/all-target selection and existing output remain functional without retirement cleanup.
+- `G-RT-05` Ownership and path correctness: no install may overwrite or adopt unowned content, silently drop another owner's category contribution, or delete a file another owner still claims; new locations follow the same rule. Proof gate: actual disposable-filesystem ownership cases, migration, conflict refusal and idempotency.
+- `G-RT-06` Evidence precision: generated shape, upstream support and native results remain separate. Proof gate: schema plus source-reference checks and scenario-specific runtime evidence.
+- `G-RT-07` Selective expansion: Grok roles and a private Bot pilot must solve distinct needs. Proof gate: effective role behavior or a verified cloud artifact, not a copied directory or model assertion.
+- `C-RT-01` to `C-RT-03`: preserve stack, categories, ownership, service selection and operator policy; keep this change design-only and release discovery out of ordinary builds.
 
-Unacceptable outcomes are a target that cannot discover its files, a provider represented as a runtime, a removed target that leaves managed residue, an adapter that overwrites user configuration, or abstractions larger than the host-specific behavior they replace.
+The concept's `Q-RT-01` through `Q-RT-07` are the quality scenarios. Gates below select only those affected by a change; unavailable GUI/cloud proof does not block an unrelated metadata or path correction.
 
 ## Evidence and Source Reconciliation
 
-- `IMPLEMENTED`: `registry/targets.json`, `registry/target-capabilities.json`, `scripts/agent-surface/targets.mjs`, and `scripts/agent-surface/roots.mjs` implement the 25-target matrix.
-- `VERIFIED_EXISTING`: `check` enforces producer-token/registry/capability agreement, and install manifests own strict-sync cleanup.
-- `IMPLEMENTED`: the peer Grimoire multi-pack delta was independently reviewed and remediated for provenance, attribution, publication cleanup, symlink ingestion, doctor consistency, and contract drift.
-- `IMPLEMENTED`: Grok uses `.grok/config.toml`; Antigravity CLI uses `~/.gemini/antigravity-cli/plugins`; Copilot CLI uses its native skills/agents/instructions/MCP roots.
-- `IMPLEMENTED`: current TraeCode Markdown subagents and CLI TOML policy supplement the retained IDE skill/rule/MCP routes.
-- `DEPRECATED`: Gemini CLI is no longer a general individual-user target; Roo Code is archived; iFlow CLI shut down.
-- `ADOPTED`: DSH filesystem skills, Qoder native files, Qwen Code native files, and Kiro `.kiro` files as documented in concept evidence `E-02` through `E-06`.
-- `DEFERRED`: Amp, Auggie, Warp, and Crush pending a later usage-ranked real probe.
+- `VERIFIED_EXISTING`: `registry/targets.json` has 26 implemented outputs, including one build-only export; the adapter table and capability registry provide the current source contract. The historical 25-target wording is not current inventory.
+- `VERIFIED_EXISTING`: `support` and `generation` are already separate fields. Extend the existing capability record rather than creating parallel target catalogs.
+- `VERIFIED_EXISTING`: general installation resets previously managed opt-in content; category installs preserve unselected ownership, with an aggregate-document conflict guard. An explicit service filter does not reconcile an exact MCP allowlist.
+- `VERIFIED_EXISTING`: since `RT2.0`, ownership is read from every manifest in the install root plus the target's legacy entries and legacy nested manifests. An existing file nobody claims blocks as `UNOWNED_DESTINATION`, identical bytes included; a co-owned file is regenerated for the selection with a `SHARED_CONTRIBUTION_REPLACED` warning when another owner's recorded category is dropped; stale cleanup retains a file another owner still claims; every participant's pending manifest is written before the run's first mutation. Before `RT2.0`, an unowned file was overwritten or adopted and a shared file could be deleted while another manifest claimed it. Preserving unknown config siblings is a different, key-level contract.
+- `VERIFIED_EXISTING`: `--dest` is an install-root override, not a universal native config-home adapter. `doctor` is a set of current probes, not a complete runtime inventory or security scanner.
+- `USER_DECISION`: retain OpenHands, warn and replace Antigravity workflows, separate Cascade/Devin, and prioritize security-fixed releases including preview/public channels when necessary.
+- `PROPOSED`: harness-separated producers; capability metadata and notices (`RT1.1`) and installer ownership protection (`RT2.0`) are implemented. Native unknowns remain bounded spikes, detailed in [research](context/concept-zero-research.md) and [contracts](contracts/runtime-refresh.md).
 
 ## System Context and Boundaries
 
-Actors:
+Authors own canonical procedures, rules, commands, agents and pinned pack declarations. Operators select target, scope, content and services. The compiler reads those facts, renders native artifacts, and plans managed writes/config merges. Native hosts consume the installed artifacts. Synapse and Grimoire expose separate local MCP products with their own stores and lifecycles.
 
-- The author maintains canonical skills, explicit commands, rules, subagents, asset categories, optional services, and runtime evidence.
-- The operator builds for inspection or installs to user/project/custom roots.
-- Agent runtimes consume generated native files and connect to first-party MCP services where the target contract supports MCP.
-- External skill packs remain pinned inputs; model providers, credentials, subscriptions, runtime binaries, and editor extensions remain outside the compiler boundary.
+```text
+canonical sources + pinned packs + registries
+                    |
+              compiler/adapter
+                    |
+       outputs + notices + install plan
+                    |
+       owned files / named config merges
+                    |
+          selected native harness
+                    |
+       optional MCP processes / task result
 
-```mermaid
-flowchart LR
-  A[Canonical sources] --> C[agent-surface compiler]
-  R[Registries and schemas] --> C
-  P[Pinned external packs] --> C
-  C --> D[dist target preview]
-  C --> I[Install plan]
-  I --> F[Owned native files]
-  I --> M[Non-destructive config merges]
-  F --> H[Agent runtime]
-  M --> H
-  H --> S[Synapse]
-  H --> G[Grimoire]
+runtime/MOMO owner -> verified client upgrade and account setup
+qualification     -> observes the selected harness, not compiler internals
 ```
 
-The compiler never owns provider keys, login state, model selection, session history, runtime databases, or host-generated memory. It owns only generated files and named config entries recorded in its install manifest.
+The compiler owns generated assets and named manifest entries, not runtime accounts, provider credentials, sign-ins, native caches, learned memories, schedules or cloud computers. The existing MCP credential launcher reads an operator-selected env file into a child environment; secrets are not registry values or generated config fields. This existing delivery path is unchanged. Client installation/upgrade remains runtime/MOMO-owned, while currently supported MCP prerequisite provisioning remains installer-owned.
 
 ## Selected Architecture
 
 ### Runtime View
 
-`node scripts/agent-surface.mjs <command>` starts one short-lived process. It reads canonical sources and JSON registries, resolves one or more target adapters, produces files in memory, and either writes a disposable `dist/<target>` preview or applies an install plan. Build and install share the same producer functions. No background process or network call is required by compilation.
+`node scripts/agent-surface.mjs <command>` is the existing short-lived process. `build` produces a preview or export package. `install` resolves selection, renders outputs, inspects the destination, plans writes/removals/config merges, establishes selected MCP prerequisites and applies the plan. Regular generation needs no release-feed or advisory network request.
 
-First-party MCP processes are separate products. Their distribution entries are rendered into host config; their lifecycle remains owned by `mcps/synapse` and `mcps/grimoire`.
+Proposed metadata lookup supplies target labels, lifecycle notices and qualification bounds before output application. It does not launch a runtime or add a background check. Warnings are distinct from existing blocking errors. A dated retirement notice does not silently change the generated artifact at midnight; an explicit code/registry migration changes it in a reviewed release.
+
+Native task qualification uses an independently selected, security-appropriate client. Release comparison and client updating are separate bounded operations. An affected client is not launched for discovery or even a version probe before the upgrade decision; package/installation metadata can establish identity without execution where available.
 
 ### Component View
 
-- **Source readers** own parsing of skills, commands, rules, subagents, ignores, and external packs. They do not know runtime paths.
-- **Portfolio registries** own target lifecycle, rendered surface tokens, capability evidence, asset-category membership, and optional service declarations.
-- **Target adapter table** owns the mapping from canonical source kinds to native roots/renderers/config formats. It does not parse shared config or perform writes.
-- **Renderers** own host-specific file syntax. A renderer should exist only when a generic vanilla skill/instruction/agent renderer cannot represent the host contract.
-- **Merge layer** owns format-aware read-modify-write behavior for shared JSON/JSONC/TOML/YAML config. It preserves unknown siblings and rejects ambiguous shapes.
-- **Installer** owns plans, manifests, strict-sync, obsolete-route cleanup, and actual writes.
-- **Checks/tests** own registry coherence, native shape assertions, merge discrimination, generated output, and install behavior.
-- **Runtime proof** is outside compiler PASS. It invokes the real host, checks native discovery, calls MCP where claimed, and observes exact world state.
-
-### Portfolio Shape
-
-Add now:
-
-- `dsh`: `skills`, `external`; user `~/.dsh/skills`, project `.dsh/skills`. No rules, agents, commands, or MCP claim during developer preview.
-- `qoder`: `skills`, `commands`, `rules`, `subagents`, `external`, `mcps`; roots under `~/.qoder` / `.qoder`, with `AGENTS.md` and JSON `settings.json` MCP merge.
-- `qwen-code`: `skills`, `commands`, `rules`, `subagents`, `external`, `mcps`; roots under `~/.qwen` / `.qwen`, with JSON `settings.json` MCP merge.
-- `kiro`: `skills`, `commands-as-workflows`, `rules`, `subagents`, `external`, `mcps`; roots under `~/.kiro` / `.kiro`, steering files, v3 agent definitions, capability permissions, and `settings/mcp.json`.
-
-Modify now:
-
-- `copilot`: add user/project native custom agents, instructions, skills, and MCP; retain the VS Code user instruction output where it is still consumed.
-- `grok-build`: move MCP/config ownership to `config.toml`; retain native `.grok/skills` and `AGENTS.md` compatibility.
-- `antigravity-cli`: move CLI plugin output to the active staged plugin root and update path claims.
-- `trae`: retain IDE skill/rule/MCP routes while adding CLI-native `.traecli/skills`, `.traecli/agents`, current native rule directories, and user CLI TOML policy.
-
-Retired:
-
-- `vscodium`: adapter, capability entry, docs row, generated minimum, and dedicated output removed; listed as out of scope. A cleanup-only adapter remains so `install --target all` removes its stale outputs (see Operations).
+- **Source readers:** parse canonical sources/companions and permitted external text. Own syntax and source provenance, not native paths.
+- **Registry loaders:** sole loading/caching boundary for portfolio, capabilities, categories and optional services. Own JSON access, not runtime probing.
+- **Target adapters:** map one named consumer contract to roots, rendering and config declarations. Own path/surface differences, not file writes or model policy.
+- **Renderers/format libraries:** serialize native syntax and validate output-specific limits. No automatic rule summarization, regex-based structured-config rewriting or silent truncation.
+- **Installer:** owns selection, notices in plans, destination ownership and migration checks, ownership-based cleanup and file/config application. It never adopts an unowned file into a manifest.
+- **Checks:** validate schema/reference/token coherence and changed output behavior. They do not turn schema validity into native support or acceptance.
+- **Qualification/deployment owner:** resolves client version and account/environment, executes the real task, and records the exact supported scenario. No production credential is put into capability evidence.
 
 ### Source Tree and File Responsibilities
 
+All implementation work stays in these established boundaries unless a later reviewed spike proves a new module necessary. No new production runtime unit is proposed.
+
 ```text
 agent-surface/
-  docs/context/concept-zero.md       - Accepted runtime portfolio and primary-source evidence; no implementation details.
-  docs/architecture.md               - Runtime compiler boundaries, source ownership, data, and interfaces.
-  docs/roadmap.md                    - Ordered implementation and proof plan.
-  docs/reference/targets.md          - User-facing target matrix and lifecycle notes.
-  registry/targets.json              - Canonical implemented/planned/out-of-scope portfolio and render tokens.
-  registry/target-capabilities.json  - Canonical per-target native surface contract and evidence links.
-  schemas/targets.schema.json        - Structural validation for portfolio records; no popularity scoring.
+  docs/context/concept-zero.md          - Selected product concept and requirement IDs.
+  docs/context/concept-zero-research.md - Dated decisions, sources, conflicts and qualification gaps.
+  docs/architecture.md                  - System ownership and accepted/proposed boundaries.
+  docs/roadmap.md                       - Ordered implementation tasks and real acceptance gates.
+  docs/contracts/runtime-refresh.md    - Domain/interface semantics and migration decisions.
+  docs/reference/targets.md             - Human-facing projection of registry facts; no second catalog.
+  registry/targets.json                 - Selector and build availability and generated tokens; OpenHands remains implemented, Cascade deprecated.
+  registry/target-capabilities.json     - Native support plus runtime, notice and qualification facts.
+  registry/source-kinds.json            - Canonical source-kind and install-scope policy, unchanged.
+  registry/*-assets.json                - Existing domain membership, unchanged by identity refresh.
+  registry/{modding,private-secret}.json - Existing explicit content boundaries, unchanged.
+  registry/optional-services.json       - Service definitions and provisioning, no new default MCPs.
+  registry/legacy-owned.json            - Existing known legacy ownership, not guessed from paths.
+  schemas/targets.schema.json           - Current selection schema; no status abuse for recommendation.
+  schemas/target-capabilities.schema.json - Capability schema, including the runtime, notice and qualification extension.
+  schemas/{source-kinds,asset-category,optional-services}.schema.json - Existing unchanged source/service contracts.
+  scripts/agent-surface.mjs             - CLI dispatch and human output; no new transport or updater.
   scripts/agent-surface/
-    roots.mjs                        - Pure user/project path resolution for all target-native roots.
-    targets.mjs                      - Adapter table, producers, static outputs, and generated minimums.
-    render.mjs                       - Only materially distinct host-native document renderers.
-    merge.mjs                        - Shared JSON/JSONC/TOML/YAML config merges; no target lifecycle policy.
-    install.mjs                      - Build/install plan, manifest ownership, strict-sync, and stale-route cleanup.
-    check.mjs                        - Registry/producer/evidence/generated coherence gates.
-  adapters/
-    dsh/README.md                    - Limited preview contract and omitted-surface rationale.
-    qoder/README.md                  - Qoder roots, native formats, and proof commands.
-    qwen-code/README.md              - Qwen roots, native formats, and proof commands.
-    kiro/README.md                   - Kiro shared IDE/CLI roots and proof commands.
-    copilot/README.md                - Copilot CLI plus VS Code Agent Host ownership.
-    grok-build/README.md             - Current TOML and native discovery contract.
-    antigravity-cli/README.md        - Active staged plugin contract.
-    trae/README.md                   - Current skills/rules/subagent/MCP contract.
+    registry.mjs                       - JSON loading/cache; add capability reader here, not duplicate raw reads.
+    targets.mjs                        - Adapter identities/producers and selected service projection; no I/O mutation.
+    roots.mjs                          - Pure scope/platform/native-root helpers; no implicit account migration.
+    render.mjs                         - Native serializers, manual-only metadata and scoped rule syntax.
+    install.mjs                        - Plans/notices/ownership/conflicts, writes and manifests; preserve selection semantics.
+    notices.mjs                        - Stored and planner-derived notices and their wording; never blocks, never written into native files.
+    check.mjs                          - Structural/semantic metadata and output contracts; no live client gate.
+    doctor.mjs                         - Bounded diagnostics; no unsafe client auto-launch or upgrade.
+    skills.mjs                         - Directory skills and allowed UTF-8 companions; unchanged source ownership.
+    commands.mjs                       - Manual command parsing; migration retains source identity.
+    rules.mjs                          - Canonical rule applicability; no target-specific prose fork.
+    source-primitives.mjs              - Ignore/subagent parsing and validation, not runtime orchestration.
+    postprocess.mjs                    - Existing external text normalization; no new content rewriting.
+    format.mjs                         - Shared scalar/format helpers; not a policy summarizer.
+    merge.mjs                          - Format-aware native config merges; unknown sibling preservation.
+    jsonc.mjs                          - Existing JSONC operations backed by the selected parser.
+    io.mjs                             - Filesystem/read helpers; no ownership decisions.
+    fs-tree.mjs                        - Bounded source traversal; no runtime-home crawling.
+    util.mjs                           - Existing validation/path/argument helpers, not a catch-all policy engine.
+    proc.mjs                           - Existing process/git probes; do not call affected clients in this design.
+    credentials.mjs                    - Existing credential planning/file protections; unchanged.
+    provision.mjs                      - Existing MCP dependency detection; not a runtime-client catalog.
+    provision-exec.mjs                 - Existing authorized MCP recipe execution; unchanged.
+    mcp-env-launch.mjs                 - Existing child environment/runtime-path delivery; unchanged.
+    mcp-build.mjs                      - Existing first-party MCP build prerequisites; unchanged.
+    mcp-shims.mjs                      - Existing platform launch shims; unchanged.
+    evidence.mjs                       - Existing bounded workflow evidence capture; no new digest mandate.
+    workflow.mjs                       - Existing workflow ledger operations, outside refresh scope.
+  adapters/<target>/README.md           - Native component, supported scopes, omissions and proof commands.
   tests/suites/
-    matrix.test.mjs                  - Portfolio count, lifecycle membership, and adapter presence.
-    build.test.mjs                   - Native output paths/content for added and modified targets.
-    install.test.mjs                 - Non-destructive config merges and cleanup-only retired-target reconciliation.
-    check.test.mjs                   - Registry/producer drift discrimination.
-    install-live.test.mjs            - Real disposable filesystem installation; no host substitution claim.
+    check.test.mjs                     - New metadata validity and semantic-reference negatives.
+    build.test.mjs                     - Actual native output, size and unrelated-output parity.
+    roots.test.mjs                     - Real supported root/scope/platform mappings.
+    install.test.mjs                   - Disposable ownership, migration and selection behavior.
+    skill-packages.test.mjs            - Companions/update/removal contract reused by migrated skills.
+    matrix.test.mjs                    - Selector/lifecycle invariants, not editorial counts for their own sake.
+    live-*.test.mjs                    - Existing opt-in native boundaries; add only affected real scenarios.
+  mcps/{synapse,grimoire}/              - Separate existing stores/protocols/installers; no changes in this batch.
 ```
 
-Production files already present outside this tree retain their responsibilities from the previous architecture. The runtime refresh does not move MCP implementation, workflow ledger, source parsing, or external-pack ownership.
+The design schema was a pre-code artifact, not a new runtime schema registry. `RT1.1` moved its notice definition into the existing capability schema and removed the draft; the stored notices in `registry/target-capabilities.json` are the examples. Runtime and qualification records were dropped because no command reads them; native results live in each adapter README. Do not maintain two mutable copies.
 
 ## Data and State
 
-### Canonical domain model
+### Applicability and Ownership
 
-- **Target**: stable `id`; lifecycle membership (`in_scope`, `planned`, `out_of_scope`); implemented status; build/install flags; render-token set.
-- **Capability record**: target `id`; summary; generated-token set; primary evidence links; native surface records containing support, generation mode, scopes, paths, and limits.
-- **Adapter**: runtime behavior keyed by target `id`: native roots, renderer functions, producer categories, config merge declaration, and install root resolver.
-- **Install manifest**: target/scope-owned generated paths and named MCP config-entry ownership used for idempotency and strict-sync cleanup. Root policy values merged into shared host configs are persistent operator policy, not lifecycle-owned snapshots; retirement removes generated files and owned MCP IDs but does not guess or restore a previous policy value.
-- **Optional service**: external pack or MCP service, distribution defaults, and served-by relationships.
+Domain/data: **REQUIRED**, because registry facts and install manifests persist identity/ownership. Interfaces: **REQUIRED**, because CLI selection, generated host formats and shared configuration cross boundaries. New database, network API, event transport and storage migration: **NOT_APPLICABLE**; this batch adds none.
 
-Identity invariant: one target ID appears exactly once in each applicable registry and adapter table. Token invariant: adapter producer emissions, `targets.json.renders`, and capability `generated_render_tokens` are equal as sets. Lifecycle invariant: a target cannot appear in more than one portfolio bucket. Ownership invariant: the installer may delete or overwrite only manifest-owned paths/entries.
+- **Target** identity is its existing registry key. `status`, build/install availability and rendered tokens remain owned by `targets.json`. An implemented legacy client is still `implemented`.
+- **Runtime metadata extension** belongs to that target's existing capability record. It names the actual component, upstream lifecycle and recommendation. No copy of `renders`, default service sets or native path functions is added.
+- **Lifecycle notice** is a stable code, source and scoped applicability record. It is documentation-backed state, not proof of exploitation, a timer-driven migration or a client-version comparator.
+- **Qualification** is a dated result tied to one surface, component/version, platform, scope and scenario. Not-run/blocked results are not empty successes; source-contract evidence does not inherit a task's authority.
+- **Install plan** is transient: selected operations, rendered outputs, conflict diagnostics and removals. It is not desired fleet state and must not persist credentials or raw runtime inspect dumps.
+- **Install manifest** remains target/scope ownership of files and named config entries. Manifests of other targets in the same install root are read as ownership claims, not rewritten. It is not a saved selection profile, rollback journal or authorization policy. Root policy values already written to host config are not automatically reversible lifecycle-owned snapshots.
+- **No recovery-copy store.** A moved route's old owned file is retired with its replacement, and the category guard treats the two as one document. No backup directory, digest catalog or retention job is introduced.
+- **Native runtime state** remains external. No sessions, account tokens, provider keys, learned skills or schedules are imported into registry or manifest metadata.
 
-No new persistent store is introduced. Registry JSON and install manifests remain the systems of record. `dist/` is disposable derived output. Runtime sessions, credentials, model state, and host caches are explicitly not stored.
+The [contract](contracts/runtime-refresh.md) and `schemas/target-capabilities.schema.json` define required/optional fields, source validation, notice projection and evidence limits. JSON registry updates are normal reviewed source changes; existing manifests do not require a version bump for metadata-only changes.
 
-Migration posture:
+### Consistency and Migration
 
-- Added targets create new manifests on first install.
-- Modified routes are emitted at their current native paths; full sync treats obsolete previously owned routes as removals.
-- Retired VSCodium is not buildable or directly selectable. A full user-scope `--target all` install runs its cleanup-only adapter before active targets, removes old manifest-owned files/config entries, preserves unknown user files, and then lets active targets rewrite any shared outputs.
-- Registry format is unchanged, so there is no schema/data migration.
+The normative steps are in the [contract's migration section](contracts/runtime-refresh.md#migration-consistency-and-recovery); this section records why they have this shape.
+
+Preflight validates the effective category/scope-filtered outputs before applying them or provisioning dependencies. Producers run eagerly today; size measurement can be pure, but an unselected oversized rule must not throw during rendering. Build must validate its full user-scope output before deleting the old output directory; it has no filtered/project build interface.
+
+Ownership is decided per path from every manifest in the install root, because several targets share roots such as `.agents/skills` and project `AGENTS.md`. Reading only the target's own manifest is what lets one target adopt an operator file, silently erase another target's category contribution, or delete a file another target still claims. A manifest records management ownership, not a separate per-target policy inside one physical file, so another owner's claim is not a veto: a co-owned file is regenerated for the requested selection, and the plan warns when that drops another owner's recorded category. An earlier draft made that contribution check blocking; review showed it deadlocked co-owners whose shared renders differed only in the host title, which is why the shared project `AGENTS.md` now uses one target-neutral header. Same-run equal-byte acceptance remains, a shared path keeps every claim, and cleanup retains it while any other claim remains. Config merges continue preserving unknown keys through the existing parser-backed path.
+
+Only explicitly owned old routes can be considered for removal, and only when their bytes match the replacement; a differing old route blocks while its native discovery is unproven. Antigravity's initial successor release retains workflows owned by either current manifests or `legacy-owned.json`, including the former manifest itself; archival is separate after proof, not ordinary stale cleanup. Partial-category cleanup retains existing boundaries; an old output-kind selector must not delete a workflow without selecting its replacement. Changed target identity is not implemented as a silent alias. No generic migration registry, journal or backup store is introduced.
+
+Manual command skills in a workspace `.agents/skills` can be autonomous to Antigravity. The planner therefore derives a shared-root notice from the selected outputs and the resolved install root, and `RT2.3` lists co-discovered protected command skills when Antigravity itself installs into the workspace, which `--scope project --dest` already allows. That check warns rather than blocks until `RT0.3` shows whether Antigravity invokes such a skill autonomously; a block would permanently refuse project-scope `all` development installs. No target is silently excluded and no shared file is rewritten to force compatibility.
+
+The current installer is not a filesystem transaction. Preflight prevents known conflicts, but a later I/O failure can leave partial writes. Report that fact and use existing plan/log plus explicit recovery; do not claim automatic rollback or add a journal for this batch. Every participant's pending manifest is written before the run's first mutation and keeps every path the run planned to touch claimed, so an interrupted run can be repeated without deleting its own files by hand. Source rollback must not downgrade a runtime below its verified security floor.
 
 ## Interfaces and Contracts
 
-### CLI
+Existing CLI grammar remains. `build`, `install`, `check`, `check generated`, `doctor`, `--target`, `--scope`, `--dest`, `--category` and `--service` retain their current meanings. No new profile flag, runtime updater, HTTP endpoint, JSON output mode or provider option is introduced by this design.
 
-- `build --target <id>`: deterministic preview under `dist/<id>`; no host acceptance claim.
-- `install --target <id> --scope user|project [--category ...] [--service ...]`: produce a plan and, with configured write consent, apply files/config merges plus manifest updates.
-- `check`: validate registry schemas, lifecycle/token coherence, source references, external pins, and adapter contracts.
-- `check:generated`: rebuild all implemented targets and compare expected output.
-- `doctor`: inspect local runtime/MCP/install health; diagnostics are evidence, not automatic repair.
+Proposed changes:
 
-Unknown target IDs fail before writing, and `all` must be supplied alone on `--target` and `--category` so a sibling selector is never dropped or left unvalidated. Scope support is adapter-owned. An unfiltered full install reconciles the general baseline, including removal of previously managed opt-in assets. Category-only installs are additive and prune only the selected category, so an installation profile is the general sync followed by each desired category. Retired-target cleanup runs only for an unfiltered full user-scope `--target all` install.
+- Selected-target notices are shown by build/install previews and before live writes, with component, stable code, affected surface, date where supplied, source and next action. Informational/legacy warnings alone do not change exit status.
+- Invalid output size, an unowned destination, an unreadable manifest (`MANIFEST_UNREADABLE`), or an unsupported requested migration uses the existing blocking-plan/error path and exits nonzero before mutation. A condition that only dismantling another retained target's state, or no selection at all, can clear excludes the affected target from `all` visibly and blocks only an explicit selection of it. Replacing another owner's category contribution in a shared file is a nonblocking plan warning. Avoid introducing a second error or consent framework. The contract lists the stable labels.
+- Recommendation/lifecycle metadata never changes selection. `openhands` remains included in `all`. The separate explicit selector change excludes `targets.json` entries with `status: deprecated` from build/install `all`, while preserving explicit selection and reporting exclusions. Only Cascade is assigned that state in this batch, under the contract's cutover invariant; Devin CLI lists the other targets' output through its imports, so no `devin` target replaces it in `all`. Build availability is read from the registry's `build_supported` field. Build-only handling remains unchanged. Planned targets without adapters stay unavailable. No distribution is triggered by this design.
+- A target's native files are the external DTOs. Metadata/notices and source records are not copied wholesale into those files. Source command identity remains intact when its native representation becomes a manual skill or manual rule. Antigravity changes from a workflow to a rule; the artifact and invocation are not mislabeled as a skill.
+- `support`, `generation` and qualifications are not collapsed into a boolean. Historical or missing native proof is displayed precisely; output counts are not readiness scores.
 
-One output can carry several categories' contributions — a host whose rules are one concatenated instruction document is the case that matters. Regenerating such a file under a narrower selection would erase the rest, so a category-filtered install that would overwrite an output the manifest records as owned by an unselected category is rejected before writing, naming the owner. Per-file rule hosts are unaffected, since each rule is its own managed output. The manifest records one owning category per output, which is enough to detect that loss and not enough to reconstruct a multi-category document, so the contribution is restored by re-running its own category rather than reassembled; the general full sync still resets it deliberately.
+The existing overloaded category grammar remains: standalone `all` means general reset; domain/output-kind categories cannot be mixed; explicit services override domain-derived selection without promising removal of every unselected service. Clarity changes may expose these facts, not redefine them.
 
-A canonical skill is a directory, not a file. Alongside `SKILL.md` it may carry the material that body references, and those companions travel with it: they are emitted beside the rendered skill wherever the host uses a directory-shaped skill surface, so a relative reference resolves from the installed location rather than only in this checkout. Each companion is its own managed output, so deleting one at the source removes it from the next install while unmanaged files in the same directory are preserved. Companions are admitted by the same extension allowlist the external packs use and read as UTF-8 text; binary assets are not carried. An executable bit is preserved where the filesystem expresses one.
+Generated output should remain deterministic for a fixed source/context. Advisory refresh is an explicit maintainer action; clocks, network feeds or locally installed client versions must not silently switch producers during `build`.
 
-A target may instead be an **export format**, declared `buildOnly`. It renders a package for another tool's own installer and has no install destination of its own, so `install` refuses it by name and `--target all` skips it rather than inventing a location. The `codex-plugin` pilot emits one plugin package — a portable manifest carrying the schema identifier that format requires, plus a local marketplace manifest — with one canonical skill and its companion files. Whole-catalog contracts do not apply to such a target; its own narrower contract is that it packages exactly the skills it declares, rendered from canonical source.
+## Security, Privacy, and Operations
 
-### Adapter contract
+Relevant assets are native config, unowned operator files, explicit-only commands, tool restrictions and account data. Migration collision checks protect real new-destination hazards. Parser-backed config merging, managed cleanup and current secret delivery remain. The user's full-execution policy is not changed; a host's similarly named frontmatter field is not assumed to enforce it.
 
-An adapter is a plain object consumed by `targetProducers`. It may define native roots, renderer functions, static outputs, ignored-file output, and one or more MCP config declarations. New adapters must prefer existing functions. A host-specific renderer or merge format is justified only when the official native shape cannot be represented by an existing one.
+Runtime release procedure: identify exact client/package and advisory; select the newest applicable fixed build from the supported public line; preserve preview/channel labeling; have the lifecycle owner update it; then record the installed build and run bounded qualification. Confirmed exploitation raises priority and forbids using affected clients for experiments. Unverified reports remain visible and urgent without fabricated CVE IDs. Recheck release metadata immediately before actual deployment because the design's dated snapshot will age.
 
-### Boundary mapping
-
-- Canonical `Skill` -> native skill folder/file. Frontmatter unsupported by a host may be preserved only when ignored safely; invocation claims must match host behavior.
-- Canonical manual command -> native explicit command where supported, otherwise an explicit-only compatibility skill. It must never become implicitly model-invocable on a host that honors the control field.
-- Normalized `Subagent` -> native agent definition. Tool/access mapping belongs to the renderer; source roles never contain host tool names.
-- Canonical rules -> one always-on instruction document or native rule files; scoped rules remain references unless the host has a proven scoped-rule contract.
-- Optional MCP service -> named native config entry. The compiler exposes command/args/env-free definitions for first-party local services and never serializes secrets.
-
-Internal adapter objects and install manifests are not public runtime DTOs. Only native generated files and CLI behavior cross the boundary.
-
-Compatibility policy: target IDs and documented paths are stable while implemented. A host lifecycle or breaking native-format change permits a targeted migration with strict-sync cleanup and changelog/docs update. Preview targets may lose unsupported surfaces rather than retain false compatibility.
-
-## Security, Privacy, and Abuse Cases
-
-Real assets are shared host configs, credentials already present beside generated entries, executable plugin/skill content, and pinned external packs.
-
-- Shared config is parsed structurally and merged by owned key; malformed or unsupported shapes block writes.
-- Secrets remain environment/keychain/user-owned and are never copied into registry or generated config.
-- External packs are pinned and either copied through declared roots or served through Grimoire; their content is evidence/instructions, not authority.
-- Manual destructive workflows remain explicit-only. Runtime full-access policy is a user-selected operating mode, not permission to fake proof or disclose credentials.
-
-No new security layer is added for hypothetical hostile local users. Existing filesystem permissions and host runtime trust remain the deployment boundary.
-
-## Operations
-
-Build and deterministic tests run on a maintainer build host; MCP packages use a Node version satisfying their manifests. Runtime discovery may run locally when the installed authenticated host is the evidence target. Test workspaces and generated runtime state must be disposable and cleaned after proof.
-
-Target refresh procedure:
-
-1. Verify primary docs/releases and local binary behavior.
-2. Update concept decision when lifecycle or product identity changes.
-3. Change registry, adapter, docs, and tests as one concern.
-4. Run `check`, focused tests, full root tests, generated checks, and package checks remotely.
-5. Install into disposable roots and run native host inventory.
-6. Run a task-shaped real journey where login/provider access exists; otherwise report `BLOCKED` precisely.
+Antigravity warning ships independently of migration completion. November 1 is a support deadline, not a delayed start date. OpenHands' lower recommendation neither removes files nor substitutes Canvas/SDK. Grok Bot is separately scoped: shared account access is not isolated by creating another Bot, local-computer execution is a separate setting, and a routine Test run performs real work.
 
 ## Quality Scenarios and Fitness Gates
 
-- `Q-01`: `npm run check` plus `npm run check:generated` on the remote clean worktree.
-- `Q-02`: focused install tests seed unknown sibling entries, install the target, and compare retained values.
-- `Q-03`: runtime-specific inventory (`skills`, `agents`, `mcp`, `inspect`, or equivalent) plus an exact artifact journey.
-- `Q-04`: a real disposable old VSCodium manifest and config route are removed by full user-scope sync while an unowned sibling survives.
-- DSH preview gate: pinned `@deepseek-ai/dsh` clean-room skill listing; MCP is explicitly not part of PASS.
-- Peer-delta gate: independent review of `fc7fd4e..5dcc388`, Grimoire package suite, public served-row provenance checks, and real multi-pack index/search.
+- `Q-RT-01`: advisory/product/fixed-range evidence and non-executing installed-version identification where possible; actual update/qualification owned by the runtime deployment task.
+- `Q-RT-02`: actual selected harness discovery from a fresh root, then controlled fallback/co-installation; exact file provenance and harmless task behavior where claimed.
+- `Q-RT-03`: dated warning before writes, native successor manual-only behavior, companion access, old/new selected-route migration and no deletion under an incompatible category selector.
+- `Q-RT-04`: disposable real filesystems with owned source, unowned destination (differing and identical), co-owned regeneration with its warning, individual and joint resets of co-owners, cross-owner cleanup, repeat install, unmanaged sibling, and rerun after an interrupted apply.
+- `Q-RT-05`: OpenHands explicit/all selection, native output unchanged apart from `RT2.0`'s target-neutral project `AGENTS.md` header, and retained ownership; recommendation-only delta is not a cleanup path.
+- `Q-RT-06`: exact output-size checks for each supported native format; project splitting does not satisfy the global contract; no silent drop or generated prose summary.
+- `Q-RT-07`: private Bot import, actual companion read and verifiable artifact; cancellation and routine state separately observed. GUI/account limitations block only that pilot.
+
+Use `npm run check`, affected suites, generated comparison and real native acceptance proportionately. Full root/package suites are required only for the changed behavior's blast radius. Do not freeze prose wording, introduce substitute-backed acceptance, or demand GUI proof for a source-only metadata correction.
 
 ## Architecture Decisions
 
-### ADR-R1: Curated portfolio over exhaustive catalog
+### ADR-RT1: Security fixes outrank channel conservatism
 
-Status: ACCEPTED. Add only hosts with current native contracts and operator value. Consequence: some credible agents remain planned. Rejected: logo-count expansion with shallow adapters.
+Status: ACCEPTED USER DIRECTION. A named stable channel is preferred only while compatible with the verified security requirement. Consequence: a fixed public/preview build may be the correct baseline. Reject both blind latest-is-safe and blind stable-is-safe. Revisit on new advisory/fixed-release evidence.
 
-### ADR-R2: Existing adapter table remains the extension mechanism
+### ADR-RT2: Separate consumers, reuse implementation
 
-Status: ACCEPTED. Add plain entries and a few pure path/renderer helpers. Consequence: some target-specific code remains explicit. Rejected: an adapter DSL or plugin runtime with more concepts than current requirements.
+Status: ACCEPTED, revised 2026-10-08 after `RT0.2`. Keep `windsurf` as deprecated Cascade compatibility. Exclude deprecated selectors from `all` visibly, retain explicit use, and never retire their files as a side effect. Add no `devin` target: Devin CLI already lists the rules, skills and MCP servers of the targets `all` keeps through its default imports, and a native target would only add another copy of each. OpenHands is legacy-recommended but not deprecated. Shared helpers or paths do not establish behavioral equivalence; no alias migrates accounts, services or manifests. Exact dispositions are in the contract.
 
-### ADR-R3: DSH is skills-only during developer preview
+### ADR-RT3: Retain legacy, retire surfaces deliberately
 
-Status: ACCEPTED. Use documented filesystem roots and avoid Cordis profile internals. Trigger to revisit: a stable declarative user/project MCP contract.
+Status: ACCEPTED USER DIRECTION. Keep OpenHands selectable with lower recommendation; Antigravity retires workflows, not its product. Consequence: metadata/warning work can land before native replacement proof. Reject removal by release age or recommendation rank.
 
-### ADR-R4: VSCodium is retired as a runtime target
+### ADR-RT4: Extend existing facts, not the control plane
 
-Status: ACCEPTED. VSCodium remains an editor fork that can consume manually installed extensions, but agent-surface no longer presents it as a selectable runtime target.
+Status: PROPOSED. Small capability metadata and transient notices; no updater, vulnerability database, profile reconciler or runtime security framework. Consequence: deployment and native testing stay separately owned; manual review remains necessary.
 
-### ADR-R5: Z.ai remains provider configuration, not a target
+### ADR-RT5: Protect destinations before writes and cleanup
 
-Status: ACCEPTED. Provider and API-plan setup stays user-owned. Qoder/Qwen/other actual hosts receive adapters independently.
+Status: PROPOSED. Every whole-file output reads ownership from all manifests in its install root: unowned files block instead of being overwritten or adopted, replacing another owner's category contribution is regenerated with a warning rather than vetoed, and cleanup retains files another owner still claims. A moved route's old owned file is retired with its replacement. No general content merge, backup store or claimed atomic rollback. This is required by reproduced installer behavior, not hypothetical local-host hardening.
 
-## Risks, Debt, and Revisit Triggers
+## Risks, Revisit Triggers, and Guardrails
 
-- DSH can break filesystem or metadata behavior during preview. Revisit on a stable release or failed pinned probe.
-- Proprietary Qoder/Kiro runtime acceptance may be installation or login blocked. Compiler and disposable-install proof remain separate from native task execution.
-- Grok TOML field names can differ from Codex TOML. Keep a small target-specific mapping and validate with `grok inspect`.
-- The current Kilo user config contains obsolete user-owned keys that make Kilo reject the file. Repair local state during runtime proof; do not add a general migration engine for keys agent-surface never owned.
-- Amp/Auggie/Warp/Crush may prove more valuable than a retained low-use target. Revisit after observing real operator use or a direct user request.
-- The peer Grimoire branch remains under independent re-review after its confirmed defects were fixed; unresolved Critical/High behavior would block publication of that delta.
-
-## Implementation Guardrails
-
-- Keep source readers independent of target paths and target renderers independent of filesystem writes.
-- Keep dependencies limited to the maintained format libraries used by config and frontmatter editing; do not add an adapter framework, generic provider layer, or runtime database.
-- Prefer native skill roots and existing renderers. Add no unsupported render token to make target counts look comprehensive.
-- Keep every new target change coherent across registry, capabilities, adapter README, adapter table, roots, tests, and user docs.
-- Test the behavior being changed. No substitute-backed result counts as runtime, integration, E2E, or acceptance proof.
-- Preserve the intentional dirty external submodules and the peer's existing Grimoire commit while reviewing and extending the branch.
+- Native runtime docs can lead installed releases: resolve the actual security-appropriate build and qualify it before deployment. A source-only fix does not wait for every unrelated client.
+- Some global policy limits may be unrepresentable without changing meaning: block/qualify the affected output; require an explicit reviewed alternative, not automatic compression.
+- Config-home/edition aliases may be undocumented: qualify selected roots, never scan or copy into every guessed path.
+- Simultaneous shared-root installations can mask omissions or collide: keep identical shared bytes and test provenance for changed discovery paths.
+- Learned cloud state and credentials must remain runtime-owned. No automatic import of private local files, public templates, new connectors or scheduled publication.
+- Source readers remain target-independent, renderers remain write-free, installer owns mutations, and runtime/MOMO owns client upgrades. No implementation begins by deleting unrelated dirty work or rewriting existing first-party MCP services.

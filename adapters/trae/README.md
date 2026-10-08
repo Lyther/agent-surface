@@ -1,24 +1,29 @@
 # Trae adapter
 
-The target covers Trae/TraeCode's documented skills, rules, Markdown subagents, IDE MCP JSON, and TraeCode CLI TOML.
+The `trae` target covers the Trae international IDE (TraeCode), which reads `~/.trae`, the documented `~/.trae-cn/agents` and the project's `.trae` directory. The CN IDE (`trae-cn`) and Trae CLI 2.0 (`trae-cli`) read other roots and are separate targets.
 
 User scope:
 
-- `~/.trae/skills/<name>/SKILL.md`
-- `~/.traecli/skills/<name>/SKILL.md`
-- `~/.trae/user_rules.md` plus current `~/.trae-cn/user_rules/*.md`
-- `~/.trae-cn/agents/<name>.md` and `~/.traecli/agents/<name>.md`
-- `~/.trae/mcp.json`
-- `~/.trae/traecli.toml`
+- skills and explicit-only compatibility skills: `~/.trae/skills/<name>/SKILL.md`
+- rules: `~/.trae/user_rules.md`, plus scoped rule references in `~/.trae/references/rules/`
+- subagents: `~/.trae-cn/agents/<name>.md`
+- MCP: `mcp.json` beside the IDE's per-OS `User` settings (`~/Library/Application Support/Trae/User/mcp.json` on macOS, `%APPDATA%\Trae\User\mcp.json` on Windows), written only once the IDE has created that `User` directory
 
-Under `--dest` the same layout lands in the chosen directory: `.trae/skills` and `.traecli/skills`, `.trae/agents` and `.traecli/agents`, `.trae/rules` and `.trae/references/rules/*.md` plus the retained `.trae/user_rules.md`, and `.trae/mcp.json`. Current official TraeCode documentation requires enabling the IDE Subagents directory beta toggle if it is not already active; the CLI discovers its `.traecli` routes directly and can also consume the IDE-compatible `.trae` routes.
+Project scope (`--dest`): `.trae/skills`, `.trae/agents`, `.trae/rules/<rule>.md` with `.trae/references/rules`, and `.trae/mcp.json`. Both IDE editions read these project paths, so `trae` and `trae-cn` co-own them; `trae-cli` writes the project rules, skills and agents but no project MCP file.
 
-The CLI TOML merge sets `approval_policy = "never"`, `default_permissions = ":danger-full-access"`, and first-party `mcp_servers` while preserving unrelated settings. The IDE JSON MCP route remains generated separately. High-impact workflows stay explicit-invocation compatibility skills.
+Notes:
+
+- The IDE documents a `~/.trae/user_rules/` folder. The locally installed 3.5.25 build also loads the single `~/.trae/user_rules.md` (read from its app bundle), which is the route this target keeps; newer builds are unverified. Loading both would duplicate the rules.
+- The international subagents page documents `~/.trae-cn/agents`, the same text as the CN page, so `trae` and `trae-cn` co-own it. IDE discovery may need the Subagents directory beta toggle. Not runtime-tested.
+- The user `mcp.json` route comes from the 3.5.25 app bundle, not from the documentation; the Linux location is unverified. Project MCP in `.trae/mcp.json` is documented.
+- `~/.trae/skills` is shared with `trae-cli`; installing both co-owns those files.
+- Before the split this target also wrote the CN IDE's `~/.trae-cn/user_rules`, Trae CLI 1.0's `~/.traecli` copies, the CLI's `~/.trae/traecli.toml` servers and a user `~/.trae/mcp.json` that neither the macOS nor the Windows build reads. The `~/.trae-cn/user_rules` files and the `traecli.toml` servers stay claimed and untouched until `trae-cn` or `trae-cli` itself claims each file or server; this target then lets go of it without removing or pruning it. A successor installed only for skills takes over nothing. The CLI 1.0 copies, project ones included, are removed as stale, and the servers in `~/.trae/mcp.json` are pruned.
+- In a project installed before the split with optional MCP servers, run `--target trae --scope project --dest <project>` once before a joint `--target all --scope project --dest <project>`; otherwise `trae` and `trae-cn` plan different `.trae/mcp.json` merges and the joint run stops with `also planned by`.
+- High-impact workflows stay explicit-invocation compatibility skills; enforcement remains unproven.
 
 References:
 
-- [TraeCode subagents](https://docs.trae.cn/ide_subagents)
-- [TraeCode CLI skills](https://docs.trae.cn/cli_skills)
-- [TraeCode CLI agents](https://docs.trae.cn/cli_agent)
-- [TraeCode CLI config](https://docs.trae.cn/cli_config-file)
-- [Trae rules](https://docs.trae.cn/ide_rules)
+- [Trae rules](https://docs.trae.ai/ide/rules)
+- [Trae skills](https://docs.trae.ai/ide/skills)
+- [Trae subagents](https://docs.trae.ai/ide/subagents)
+- [Trae MCP servers](https://docs.trae.ai/ide/add-mcp-servers)

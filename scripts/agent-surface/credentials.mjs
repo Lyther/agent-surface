@@ -92,8 +92,10 @@ export function formatMissingCredentialError(status, envFilePath) {
   return `missing required credentials (${detail}); set them in the environment or ${envFilePath}, then re-run`;
 }
 
+const ENV_EXAMPLE_HEADER = "# agent-surface MCP credentials — fill values, then re-run install.";
+
 export function envExampleContent(status) {
-  const lines = ["# agent-surface MCP credentials — fill values, then re-run install.", "# This file is a template; real secrets belong in .env (git-ignored), never here.", ""];
+  const lines = [ENV_EXAMPLE_HEADER, "# This file is a template; real secrets belong in .env (git-ignored), never here.", ""];
   for (const s of status) {
     for (const k of [...s.requiredMissing, ...s.optionalMissing]) {
       lines.push(`# ${s.id}${s.requiredMissing.includes(k) ? " (required)" : " (optional)"}: ${k.description ?? ""}`.trimEnd());
@@ -101,6 +103,15 @@ export function envExampleContent(status) {
     }
   }
   return `${lines.join("\n")}\n`;
+}
+
+// A project's .env.example is often the operator's own committed file. Replace it only when it is
+// absent or an earlier install generated it; report the skip otherwise. Returns whether it wrote.
+export async function writeEnvExample(file, status) {
+  const current = await readFileIfExists(file);
+  if (current !== null && !current.toString("utf8").startsWith(`${ENV_EXAMPLE_HEADER}\n`)) return false;
+  await writeFile(file, envExampleContent(status));
+  return true;
 }
 
 // ---- writing secrets ------------------------------------------------------

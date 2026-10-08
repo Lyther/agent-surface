@@ -2,6 +2,8 @@
 
 Generates OpenHands AgentSkills, instructions, external AgentSkills, and user-scope MCP wiring.
 
+Status: upstream no longer actively maintains the OpenHands V1 CLI this adapter targets ([project status](https://github.com/OpenHands/OpenHands-CLI#project-status)). The target stays implemented, selectable and included in `--target all` for existing CLI users; it does not target Agent Canvas or the SDK. Install and build plans show the `OPENHANDS_CLI_LEGACY` notice.
+
 ## Outputs
 
 - User: `~/.agents/skills/<name>/SKILL.md`

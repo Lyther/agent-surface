@@ -14,7 +14,7 @@ Generates native Agent Skills for safe reusable procedures. Available high-impac
 
 ## First-party MCP (generated)
 
-Goose configures MCP as YAML `extensions` (`type: stdio`) in the user-global `~/.config/goose/config.yaml`. agent-surface generates and **non-destructively merges** Synapse + Grimoire there on a user-scope install (`install --target goose --scope user --category mcps --allow-scope-root`): existing keys, comments, and your other extensions are preserved; re-running is a no-op. External or secret-bearing MCPs remain opt-in. Missing first-party binaries are built and linked through the registry recipe before any config is written. The merged block looks like:
+Goose configures MCP as YAML `extensions` (`type: stdio`) in the user-global `config.yaml`: `~/.config/goose/config.yaml` on macOS and Linux (`XDG_CONFIG_HOME` is not followed) and `Block\goose\config\config.yaml` in the roaming AppData directory on Windows (`%APPDATA%` by default), resolved from the profile home; a redirected `%APPDATA%` is not followed. The Windows route is not natively qualified; Windows installs made before it merged into `~/.config/goose/config.yaml`, which Windows Goose never reads, and the next full install prunes its servers there. agent-surface generates and **non-destructively merges** Synapse + Grimoire there on a user-scope install (`install --target goose --scope user --category mcps --allow-scope-root`): existing keys, comments, and your other extensions are preserved; re-running is a no-op. External or secret-bearing MCPs remain opt-in. Missing first-party binaries are built and linked through the registry recipe before any config is written. The merged block looks like:
 
 ```yaml
 extensions:

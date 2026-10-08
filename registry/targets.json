@@ -53,6 +53,7 @@
       "renders": [
         "skills",
         "rules",
+        "subagents",
         "external",
         "mcps"
       ]
@@ -275,9 +276,33 @@
         "mcps"
       ]
     },
-    "windsurf": {
+    "trae-cn": {
       "status": "implemented",
       "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "skills",
+        "rules",
+        "subagents",
+        "external",
+        "mcps"
+      ]
+    },
+    "trae-cli": {
+      "status": "implemented",
+      "build_supported": true,
+      "install_supported": true,
+      "renders": [
+        "skills",
+        "rules",
+        "subagents",
+        "external",
+        "mcps"
+      ]
+    },
+    "windsurf": {
+      "status": "deprecated",
+      "build_supported": false,
       "install_supported": true,
       "renders": [
         "skills",

@@ -99,6 +99,10 @@ export function grokBuildSkillRoot() {
   return path.join(".grok", "skills");
 }
 
+export function grokBuildAgentRoot() {
+  return path.join(".grok", "agents");
+}
+
 export function dshSkillRoot() {
   return path.join(".dsh", "skills");
 }
@@ -191,8 +195,11 @@ export function poolSkillRoot(context) {
   return context.scope === "user" ? path.join(".config", "poolside", "skills") : path.join(".poolside", "skills");
 }
 
+// Poolside documents personal instructions at the default config home's AGENTS.md. Poolside honors
+// XDG_CONFIG_HOME, but agent-surface does not follow it: the client's environment is not known at
+// install time.
 export function poolInstructionPath(context) {
-  return context.scope === "user" ? path.join(".config", "poolside", ".poolside") : "AGENTS.md";
+  return context.scope === "user" ? path.join(".config", "poolside", "AGENTS.md") : "AGENTS.md";
 }
 
 export function poolConfigRoot(context) {
@@ -215,17 +222,32 @@ function clineExtensionMcpPath(product) {
 export const clineVsCodeExtensionMcpPath = clineExtensionMcpPath("Code");
 export const clineCursorExtensionMcpPath = clineExtensionMcpPath("Cursor");
 export const clineWindsurfExtensionMcpPath = clineExtensionMcpPath("Windsurf");
+// Devin Desktop, the renamed Windsurf, keeps its own user data under Devin/ and extensions under ~/.devin.
+export const clineDevinExtensionMcpPath = clineExtensionMcpPath("Devin");
 
 export function ideUserDataRoot(product, context = {}) {
   const platform = context.platform ?? process.platform;
   if (platform === "darwin") return path.join("Library", "Application Support", product);
   if (platform === "win32") {
-    const windowsPath = path.win32;
     const appData = context.appData ?? process.env.APPDATA;
-    if (!context.relocateExternalRoutes && appData) return windowsPath.join(appData, product);
-    return windowsPath.join("AppData", "Roaming", product);
+    if (!context.relocateExternalRoutes && appData) return path.win32.join(appData, product);
+    return windowsRoamingPath(product);
   }
   return path.join(".config", product);
+}
+
+// The roaming AppData directory resolved from the profile home, as the VS Code root is: a
+// redirected %APPDATA% is not followed.
+function windowsRoamingPath(...segments) {
+  return path.win32.join("AppData", "Roaming", ...segments);
+}
+
+// Goose keeps config.yaml in ~/.config/goose on macOS and Linux (XDG_CONFIG_HOME is not followed)
+// and in the roaming AppData directory on Windows.
+export function gooseMcpPath(context) {
+  return (context.platform ?? process.platform) === "win32"
+    ? windowsRoamingPath("Block", "goose", "config", "config.yaml")
+    : path.join(".config", "goose", "config.yaml");
 }
 
 export function kiloWorkflowRoot(context) {
@@ -372,24 +394,35 @@ export function droidSkillRoot() {
   return path.join(".factory", "skills");
 }
 
+// Trae splits by root set: the international IDE and Trae CLI 2.0 read ~/.trae, the CN IDE reads
+// ~/.trae-cn, and every edition reads the project's .trae directory.
 export function traeSkillRoot() {
   return path.join(".trae", "skills");
 }
 
-export function traeCliSkillRoot() {
-  return path.join(".traecli", "skills");
+export function traeCnSkillRoot(context) {
+  return context.scope === "user" ? path.join(".trae-cn", "skills") : traeSkillRoot();
 }
 
-export function traeAgentRoot(context) {
-  return context.scope === "user"
-    ? [path.join(".trae-cn", "agents"), path.join(".traecli", "agents")]
-    : [path.join(".trae", "agents"), path.join(".traecli", "agents")];
+export function traeAgentRoot() {
+  return path.join(".trae", "agents");
 }
 
+export function traeCnAgentRoot(context) {
+  return context.scope === "user" ? path.join(".trae-cn", "agents") : traeAgentRoot();
+}
+
+// Per-rule project rules every edition reads, and the CN IDE's user rules folder.
 export function traeRuleRoot(context) {
-  return context.scope === "user"
-    ? path.join(".trae-cn", "user_rules")
-    : path.join(".trae", "rules");
+  return context.scope === "user" ? path.join(".trae-cn", "user_rules") : path.join(".trae", "rules");
+}
+
+// Each IDE edition reads user MCP servers from mcp.json beside its per-OS User settings; a project
+// keeps .trae/mcp.json.
+export function traeMcpPath(product) {
+  return (context) => context.scope === "user"
+    ? path.join(ideUserDataRoot(product, context), "User", "mcp.json")
+    : path.join(".trae", "mcp.json");
 }
 
 export function traeCliConfigPath() {
@@ -429,13 +462,21 @@ export function vsCodeUserRoot(product, context = {}) {
 export const zedSkillRoot = sharedAgentSkillRoot;
 
 export function zedInstructionPath(context) {
-  return context.scope === "user" ? path.join(".config", "zed", "AGENTS.md") : "AGENTS.md";
+  return context.scope === "user" ? zedConfigPath(context, "AGENTS.md") : "AGENTS.md";
 }
 
+// Zed's config directory is ~/.config/zed on macOS and Linux (Linux Zed also honors XDG_CONFIG_HOME,
+// which is not followed here) and the roaming AppData directory on Windows.
 export function zedConfigRoot(context) {
-  return context.scope === "user" ? path.join(".config", "zed") : ".zed";
+  if (context.scope !== "user") return ".zed";
+  return (context.platform ?? process.platform) === "win32" ? windowsRoamingPath("Zed") : path.join(".config", "zed");
 }
 
 export function zedMcpPath(context) {
-  return path.join(zedConfigRoot(context), "settings.json");
+  return zedConfigPath(context, "settings.json");
+}
+
+function zedConfigPath(context, name) {
+  const pathApi = (context.platform ?? process.platform) === "win32" ? path.win32 : path;
+  return pathApi.join(zedConfigRoot(context), name);
 }

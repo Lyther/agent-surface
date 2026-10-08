@@ -105,6 +105,9 @@ jobs:
       - run: node tests/suites/provision.test.mjs
       - run: node tests/suites/provision-exec.test.mjs
       - run: node tests/suites/provision-install.test.mjs
+      # Per-OS install routes planned natively: Zed's and Goose's AppData roots, the cleanup of what
+      # pre-fix Windows installs left in ~/.config, and Cline's per-editor route under %APPDATA%.
+      - run: node tests/suites/os-routes.test.mjs
 
   mcp:
     runs-on: ubuntu-24.04

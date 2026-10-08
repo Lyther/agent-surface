@@ -5,6 +5,12 @@ alwaysApply: true
 
 # Agent Workflow
 
+## Outcome First
+
+- Prioritize the user's current milestone and critical path; a valid concern is not automatically a blocker.
+- Block only work the issue prevents or invalidates. Track other required work in the existing backlog instead of expanding the current gate.
+- Start authorized long-running validation once prerequisites are met; advance independent work while it runs without changing its inputs. Reassess priorities after each round.
+
 ## Operating Loop
 
 1. Reconstruct the actual request, scope, repo state, and constraints from current evidence.

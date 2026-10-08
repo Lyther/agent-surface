@@ -20,6 +20,7 @@ targets:
   antigravity-cli: true
   antigravity: false
   opencode: true
+  grok-build: true
 ---
 
 # boss

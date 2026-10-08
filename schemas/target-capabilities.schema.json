@@ -137,11 +137,96 @@
               },
               "additionalProperties": false
             }
+          },
+          "notices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/notice"
+            }
           }
         },
         "additionalProperties": false
       }
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "notice": {
+      "type": "object",
+      "required": [
+        "code",
+        "kind",
+        "surface",
+        "message",
+        "action",
+        "source_url",
+        "checked_at"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]+$"
+        },
+        "kind": {
+          "enum": [
+            "maintenance",
+            "retirement",
+            "security",
+            "compatibility"
+          ]
+        },
+        "surface": {
+          "$ref": "#/$defs/id"
+        },
+        "message": {
+          "$ref": "#/$defs/text"
+        },
+        "action": {
+          "$ref": "#/$defs/text"
+        },
+        "source_url": {
+          "$ref": "#/$defs/url"
+        },
+        "checked_at": {
+          "$ref": "#/$defs/date"
+        },
+        "effective_on": {
+          "$ref": "#/$defs/date"
+        }
+      },
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "retirement"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "effective_on"
+        ]
+      },
+      "additionalProperties": false
+    }
+  }
 }

@@ -1,5 +1,6 @@
 // The `doctor` command: environment + host-integration health report (node, git,
-// per-agent CLIs, and first-party MCP binaries/index freshness). Read-only probes.
+// per-agent CLIs, first-party MCP binaries/index freshness, and stored target notices).
+// Read-only probes.
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -7,6 +8,7 @@ import process from "node:process";
 
 import { files } from "./fs-tree.mjs";
 import { readJsonIfExists, readJsoncIfExists } from "./io.mjs";
+import { allStoredNotices, localDate, noticeHeading } from "./notices.mjs";
 import { commandVersion } from "./proc.mjs";
 import { readOptionalServices, root } from "./registry.mjs";
 import { exists } from "./util.mjs";
@@ -39,6 +41,11 @@ export async function doctor() {
   checks.push(["grimoire-index", await grimoireIndexStatus()]);
   checks.push(["synapse-bridge", (await exists(path.join(bin, "synapse-bridge"))) ? "linked" : "missing (npm run install:synapse)"]);
   checks.push(["synapse-sidecar", (await exists(path.join(os.homedir(), ".synapse", "sidecar.json"))) ? "present" : "missing (autostarts on first use)"]);
+
+  const today = localDate();
+  for (const { target, notice } of await allStoredNotices()) {
+    checks.push([`notice ${target}`, `${noticeHeading(notice, today)}; source ${notice.source_url}`]);
+  }
 
   for (const [name, result] of checks) {
     console.log(`${name}: ${result}`);

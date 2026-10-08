@@ -12,6 +12,7 @@ import {
   clineIdeUserDataRoot,
   clineUserMcpRoutes,
   hasLocalOpsServerCommand,
+  installClineExtension,
   root,
   run, status,
 } from "../lib/helpers.mjs";
@@ -44,15 +45,22 @@ planHas(clinePlan, [
 ], "cline");
 planLacks(clinePlan, [/cline_mcp_settings\.json MCP/], "cline");
 
+const clineUserMcpDest = "/tmp/agent-surface-cline-user-mcp";
+rmSync(clineUserMcpDest, { recursive: true, force: true });
+installClineExtension(clineUserMcpDest, ["Code"]);
 const clineUserMcpPlan = run([
-  "install", "--target", "cline", "--scope", "user", "--dest", "/tmp/agent-surface-cline-user-mcp",
+  "install", "--target", "cline", "--scope", "user", "--dest", clineUserMcpDest,
   "--category", "mcps", "--dry-run",
 ]);
 planHas(clineUserMcpPlan, [
   /\.cline\/data\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/,
   /Code\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/,
 ], "cline user mcps");
-planLacks(clineUserMcpPlan, [/\.cline\/mcp\.json/], "cline user mcps");
+planLacks(clineUserMcpPlan, [
+  /\.cline\/mcp\.json/,
+  /(Cursor|Windsurf)\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP/,
+], "cline user mcps without Cline in Cursor or Windsurf");
+rmSync(clineUserMcpDest, { recursive: true, force: true });
 
 const kiloPlan = dryRun("kilo", ["--category", "development"]);
 planHas(kiloPlan, [
@@ -215,6 +223,7 @@ for (const [target, patterns] of [
   planHas(dryRun(target, ["--category", "development"]), patterns, `${target} development`);
 }
 planHas(dryRun("grok-build"), [/\.grok\/config\.toml MCP \+= grimoire, synapse/], "grok-build default");
+planHas(dryRun("grok-build", ["--category", "development"]), [/\.grok\/agents\/boss\.md <- subagents\/boss\.md/, /\.grok\/agents\/worker\.md <- subagents\/worker\.md/], "grok-build development");
 
 // OpenHands MCP is user-scope only on project dry-run.
 planLacks(dryRun("openhands"), [/\.openhands\/mcp\.json MCP/], "openhands project");
@@ -460,7 +469,7 @@ writeFileSync(path.join(retiredVscodiumDest, ".agent-surface", "grok-build-manif
   config_entries: [{ path: retiredGrokMcpRel, format: "mcpServers", ids: ["old-owned"] }],
 }, null, 2)}\n`);
 const retiredVscodiumPlan = run(["install", "--target", "all", "--scope", "user", "--dest", retiredVscodiumDest, "--dry-run"]);
-assert.match(retiredVscodiumPlan, /planned stale managed paths retained by active targets:/);
+assert.match(retiredVscodiumPlan, /planned stale managed paths retained for other owners:/);
 assert.match(retiredVscodiumPlan, new RegExp(liveKiloConfigRel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 run(["install", "--target", "all", "--scope", "user", "--dest", retiredVscodiumDest]);
 assert.equal(existsSync(path.join(retiredVscodiumDest, retiredOwnedRel)), false);
@@ -565,14 +574,17 @@ assert.doesNotMatch(kimiCodeMcpOnlyPlan, /default_permission_mode :=/);
 assert.doesNotMatch(kimiCodeMcpOnlyPlan, /kimi\.yoloMode :=/);
 rmSync(kimiCodeDest, { recursive: true, force: true });
 
-// Install now overwrites existing files by default.
+// An existing file no manifest in the install root claims is an operator's file: the install
+// refuses before writing anything instead of overwriting it (contract Migration step 2).
 const unmanagedDest = "/tmp/agent-surface-unmanaged";
 rmSync(unmanagedDest, { recursive: true, force: true });
 mkdirSync(path.join(unmanagedDest, ".clinerules", "workflows"), { recursive: true });
 writeFileSync(path.join(unmanagedDest, ".clinerules", "workflows", "ops-nuke.md"), "local workflow\n");
-const overwriteInstall = run(["install", "--target", "cline", "--dest", unmanagedDest, "--category", "development"]);
-assert.match(overwriteInstall, /^installed:$/m);
-assert.match(readFileSync(path.join(unmanagedDest, ".clinerules", "workflows", "ops-nuke.md"), "utf8"), /^## OBJECTIVE/);
+const unownedInstall = status(["install", "--target", "cline", "--dest", unmanagedDest, "--category", "development"]);
+assert.equal(unownedInstall.status, 1, unownedInstall.stdout);
+assert.match(unownedInstall.stdout, /UNOWNED_DESTINATION: \.clinerules[\\/]workflows[\\/]ops-nuke\.md /);
+assert.equal(readFileSync(path.join(unmanagedDest, ".clinerules", "workflows", "ops-nuke.md"), "utf8"), "local workflow\n");
+assert.equal(existsSync(path.join(unmanagedDest, ".agent-surface", "cline-manifest.json")), false);
 rmSync(unmanagedDest, { recursive: true, force: true });
 
 const liveStaleDest = "/tmp/agent-surface-live-stale";
@@ -635,6 +647,7 @@ assert.match(invalidScope.stderr, /unsupported install scope/);
 const userScopeHome = "/tmp/agent-surface-user-scope-home";
 rmSync(userScopeHome, { recursive: true, force: true });
 mkdirSync(userScopeHome, { recursive: true });
+installClineExtension(userScopeHome);
 const userScopeEnv = { ...process.env, HOME: userScopeHome };
 const clineUserScope = status(["install", "--target", "cline", "--scope", "user", "--dry-run"], { env: userScopeEnv });
 assert.equal(clineUserScope.status, 0, `${clineUserScope.stdout}${clineUserScope.stderr}`);
@@ -646,6 +659,7 @@ assert.match(clineUserScope.stdout, /\.cline\/data\/settings\/cline_mcp_settings
 assert.match(clineUserScope.stdout, /Code\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
 assert.match(clineUserScope.stdout, /Cursor\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
 assert.match(clineUserScope.stdout, /Windsurf\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
+assert.match(clineUserScope.stdout, /Devin\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
 const clineDevelopmentUserScope = status(
   ["install", "--target", "cline", "--scope", "user", "--category", "development", "--dry-run"],
   { env: userScopeEnv },
@@ -936,6 +950,7 @@ for (const scope of ["user", "project"]) {
   rmSync(obsoleteClineMcpDest, { recursive: true, force: true });
   mkdirSync(path.join(obsoleteClineMcpDest, ".cline"), { recursive: true });
   mkdirSync(path.join(obsoleteClineMcpDest, ".agent-surface"), { recursive: true });
+  installClineExtension(obsoleteClineMcpDest);
   writeFileSync(
     path.join(obsoleteClineMcpDest, ".cline", "mcp.json"),
     `${JSON.stringify({
@@ -982,6 +997,67 @@ for (const scope of ["user", "project"]) {
     assert.deepEqual(migratedClineManifest.config_entries, []);
   }
   rmSync(obsoleteClineMcpDest, { recursive: true, force: true });
+}
+
+// A per-editor Cline MCP file is read only by that editor's Cline, so its route is live only where the
+// editor's extensions folder holds Cline; extension storage is not a signal. A skipped route is listed
+// with its reason, and a full install prunes what agent-surface merged into a route whose editor has no
+// Cline, as the stray Windsurf file on the operator's profile needed.
+// SUBSTITUTE_JUSTIFICATION
+// - substitute: empty Cline extension folders, Cline storage without an extension, and a stray
+//   per-editor settings file with the historical manifest entry that claimed it
+// - replaces: editors with and without Cline, and the pre-guard install that created the stray file
+// - necessity: installing editors and Cline in a test would launch editor clients and download the
+//   extension
+// - real-option: the real CLI plans and applies against disposable roots
+// - proof-limit: proves which routes the planner makes live, skips or prunes, not that an editor loads
+//   the file
+// - real-proof: a read-only `install --target cline --scope user --dry-run` against the operator's
+//   profile kept the VS Code and Cursor routes and pruned only the stray Windsurf one
+{
+  const perEditor = (product) => path.join(clineIdeUserDataRoot(product), "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json");
+  const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const added = (product) => new RegExp(`${escaped(perEditor(product))} MCP \\+= grimoire, synapse`);
+  const guardRoot = mkdtempSync(path.join(os.tmpdir(), "agent-surface-cline-editors-"));
+  const plan = (dest, extra = ["--category", "mcps"]) => run(["install", "--target", "cline", "--scope", "user", "--dest", dest, ...extra, "--dry-run"]);
+  try {
+    const fresh = plan(path.join(guardRoot, "fresh"));
+    assert.match(fresh, /\.cline\/data\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
+    assert.doesNotMatch(fresh, /User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP/, "no editor has Cline, so no per-editor route");
+    assert.match(fresh, new RegExp(`^ {2}${escaped(perEditor("Code"))}: no saoudrizwan\\.claude-dev extension folder under \\.vscode[\\\\/]extensions$`, "m"));
+
+    // Devin Desktop, the renamed Windsurf, has its own extensions folder and route.
+    const present = path.join(guardRoot, "present");
+    installClineExtension(present, ["Code", "Devin"]);
+    const cursorStorage = path.join(present, perEditor("Cursor"));
+    mkdirSync(path.dirname(cursorStorage), { recursive: true });
+    writeFileSync(cursorStorage, `${JSON.stringify({ mcpServers: {} })}\n`);
+    const presentPlan = plan(present);
+    assert.match(presentPlan, added("Code"));
+    assert.match(presentPlan, added("Devin"));
+    assert.doesNotMatch(presentPlan, added("Windsurf"), "the legacy Windsurf route stays separate");
+    assert.doesNotMatch(presentPlan, added("Cursor"), "extension storage outlives an uninstall, so it is not a signal");
+
+    const strayDest = path.join(guardRoot, "stray");
+    const stray = path.join(strayDest, perEditor("Windsurf"));
+    mkdirSync(path.dirname(stray), { recursive: true });
+    mkdirSync(path.join(strayDest, ".agent-surface"), { recursive: true });
+    writeFileSync(stray, `${JSON.stringify({ mcpServers: { existing: { command: "keep" }, grimoire: { command: "old" }, synapse: { command: "old" } } }, null, 2)}\n`);
+    writeFileSync(path.join(strayDest, ".agent-surface", "cline-manifest.json"), `${JSON.stringify({
+      target: "cline",
+      scope: "user",
+      managed: [],
+      config_entries: [{ path: perEditor("Windsurf"), format: "mcpServers", ids: ["grimoire", "synapse"] }],
+    }, null, 2)}\n`);
+    assert.match(plan(strayDest, []), new RegExp(`${escaped(perEditor("Windsurf"))} MCP -= grimoire, synapse`));
+    run(["install", "--target", "cline", "--scope", "user", "--dest", strayDest]);
+    assert.deepEqual(JSON.parse(readFileSync(stray, "utf8")).mcpServers, { existing: { command: "keep" } }, "only the owned servers leave the stray file");
+    assert.equal(existsSync(path.join(strayDest, clineIdeUserDataRoot("Devin"))), false, "without Cline in Devin, an install creates no Devin user data");
+    const strayManifest = JSON.parse(readFileSync(path.join(strayDest, ".agent-surface", "cline-manifest.json"), "utf8"));
+    assert.ok(!strayManifest.config_entries.some((entry) => entry.path === perEditor("Windsurf")), "the pruned route is no longer claimed");
+  } finally {
+    rmSync(guardRoot, { recursive: true, force: true });
+  }
 }
 
 const existingOpenHandsMcpDest = "/tmp/agent-surface-openhands-existing-mcp";
@@ -1062,6 +1138,7 @@ const mergeFixtures = [
     }
   },
   { target: "trae", rel: ".trae/mcp.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } } },
+  { target: "trae-cn", rel: ".trae/mcp.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } } },
   {
     target: "qoder", rel: ".qoder/settings.json", root: "mcpServers", pre: { general: { theme: "keep" }, mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } },
     keep: (parsed) => assert.equal(parsed.general.theme, "keep", "qoder settings sibling preserved"),
@@ -1218,11 +1295,11 @@ for (const fx of [
     assert.equal(existsSync(path.join(dest, ".trae", "agents", "boss.md")), false);
     const nativeRule = readFileSync(path.join(dest, ".trae", "rules", "00-precedence-and-safety.md"), "utf8");
     assert.match(nativeRule, /^alwaysApply: true$/m);
+    assert.equal(existsSync(path.join(dest, ".trae", "user_rules.md")), false, "no Trae edition reads a project user_rules.md");
     run(["install", "--target", "trae", "--scope", "project", "--dest", dest, "--category", "development"]);
     assert.equal(existsSync(path.join(dest, ".trae", "agents", "boss.md")), true);
-    assert.equal(existsSync(path.join(dest, ".traecli", "agents", "boss.md")), true);
     assert.equal(existsSync(path.join(dest, ".trae", "skills", "workflow-runtime", "SKILL.md")), true);
-    assert.equal(existsSync(path.join(dest, ".traecli", "skills", "workflow-runtime", "SKILL.md")), true);
+    assert.equal(existsSync(path.join(dest, ".traecli")), false, "Trae CLI 1.0 routes are not written");
   } finally {
     rmSync(dest, { recursive: true, force: true });
   }
@@ -1234,7 +1311,7 @@ for (const fx of [
     mkdirSync(path.join(dest, ".trae"), { recursive: true });
     const configPath = path.join(dest, ".trae", "traecli.toml");
     writeFileSync(configPath, '[profile.default] # keep\nmodel = "keep-me"\n');
-    const args = ["install", "--target", "trae", "--scope", "user", "--dest", dest];
+    const args = ["install", "--target", "trae-cli", "--scope", "user", "--dest", dest];
     run(args);
     const config = readFileSync(configPath, "utf8");
     const parsed = TOML.parse(config);
@@ -1461,14 +1538,24 @@ assert.equal([...packedPaths].some((file) => file.startsWith(".agent-surface/"))
 
 const allTargetsDest = mkdtempSync(path.join(os.tmpdir(), "agent-surface-all-targets-"));
 try {
-  run(["install", "--target", "all", "--scope", "user", "--dest", allTargetsDest]);
+  const allTargetsInstall = run(["install", "--target", "all", "--scope", "user", "--dest", allTargetsDest]);
   const manifestRoot = path.join(allTargetsDest, ".agent-surface");
   // `--target all` covers every INSTALLABLE target. An export format has no install destination of
   // its own — its package is handed to the host's own plugin manager — so it is skipped rather than
-  // written somewhere invented. Asserted explicitly so the skip stays deliberate.
+  // written somewhere invented. Asserted explicitly so the skip stays deliberate. A deprecated
+  // target stays out of `all` too, and the plan says so.
+  const deprecated = Object.entries(JSON.parse(readFileSync(path.join(root, "registry", "targets.json"), "utf8")).in_scope)
+    .filter(([, entry]) => entry.status === "deprecated")
+    .map(([target]) => target);
+  assert.ok(deprecated.length > 0, "the registry still holds a deprecated target to exercise");
+  const runtimeAllPlan = run(["install", "--runtime", "all", "--scope", "user", "--dest", allTargetsDest, "--dry-run"]);
+  for (const target of deprecated) {
+    assert.match(allTargetsInstall, new RegExp(`^${target}: excluded from --target all \\(deprecated\\)`, "m"));
+    assert.match(runtimeAllPlan, new RegExp(`^${target}: excluded from --target all \\(deprecated\\)`, "m"), "the --runtime alias selects the same set");
+  }
   for (const [target, adapter] of Object.entries(targets)) {
-    if (adapter.buildOnly) {
-      assert.ok(!existsSync(path.join(manifestRoot, `${target}-manifest.json`)), `${target}: an export format is not installed by --target all`);
+    if (adapter.buildOnly || deprecated.includes(target)) {
+      assert.ok(!existsSync(path.join(manifestRoot, `${target}-manifest.json`)), `${target}: not installed by --target all`);
       continue;
     }
     const manifest = JSON.parse(

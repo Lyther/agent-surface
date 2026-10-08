@@ -13,7 +13,7 @@ import { directDirectories, files, filesUnder } from "./fs-tree.mjs";
 import { readFileIfExists } from "./io.mjs";
 import { gitIgnoredPaths, gitStagedGitlinkMap, gitSubmoduleStatusMap } from "./proc.mjs";
 import { readAssetCategories, readOptionalServices, readSourceKinds, relative, root } from "./registry.mjs";
-import { vsCodeUserRoot } from "./roots.mjs";
+import { vsCodeUserRoot, zedInstructionPath } from "./roots.mjs";
 import { readRules } from "./rules.mjs";
 import { readSkills } from "./skills.mjs";
 import { readSubagents, subagentValidationErrors } from "./source-primitives.mjs";
@@ -218,8 +218,10 @@ export async function check() {
     }
   }
 
+  // `build --target all` skips only deprecated targets, so every other adapter must stay buildable.
   for (const name of Object.keys(targets)) {
-    if (!targetsConfig.in_scope[name]?.build_supported) {
+    const entry = targetsConfig.in_scope[name];
+    if (!entry?.build_supported && entry?.status !== "deprecated") {
       errors.push(`CLI build target is not marked build_supported in registry: ${name}`);
     }
   }
@@ -688,6 +690,26 @@ export async function checkTargetCapabilities(targetsConfig, errors) {
       );
     }
   }
+
+  for (const name of capabilityTargets) {
+    errors.push(...noticeErrors(name, capabilities.targets[name]));
+  }
+}
+
+// Notice rules the capability schema cannot express: a code is unique within its target, and a
+// surface is `target` or one of the target's capability keys.
+function noticeErrors(name, record) {
+  const errors = [];
+  const surfaces = new Set(Object.keys(record?.surfaces ?? {}));
+  const codes = new Set();
+  for (const notice of Array.isArray(record?.notices) ? record.notices : []) {
+    if (codes.has(notice?.code)) errors.push(`target capabilities ${name} repeats notice code ${notice?.code}`);
+    codes.add(notice?.code);
+    if (notice?.surface !== "target" && !surfaces.has(notice?.surface)) {
+      errors.push(`target capabilities ${name} notice ${notice?.code} names unknown surface ${notice?.surface}`);
+    }
+  }
+  return errors;
 }
 
 export async function checkWorkflowFixtures(ajv, schemas, errors) {
@@ -955,6 +977,8 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".grok", "config.toml"), /^\[ui\]$/m);
     requireContains(path.join(".grok", "config.toml"), /^permission_mode = "always-approve"$/m);
     requireContains(path.join(".grok", "config.toml"), /^\[mcp_servers\.synapse\]$/m);
+    requireContains(path.join(".grok", "agents", "boss.md"), /^---\nname: boss\n[\s\S]*^capabilityMode: read-only$/m);
+    requireContains(path.join(".grok", "agents", "worker.md"), /^capabilityMode: all$/m);
   } else if (target === "dsh") {
     requireContains(path.join(".dsh", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     if (outputs.some((output) => output.source.startsWith("commands/"))) {
@@ -966,7 +990,7 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".pi", "agent", "skills", "ctf-web", "SKILL.md"), skillFrontmatter);
   } else if (target === "pool") {
     requireContains(path.join(".config", "poolside", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
-    requireContains(path.join(".config", "poolside", ".poolside"), /agent-surface Poolside rules/);
+    requireContains(path.join(".config", "poolside", "AGENTS.md"), /agent-surface Poolside rules/);
     requireContains(path.join(".config", "poolside", "skills", "redteam-boundary-policy", "SKILL.md"), skillFrontmatter);
   } else if (target === "cline") {
     requirePath(path.join(".cline", "skills", "ops-flow", "SKILL.md"));
@@ -1104,6 +1128,13 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".trae", "user_rules.md"), /agent-surface Trae user rules/);
     requirePath(path.join(".trae", "skills", "ops-flow", "SKILL.md"));
     requireContains(path.join(".trae-cn", "agents", "boss.md"), /^---\nname: boss\n/);
+  } else if (target === "trae-cn") {
+    requirePath(path.join(".trae-cn", "user_rules", "00-precedence-and-safety.md"));
+    requirePath(path.join(".trae-cn", "skills", "ops-flow", "SKILL.md"));
+    requireContains(path.join(".trae-cn", "agents", "boss.md"), /^---\nname: boss\n/);
+  } else if (target === "trae-cli") {
+    requirePath(path.join(".trae", "skills", "ops-flow", "SKILL.md"));
+    requireContains(path.join(".trae", "agents", "boss.md"), /^---\nname: boss\n/);
     requireContains(path.join(".trae", "traecli.toml"), /^approval_policy = "never"$/m);
     requireContains(path.join(".trae", "traecli.toml"), /^default_permissions = ":danger-full-access"$/m);
     requireContains(path.join(".trae", "traecli.toml"), /^\[mcp_servers\.synapse\]$/m);
@@ -1114,7 +1145,7 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".codeium", "windsurf", "skills", "ctf-osint", "SKILL.md"), skillFrontmatter);
   } else if (target === "zed") {
     requireContains(path.join(".agents", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
-    requireContains(path.join(".config", "zed", "AGENTS.md"), /agent-surface Zed rules/);
+    requireContains(zedInstructionPath({ scope: "user" }), /agent-surface Zed rules/);
     requireContains(path.join(".agents", "skills", "redteam-boundary-policy", "SKILL.md"), skillFrontmatter);
   } else if (target === "codex-plugin") {
     // An exported package is only portable if its manifest is VALID. `$schema` is a required const

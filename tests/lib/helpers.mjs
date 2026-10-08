@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,9 +17,25 @@ export function clineIdeUserDataRoot(product) {
   return path.join(".config", product);
 }
 
+// SUBSTITUTE_JUSTIFICATION
+// - substitute: an empty saoudrizwan.claude-dev-<version> folder in an editor's extensions directory
+// - replaces: a Cline extension installed in that editor
+// - necessity: the planner's presence check reads only folder names; installing editors and Cline
+//   in a test would launch editor clients and download the extension
+// - real-option: the real CLI plans against a disposable root
+// - proof-limit: proves which per-editor routes are planned, not that the editor loads Cline
+// - real-proof: a read-only `install --target cline --scope user --dry-run` against the operator's
+//   profile planned the VS Code and Cursor routes
+const clineExtensionDirs = { Code: ".vscode", Cursor: ".cursor", Windsurf: ".windsurf", Devin: ".devin" };
+export function installClineExtension(installRoot, editors = Object.keys(clineExtensionDirs)) {
+  for (const editor of editors) {
+    mkdirSync(path.join(installRoot, clineExtensionDirs[editor], "extensions", "saoudrizwan.claude-dev-3.86.2"), { recursive: true });
+  }
+}
+
 export const clineUserMcpRoutes = [
   path.join(".cline", "data", "settings", "cline_mcp_settings.json"),
-  ...["Code", "Cursor", "Windsurf"].map((product) => path.join(
+  ...["Code", "Cursor", "Windsurf", "Devin"].map((product) => path.join(
     clineIdeUserDataRoot(product),
     "User",
     "globalStorage",
