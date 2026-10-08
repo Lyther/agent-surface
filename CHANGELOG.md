@@ -46,6 +46,7 @@ Notable changes to agent-surface and its first-party MCP services. Format: [Keep
 
 ### Fixed
 
+- **Install roots reached through a symbolic link** - an install whose root is itself a symbolic link, such as a home directory that points to another volume (`/home/<user>` -> `/data00/home/<user>`), was refused with `traverses symbolic link` for every target. The root is now followed like the directories above it; a link below the root still refuses the plan before anything is written.
 - **MCP opt-in** — `--category mcps` without `--service` now selects first-party services only; external MCPs such as `pentest-ai` require an explicit `--service`.
 - **Install correctness** — `grimoire-index` wrapper resolves the real entrypoint (derived from `package.json#bin`); a missing required pack fails the install (exit 1) non-destructively instead of silently succeeding.
 - **Grimoire provenance and lifecycle** - requires explicit attribution, marks Git-less input `uncommitted`, fingerprints complete skill source, cleans failed publication temporaries, and reopens atomic index replacements.

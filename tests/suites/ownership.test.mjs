@@ -370,6 +370,28 @@ try {
     assert.equal(rerun.code, 0, rerun.out);
     assert.ok(existsSync(path.join(dest, "AGENTS.md")), "the rerun finished the install");
   }
+
+  // An install root reached through a symbolic link, such as a home directory on another volume, is
+  // followed like the directories above it; a link below the root still refuses the plan untouched.
+  {
+    const real = path.join(scratch, "real-root");
+    const linked = path.join(scratch, "linked-root");
+    mkdirSync(real);
+    symlinkSync(real, linked, "dir");
+    const viaLink = project(linked, "openhands");
+    assert.equal(viaLink.code, 0, viaLink.out);
+    assert.ok(existsSync(path.join(real, "AGENTS.md")) && claims(real, "openhands", "AGENTS.md"), "writes and the manifest land in the link's target");
+
+    const elsewhere = path.join(scratch, "elsewhere");
+    mkdirSync(elsewhere);
+    const inner = path.join(scratch, "inner-link");
+    mkdirSync(inner);
+    symlinkSync(elsewhere, path.join(inner, ".agents"), "dir");
+    const refused = project(inner, "openhands");
+    assert.notEqual(refused.code, 0, refused.out);
+    assert.match(refused.out, /traverses symbolic link: .*inner-link\/\.agents/);
+    assert.deepEqual(readdirSync(elsewhere), [], "nothing is written through a link inside the root");
+  }
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }

@@ -1856,7 +1856,9 @@ async function installPathError(safetyRoot, candidate, label) {
   for (const [index, item] of paths.entries()) {
     let info;
     try {
-      info = await lstat(item);
+      // The root is the operator's chosen boundary and is followed like the directories above it, so
+      // a home directory reached through a symbolic link still installs; a link below it is refused.
+      info = index === 0 ? await stat(item) : await lstat(item);
     } catch (error) {
       if (error?.code === "ENOENT") return null;
       return `${label} cannot be inspected safely: ${error.message}`;
