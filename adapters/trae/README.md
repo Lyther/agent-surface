@@ -18,7 +18,7 @@ Notes:
 - The user `mcp.json` route comes from the 3.5.25 app bundle, not from the documentation; the Linux location is unverified. Project MCP in `.trae/mcp.json` is documented.
 - `~/.trae/skills` is shared with `trae-cli`; installing both co-owns those files.
 - Before the split this target also wrote the CN IDE's `~/.trae-cn/user_rules`, Trae CLI 1.0's `~/.traecli` copies, the CLI's `~/.trae/traecli.toml` servers and a user `~/.trae/mcp.json` that neither the macOS nor the Windows build reads. The `~/.trae-cn/user_rules` files and the `traecli.toml` servers stay claimed and untouched until `trae-cn` or `trae-cli` itself claims each file or server; this target then lets go of it without removing or pruning it. A successor installed only for skills takes over nothing. The CLI 1.0 copies, project ones included, are removed as stale, and the servers in `~/.trae/mcp.json` are pruned.
-- In a project installed before the split with optional MCP servers, run `--target trae --scope project` once before a joint `--target all --scope project`; otherwise `trae` and `trae-cn` plan different `.trae/mcp.json` merges and the joint run stops with `also planned by`.
+- In a project installed before the split with optional MCP servers, run `--target trae --scope project --dest <project>` once before a joint `--target all --scope project --dest <project>`; otherwise `trae` and `trae-cn` plan different `.trae/mcp.json` merges and the joint run stops with `also planned by`.
 - High-impact workflows stay explicit-invocation compatibility skills; enforcement remains unproven.
 
 References:
