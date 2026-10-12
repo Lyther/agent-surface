@@ -213,9 +213,9 @@ State: DEFERRED. Depends on: `RT4.1`. Compare direct files, native plugins and o
 
 ### RT5.3 Gaps Found During RT2.4
 
-State: DEFERRED; none blocks a completed task. Each needs its own reproducer before a change.
+State: DEFERRED; none blocks a completed task. Each needs its own reproducer before a change. An item marked Fixed is done and stays listed with its date.
 
-- Kilo personal rules: user-scope `instructions` entries are `./rules/<name>.md`, which Kilo's source resolves against the project directory, so `~/.config/kilo/rules` may never load (source reading only; confirm with the installed `kilo` CLI first). The declared user MCP route is also computed from a context object and reads `kilo.jsonc`; plans and writes use `~/.config/kilo/kilo.jsonc`, so no install output changes.
+- Fixed 2026-10-12: Kilo personal rules. User-scope `instructions` entries were `./rules/<name>.md`, which Kilo CLI 7.8.8 resolves against the project directory, so `~/.config/kilo/rules` never loaded (a real run with a project decoy and a control, recorded in `adapters/kilo/README.md`). Entries are now `~/.config/kilo/rules/<name>.md`; an install that selects rules drops the old ones. Still open: the declared user MCP route is also computed from a context object and reads `kilo.jsonc`; plans and writes use `~/.config/kilo/kilo.jsonc`, so no install output changes.
 - Cline global workflows: the extension reads the OS Documents folder (OneDrive-redirected on Windows, `xdg-user-dir DOCUMENTS` on Linux), while agent-surface writes `~/Documents/Cline/Workflows`, which the CLI reads.
 - An unreadable MCP config file stops a plan with a bare `EACCES` error rather than a named blocked line, for every target; nothing is written.
 - A CN-only profile keeps pre-split development agents in the co-owned `~/.trae-cn/agents` until `trae` or `--target all` runs a general install.

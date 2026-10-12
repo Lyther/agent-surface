@@ -1009,7 +1009,7 @@ export function validateGeneratedTarget(target, outputs) {
     requirePath(path.join(".kilo", "skills", "ops-flow", "SKILL.md"));
     requirePath(path.join(".config", "kilo", "commands", "ops-nuke.md"));
     requireContains(path.join(".config", "kilo", "agents", "boss.md"), /^---\ndescription: "/);
-    requireContains(path.join(".config", "kilo", "kilo.jsonc"), /"\.\/rules\/00-precedence-and-safety\.md"/);
+    requireContains(path.join(".config", "kilo", "kilo.jsonc"), /"~\/\.config\/kilo\/rules\/00-precedence-and-safety\.md"/);
     requireContains(path.join(".config", "kilo", "rules", "00-precedence-and-safety.md"), /Precedence and Safety/);
     requireContains(path.join(".config", "kilo", "references", "rules", "10-python.md"), /Scoped agent-surface reference/);
     if (byPath.has(path.join(".config", "kilo", "AGENTS.md"))) {
