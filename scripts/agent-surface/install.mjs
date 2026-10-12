@@ -813,7 +813,13 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       item.action = "blocked";
       continue;
     }
-    const current = await readFileIfExists(item.output);
+    const read = await readDestination(item.output, `managed output ${item.relativeOutput}`);
+    if (read.error) {
+      blocked.push(read.error);
+      item.action = "blocked";
+      continue;
+    }
+    const current = read.content;
     if (current === null) {
       item.action = "write";
       continue;
@@ -1015,7 +1021,12 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       blocked.push(routeError);
       continue;
     }
-    const current = await readFileIfExists(output);
+    const read = await readDestination(output, `stale managed output ${item.output}`);
+    if (read.error) {
+      blocked.push(read.error);
+      continue;
+    }
+    const current = read.content;
     if (current === null) {
       staleRemovalActions.push({ output, relativeOutput: item.output, action: "missing" });
       continue;
@@ -1810,7 +1821,9 @@ async function prepareMcpConfigMerge(merge, previousConfigEntries, pruneCategori
   // A service excluded because its prerequisites failed this run is a pure no-op: not added (it is
   // already absent from currentIds) and never pruned, so its existing config survives untouched.
   const removeIds = previousIds.filter((id) => !currentIds.includes(id) && !merge.excludeServices?.has(id));
-  const existing = await readFileIfExists(merge.output);
+  const read = await readDestination(merge.output, `MCP config ${merge.relativeOutput}`);
+  if (read.error) return { ...merge, action: "blocked", error: read.error };
+  const existing = read.content;
   const addMcpServers = currentIds;
   const removeMcpServers = removeIds;
   if (existing === null) {
@@ -1866,6 +1879,16 @@ function configRouteSafetyRoot(configPath, allowAbsoluteOutput, installRoot) {
   ].filter((value) => typeof value === "string" && value.length > 0).map((value) => path.resolve(value)));
   const normalized = path.resolve(configPath);
   return trustedRoots.find((trustedRoot) => isPathInside(trustedRoot, normalized)) ?? null;
+}
+
+// A destination the planner cannot read blocks with a named line, as an unparsable config does,
+// instead of ending the plan with a bare filesystem error. Nothing is written either way.
+async function readDestination(file, label) {
+  try {
+    return { content: await readFileIfExists(file) };
+  } catch (error) {
+    return { error: `${label} cannot be read (${error.code ?? error.message})` };
+  }
 }
 
 async function installPathError(safetyRoot, candidate, label) {
@@ -2007,7 +2030,9 @@ async function prepareKiloConfigMerge(merge, previousConfigEntries, pruneCategor
   const previousMcpIds = previousConfigIds(previousConfigEntries, merge.relativeOutput, merge.format, pruneCategories, categories);
   // Never prune a service excluded for failed provisioning — leave its existing entry untouched.
   const removeMcpIds = previousMcpIds.filter((id) => !currentMcpIds.includes(id) && !merge.excludeServices?.has(id));
-  const existing = await readFileIfExists(merge.output);
+  const read = await readDestination(merge.output, `Kilo config ${merge.relativeOutput}`);
+  if (read.error) return { ...merge, action: "blocked", error: read.error };
+  const existing = read.content;
   if (existing === null) {
     const content = {
       $schema: "https://app.kilo.ai/config.json",

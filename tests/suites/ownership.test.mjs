@@ -64,6 +64,15 @@ function read(dest, relative) {
   return readFileSync(path.join(dest, relative), "utf8");
 }
 
+function canRead(file) {
+  try {
+    readFileSync(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Every directory and file under a root, with file contents, to prove a refused plan changed nothing.
 function snapshot(dir, entries = {}, base = dir) {
   if (!existsSync(dir)) return entries;
@@ -431,6 +440,42 @@ try {
     });
     assert.equal(userViaLink.status, 0, `${userViaLink.stdout}${userViaLink.stderr}`);
     assert.ok(Object.hasOwn(JSON.parse(read(home, ".claude.json")).mcpServers, "synapse"), "the MCP merge lands in the linked home");
+  }
+
+  // A destination the planner cannot read blocks with a named line, as an unparsable config does,
+  // instead of ending the run with a bare filesystem error; nothing is written.
+  {
+    const dest = path.join(scratch, "unreadable");
+    const rule = path.join(".cursor", "rules", "00-precedence-and-safety.mdc");
+    // A directory where a file belongs fails the same read for any user.
+    mkdirSync(path.join(dest, rule), { recursive: true });
+    const directory = project(dest, "cursor", ["--category", "rules"]);
+    assert.equal(directory.code, 1, directory.out);
+    assert.match(directory.out, /^ {2}managed output \.cursor\/rules\/00-precedence-and-safety\.mdc cannot be read \(EISDIR\)$/m);
+    assert.equal(manifest(dest, "cursor"), null, "the refused run wrote no manifest");
+    rmSync(path.join(dest, rule), { recursive: true });
+
+    const unreadable = [
+      [path.join(".cursor", "mcp.json"), "mcps", "{\"mcpServers\":{}}\n", /^ {2}MCP config \.cursor\/mcp\.json cannot be read \(EACCES\)$/m],
+      [rule, "rules", "the operator's text\n", /^ {2}managed output \.cursor\/rules\/00-precedence-and-safety\.mdc cannot be read \(EACCES\)$/m],
+    ];
+    for (const [relative, category, content, line] of unreadable) {
+      const file = path.join(dest, relative);
+      writeFileSync(file, content);
+      chmodSync(file, 0o000);
+      try {
+        // Root, or a mount that ignores modes, reads the file anyway; the case cannot arise there.
+        if (canRead(file)) continue;
+        const refused = project(dest, "cursor", ["--category", category]);
+        assert.equal(refused.code, 1, refused.out);
+        assert.match(refused.out, line);
+        assert.doesNotMatch(refused.out, /EACCES: permission denied/, "no bare filesystem error");
+      } finally {
+        chmodSync(file, 0o644);
+      }
+      assert.equal(read(dest, relative), content, `${relative} is untouched`);
+      assert.equal(manifest(dest, "cursor"), null, "the refused run wrote no manifest");
+    }
   }
 } finally {
   rmSync(scratch, { recursive: true, force: true });
