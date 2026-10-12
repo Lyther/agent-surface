@@ -1108,7 +1108,8 @@ function releaseSuccessorIds(entries, handedRoutes, manifests) {
 // in its .agent-surface/ (retired and unknown IDs included; other files there are not manifests), and
 // every legacy-listed nested manifest present under it, whose outputs are rebased to its own root.
 // A claim grants ownership and cleanup retention; removal stays with a target's own manifest and
-// legacy entries. A manifest that cannot be read or parsed blocks every plan in the root.
+// legacy entries. A manifest that cannot be read or parsed, or a manifest directory that cannot be
+// listed or searched, blocks every plan in the root.
 const MANIFEST_FILE = /^(.+)-manifest\.json$/;
 
 async function readRootClaims(installRoot) {
@@ -1119,7 +1120,14 @@ async function readRootClaims(installRoot) {
     claims.blocked.push(directoryError);
     return claims;
   }
-  for (const entry of await readDirectoryIfExists(directory)) {
+  let entries;
+  try {
+    entries = await readDirectoryIfExists(directory);
+  } catch (error) {
+    claims.blocked.push(`MANIFEST_UNREADABLE: ${path.relative(installRoot, directory)} cannot be listed (${error.code ?? error.message}); repair its permissions, then rerun`);
+    return claims;
+  }
+  for (const entry of entries) {
     const owner = MANIFEST_FILE.exec(entry.name)?.[1];
     if (!owner) continue;
     const manifest = await readClaimManifest(installRoot, path.join(directory, entry.name), entry, claims.blocked);
@@ -1131,7 +1139,13 @@ async function readRootClaims(installRoot) {
   }
   for (const legacy of await legacyNestedManifests()) {
     const file = path.join(installRoot, legacy.output);
-    const info = await lstatIfExists(file);
+    let info;
+    try {
+      info = await lstatIfExists(file);
+    } catch (error) {
+      claims.blocked.push(`MANIFEST_UNREADABLE: ${legacy.output} cannot be checked (${error.code ?? error.message}); repair the permissions on the directories leading to it, then rerun`);
+      continue;
+    }
     if (!info) continue;
     const manifest = await readClaimManifest(installRoot, file, info, claims.blocked);
     if (!manifest) continue;

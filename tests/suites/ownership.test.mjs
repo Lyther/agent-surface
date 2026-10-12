@@ -15,7 +15,7 @@
 // - real-proof: a read-only `install --target all --scope user --dry-run` against the real HOME
 //   plans no unowned destination and no unreadable manifest
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -64,9 +64,12 @@ function read(dest, relative) {
   return readFileSync(path.join(dest, relative), "utf8");
 }
 
-function canRead(file) {
+// Whether this user can read a file or list a directory despite its mode: root can, and so can a
+// mount that ignores modes, where an unreadable case cannot arise.
+function canOpen(target) {
   try {
-    readFileSync(file);
+    if (statSync(target).isDirectory()) readdirSync(target);
+    else readFileSync(target);
     return true;
   } catch {
     return false;
@@ -464,8 +467,7 @@ try {
       writeFileSync(file, content);
       chmodSync(file, 0o000);
       try {
-        // Root, or a mount that ignores modes, reads the file anyway; the case cannot arise there.
-        if (canRead(file)) continue;
+        if (canOpen(file)) continue;
         const refused = project(dest, "cursor", ["--category", category]);
         assert.equal(refused.code, 1, refused.out);
         assert.match(refused.out, line);
@@ -476,6 +478,32 @@ try {
       assert.equal(read(dest, relative), content, `${relative} is untouched`);
       assert.equal(manifest(dest, "cursor"), null, "the refused run wrote no manifest");
     }
+  }
+
+  // A manifest directory that cannot be listed, or a legacy nested manifest whose directory cannot be
+  // searched, blocks the plan with MANIFEST_UNREADABLE instead of a bare filesystem error.
+  {
+    const dest = path.join(scratch, "unreadable-claims");
+    const nested = path.join(dest, ".config", "Code", "User");
+    mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
+    mkdirSync(path.join(nested, ".agent-surface"), { recursive: true });
+    const locked = [
+      [path.join(dest, ".agent-surface"), /^install blocked: .*: MANIFEST_UNREADABLE: \.agent-surface cannot be listed \(EACCES\); /m],
+      [nested, /^install blocked: .*: MANIFEST_UNREADABLE: \.config\/Code\/User\/\.agent-surface\/vscode-manifest\.json cannot be checked \(EACCES\); /m],
+    ];
+    for (const [directory, line] of locked) {
+      chmodSync(directory, 0o000);
+      try {
+        if (canOpen(directory)) continue;
+        const refused = project(dest, "cursor", ["--category", "rules"]);
+        assert.equal(refused.code, 1, refused.out);
+        assert.match(refused.out, line);
+        assert.doesNotMatch(refused.out, /^Error: /m, "no bare filesystem error");
+      } finally {
+        chmodSync(directory, 0o755);
+      }
+    }
+    assert.equal(manifest(dest, "cursor"), null, "the refused runs wrote no manifest");
   }
 } finally {
   rmSync(scratch, { recursive: true, force: true });
