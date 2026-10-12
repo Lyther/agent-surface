@@ -90,6 +90,19 @@ try {
     assert.match(wrapperText, /^#!\/bin\/sh/, "wrapper is a shell script");
     assert.ok(wrapperText.includes(process.execPath), "wrapper pins the install Node by absolute path");
     assert.ok(statSync(entry.command).mode & 0o100, "wrapper is executable");
+    // A Node upgrade can remove the pinned executable (Homebrew's versioned Cellar path, for one).
+    // The wrapper then falls back to PATH's node, as the first-party shims do, instead of failing.
+    const staleWrapper = path.join(dir, "stale-node-wrapper");
+    writeFileSync(staleWrapper, wrapperText.replace(process.execPath, path.join(dir, "removed-node", "node")), { mode: 0o755 });
+    const emptyEnv = path.join(dir, "empty.env");
+    writeFileSync(emptyEnv, "", { mode: 0o600 });
+    const fallback = spawnSync(staleWrapper, ["--as-env-file", emptyEnv, "--", "/bin/sh", "-c", "printf fallback-ok"], {
+      encoding: "utf8",
+      env: { PATH: `${path.dirname(process.execPath)}:/usr/bin:/bin`, HOME: home },
+    });
+    assert.equal(fallback.stdout, "fallback-ok", `a wrapper whose pinned Node is gone launches through PATH's node: ${fallback.stderr}`);
+    assert.equal(fallback.status, 0, fallback.stderr);
+    assert.match(fallback.stderr, /is gone; using node from PATH/, "the fallback names the missing Node");
 
     // F006: the installer-resolved env-file path is baked into the launch args (project .env here).
     const envFlag = entry.args.indexOf("--as-env-file");
