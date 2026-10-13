@@ -396,6 +396,132 @@ test("declared --commit that does not match a clean git HEAD is refused", () => 
   }
 });
 
+test("buildIndex discovers nested-catalog skills at any depth and stops at each skill root", () => {
+  const dir = join(tmpdir(), `grimoire-nested-${process.pid}-${Date.now()}`);
+  const pack = join(dir, "pack");
+  const out = join(dir, "out");
+  const mkSkill = (relDir: string, name: string): string => {
+    const abs = join(pack, "skills", relDir);
+    mkdirSync(abs, { recursive: true });
+    writeFileSync(join(abs, "SKILL.md"), `---\nname: ${name}\ndescription: ${name} skill.\n---\nBody of ${name}.\n`);
+    return abs;
+  };
+  // Flat (depth 1), a parenthesized category (depth 2, the tech-leads-club layout) and depth 3, all
+  // in one pack. Category/intermediate dirs carry no SKILL.md and must be traversed, not skipped.
+  mkSkill("flat-skill", "flat-skill");
+  const archSkill = mkSkill("(architecture)/designing-systems", "designing-systems");
+  mkSkill("migration/migrating-db", "migrating-db");
+  mkSkill("deep/inner/deeply-nested", "deeply-nested");
+  // A companion file, and a VALID SKILL.md BELOW a discovered root: the latter must stay a companion
+  // (would be indexed as its own skill if the walker failed to stop at the root).
+  mkdirSync(join(archSkill, "refs"), { recursive: true });
+  writeFileSync(join(archSkill, "refs", "notes.md"), "Companion notes.\n");
+  mkdirSync(join(archSkill, "nested-extra"), { recursive: true });
+  writeFileSync(join(archSkill, "nested-extra", "SKILL.md"), "---\nname: nested-extra\ndescription: Must not be indexed.\n---\nBelow a root.\n");
+  // Intermediate dirs with no SKILL.md beneath, plus a loose file: traversed/ignored, never skipped.
+  mkdirSync(join(pack, "skills", "empty-cat", "placeholder"), { recursive: true });
+  writeFileSync(join(pack, "skills", "loose.txt"), "ignored loose file\n");
+  try {
+    const res = buildIndex({ packs: [{ serviceId: "catalog", path: pack, commit: "c", attribution: ATTRIBUTION }], outDir: out });
+    assert.equal(res.skills, 4, "flat + depth-2 + depth-3 discovered; the SKILL.md below a root is not a skill");
+    assert.deepEqual(res.skipped, [], "intermediate dirs traversed; nothing below a skill root re-discovered");
+    const store = new Store({ dir: out });
+    try {
+      assert.equal(store.get("catalog:nested-extra").status, "NOT_FOUND", "a SKILL.md below a skill root is never a second skill");
+      assert.equal(store.get("catalog:flat-skill").status, "ok");
+      const deep = store.get("catalog:deeply-nested");
+      assert.equal(deep.status, "ok");
+      if (deep.status === "ok") assert.match(deep.skill.provenance.sourcePath, /skills\/deep\/inner\/deeply-nested\/SKILL\.md$/);
+      const arch = store.get("catalog:designing-systems");
+      assert.equal(arch.status, "ok");
+      if (arch.status === "ok") {
+        assert.match(arch.skill.provenance.sourcePath, /skills\/\(architecture\)\/designing-systems\/SKILL\.md$/);
+        assert.ok(arch.skill.files.some((f) => f.path === "refs/notes.md"), "companion file kept");
+        assert.ok(arch.skill.files.some((f) => f.path === "nested-extra/SKILL.md"), "nested SKILL.md kept as a companion");
+      }
+    } finally { store.close(); }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a symbolic SKILL.md nested under a category folder is still rejected", () => {
+  const dir = join(tmpdir(), `grimoire-nested-symlink-${process.pid}-${Date.now()}`);
+  const pack = join(dir, "pack");
+  const skillDir = join(pack, "skills", "(category)", "linked-skill");
+  const outside = join(dir, "outside.md");
+  mkdirSync(skillDir, { recursive: true });
+  writeFileSync(outside, "---\nname: linked-skill\ndescription: Outside the pack.\n---\nDo not index this.\n");
+  symlinkSync(outside, join(skillDir, "SKILL.md"));
+  try {
+    assert.throws(
+      () => buildIndex({ packs: [{ serviceId: "catalog", path: pack, attribution: ATTRIBUTION }], outDir: join(dir, "out") }),
+      /symbolic SKILL\.md/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("buildIndex does not follow directory symlinks (aliases ignored, no cycle)", () => {
+  const dir = join(tmpdir(), `grimoire-symdir-${process.pid}-${Date.now()}`);
+  const pack = join(dir, "pack");
+  const out = join(dir, "out");
+  const realSkill = join(pack, "skills", "real-cat", "real-skill");
+  mkdirSync(realSkill, { recursive: true });
+  writeFileSync(join(realSkill, "SKILL.md"), "---\nname: real-skill\ndescription: The only real skill.\n---\nReal.\n");
+  // A directory alias to the whole category and a self-loop inside it: both are directory symlinks
+  // and must be skipped, so discovery neither double-counts the aliased skill nor loops forever.
+  symlinkSync(join(pack, "skills", "real-cat"), join(pack, "skills", "alias-cat"));
+  symlinkSync(join(pack, "skills", "real-cat"), join(pack, "skills", "real-cat", "loop"));
+  try {
+    const res = buildIndex({ packs: [{ serviceId: "catalog", path: pack, commit: "c", attribution: ATTRIBUTION }], outDir: out });
+    assert.equal(res.skills, 1, "directory symlinks are not followed");
+    assert.deepEqual(res.skipped, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the same skill name in two categories indexes the first path and skips the rest", () => {
+  const dir = join(tmpdir(), `grimoire-dup-${process.pid}-${Date.now()}`);
+  const pack = join(dir, "pack");
+  const out = join(dir, "out");
+  for (const cat of ["(a)", "(b)"]) {
+    const d = join(pack, "skills", cat, "dup");
+    mkdirSync(d, { recursive: true });
+    writeFileSync(join(d, "SKILL.md"), `---\nname: dup\ndescription: ${cat} copy.\n---\nFrom ${cat}.\n`);
+  }
+  try {
+    const res = buildIndex({ packs: [{ serviceId: "catalog", path: pack, commit: "c", attribution: ATTRIBUTION }], outDir: out });
+    assert.equal(res.skills, 1, "only the first path for a colliding id is indexed");
+    assert.deepEqual(res.skipped, [{ dir: "(b)/dup", reason: "duplicate skill id: catalog:dup" }]);
+    const store = new Store({ dir: out });
+    try {
+      const got = store.get("catalog:dup");
+      assert.equal(got.status, "ok");
+      if (got.status === "ok") assert.match(got.skill.provenance.sourcePath, /skills\/\(a\)\/dup\/SKILL\.md$/);
+    } finally { store.close(); }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a skills root with no SKILL.md anywhere fails the build (fail closed)", () => {
+  const dir = join(tmpdir(), `grimoire-empty-${process.pid}-${Date.now()}`);
+  const pack = join(dir, "pack");
+  mkdirSync(join(pack, "skills", "category", "placeholder"), { recursive: true });
+  writeFileSync(join(pack, "skills", "loose.txt"), "not a skill\n");
+  try {
+    assert.throws(
+      () => buildIndex({ packs: [{ serviceId: "catalog", path: pack, commit: "c", attribution: ATTRIBUTION }], outDir: join(dir, "out") }),
+      /no skills found under/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("skillsRel indexes a non-default skills directory", () => {
   const dir = join(tmpdir(), `grimoire-skillsrel-${process.pid}-${Date.now()}`);
   const pack = join(dir, "pack");

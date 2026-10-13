@@ -5,7 +5,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { TextDecoder } from "node:util";
 import { parseDocument as parseYamlDocument } from "yaml";
@@ -123,6 +123,26 @@ function listSupportingFiles(skillDir: string): string[] {
   return out.sort();
 }
 
+// Discover skill directories beneath a pack's skills root. A child directory holding a SKILL.md is a
+// skill; intermediate directories (e.g. a catalog's category folders) are traversed, but a skill's
+// own subtree is never descended — those files are its companions, listed separately. Returns each
+// skill directory as a POSIX-style path relative to skillsDir, sorted for a deterministic build.
+function findSkillDirs(skillsDir: string): string[] {
+  const out: string[] = [];
+  const walk = (rel: string): void => {
+    const entries = readdirSync(rel ? join(skillsDir, rel) : skillsDir, { withFileTypes: true });
+    // A SKILL.md in the root itself is not a skill — skills live in child directories, so only a
+    // non-empty rel can be a skill root (matching the old loop, which only ever saw children).
+    if (rel && entries.some((e) => e.name === "SKILL.md" && !e.isDirectory())) { out.push(rel); return; }
+    // Directory symlinks report isDirectory() === false, so they are never followed: no symlink
+    // cycles. Code-unit order (not locale-aware) keeps the emitted index stable across host locales.
+    const childDirs = entries.filter((e) => e.isDirectory()).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const child of childDirs) walk(rel ? `${rel}/${child.name}` : child.name);
+  };
+  walk("");
+  return out;
+}
+
 export function buildIndex(opts: {
   packs: PackSpec[];
   outDir?: string;
@@ -179,14 +199,16 @@ export function buildIndex(opts: {
       if (!existsSync(skillsDir)) throw new Error(`pack ${pack.serviceId}: no skills directory at ${skillsDir}`);
       const fingerprints: string[] = []; // per-skill stable digests → pack sourceHash
       const sourceSnapshots = new Map<string, string>();
+      const seenIds = new Set<string>(); // first path for an id wins; later same-name dirs are skipped
+      const skillsAtPackStart = result.skills;
       let packFiles = 0;
 
       db.exec("BEGIN");
-      for (const e of readdirSync(skillsDir, { withFileTypes: true })) {
-        if (!e.isDirectory()) continue;
-        const skillDir = join(skillsDir, e.name);
+      for (const skillRel of findSkillDirs(skillsDir)) {
+        const skillDir = join(skillsDir, skillRel);
+        const dirLabel = skillRel || basename(skillDir);
         const skillMd = join(skillDir, "SKILL.md");
-        if (!existsSync(skillMd)) { result.skipped.push({ dir: e.name, reason: "no SKILL.md" }); continue; }
+        if (!existsSync(skillMd)) { result.skipped.push({ dir: dirLabel, reason: "no SKILL.md" }); continue; }
         if (lstatSync(skillMd).isSymbolicLink()) {
           throw new Error(`pack ${pack.serviceId}: symbolic SKILL.md is not allowed: ${skillMd}`);
         }
@@ -194,9 +216,9 @@ export function buildIndex(opts: {
         sourceSnapshots.set(skillMd, sha256(raw));
         opts.onSourceRead?.(skillMd);
         const parsed = parseFrontmatter(raw);
-        if (!parsed) { result.skipped.push({ dir: e.name, reason: "no frontmatter" }); continue; }
-        const name = (parsed.fields["name"]?.trim()) || e.name;
-        if (!SLUG_RE.test(name)) { result.skipped.push({ dir: e.name, reason: `invalid name slug: ${name}` }); continue; }
+        if (!parsed) { result.skipped.push({ dir: dirLabel, reason: "no frontmatter" }); continue; }
+        const name = (parsed.fields["name"]?.trim()) || basename(skillDir);
+        if (!SLUG_RE.test(name)) { result.skipped.push({ dir: dirLabel, reason: `invalid name slug: ${name}` }); continue; }
         const description = (parsed.fields["description"] ?? "").trim().slice(0, LIMITS.DESCRIPTION_MAX);
         const body = parsed.body;
         const bodySha = sha256(body);
@@ -204,11 +226,13 @@ export function buildIndex(opts: {
         const { category } = deriveCategory(name);
         const sourcePath = relative(pack.path, skillMd);
 
-        let rowid: number;
-        try {
-          const res = insSkill.run(id, pack.serviceId, name, sourcePath, commit, bodySha, indexedAt, description, body, category);
-          rowid = Number(res.lastInsertRowid);
-        } catch { result.skipped.push({ dir: e.name, reason: `duplicate skill id: ${id}` }); continue; }
+        // Two skills sharing a name (e.g. the same leaf under different category folders) collide on
+        // id; the first discovered path wins and the rest are reported. Pre-checking keeps a genuine
+        // insert failure (not a collision) propagating as a hard error instead of a silent skip.
+        if (seenIds.has(id)) { result.skipped.push({ dir: dirLabel, reason: `duplicate skill id: ${id}` }); continue; }
+        seenIds.add(id);
+        const res = insSkill.run(id, pack.serviceId, name, sourcePath, commit, bodySha, indexedAt, description, body, category);
+        const rowid = Number(res.lastInsertRowid);
         insFts.run(rowid, name, description, body);
         result.skills++;
 
@@ -227,6 +251,9 @@ export function buildIndex(opts: {
         }
         fingerprints.push(`${id}|${sha256(raw)}|${fileDigests.join(",")}`);
       }
+      // Fail closed: a requested pack that indexes nothing is a misconfiguration (usually a wrong
+      // index_root), not a reason to publish an empty index over a good one.
+      if (result.skills === skillsAtPackStart) throw new Error(`pack ${pack.serviceId}: no skills found under ${skillsRel}`);
       if (baseCommit !== "uncommitted" && !baseCommit.endsWith("-dirty")
         && (indexedSourceIsDirty(pack.path, skillsRel) || indexedSourceChanged(sourceSnapshots)
           || (initialHead !== undefined && gitHead(pack.path) !== initialHead))) {
