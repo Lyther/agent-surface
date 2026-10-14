@@ -481,6 +481,32 @@ try {
     }
   }
 
+  // A stale managed output the planner cannot read blocks the same way: a development install leaves
+  // rules a later general install no longer plans, and one of them has lost its read permission.
+  {
+    const dest = path.join(scratch, "unreadable-stale");
+    const staleRule = path.join(".cursor", "rules", "02-agent-workflow.mdc");
+    const developed = project(dest, "cursor", ["--category", "development"]);
+    assert.equal(developed.code, 0, developed.out);
+    const content = read(dest, staleRule);
+    const recorded = manifest(dest, "cursor");
+    const file = path.join(dest, staleRule);
+    chmodSync(file, 0o000);
+    try {
+      if (!canOpen(file)) {
+        const refused = project(dest, "cursor");
+        assert.equal(refused.code, 1, refused.out);
+        assert.match(refused.out, /^ {2}stale managed output \.cursor\/rules\/02-agent-workflow\.mdc cannot be read \(EACCES\)$/m);
+        assert.doesNotMatch(refused.out, /EACCES: permission denied/, "no bare filesystem error");
+      }
+    } finally {
+      chmodSync(file, 0o644);
+    }
+    assert.equal(read(dest, staleRule), content, "the stale rule is untouched");
+    assert.deepEqual(manifest(dest, "cursor"), recorded, "the refused run kept the manifest");
+    assert.ok(!existsSync(path.join(dest, ".cursor", "rules", "00-precedence-and-safety.mdc")), "the refused run wrote no general rule");
+  }
+
   // A manifest directory that cannot be listed, or a legacy nested manifest whose directory cannot be
   // searched, blocks the plan with MANIFEST_UNREADABLE instead of a bare filesystem error.
   {
