@@ -11,6 +11,7 @@ import { readJsonIfExists, readJsoncIfExists } from "./io.mjs";
 import { allStoredNotices, localDate, noticeHeading } from "./notices.mjs";
 import { commandVersion } from "./proc.mjs";
 import { readOptionalServices, root } from "./registry.mjs";
+import { kiloRuleInstructionRoot } from "./targets.mjs";
 import { exists } from "./util.mjs";
 
 const GRIMOIRE_SCHEMA_VERSION = 2;
@@ -128,6 +129,8 @@ async function kiloConfigStatus() {
   if (pluginVersion) markers.push(`plugin ${pluginVersion}`);
   if (await exists(path.join(configDir, "AGENTS.md"))) markers.push("AGENTS.md");
   if (await exists(path.join(configDir, "commands"))) markers.push("commands");
-  if (instructions.includes("./rules/00-precedence-and-safety.md")) markers.push("rules configured");
+  if (instructions.includes(`${kiloRuleInstructionRoot("user")}/00-precedence-and-safety.md`)) markers.push("rules configured");
+  // Earlier installs wrote this form, which Kilo resolves against the project directory.
+  else if (instructions.includes("./rules/00-precedence-and-safety.md")) markers.push("rule entries never load; rerun a general user install");
   return markers.length > 0 ? `present (${markers.join(", ")})` : "present";
 }

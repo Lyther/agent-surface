@@ -1332,11 +1332,17 @@ export async function scopedRuleReferenceOutputs(_context, outputRoot) {
   }));
 }
 
+// Kilo resolves a relative `instructions` entry against the project directory, even one in the user
+// config, so user-scope entries name the rules by home path; Kilo expands a leading `~/`.
+export function kiloRuleInstructionRoot(scope) {
+  return scope === "user" ? "~/.config/kilo/rules" : ".kilo/rules";
+}
+
 export async function kiloRuleInstructionPaths(scope, context = {}) {
   const ruleNames = (await readRulesForContext(context))
     .filter((rule) => rule.alwaysApply !== false)
     .map((rule) => path.basename(rule.file, ".mdc"));
-  const prefix = scope === "user" ? "./rules" : ".kilo/rules";
+  const prefix = kiloRuleInstructionRoot(scope);
   return ruleNames.map((name) => `${prefix}/${name}.md`);
 }
 

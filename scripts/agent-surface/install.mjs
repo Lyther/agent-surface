@@ -24,7 +24,7 @@ import { assertJsonPropertyType, isMcpLauncherCommand, MCP_ENV_LAUNCHER, mcpLaun
 import { formatNotice, localDate, planNotices } from "./notices.mjs";
 import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { readRules } from "./rules.mjs";
-import { adapterMcpConfigs, kiloRuleInstructionPaths, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets } from "./targets.mjs";
+import { adapterMcpConfigs, kiloRuleInstructionPaths, kiloRuleInstructionRoot, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets } from "./targets.mjs";
 import { argValue, argValues, fail, isPathInside, isSafeRelativePath, isSafeTargetName, splitArgValues, uniqueStrings } from "./util.mjs";
 
 export async function build(args) {
@@ -1931,30 +1931,31 @@ async function kiloConfigMerge(installRoot, scope, options = {}) {
       categoryFilter: options.categoryFilter ?? null,
     })
     : [];
-  const legacyRuleRoot = scope === "user" ? "./rules" : ".kilo/rules";
-  const legacyScopedRuleInstructions = (await readRules())
-    .filter((rule) => rule.alwaysApply === false)
-    .map((rule) => `${legacyRuleRoot}/${path.basename(rule.file, ".mdc")}.md`);
-  const legacyLanguageRuleInstructions = [
+  const ruleRoot = kiloRuleInstructionRoot(scope);
+  const rules = await readRules();
+  const ruleName = (rule) => path.basename(rule.file, ".mdc");
+  const retiredRuleNames = [
+    "agent-surface",
+    "00-core",
+    ...rules.filter((rule) => rule.alwaysApply === false).map(ruleName),
     "10-lang-python",
     "11-lang-rust",
     "12-lang-go",
     "13-lang-typescript",
     "14-lang-shell",
-  ].map((name) => `${legacyRuleRoot}/${name}.md`);
-  const legacyInstructions = [
-    `${legacyRuleRoot}/agent-surface.md`,
-    `${legacyRuleRoot}/00-core.md`,
-    ...legacyScopedRuleInstructions,
-    ...legacyLanguageRuleInstructions,
   ];
+  const alwaysOnRuleNames = rules.filter((rule) => rule.alwaysApply !== false).map(ruleName);
+  // Earlier user-scope installs wrote `./rules/<rule>.md`, which Kilo resolves against the project
+  // directory instead of ~/.config/kilo, so those entries never loaded the installed rules. No
+  // install wrote a retired rule in the home form, so an entry like that is the operator's.
+  const legacyInstructions = scope === "user"
+    ? [...retiredRuleNames, ...alwaysOnRuleNames].map((name) => `./rules/${name}.md`)
+    : retiredRuleNames.map((name) => `${ruleRoot}/${name}.md`);
   // Every always-on rule path this installer can manage, across all categories. A full general
   // install (no category/service filter) prunes the category rule FILES, so it must also drop
   // their now-dangling instruction entries instead of only appending — otherwise kilo.jsonc keeps
   // pointing at removed `.kilo/rules/*.md` files after `general -> development -> general`.
-  const managedRuleInstructions = (await readRules())
-    .filter((rule) => rule.alwaysApply !== false)
-    .map((rule) => `${legacyRuleRoot}/${path.basename(rule.file, ".mdc")}.md`);
+  const managedRuleInstructions = alwaysOnRuleNames.map((name) => `${ruleRoot}/${name}.md`);
   const pruneStaleInstructions = includeInstructions && !options.categoryFilter && !options.optionalServices;
   const mcpEntries = includeMcp
     ? await selectedMcpServiceEntries(true, {

@@ -677,7 +677,7 @@ assert.doesNotMatch(kiloUserScope.stdout, /\.config\/kilo\/AGENTS\.md <- rules\/
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/00-precedence-and-safety\.md <- rules\/00-precedence-and-safety\.mdc/);
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/01-response-style\.md <- rules\/01-response-style\.mdc/);
 assert.doesNotMatch(kiloUserScope.stdout, /workflow-boss|ops-nuke|references\/rules\/14-shell|agents\/boss\.md/);
-assert.match(kiloUserScope.stdout, /\.config\/kilo\/kilo\.jsonc instructions \+= \.\/rules\/00-precedence-and-safety\.md, \.\/rules\/01-response-style\.md/);
+assert.match(kiloUserScope.stdout, /\.config\/kilo\/kilo\.jsonc instructions \+= ~\/\.config\/kilo\/rules\/00-precedence-and-safety\.md, ~\/\.config\/kilo\/rules\/01-response-style\.md/);
 assert.doesNotMatch(kiloUserScope.stdout, /skills\.paths/);
 assert.doesNotMatch(kiloUserScope.stdout, /permission\.skill/);
 assert.doesNotMatch(kiloUserScope.stdout, /kilo\.jsonc instructions \+= .*14-shell/);
@@ -694,7 +694,7 @@ assert.match(kiloDevelopmentUserScope.stdout, /\.kilo\/skills\/workflow-boss\/SK
 assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/);
 assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/references\/rules\/14-shell\.md <- rules\/14-shell\.mdc/);
 assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/agents\/boss\.md <- subagents\/boss\.md/);
-assert.match(kiloDevelopmentUserScope.stdout, /kilo\.jsonc instructions \+= \.\/rules\/02-agent-workflow\.md, .*\.\/rules\/06-test-policy\.md/);
+assert.match(kiloDevelopmentUserScope.stdout, /kilo\.jsonc instructions \+= ~\/\.config\/kilo\/rules\/02-agent-workflow\.md, .*~\/\.config\/kilo\/rules\/06-test-policy\.md/);
 
 const kimiCodeHome = path.join(userScopeHome, "custom-kimi-home");
 const kimiCodeUserScope = status(["install", "--target", "kimi-code", "--scope", "user", "--dry-run"], {
@@ -792,11 +792,13 @@ rmSync(existingKiloDest, { recursive: true, force: true });
 const inlineKiloDest = "/tmp/agent-surface-kilo-inline";
 rmSync(inlineKiloDest, { recursive: true, force: true });
 mkdirSync(inlineKiloDest, { recursive: true });
-writeFileSync(path.join(inlineKiloDest, "kilo.jsonc"), "{\"instructions\":[\"./existing-rule.md\"]}\n");
+// A project-scope `./rules/<name>.md` entry names the project's own file, so it stays.
+writeFileSync(path.join(inlineKiloDest, "kilo.jsonc"), "{\"instructions\":[\"./existing-rule.md\",\"./rules/00-precedence-and-safety.md\"]}\n");
 run(["install", "--target", "kilo", "--dest", inlineKiloDest]);
 const inlineKiloConfig = JSON.parse(readFileSync(path.join(inlineKiloDest, "kilo.jsonc"), "utf8"));
 assert.deepEqual(inlineKiloConfig.instructions, [
   "./existing-rule.md",
+  "./rules/00-precedence-and-safety.md",
   ".kilo/rules/00-precedence-and-safety.md",
   ".kilo/rules/01-response-style.md",
 ]);
@@ -805,6 +807,39 @@ assert.deepEqual(inlineKiloConfig.permission, { "*": "allow" });
 assert.equal(inlineKiloConfig.share, "disabled");
 assert.deepEqual(inlineKiloConfig.mcp.synapse.command, [path.join(os.homedir(), ".local", "bin", "synapse-bridge")]);
 rmSync(inlineKiloDest, { recursive: true, force: true });
+
+// Kilo resolves a relative user-config instruction against the project directory, so the
+// `./rules/<rule>.md` entries earlier user installs wrote never loaded ~/.config/kilo/rules
+// (Kilo CLI 7.8.8). A user install swaps them for home paths and keeps the operator's own entries, a home-path one included.
+const kiloUserMigrationRoot = "/tmp/agent-surface-kilo-user-migration";
+rmSync(kiloUserMigrationRoot, { recursive: true, force: true });
+mkdirSync(path.join(kiloUserMigrationRoot, ".config", "kilo"), { recursive: true });
+writeFileSync(path.join(kiloUserMigrationRoot, ".config", "kilo", "kilo.jsonc"), `${JSON.stringify({
+  instructions: ["./my-rule.md", "~/.config/kilo/rules/10-python.md", "./rules/00-precedence-and-safety.md", "./rules/01-response-style.md", "./rules/14-lang-shell.md"],
+}, null, 2)}\n`);
+const kiloUserMigrationConfig = () => JSON.parse(readFileSync(path.join(kiloUserMigrationRoot, ".config", "kilo", "kilo.jsonc"), "utf8")).instructions;
+const kiloDoctor = () => run(["doctor"], { env: { ...process.env, HOME: kiloUserMigrationRoot } });
+assert.match(kiloDoctor(), /^kilo-config: present \(rule entries never load; rerun a general user install\)$/m);
+const kiloUserMigration = run(["install", "--target", "kilo", "--scope", "user", "--category", "rules", "--dest", kiloUserMigrationRoot]);
+assert.match(kiloUserMigration, /kilo\.jsonc instructions -= .*\.\/rules\/00-precedence-and-safety\.md/);
+assert.deepEqual(kiloUserMigrationConfig(), [
+  "./my-rule.md",
+  "~/.config/kilo/rules/10-python.md",
+  "~/.config/kilo/rules/00-precedence-and-safety.md",
+  "~/.config/kilo/rules/01-response-style.md",
+]);
+assert.match(kiloDoctor(), /^kilo-config: present \(rules configured\)$/m);
+// A general user install after a development one prunes the development entries by home path.
+run(["install", "--target", "kilo", "--scope", "user", "--category", "development", "--dest", kiloUserMigrationRoot]);
+assert.ok(kiloUserMigrationConfig().includes("~/.config/kilo/rules/06-test-policy.md"), "development rules are registered by home path");
+run(["install", "--target", "kilo", "--scope", "user", "--dest", kiloUserMigrationRoot]);
+assert.deepEqual(kiloUserMigrationConfig(), [
+  "./my-rule.md",
+  "~/.config/kilo/rules/10-python.md",
+  "~/.config/kilo/rules/00-precedence-and-safety.md",
+  "~/.config/kilo/rules/01-response-style.md",
+]);
+rmSync(kiloUserMigrationRoot, { recursive: true, force: true });
 
 // Regression: MCP commands must be ABSOLUTE at install time. Hosts posix_spawn the stdio
 // command directly (no shell), so a literal "~" is never expanded → ENOENT on launch.
