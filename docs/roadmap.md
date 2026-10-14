@@ -5,6 +5,8 @@ Date: 2026-09-28; last revised 2026-10-08
 Baseline: `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 Inputs: [concept](context/concept-zero.md), [research](context/concept-zero-research.md), [architecture](architecture.md), [contract](contracts/runtime-refresh.md).
 
+Separate workstream added 2026-10-13: [Phase AS-AR](#phase-as-ar-agent-reuse-capability-trial). The bounded native spike and supervised stop have real proof; comparative capability remains untested. This does not change the runtime-refresh task dispositions or authorize deployment by checkbox.
+
 The [previous completed roadmap](https://github.com/Lyther/agent-surface/blob/3dbdbfe9c67fa7a95cf72a25280d2aa588782956/docs/roadmap.md) is historical. This roadmap does not reopen its accepted implementations or transfer old runtime PASS evidence to new releases. It schedules design-approved corrections, bounded native spikes and separate operational work. Each task is a commit-sized concern unless its acceptance requires an atomic change; publication and deployment are not implied. Selection, notice, ownership and migration rules live in the [contract](contracts/runtime-refresh.md); tasks below reference them rather than restating them.
 
 ## Operating Constraints
@@ -243,3 +245,53 @@ State: DEFERRED; none blocks a completed task. Each needs its own reproducer bef
 Start with **`dev-spec` for RT1.1**, then RT2.0, each in its own patch; RT2.1 follows RT2.0, and RT2.3 follows once RT0.3 evidence exists. The operator runs RT0.3 now in parallel. Devin RT0.2 is the next bounded native evidence task, not an invitation to implement every optional native feature. Commit locally as requested by the implementation workflow; push/PR/distribution remain explicit subsequent scopes.
 
 No task is marked complete by this design. Source/schema/link validation qualifies the handoff, not the runtime changes it describes.
+
+## Phase AS-AR: Agent-Reuse Capability Trial
+
+Status: SUPERVISED NATIVE PATH PROVEN AND HANDOFF ACCEPTED, 2026-10-13; no capability comparison or unattended qualification. Inputs: [concept amendment](context/concept-zero.md#agent-reuse-capability-amendment), [runtime evidence](context/concept-zero-research.md#agent-reuse-native-spike-2026-10-13), [architecture](architecture.md#agent-reuse-capability-trial), [contract](contracts/agent-reuse.md). MOMO's own Phase AR schedules its catalog and benchmark work; this phase supplies installation/native-boundary evidence, not a replacement roadmap.
+
+Sequence: **AS-AR0.1 -> AS-AR0.2 -> AS-AR1.1 -> MOMO AR1/AR2**. Review the retained low/strong traces in parallel; AS-AR2.1 is an independent optional asset experiment, not a prerequisite for the delegate. All later changes preserve the existing profile, provider choices and unrelated working files. Commit, publication and fleet distribution keep their separately requested scopes.
+
+AS-AR0.1/0.2 below describe completed acceptance, not queued reruns. One preparation owner maintains the development-host bundle; redundant-host cleanup stays with its original operator. MOMO's AR0.1 wording and AR-E19 evidence label are already corrected. No further concept research or design round blocks the accepted pilot.
+
+### AS-AR0.1 Native Functional Spike
+
+State: PASS for the bounded file-task route. OpenCode 1.18.15 -> pinned GH05TCREW `run_mcp`/`pa_mcp` -> Ollama Cloud `deepseek-v4.1-flash`, with native submission/retrieval, real terminal work and independently checked artifact. Owner: agent-surface implementing peer, with MOMO supplying the authorized lab/resource configuration. Covers: `G-AR-02`, `G-AR-03`, `C-AR-01`, `C-AR-02`, `Q-AR-01`. [Qualified setup and limits](runbooks/pentestagent.md).
+
+Use GH05TCREW `87d763a9c830597e9b8c1d56293300f6961beec2` in a separate development environment. Review the resolved dependencies/advisories and install scripts at execution time, keep TLS verification enabled, record the actual Python/dependency/browser requirements and avoid optional extras not used by the trial. Resolve the approved endpoint/model from current configuration; qualify tool request -> execution -> tool-result replay, not merely text completion. Use one maintained native harness with that configured route, no premium-model substitution and no paid subagent fleet.
+
+Create one fresh task directory and a private project-local native configuration for the selected MCP or CLI/playbook entry point. Perform one harmless scoped operation that writes an inspectable artifact, retrieve the result and verify the parent can access that file. For MCP, use the same server session and establish protocol/client compatibility; for CLI, exercise actual command execution and output retrieval. No global install, registry entry, extra MCP chaining or production target.
+
+Deliverable: private run record and `docs/runbooks/pentestagent.md` with non-secret install/launch commands, pin, host/model identities, artifact locations and limits. Exit: real provider tool round trip plus native invocation and file/result proof. An import, provider or client error is a bounded failed route, not a reason to construct a framework. Browser/tool provisioning for a target-facing comparison remains a separate actual-environment check.
+
+### AS-AR0.2 Lifecycle and Candidate Decision
+
+State: PASS for the supervised environment-stop boundary; graceful cancellation FAIL, native-parent/MOMO interruption propagation NOT RUN. Real timeout and `cancel_task` probes left a child active; container stop halted its writes. Provider connection failure was retrieved under misleading `done`. Owner: agent-surface for upstream/native proof; MOMO for its own interruption path. Depends on: AS-AR0.1. Covers the supervised portion of `G-AR-03`, `Q-AR-02`.
+
+Use disposable real processes to reproduce the source findings: `cancel_task` during outstanding work, command timeout with a child still active, native parent interruption/disconnect, and a genuine bounded provider/transport failure. Set an observation deadline before the run. Record acknowledgement separately from local quiescence, target-request cessation and any provider work already submitted. Verify that error/partial output cannot be reported as a successful task solely because upstream says `done`; failed submit responses must not provoke duplicate paid work.
+
+For the supervised disposable comparison, a demonstrated environment-level stop is sufficient even if graceful cancellation remains defective. It does not qualify `cancel_task` or MOMO interruption propagation. If the effective stop fails, repair only the demonstrated cleanup boundary, with separate regression proof; broader rehabilitation triggers comparison with Decepticon then Strix instead. Retain any exact patch revision, and do not publish it without authorization. Unattended integration requires separate stopping proof.
+
+Exit: one demonstrated operating/stop contract, with remaining provider-side uncertainty stated, sufficient for a bounded MOMO run. This task may reject GH05TCREW; no registration or capability claim is owed to the provisional selection.
+
+### AS-AR1.1 Handoff and Conditional Registration
+
+State: HANDOFF ACCEPTED by MOMO for a supervised comparison; native-only setup retained, no registry change. Agent-surface preparation is complete; actual MOMO Task integration and matched comparison remain unrun in this evidence. Owner: agent-surface preparation owner; MOMO owns consumption. Depends on: AS-AR0.1 and the supervised AS-AR0.2 stop boundary. Covers the preparation for `G-AR-01` and `G-AR-02`; capability gain remains unproven and `Q-AR-04` is not applicable without registry registration.
+
+Hand off pin plus any patch, exact environment/launch, model/endpoint identity without credentials, the authorized task, artifacts, failure/cancellation observations and reported/unknown usage. Keep native project-local wiring if it is sufficient. Only if a reusable registry entry expresses the proven setup without new infrastructure, add explicit-only `pentestagent` in `registry/optional-services.json`, detection-only prerequisites and the existing credential path; leave category membership and defaults unchanged. No guessed runtime CWD, target or model in a global command. Do not replace `pentest-ai`.
+
+For a registry change, exercise the actual installer into a disposable host profile and launch exactly its generated command from another CWD with a stripped PATH. Check child credentials without displaying values, unrelated config preservation and no default/category activation. Reuse affected suites and `npm run check` / `check:generated`; do not add prose assertions or a second MCP implementation. If no registry change is justified, native proof and the runbook close this task without artificial code.
+
+The next work belongs to MOMO's existing AR1/AR2 owners:
+
+1. Provision the selected target-facing prerequisites and prove one real MOMO Task invokes the pinned delegate, retains its returned files in Evidence and produces the enclosing answer. Record the actual parent runtime/version rather than inheriting the external spike's 1.18.15 qualification. Keep environment stop in the trial controller's cleanup path.
+2. Run baseline versus A under the [matched-comparison contract](contracts/agent-reuse.md#matched-comparison). Give the parent its normal task-authorized native tools and matched resource controls in every arm; do not reuse the smoke-only permission profile or 12-step limit. Report actual delegation, scorer-confirmed solves, marginal coverage, time and available usage. Native-harness-alone and upstream-alone are optional diagnostic comparators, not prerequisites.
+3. Add B and A+B independently, with native loading/use evidence for B and fresh state between arms. Repeat promising configurations before claiming reliable improvement. Wider distribution follows demonstrated value in coverage, validation, time or repeatability, not a green registration check or novelty alone.
+
+### AS-AR2.1 Separate Methodology Experiment
+
+State: PREPARED at the operator's 2026-10-13 request: experimental `web-api-followthrough`, adapted from pinned web-hunter, discovers with full body through OpenCode's native skill loader. Task behavior and comparative benefit NOT RUN. No category or global skill installation. Owner: MOMO experiment owner with agent-surface asset author. Trace review informs the chosen task and interpretation; it does not block this preparation. Covers: `G-AR-01`, `Q-AR-03` only after the matched experiment.
+
+Use the original low-scoring and 50/59 Kilo traces, when available, to distinguish unvisited surfaces, attempted-unsolved work, repetition and early termination; missing traces remain unknown. The prepared asset targets observed web/API follow-through as a hypothesis, not a diagnosed cause of those scores. Retain notices/provenance, map tools to the selected runtime, take scope from the Task, and remove fixed model selection, redundant interactive consent and foreign findings-store coupling. Leave broader workflow redesign to MOMO's existing owners.
+
+First deliver a separately selected trial asset, not a category-wide installation or extra default prompt. MOMO compares asset-on versus asset-off separately from agent reuse. Promote it into a distributed cybersecurity asset only after useful evidence and a deliberate distribution decision; otherwise keep or discard the pilot without growing the catalog.

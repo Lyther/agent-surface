@@ -5,6 +5,8 @@ Source concept: [concept-zero.md](context/concept-zero.md)
 Last updated: 2026-09-28
 Source baseline: `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 
+Separate workstream, 2026-10-13: [agent-reuse capability trial](#agent-reuse-capability-trial), accepted for a bounded experiment with one supervised MCP route observed. Its source review uses agent-surface `886f237` and MOMO `779f35a`; runtime-refresh history below does not qualify the delegate or its comparative capability.
+
 ## Executive Decision
 
 Preserve the single-process Node compiler, canonical assets, plain target adapters, maintained format parsers, managed install manifests and separate first-party MCP products. The selected delta adds precise runtime identity/lifecycle evidence and selected-target notices, corrects known paths and rule-limit handling, separates distinct harnesses, and migrates Antigravity's retiring workflow format. Security release selection is a prerequisite to affected runtime execution, not a new automatic updater inside compilation. OpenHands remains implemented and selectable with a legacy recommendation. No new daemon, database, transport, provider manager, profile engine or universal permission system is introduced.
@@ -145,6 +147,10 @@ The design schema was a pre-code artifact, not a new runtime schema registry. `R
 
 ## Data and State
 
+### Agent-Reuse Applicability
+
+The trial's domain/data track is **REQUIRED, satisfied by existing ownership**, not a new schema. Agent-surface owns the preparation bundle and only a later service declaration if selected; the native host owns its process connection; upstream owns process-local task handles and working-directory artifacts; MOMO owns its existing enclosing Task, Evidence and result selection. A task handle is not a MOMO Task ID and does not survive an upstream restart. No delegated-task database, journal, migration, per-file digest ledger or reconstructed inner Step history is added. The [agent-reuse contract](contracts/agent-reuse.md#data-and-state) defines retention and mapping.
+
 ### Applicability and Ownership
 
 Domain/data: **REQUIRED**, because registry facts and install manifests persist identity/ownership. Interfaces: **REQUIRED**, because CLI selection, generated host formats and shared configuration cross boundaries. New database, network API, event transport and storage migration: **NOT_APPLICABLE**; this batch adds none.
@@ -175,6 +181,12 @@ Manual command skills in a workspace `.agents/skills` can be autonomous to Antig
 The current installer is not a filesystem transaction. Preflight prevents known conflicts, but a later I/O failure can leave partial writes. Report that fact and use existing plan/log plus explicit recovery; do not claim automatic rollback or add a journal for this batch. Every participant's pending manifest is written before the run's first mutation and keeps every path the run planned to touch claimed, so an interrupted run can be repeated without deleting its own files by hand. Source rollback must not downgrade a runtime below its verified security floor.
 
 ## Interfaces and Contracts
+
+### Agent-Reuse Boundary
+
+The trial's interface track is **REQUIRED**: the accepted route uses the upstream's pinned native MCP schemas and one existing host client; a later CLI/playbook route would use existing native command execution. Do not define a parallel JSON API or advertise conformance from source inspection. The [agent-reuse contract](contracts/agent-reuse.md#native-interface) records submission, polling, result, error and cancellation behavior; its [matched-comparison section](contracts/agent-reuse.md#matched-comparison) defines the handoff into MOMO's existing Task/Evidence/scorer owners. Initial configuration remains private and project-local; no registry or schema change is part of this design. The existing `pentest-ai` service remains a different application.
+
+### Runtime-Refresh Boundary
 
 Existing CLI grammar remains. `build`, `install`, `check`, `check generated`, `doctor`, `--target`, `--scope`, `--dest`, `--category` and `--service` retain their current meanings. No new profile flag, runtime updater, HTTP endpoint, JSON output mode or provider option is introduced by this design.
 
@@ -240,3 +252,52 @@ Status: PROPOSED. Every whole-file output reads ownership from all manifests in 
 - Simultaneous shared-root installations can mask omissions or collide: keep identical shared bytes and test provenance for changed discovery paths.
 - Learned cloud state and credentials must remain runtime-owned. No automatic import of private local files, public templates, new connectors or scheduled publication.
 - Source readers remain target-independent, renderers remain write-free, installer owns mutations, and runtime/MOMO owns client upgrades. No implementation begins by deleting unrelated dirty work or rewriting existing first-party MCP services.
+
+## Agent-Reuse Capability Trial
+
+Status: ACCEPTED FOR BOUNDED SPIKE; one supervised MCP route observed on 2026-10-13, derived from [the concept amendment](context/concept-zero.md#agent-reuse-capability-amendment). `G-AR-01` makes measured capability the goal; `G-AR-02` preserves existing owners; `G-AR-03` requires truthful lifecycle and provider evidence. The [research ledger](context/concept-zero-research.md#agent-reuse-native-spike-2026-10-13) records the narrow proof and remaining limits. MOMO's current `docs/api/agent-reuse.md` takes precedence over older proposals to add a whole-agent runtime driver: the selected integration is an existing ApplicationCapability plus native tools.
+
+### Runtime and Ownership
+
+```text
+MOMO enclosing Task -> existing native harness -> project-local stdio MCP child
+                                                   |
+                                      GH05TCREW task loop and tools
+                                                   |
+                                 approved provider + authorized lab
+
+delegate text + accessible files -> parent answer -> existing MOMO Evidence/result
+```
+
+Agent-surface owns a pinned out-of-tree installation and launch qualification for this trial; MOMO owns subsequent application lifecycle/catalog integration. The selected host starts the child with a dedicated CWD and trial-scoped provider environment on an authorized development host. Place the whole application in an existing disposable execution boundary, not merely a virtualenv. Start with one process and one active task, `--no-rag --no-mcp`, no crew/TUI/HTTP listener and no extra external tool servers. This excludes optional features, not all upstream shell authority.
+
+The diagram is the initially tested MCP route, not a mandatory strategy boundary. A useful standalone CLI/playbook may instead run through existing native command tools. Preserve the selected loop/prompt across comparisons. For the supervised disposable trial, a demonstrated environment stop is sufficient; graceful cancellation and native-parent/MOMO interruption propagation remain separate claims.
+
+The parent submits once, polls briefly and retrieves the result and actual files before shutdown. Shared CWD-based notes and process-local task handles make a fresh root/process per independent trial the simplest isolation; a second scheduler or tenant abstraction is unnecessary. Upstream owns its investigation loop. A parent interruption must demonstrably stop outstanding local work through the existing lifecycle boundary; if not, a narrow upstream/existing-owner repair or candidate change precedes unattended adoption. Do not infer termination from a status string, process exit or cancelled provider coroutine.
+
+### Planned Files and Owners
+
+```text
+docs/context/concept-zero*.md      - Concept and source evidence; no runtime readiness claim.
+docs/contracts/agent-reuse.md      - Native-interface use and ownership; links upstream schemas.
+docs/roadmap.md                    - AS-AR proof sequence and MOMO handoff.
+docs/runbooks/pentestagent.md      - Qualified supervised setup, limits and removal; no benchmark claim.
+registry/optional-services.json   - CONDITIONAL: explicit pentestagent service after qualification.
+tests/suites/live-launch.test.mjs - CONDITIONAL: extend the existing real launch boundary if registered.
+```
+
+No new production module is selected. Existing `targets.mjs`, `credentials.mjs`, `mcp-env-launch.mjs` and detection-only prerequisites remain the delivery mechanisms where applicable; they do not own per-task scope, CWD, billing or cancellation. If their literal command/args and current secret delivery cannot express the qualified per-project setup, keep the native project-local configuration instead of extending the registry for one trial.
+
+MOMO retains its files: `src/momo/configs/applications.yaml` for an optional row, current runtime/tool invocation for delegation, and existing Evidence/result owners for retention. No MOMO file is changed by this design. An upstream defect belongs in a separate minimal upstream patch with its own actual-runtime regression, not a new agent-surface MCP facade.
+
+### Accepted Handoff and Comparison
+
+One agent-surface preparation owner maintains the canonical runbook and private development-host bundle identified there. MOMO consumes that bundle; the duplicate deployment is not a second source of truth and its original owner handles cleanup. Synapse coordination and exact-path leases keep concurrent document writers from replacing the accepted setup. This is handoff coordination, not another runtime component or qualification gate.
+
+MOMO first proves one enclosing Task can use the delegate and retain its actual files, then runs baseline versus A, followed separately by B and A+B. Every arm uses the parent's normal native tools and matched target-facing prerequisites; none inherits the smoke profile's MCP-only permissions or 12-step limit. The [comparison contract](contracts/agent-reuse.md#matched-comparison) owns the arm definitions and resource/evidence rules. The existing trial controller owns environment teardown even when the upstream task says `cancelled` or `done`; MOMO's native interruption propagation remains a separate claim. No new framework, store, scorer or automatic agent selector is needed.
+
+### Distribution and Decision
+
+Cybersecurity is the conceptual domain, but it is **not initial category membership**. A later registry entry would be `pentestagent`, `optional-caution`, explicitly selected by `--category mcps --service pentestagent`, with no automatic provisioning recipe or addition to `cybersecurity-assets.json`. Existing selection code would otherwise broaden every cybersecurity install. An entry is conditional on the real configured route; it must not pretend a bare executable establishes workspace or provider binding.
+
+This architecture adds at most one upstream execution environment and one native MCP child, with zero new agent-surface deploy units, stores or dependencies. It accepts upstream text results and non-resumable task state for the pilot. It rejects a universal wrapper, schema extension, permanent service, or catalog-wide rollout before measured value. Native-only configuration is a valid deliverable if it completes the task more simply than a shared registry entry. The next useful gate is MOMO's bounded matched comparison, not shared registration.

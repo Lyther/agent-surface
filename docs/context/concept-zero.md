@@ -4,6 +4,8 @@ Status: PROPOSED DESIGN; USER DIRECTION ACCEPTED; IMPLEMENTATION NOT STARTED
 Last updated: 2026-09-28
 Baseline: `main` at `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 
+Scope note: the runtime-refresh sections retain their dated baseline. The separate [agent-reuse amendment](#agent-reuse-capability-amendment) below was researched on 2026-10-12 and accepted for a bounded experiment on 2026-10-13; one supervised route has now been observed. It does not reopen runtime-refresh or computer-use work.
+
 ## Executive Decision
 
 Keep agent-surface as a canonical-practice compiler, native-adapter catalog and managed installer. This batch makes runtime identity, security-aware release selection, lifecycle and proof boundaries explicit; repairs demonstrated path/format defects; separates different harnesses hidden behind one editor brand; and adds a controlled successor path for Antigravity workflows. Retain OpenHands V1 CLI, but recommend it only for existing users. Expand Grok Build only where native contracts and task evidence justify it; evaluate Grok Bot as a separate private workplace pilot. Do not build a runtime manager, vulnerability scanner, provider router, scheduler, saved-profile engine, or universal permissions layer.
@@ -114,3 +116,44 @@ The first implementation slice is metadata and visible notices, followed by inst
 Native file/schema and effective-invocation unknowns are bounded implementation prerequisites, not product decisions to guess. The research ledger identifies their sources and the roadmap assigns them. DSH's critical advisory and Cascade's removal from current Desktop are now source-verified, and the installed DSH was upgraded past the affected range. Still required: qualify native Devin roots; prove Antigravity manual-only behavior; verify Grok native role schema and restrictions; keep Grok Bot import/account qualification separate; and requalify DSH natively in a later batch.
 
 `arch-roadmap` carries every `G-RT`/`Q-RT` requirement into a scoped step with files and evidence. `arch-contract` defines the metadata, notice and migration boundaries using existing schemas and installer ownership, with no new transport or database. The implementation peer starts with `dev-spec` for the first bounded slice, not a whole-portfolio rewrite.
+
+## Agent-Reuse Capability Amendment
+
+Status: ACCEPTED FOR BOUNDED EXPERIMENT, 2026-10-13; MOMO has accepted the development-host handoff for its supervised comparison. The initial source review used agent-surface `886f237` and MOMO `779f35a`; subsequent [native execution evidence](concept-zero-research.md#agent-reuse-native-spike-2026-10-13) qualifies one supervised MCP route, not comparative capability. Derived work: [architecture](../architecture.md#agent-reuse-capability-trial), [roadmap](../roadmap.md#phase-as-ar-agent-reuse-capability-trial), [contract](../contracts/agent-reuse.md).
+
+### Problem and Selected Direction
+
+MOMO needs more independently verified target coverage, not more registered tools. Recalculation of its retained Juice Shop metrics confirms that the original five included runs solved a union of 22/59 scoped challenges, leaving 37 common misses. This union is not an ensemble result. A later Kilo run reached 50/59, but source, Global model and budget changed; a subsequent Kilo run reached 21/59. These observations justify investigating execution and methodology, not declaring a model ceiling or promising an integration gain.
+
+Select a bounded **whole-agent trial through one existing native harness**, provisionally using **GH05TCREW/PentestAgent** at `87d763a9c830597e9b8c1d56293300f6961beec2`. Record whether the selected strategy uses its MCP loop or standalone CLI/playbook; use the same mode in corresponding comparison arms. The first functional proof used MCP, without mandating that interface for later strategy selection. This is a different application from the already registered **0xSteph/Pentest-AI** (`pentest-ai`), whose MCP tools use the parent's reasoning. Keep both identities explicit.
+
+Agent-surface prepares the separate upstream environment and one native launch configuration; MOMO owns its optional application row, delegation guidance, existing Evidence retention and matched evaluation. Operators receive a report and actual accessible artifacts through the enclosing Task. No new runtime framework, provider router, scheduler, delegate database, universal wrapper or computer-use integration is selected.
+
+### Requirements and Quality Scenarios
+
+- `G-AR-01` Capability: evaluate additional solved challenge IDs, overlap, elapsed time and available total usage. A successful handshake or a delegate's self-reported success does not satisfy this goal.
+- `G-AR-02` Native reuse: keep the candidate's loop upstream and use one maintained harness's real MCP client or existing native command execution. Agent-surface owns configuration delivery, not the delegate's execution state; MOMO keeps its current Task/Evidence/result owners.
+- `G-AR-03` Bounded operation: prove provider tool calling, artifact access, errors and cancellation before unattended adoption. Source inspection already shows that cancellation acknowledgement and terminal status are insufficient evidence.
+- `C-AR-01` Preserve the operator's provider/model choices, existing categories and deployment profile. Use an approved Ollama Cloud route; no premium-model substitution, automatic retry with another provider, all-target distribution or global MCP addition.
+- `C-AR-02` Keep the first trial to one delegate task at a time in a dedicated working directory and disposable development execution boundary. A Python environment isolates dependencies, not shell authority. No production machine or unrelated host credentials are needed.
+- `N-AR-01` Do not import an upstream control plane into MOMO, rebuild orchestration, add persistent task storage, change Synapse/Grimoire, or start the separate computer-use workstream.
+- `Q-AR-01` An explicitly scoped task is submitted through the native host, performs a real harmless operation and returns an inspectable artifact. Observe the actual tool invocation, content and filesystem result; model narration alone fails the scenario.
+- `Q-AR-02` A task is cancelled while work is outstanding, or its parent is interrupted: measure what actually stops, what remains and the stop latency within a predeclared deadline. No false completion, automatic resubmission or unobserved continuing subprocess is accepted as cancellation proof.
+- `Q-AR-03` Fresh target state and fixed scoring produce a matched comparison: baseline, delegate A, methodology B, then A+B. Keep the parent's normal task-authorized native tools, runtime/model settings and target-facing environment equivalent across arms; the restricted smoke profile is not a benchmark baseline. Include delegate work in the total allowance, preserve failed runs and distinguish solved flags from verified Findings. Unknown consumption remains unknown.
+- `Q-AR-04` A later explicit single-service install preserves unrelated host configuration and the default profile. No category installation begins selecting this delegate as a side effect.
+
+### Alternatives and Decision Boundary
+
+**Native tools or methodology alone** are the simplest alternative. Existing Pentest-AI and the installed security corpus may address a gap without an inner agent. At the operator's direction, prepare one separately selectable methodology asset alongside the delegate spike. Trace review remains useful for choosing and interpreting the measured task; it does not block preparation. Keep baseline versus delegate first, then add methodology-only and combined arms without conflating their effects.
+
+**Native MCP delegation** is selected provisionally because GH05TCREW exposes submission, status and result operations without requiring MOMO to implement its loop. However, its current cancellation only marks state, its local command timeout does not terminate the child process, and provider errors can end with task status `done`. The first spike must establish an effective stop path or a narrowly scoped upstream repair. The candidate is not approved for unattended registration merely because these methods exist.
+
+**Embedding a new agent framework** is rejected. If GH05TCREW needs a new process manager, durable task service or substantial adapter, compare Decepticon's existing engagement MCP and Strix's native headless/scan path instead. Neither alternative is performance- or cancellation-qualified by this research. Changing candidates is preferable to constructing infrastructure around a weak fit.
+
+### First Useful Slice and Revisit Triggers
+
+Start outside the distributed registry: one development environment, one approved model, one native harness and one harmless complete task, with retrieval before process shutdown. Disable optional RAG and external MCP chaining for this first route. Establish provider compatibility and actual output ownership, then exercise cancellation and failure. Those optional features can be a later measured variant; their absence must remain part of the trial identity.
+
+Functional proof permits a bounded MOMO experiment; only demonstrated value justifies wider deployment. The next slice is one real MOMO Task retaining delegate results/artifacts, then baseline versus A through MOMO's existing scorer; B and A+B follow independently. Reuse the accepted development-host preparation rather than repeat the spike or expand candidate research. Measure additional coverage, stronger validation, time and repeatability rather than rejecting overlap by itself. Preserve methodology provenance and notices, and avoid attributing a gain to it before its separate comparison. A working but non-additive delegate can remain an operator tool without becoming part of MOMO's routine path.
+
+Open evidence after the first spike: target-facing effectiveness, native-parent/MOMO interruption propagation, provider-side cancellation and methodology benefit. One MCP/provider/artifact route and a supervised environment stop are now observed; see the [runbook](../runbooks/pentestagent.md). Existing resource authorization remains valid; this design creates no new approval system.
