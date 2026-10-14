@@ -459,16 +459,17 @@ try {
     rmSync(path.join(dest, rule), { recursive: true });
 
     const unreadable = [
-      [path.join(".cursor", "mcp.json"), "mcps", "{\"mcpServers\":{}}\n", /^ {2}MCP config \.cursor\/mcp\.json cannot be read \(EACCES\)$/m],
-      [rule, "rules", "the operator's text\n", /^ {2}managed output \.cursor\/rules\/00-precedence-and-safety\.mdc cannot be read \(EACCES\)$/m],
+      ["cursor", path.join(".cursor", "mcp.json"), "mcps", "{\"mcpServers\":{}}\n", /^ {2}MCP config \.cursor\/mcp\.json cannot be read \(EACCES\)$/m],
+      ["cursor", rule, "rules", "the operator's text\n", /^ {2}managed output \.cursor\/rules\/00-precedence-and-safety\.mdc cannot be read \(EACCES\)$/m],
+      ["kilo", "kilo.jsonc", "rules", "{}\n", /^ {2}Kilo config kilo\.jsonc cannot be read \(EACCES\)$/m],
     ];
-    for (const [relative, category, content, line] of unreadable) {
+    for (const [target, relative, category, content, line] of unreadable) {
       const file = path.join(dest, relative);
       writeFileSync(file, content);
       chmodSync(file, 0o000);
       try {
         if (canOpen(file)) continue;
-        const refused = project(dest, "cursor", ["--category", category]);
+        const refused = project(dest, target, ["--category", category]);
         assert.equal(refused.code, 1, refused.out);
         assert.match(refused.out, line);
         assert.doesNotMatch(refused.out, /EACCES: permission denied/, "no bare filesystem error");
@@ -476,7 +477,7 @@ try {
         chmodSync(file, 0o644);
       }
       assert.equal(read(dest, relative), content, `${relative} is untouched`);
-      assert.equal(manifest(dest, "cursor"), null, "the refused run wrote no manifest");
+      assert.equal(manifest(dest, target), null, "the refused run wrote no manifest");
     }
   }
 
