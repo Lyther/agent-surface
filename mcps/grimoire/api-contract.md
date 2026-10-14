@@ -18,7 +18,7 @@ type Status  = "ok" | "INDEX_MISSING" | "INDEX_STALE" | "NOT_FOUND" | "INVALID_I
 
 interface Provenance {
   sourcePath: string; sourceCommit: string; sha256: string; indexedAt: string /*ISO-8601*/;
-  attribution: string; // author/source/license and any mechanical transformation notice
+  attribution: string; // pack author/source/license and transformation notice, then the skill's own license, author and license file when declared
 }
 interface FileManifestEntry { path: string; size: number /*bytes*/ }
 interface SkillRef  { id: SkillId; pack: string; name: string; summary: string }          // list item

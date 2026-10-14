@@ -21,6 +21,7 @@ import {
   expectedSkillCount,
   files,
   hasLocalOpsServerCommand,
+  MAX_CAPTURE_BYTES,
   root,
   run, status,
 } from "../lib/helpers.mjs";
@@ -241,7 +242,7 @@ try {
   const packed = JSON.parse(execFileSync(
     "npm",
     ["pack", "--json", "--pack-destination", consumerRoot],
-    { cwd: root, encoding: "utf8" },
+    { cwd: root, encoding: "utf8", maxBuffer: MAX_CAPTURE_BYTES },
   ));
   const modulesRoot = path.join(consumerRoot, "node_modules");
   mkdirSync(modulesRoot);

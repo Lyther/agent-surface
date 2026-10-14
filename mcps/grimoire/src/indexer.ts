@@ -92,22 +92,40 @@ function indexedSourceChanged(snapshots: Map<string, string>): boolean {
   return false;
 }
 
-// Split the Markdown body here; the YAML library owns frontmatter syntax.
-export function parseFrontmatter(text: string): { fields: Record<string, string>; body: string } | null {
+const stringEntries = (value: unknown): Record<string, string> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string"))
+    : {};
+
+// Split the Markdown body here; the YAML library owns frontmatter syntax. `metadata` holds the
+// string entries of the spec's optional `metadata` map.
+export function parseFrontmatter(text: string): { fields: Record<string, string>; metadata: Record<string, string>; body: string } | null {
   const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
   if (!m) return null;
   try {
     // Third-party packs sometimes have malformed nonessential fields. YAML's
     // recovery mode still provides the scalar name/description we index.
-    const parsed = parseYamlDocument(m[1] ?? "", { strict: false, logLevel: "silent" }).toJS();
+    const parsed: unknown = parseYamlDocument(m[1] ?? "", { strict: false, logLevel: "silent" }).toJS();
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-    const fields = Object.fromEntries(
-      Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-    );
-    return { fields, body: text.slice(m[0].length) };
+    return { fields: stringEntries(parsed), metadata: stringEntries((parsed as Record<string, unknown>)["metadata"]), body: text.slice(m[0].length) };
   } catch {
     return null;
   }
+}
+
+const NOTICE_FIELD_MAX = 200;
+const LICENSE_FILE_RE = /^(?:LICEN[CS]E|COPYING)(?:[.-][A-Za-z0-9.-]+)?$/i;
+
+// The skill's own license and author declarations, which outrank a pack's blanket attribution. A
+// license file in the skill root is served as a companion, so the notice names it as well.
+function skillNotice(skillDir: string, fields: Record<string, string>, metadata: Record<string, string>): string {
+  const clean = (value: string | undefined): string => (value ?? "").replace(/\s+/g, " ").trim().slice(0, NOTICE_FIELD_MAX);
+  const license = clean(fields["license"]);
+  const author = clean(fields["author"] || metadata["author"]);
+  const licenseFiles = readdirSync(skillDir, { withFileTypes: true })
+    .filter((e) => e.isFile() && LICENSE_FILE_RE.test(e.name)).map((e) => e.name).sort();
+  return [license && `license ${license}`, author && `author ${author}`, licenseFiles.length > 0 && `license file ${licenseFiles.join(", ")}`]
+    .filter(Boolean).join("; ");
 }
 
 function listSupportingFiles(skillDir: string): string[] {
@@ -173,7 +191,7 @@ export function buildIndex(opts: {
     db.prepare("INSERT OR REPLACE INTO index_meta(key,value) VALUES('schema_version',?)").run(String(SCHEMA_VERSION));
 
     const insSkill = db.prepare(
-      "INSERT INTO skills(id,pack,name,source_path,source_commit,sha256,indexed_at,description,body,category,category_source) VALUES(?,?,?,?,?,?,?,?,?,?,'derived')",
+      "INSERT INTO skills(id,pack,name,source_path,source_commit,sha256,indexed_at,description,body,category,category_source,notice) VALUES(?,?,?,?,?,?,?,?,?,?,'derived',?)",
     );
     const insFts = db.prepare("INSERT INTO skills_fts(rowid,name,description,body) VALUES(?,?,?,?)");
     const insFile = db.prepare("INSERT INTO skill_files(skill_id,rel_path,content,sha256,size) VALUES(?,?,?,?,?)");
@@ -231,7 +249,8 @@ export function buildIndex(opts: {
         // insert failure (not a collision) propagating as a hard error instead of a silent skip.
         if (seenIds.has(id)) { result.skipped.push({ dir: dirLabel, reason: `duplicate skill id: ${id}` }); continue; }
         seenIds.add(id);
-        const res = insSkill.run(id, pack.serviceId, name, sourcePath, commit, bodySha, indexedAt, description, body, category);
+        const notice = skillNotice(skillDir, parsed.fields, parsed.metadata);
+        const res = insSkill.run(id, pack.serviceId, name, sourcePath, commit, bodySha, indexedAt, description, body, category, notice);
         const rowid = Number(res.lastInsertRowid);
         insFts.run(rowid, name, description, body);
         result.skills++;

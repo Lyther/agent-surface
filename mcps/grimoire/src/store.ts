@@ -6,7 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   LIMITS, type FileGetResult, type GetResult, type ListResult, type SearchResult, type StatusError,
 } from "./contract.js";
-import { CATEGORY_ALIASES, SCHEMA_VERSION, decId, rowToFull, rowToHit, rowToRef, type SkillRow } from "./model.js";
+import { CATEGORY_ALIASES, SCHEMA_VERSION, decId, rowToFull, rowToHit, rowToRef, servedAttribution, type SkillRow } from "./model.js";
 import { resolvePaths, type GrimoirePaths } from "./namespace.js";
 
 interface ManifestPack { serviceId: string; commit: string; sourceHash: string; attribution: string }
@@ -150,7 +150,7 @@ export class Store {
     if (!row) return { status: "NOT_FOUND", hint: "unknown skill id" };
     const files = db.prepare("SELECT rel_path,size FROM skill_files WHERE skill_id=? ORDER BY rel_path")
       .all(id) as unknown as { rel_path: string; size: number }[];
-    const attribution = this.metaGet(db, `pack:${row.pack}:attribution`) ?? row.pack;
+    const attribution = servedAttribution(this.metaGet(db, `pack:${row.pack}:attribution`) ?? row.pack, row.notice);
     return { status: "ok", skill: rowToFull(row, files.map((f) => ({ path: f.rel_path, size: f.size })), attribution) };
   }
 
@@ -159,12 +159,12 @@ export class Store {
     if ("status" in db) return db;
     if (!decId(id)) return { status: "INVALID_INPUT", hint: 'id must be "<pack>:<skillName>"' };
     if (isUnsafePath(path)) return { status: "INVALID_INPUT", hint: "path must be a relative entry from the skill manifest (no absolute or .. paths)" };
-    const skill = db.prepare("SELECT pack FROM skills WHERE id=?").get(id) as { pack: string } | undefined;
+    const skill = db.prepare("SELECT pack,notice FROM skills WHERE id=?").get(id) as { pack: string; notice: string } | undefined;
     if (!skill) return { status: "NOT_FOUND", hint: "unknown skill id" };
     const row = db.prepare("SELECT content,size FROM skill_files WHERE skill_id=? AND rel_path=?")
       .get(id, path) as unknown as { content: string; size: number } | undefined;
     if (!row) return { status: "NOT_FOUND", hint: "path not in skill manifest; call grimoire_get first" };
-    const attribution = this.metaGet(db, `pack:${skill.pack}:attribution`) ?? skill.pack;
+    const attribution = servedAttribution(this.metaGet(db, `pack:${skill.pack}:attribution`) ?? skill.pack, skill.notice);
     return { status: "ok", file: { path, content: row.content, size: row.size, attribution } };
   }
 }

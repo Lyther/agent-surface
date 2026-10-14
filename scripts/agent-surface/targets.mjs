@@ -3,7 +3,7 @@
 // postprocess; the install + check layers import targets/targetOutputs/producers from here.
 import { closeSync, openSync, readSync } from "node:fs";
 import { foldedBlockScalar } from "./format.mjs";
-import { readFile, stat } from "node:fs/promises";
+import { lstat, readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { directDirectories, filesUnder } from "./fs-tree.mjs";
@@ -1028,10 +1028,18 @@ export async function externalSkillOutputs(adapter, context) {
   const textExtensions = [".md", ".mdx", ".json", ".yaml", ".yml", ".toml", ".txt", ".html", ".sh", ".py", ".js", ".mjs", ".ts", ".ps1", "LICENSE"];
 
   let totalBytes = 0;
-  for (const { root: sourceRoot, serviceName, assetCategory } of roots) {
+  for (const { root: sourceRoot, serviceName, assetCategory, licenseFile } of roots) {
     const skillName = path.basename(sourceRoot);
-    const skillFiles = await filesUnder(sourceRoot, textExtensions);
-    for (const file of skillFiles) {
+    const skillFiles = (await filesUnder(sourceRoot, textExtensions)).map((file) => [file, path.relative(sourceRoot, file)]);
+    // Deliver the pack's upstream license as the skill's LICENSE unless the skill already delivers its
+    // own. Like filesUnder, accept only a regular file, so a symlinked license cannot pull in a host file.
+    if (licenseFile && !skillFiles.some(([, relativeFile]) => SKILL_LICENSE_RE.test(relativeFile))) {
+      const info = await lstat(licenseFile).catch(() => null);
+      if (!info) fail(`pack ${serviceName}: license_file is missing: ${relative(licenseFile)}`);
+      if (!info.isFile()) fail(`pack ${serviceName}: license_file is not a regular file: ${relative(licenseFile)}`);
+      skillFiles.push([licenseFile, "LICENSE"]);
+    }
+    for (const [file, relativeFile] of skillFiles) {
       if (outputs.length >= MAX_EXTERNAL_FILES) {
         const detail = `external skill output cap reached (${MAX_EXTERNAL_FILES} files)`;
         fail(`${detail}; pack ${serviceName} would be truncated`);
@@ -1046,7 +1054,6 @@ export async function externalSkillOutputs(adapter, context) {
         fail(`${detail}; pack ${serviceName} would be truncated`);
       }
       totalBytes += size;
-      const relativeFile = path.relative(sourceRoot, file);
       outputs.push({
         sourceKind: "external",
         renderKind: "external",
@@ -1253,9 +1260,10 @@ export async function externalSkillRoots({ includeOptional = true, context = { m
     const required = service.optional === false || service.status === "required";
     if (!required && !includeOptional) continue;
     declaredPacks.push(serviceName);
+    const licenseFile = packLicenseFile(serviceName, service);
     for (const item of service.skill_roots ?? []) {
       for (const dir of await expandSkillRoot(item)) {
-        candidates.push({ root: dir, serviceName, required, assetCategory });
+        candidates.push({ root: dir, serviceName, required, assetCategory, licenseFile });
       }
     }
   }
@@ -1283,6 +1291,18 @@ export async function externalSkillRoots({ includeOptional = true, context = { m
     (left, right) =>
       Number(right.required) - Number(left.required) || relative(left.root).localeCompare(relative(right.root)),
   );
+}
+
+const SKILL_LICENSE_RE = /^(?:LICEN[CS]E|COPYING)(?:[.-][A-Za-z0-9.-]+)?$/i;
+
+// Upstream licenses usually sit at the repository root, outside every distributed skill directory.
+function packLicenseFile(serviceName, service) {
+  const file = service.license_file;
+  if (file === undefined) return null;
+  if (typeof file !== "string" || !isSafeRelativePath(file) || !file.startsWith(`${service.path}/`)) {
+    fail(`pack ${serviceName}: license_file must be a safe path inside ${service.path}: ${file}`);
+  }
+  return path.join(root, file);
 }
 
 export async function expandSkillRoot(item) {

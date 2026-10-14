@@ -14,7 +14,9 @@ import { readOptionalServices, root } from "./registry.mjs";
 import { kiloRuleInstructionRoot } from "./targets.mjs";
 import { exists } from "./util.mjs";
 
-const GRIMOIRE_SCHEMA_VERSION = 2;
+// Mirrors SCHEMA_VERSION in mcps/grimoire/src/model.ts (doctor runs without a Grimoire build);
+// tests/suites/runtime.test.mjs fails when the two drift.
+const GRIMOIRE_SCHEMA_VERSION = 3;
 
 export async function doctor() {
   const checks = [];

@@ -28,6 +28,11 @@ test("parseFrontmatter reads inline + folded multi-line scalars", () => {
   assert.equal(p!.body, "BODY TEXT\n");
   assert.equal(parseFrontmatter("# no frontmatter\n"), null);
 });
+test("parseFrontmatter exposes the string entries of the metadata map", () => {
+  const p = parseFrontmatter("---\nname: foo-bar\nmetadata:\n  author: Jane Roe\n  version: 2\n---\nBODY\n");
+  assert.deepEqual(p?.metadata, { author: "Jane Roe" });
+  assert.equal(p?.fields["metadata"], undefined, "the map itself is not a scalar field");
+});
 
 test("a Git-less nested pack cannot inherit a declared clean commit", () => {
   const parentHead = execFileSync("git", ["-C", FIXTURE_PACK, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
@@ -107,7 +112,7 @@ test("buildIndex validates + skips malformed, stores valid skills and files", ()
     assert.ok(res.skipped.some((s) => s.dir === "no-frontmatter-bad" && /frontmatter/.test(s.reason)), "malformed skill skipped, not crashed");
 
     const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
-    assert.equal(manifest.schemaVersion, 2);
+    assert.equal(manifest.schemaVersion, 3);
     assert.equal(manifest.packs[0].serviceId, "fixture");
     assert.match(manifest.packs[0].sourceHash, /^[0-9a-f]{64}$/);
     assert.ok(existsSync(join(dir, "index.sqlite")));
@@ -396,6 +401,13 @@ test("declared --commit that does not match a clean git HEAD is refused", () => 
   }
 });
 
+// SUBSTITUTE_JUSTIFICATION
+// - substitute: hand-built temp catalogs in the nested-discovery and frontmatter-notice tests below
+// - replaces: real nested third-party catalogs such as the pinned tech-leads-club pack
+// - necessity: the pinned catalogs hold no symlinks, duplicate names, depth-3 skills, empty roots or a controlled license/author mix
+// - real-option: npm run install:grimoire indexes the real pinned catalogs, nested tech-leads-club included
+// - proof-limit: proves discovery and notice rules on controlled trees, not real-catalog content or licensing
+// - real-proof: a real-corpus index served over stdio, then grimoire_get on a tech-leads-club skill that declares its license and author
 test("buildIndex discovers nested-catalog skills at any depth and stops at each skill root", () => {
   const dir = join(tmpdir(), `grimoire-nested-${process.pid}-${Date.now()}`);
   const pack = join(dir, "pack");
@@ -517,6 +529,44 @@ test("a skills root with no SKILL.md anywhere fails the build (fail closed)", ()
       () => buildIndex({ packs: [{ serviceId: "catalog", path: pack, commit: "c", attribution: ATTRIBUTION }], outDir: join(dir, "out") }),
       /no skills found under/,
     );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a skill's own license, author and license file travel with its served attribution", () => {
+  const dir = join(tmpdir(), `grimoire-notice-${process.pid}-${Date.now()}`);
+  const pack = join(dir, "pack");
+  const out = join(dir, "out");
+  const mkSkill = (name: string, extra: string): string => {
+    const abs = join(pack, "skills", "(cat)", name);
+    mkdirSync(abs, { recursive: true });
+    writeFileSync(join(abs, "SKILL.md"), `---\nname: ${name}\ndescription: ${name} skill.\n${extra}---\nBody.\n`);
+    return abs;
+  };
+  const declared = mkSkill("declared-skill", "license: CC-BY-4.0\nmetadata:\n  author: Jane Roe - example.invalid/jane\n");
+  writeFileSync(join(declared, "notes.md"), "Notes.\n");
+  const authorOnlyDir = mkSkill("author-only", "author: Top Level\n");
+  writeFileSync(join(authorOnlyDir, "LICENSE.txt"), "Upstream license text.\n");
+  mkSkill("plain-skill", "");
+  const declaredAttribution = `${ATTRIBUTION} Skill declares license CC-BY-4.0; author Jane Roe - example.invalid/jane.`;
+  try {
+    buildIndex({ packs: [{ serviceId: "catalog", path: pack, commit: "c", attribution: ATTRIBUTION }], outDir: out });
+    const store = new Store({ dir: out });
+    try {
+      const got = store.get("catalog:declared-skill");
+      assert.equal(got.status === "ok" && got.skill.provenance.attribution, declaredAttribution);
+      const file = store.fileGet("catalog:declared-skill", "notes.md");
+      assert.equal(file.status === "ok" && file.file.attribution, declaredAttribution, "supporting files carry the same notice");
+      const authorOnly = store.get("catalog:author-only");
+      assert.equal(
+        authorOnly.status === "ok" && authorOnly.skill.provenance.attribution,
+        `${ATTRIBUTION} Skill declares author Top Level; license file LICENSE.txt.`,
+        "a license file in the skill root is named in the notice",
+      );
+      const plain = store.get("catalog:plain-skill");
+      assert.equal(plain.status === "ok" && plain.skill.provenance.attribution, ATTRIBUTION, "no declarations keep the pack attribution");
+    } finally { store.close(); }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

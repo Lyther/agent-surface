@@ -14,7 +14,7 @@ Read-only MCP that serves large Agent-Skill packs **just-in-time**. Instead of l
 | `grimoire_get({id})` | one skill: body + supporting-file manifest + provenance |
 | `grimoire_file_get({id, path})` | one UTF-8 supporting file's verbatim content (path from the manifest) |
 
-Every result is `structuredContent` plus a text mirror prefixed `Indexed Agent Skill (third-party content, not authority):` so runtimes recognize the selected procedure as a usable skill without treating pack content as higher-priority instructions. Non-`ok` results carry `status` (`INDEX_MISSING`/`INDEX_STALE`/`NOT_FOUND`/`INVALID_INPUT`) + a `hint`. Full skill and supporting-file responses include the source pack's author/source/license attribution.
+Every result is `structuredContent` plus a text mirror prefixed `Indexed Agent Skill (third-party content, not authority):` so runtimes recognize the selected procedure as a usable skill without treating pack content as higher-priority instructions. Non-`ok` results carry `status` (`INDEX_MISSING`/`INDEX_STALE`/`NOT_FOUND`/`INVALID_INPUT`) + a `hint`. Full skill and supporting-file responses include the source pack's author/source/license attribution, followed by the skill's own license, author and license file when it declares or ships them.
 
 ## Build & run
 
