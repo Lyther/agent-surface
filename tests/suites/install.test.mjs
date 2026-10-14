@@ -16,7 +16,11 @@ import {
   MAX_CAPTURE_BYTES,
   root,
   run, status,
+  useDisposableHome,
 } from "../lib/helpers.mjs";
+
+// Live installs here wire credentialed MCP servers, which write the shared env launcher into HOME.
+const disposableHome = useDisposableHome();
 
 function dryRun(target, extra = []) {
   return run(["install", "--target", target, "--dest", `/tmp/agent-surface-${target}`, ...extra, "--dry-run"]);
@@ -1639,4 +1643,5 @@ try {
   rmSync(allTargetsDest, { recursive: true, force: true });
 }
 
+disposableHome.restore();
 console.log("install: ok");

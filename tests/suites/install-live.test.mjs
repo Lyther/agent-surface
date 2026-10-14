@@ -3,7 +3,10 @@ import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
-import { run, status } from "../lib/helpers.mjs";
+import { run, status, useDisposableHome } from "../lib/helpers.mjs";
+
+// Live installs here wire credentialed MCP servers, which write the shared env launcher into HOME.
+const disposableHome = useDisposableHome();
 
 // Table-driven live install smoke: each installable target must write a manifest
 // with managed entries. Distinct from build/check generated (render path only).
@@ -183,4 +186,5 @@ for (const target of [
   }
 }
 
+disposableHome.restore();
 console.log("install-live: ok");
