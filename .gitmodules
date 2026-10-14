@@ -67,3 +67,15 @@
 [submodule "external/reverse-skill"]
 	path = external/reverse-skill
 	url = https://github.com/zhaoxuya520/reverse-skill.git
+[submodule "external/tech-leads-club"]
+	path = external/tech-leads-club
+	url = https://github.com/tech-leads-club/agent-skills.git
+[submodule "external/open-code-review"]
+	path = external/open-code-review
+	url = https://github.com/alibaba/open-code-review.git
+[submodule "external/no-ai-slop"]
+	path = external/no-ai-slop
+	url = https://github.com/petergyang/no-ai-slop.git
+[submodule "external/diagram-design"]
+	path = external/diagram-design
+	url = https://github.com/cathrynlavery/diagram-design.git

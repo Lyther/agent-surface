@@ -13,6 +13,7 @@ import {
   clineUserMcpRoutes,
   hasLocalOpsServerCommand,
   installClineExtension,
+  MAX_CAPTURE_BYTES,
   root,
   run, status,
 } from "../lib/helpers.mjs";
@@ -126,6 +127,13 @@ planHas(qwenCodeDevelopmentPlan, [
   /\.qwen\/skills\/skill-review\/SKILL\.md/,
   /\.qwen\/settings\.json MCP \+= chrome-devtools/,
 ], "qwen-code development assets");
+planHas(qwenCodeDevelopmentPlan, [
+  /\.qwen\/skills\/no-ai-slop\/LICENSE <- external\/no-ai-slop\/LICENSE$/m,
+  /\.qwen\/skills\/skill-forge\/LICENSE <- external\/sanyuan-skills\/LICENSE$/m,
+  /\.qwen\/skills\/archify\/LICENSE <- external\/archify\/archify\/LICENSE$/m,
+  /\.qwen\/skills\/diagram-design\/THIRD_PARTY_LICENSES\.md <- external\/diagram-design\/THIRD_PARTY_LICENSES\.md$/m,
+], "qwen-code development skills carry their upstream license and notices");
+planLacks(qwenCodeDevelopmentPlan, [/archify\/LICENSE <- external\/archify\/LICENSE$/m], "a skill's own LICENSE wins over the pack license_file");
 planLacks(qwenCodeDevelopmentPlan, [
   /skills\/ops-ask\//,
   /skills\/book-study\//,
@@ -1477,6 +1485,7 @@ assert.match(readFileSync(path.join(root, ".npmignore"), "utf8"), /^commands\/op
 const packed = JSON.parse(execFileSync("npm", ["pack", "--dry-run", "--json", "--loglevel=silent"], {
   cwd: root,
   encoding: "utf8",
+  maxBuffer: MAX_CAPTURE_BYTES,
 }));
 const packedPaths = new Set(packed[0].files.map((file) => file.path));
 for (const required of [
@@ -1487,6 +1496,19 @@ for (const required of [
   "external/sanyuan-skills/skills/skill-review/SKILL.md",
 ]) {
   assert.equal(packedPaths.has(required), true, `npm package missing ${required}`);
+}
+// A category install fails when a registered skill pack or its license is absent, so every one ships.
+for (const [id, service] of Object.entries(JSON.parse(readFileSync(path.join(root, "registry", "optional-services.json"), "utf8")).services)) {
+  if (!["skill-pack", "behavior-pack"].includes(service.kind)) continue;
+  for (const skillRoot of service.skill_roots) {
+    const shipped = skillRoot.endsWith("/*")
+      ? [...packedPaths].some((file) => file.startsWith(skillRoot.slice(0, -1)) && file.endsWith("/SKILL.md"))
+      : packedPaths.has(`${skillRoot}/SKILL.md`);
+    assert.equal(shipped, true, `npm package missing ${id} skill root ${skillRoot}`);
+  }
+  for (const file of [service.license_file, ...(service.notice_files ?? [])].filter(Boolean)) {
+    assert.equal(packedPaths.has(file), true, `npm package missing ${id} license or notice ${file}`);
+  }
 }
 assert.equal(
   [...packedPaths].some((file) => file.startsWith("external/andrej-karpathy-skills/")),
@@ -1539,7 +1561,7 @@ assert.equal([...packedPaths].some((file) => file.startsWith(".agent-surface/"))
     const packageInfo = JSON.parse(execFileSync(
       "npm",
       ["pack", "--json", "--pack-destination", packageDir, "--loglevel=silent"],
-      { cwd: root, encoding: "utf8" },
+      { cwd: root, encoding: "utf8", maxBuffer: MAX_CAPTURE_BYTES },
     ));
     const packagedRoot = path.join(packageDir, "source");
     mkdirSync(packagedRoot);

@@ -77,6 +77,10 @@
   "services": [
     "archify",
     "chrome-devtools",
-    "sanyuan-development-skills"
+    "diagram-design",
+    "no-ai-slop",
+    "open-code-review",
+    "sanyuan-development-skills",
+    "tech-leads-club"
   ]
 }

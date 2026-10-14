@@ -67,6 +67,20 @@
               "pattern": "^external/[A-Za-z0-9._*/-]+$"
             }
           },
+          "license_file": {
+            "type": "string",
+            "pattern": "^external/[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+$",
+            "description": "Upstream license file inside the pack path, delivered as LICENSE into each distributed skill directory that does not ship its own."
+          },
+          "notice_files": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^external/[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+$"
+            },
+            "description": "Further upstream notice files inside the pack path (for example third-party asset licenses), each delivered under its own name into every distributed skill directory that does not ship a file of that name."
+          },
           "served_by": {
             "type": "array",
             "minItems": 1,

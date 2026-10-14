@@ -3,7 +3,7 @@
 // postprocess; the install + check layers import targets/targetOutputs/producers from here.
 import { closeSync, openSync, readSync } from "node:fs";
 import { foldedBlockScalar } from "./format.mjs";
-import { readFile, stat } from "node:fs/promises";
+import { lstat, readFile, readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { directDirectories, filesUnder } from "./fs-tree.mjs";
@@ -1028,10 +1028,34 @@ export async function externalSkillOutputs(adapter, context) {
   const textExtensions = [".md", ".mdx", ".json", ".yaml", ".yml", ".toml", ".txt", ".html", ".sh", ".py", ".js", ".mjs", ".ts", ".ps1", "LICENSE"];
 
   let totalBytes = 0;
-  for (const { root: sourceRoot, serviceName, assetCategory } of roots) {
+  for (const { root: sourceRoot, serviceName, assetCategory, licenseFile, noticeFiles } of roots) {
     const skillName = path.basename(sourceRoot);
-    const skillFiles = await filesUnder(sourceRoot, textExtensions);
-    for (const file of skillFiles) {
+    const skillFiles = (await filesUnder(sourceRoot, textExtensions)).map((file) => [file, path.relative(sourceRoot, file)]);
+    // The text allowlist admits a bare LICENSE only; a skill's own COPYING, LICENCE or LICENSE-MIT
+    // ships as well, since it outranks the pack's license.
+    const rootLicenses = (await readdir(sourceRoot, { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && SKILL_LICENSE_RE.test(entry.name)).map((entry) => entry.name).sort();
+    for (const name of rootLicenses) {
+      if (!skillFiles.some(([, relativeFile]) => relativeFile === name)) skillFiles.push([path.join(sourceRoot, name), name]);
+    }
+    // Deliver the pack's upstream license as the skill's LICENSE unless the skill already delivers its
+    // own, and each further upstream notice under its own name unless the skill ships that file.
+    const packFiles = [];
+    if (licenseFile && !skillFiles.some(([, relativeFile]) => SKILL_LICENSE_RE.test(relativeFile))) {
+      packFiles.push([licenseFile, "LICENSE", "license_file"]);
+    }
+    for (const noticeFile of noticeFiles) {
+      const name = path.basename(noticeFile);
+      if (![...skillFiles, ...packFiles].some(([, relativeFile]) => relativeFile === name)) packFiles.push([noticeFile, name, "notice_files"]);
+    }
+    for (const [file, relativeFile, field] of packFiles) {
+      // Like filesUnder, accept only a regular file, so a symlink cannot pull in a host file.
+      const info = await lstat(file).catch(() => null);
+      if (!info) fail(`pack ${serviceName}: ${field} is missing: ${relative(file)}`);
+      else if (!info.isFile()) fail(`pack ${serviceName}: ${field} is not a regular file: ${relative(file)}`);
+      skillFiles.push([file, relativeFile]);
+    }
+    for (const [file, relativeFile] of skillFiles) {
       if (outputs.length >= MAX_EXTERNAL_FILES) {
         const detail = `external skill output cap reached (${MAX_EXTERNAL_FILES} files)`;
         fail(`${detail}; pack ${serviceName} would be truncated`);
@@ -1046,7 +1070,6 @@ export async function externalSkillOutputs(adapter, context) {
         fail(`${detail}; pack ${serviceName} would be truncated`);
       }
       totalBytes += size;
-      const relativeFile = path.relative(sourceRoot, file);
       outputs.push({
         sourceKind: "external",
         renderKind: "external",
@@ -1253,9 +1276,11 @@ export async function externalSkillRoots({ includeOptional = true, context = { m
     const required = service.optional === false || service.status === "required";
     if (!required && !includeOptional) continue;
     declaredPacks.push(serviceName);
+    const licenseFile = service.license_file === undefined ? null : packFile(serviceName, service, "license_file", service.license_file);
+    const noticeFiles = (service.notice_files ?? []).map((file) => packFile(serviceName, service, "notice_files", file));
     for (const item of service.skill_roots ?? []) {
       for (const dir of await expandSkillRoot(item)) {
-        candidates.push({ root: dir, serviceName, required, assetCategory });
+        candidates.push({ root: dir, serviceName, required, assetCategory, licenseFile, noticeFiles });
       }
     }
   }
@@ -1283,6 +1308,17 @@ export async function externalSkillRoots({ includeOptional = true, context = { m
     (left, right) =>
       Number(right.required) - Number(left.required) || relative(left.root).localeCompare(relative(right.root)),
   );
+}
+
+const SKILL_LICENSE_RE = /^(?:LICEN[CS]E|COPYING)(?:[.-][A-Za-z0-9.-]+)?$/i;
+
+// Upstream license and notice files usually sit at the repository root, outside every distributed
+// skill directory.
+function packFile(serviceName, service, field, file) {
+  if (typeof file !== "string" || !isSafeRelativePath(file) || !file.startsWith(`${service.path}/`)) {
+    fail(`pack ${serviceName}: ${field} must be a safe path inside ${service.path}: ${file}`);
+  }
+  return path.join(root, file);
 }
 
 export async function expandSkillRoot(item) {

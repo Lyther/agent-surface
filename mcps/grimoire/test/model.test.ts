@@ -33,7 +33,7 @@ test("rowToRef truncates the summary to the limit; rowToFull carries provenance"
   const row: SkillRow = {
     id: "p:n", pack: "p", name: "n", source_path: "skills/n/SKILL.md", source_commit: "abc",
     sha256: "deadbeef", indexed_at: "2026-01-01T00:00:00.000Z", description: long, body: "B",
-    category: "other", category_source: "derived",
+    category: "other", category_source: "derived", notice: "",
   };
   const ref = rowToRef(row);
   assert.ok(ref.summary.length <= LIMITS.SUMMARY_CHARS);

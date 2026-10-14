@@ -1,5 +1,5 @@
 -- grimoire — canonical read-only index schema (mirrored by src/model.ts SCHEMA_SQL).
--- SCHEMA_VERSION = 2. Built write-once per indexed source state; rebuilt, never migrated.
+-- SCHEMA_VERSION = 3. Built write-once per indexed source state; rebuilt, never migrated.
 CREATE TABLE IF NOT EXISTS skills (
   id              TEXT PRIMARY KEY,                 -- "<pack>:<skillName>"
   pack            TEXT NOT NULL,
@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS skills (
   body            TEXT NOT NULL,                    -- SKILL.md body after frontmatter separation
   category        TEXT NOT NULL,                    -- derived from name prefix
   category_source TEXT NOT NULL DEFAULT 'derived' CHECK (category_source IN ('derived')),
+  notice          TEXT NOT NULL DEFAULT '',         -- skill license/author/license-file declarations, appended to the served attribution
   UNIQUE (pack, name)
 );
 CREATE INDEX IF NOT EXISTS idx_skills_pack_category ON skills(pack, category);

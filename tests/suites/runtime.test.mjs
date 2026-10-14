@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { GRIMOIRE_SCHEMA_VERSION } from "../../scripts/agent-surface/doctor.mjs";
 import { files, root, run, status } from "../lib/helpers.mjs";
 
 const evidenceDest = "/tmp/agent-surface-evidence";
@@ -278,5 +279,11 @@ try {
 } finally {
   rmSync(missingPackHome, { recursive: true, force: true });
 }
+
+// doctor runs without a Grimoire build, so it keeps its own copy of the schema version the indexer writes.
+const indexerSchemaVersion = Number(/export const SCHEMA_VERSION = (\d+);/.exec(
+  readFileSync(path.join(root, "mcps", "grimoire", "src", "model.ts"), "utf8"),
+)?.[1]);
+assert.equal(GRIMOIRE_SCHEMA_VERSION, indexerSchemaVersion, "doctor's Grimoire schema version matches the indexer's");
 
 console.log("runtime: ok");

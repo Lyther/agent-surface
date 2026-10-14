@@ -39,7 +39,7 @@ Full schemas, error semantics, and examples: [api-contract.md](api-contract.md) 
 
 ## Data
 
-Full DDL, manifest shape, codecs, and data dictionary: [data-model.md](data-model.md). Self-contained `~/.grimoire/index.sqlite` (mode 600): `skills(id PK=<pack>:<skillName>, pack, name, source_path, source_commit, sha256, indexed_at, description, body, category, category_source)`, `skill_files(skill_id, rel_path, content, sha256, size)`, `skills_fts` (FTS5 over name+description+body; bm25 name^/desc^/body-low), `index_meta` (schema version, exact pack ids, per-pack commit/hash/count/attribution). `store.indexStatus()` compares `index_meta` to the **installed `~/.grimoire/manifest.json`** (written by the indexer) → `ok|stale|missing` — never the repo registry (the global binary may run with no checkout).
+Full DDL, manifest shape, codecs, and data dictionary: [data-model.md](data-model.md). Self-contained `~/.grimoire/index.sqlite` (mode 600): `skills(id PK=<pack>:<skillName>, pack, name, source_path, source_commit, sha256, indexed_at, description, body, category, category_source, notice)`, `skill_files(skill_id, rel_path, content, sha256, size)`, `skills_fts` (FTS5 over name+description+body; bm25 name^/desc^/body-low), `index_meta` (schema version, exact pack ids, per-pack commit/hash/count/attribution). `store.indexStatus()` compares `index_meta` to the **installed `~/.grimoire/manifest.json`** (written by the indexer) → `ok|stale|missing` — never the repo registry (the global binary may run with no checkout).
 
 ## Distribution
 

@@ -23,10 +23,12 @@ external/**
 !external/anthropic-cybersecurity-skills/**
 
 !external/archify/
+!external/archify/LICENSE
 !external/archify/archify/
 !external/archify/archify/**
 
 !external/codex-redteam-mode/
+!external/codex-redteam-mode/LICENSE
 !external/codex-redteam-mode/agents/
 !external/codex-redteam-mode/agents/skills/
 !external/codex-redteam-mode/agents/skills/**
@@ -34,13 +36,33 @@ external/**
 !external/ctf-skills/
 !external/ctf-skills/**
 
+!external/diagram-design/
+!external/diagram-design/LICENSE
+!external/diagram-design/THIRD_PARTY_LICENSES.md
+!external/diagram-design/skills/
+!external/diagram-design/skills/diagram-design/
+!external/diagram-design/skills/diagram-design/**
+
 !external/hack-skills/
 !external/hack-skills/**
+
+!external/no-ai-slop/
+!external/no-ai-slop/LICENSE
+!external/no-ai-slop/skills/
+!external/no-ai-slop/skills/no-ai-slop/
+!external/no-ai-slop/skills/no-ai-slop/**
+
+!external/open-code-review/
+!external/open-code-review/LICENSE
+!external/open-code-review/skills/
+!external/open-code-review/skills/open-code-review-delegate/
+!external/open-code-review/skills/open-code-review-delegate/**
 
 !external/rev-skills/
 !external/rev-skills/**
 
 !external/sanyuan-skills/
+!external/sanyuan-skills/LICENSE
 !external/sanyuan-skills/skills/
 !external/sanyuan-skills/skills/book-study/
 !external/sanyuan-skills/skills/book-study/**

@@ -2,7 +2,7 @@
 
 Status: IMPLEMENTED (v0.1) · Source: mcps/grimoire/architecture.md + api-contract.md · Last updated: 2026-08-31
 
-A **derived, read-only** index — not a database of record. The source of truth is the pinned submodule; `~/.grimoire/index.sqlite` is a self-contained build artifact (mode 600), rebuilt not migrated. `model.ts` owns `SCHEMA_SQL` + mappers + the id codec; `indexer.ts` is the only writer; `store.ts` reads. `SCHEMA_VERSION = 2`.
+A **derived, read-only** index — not a database of record. The source of truth is the pinned submodule; `~/.grimoire/index.sqlite` is a self-contained build artifact (mode 600), rebuilt not migrated. `model.ts` owns `SCHEMA_SQL` + mappers + the id codec; `indexer.ts` is the only writer; `store.ts` reads. `SCHEMA_VERSION = 3`.
 
 ## Entities
 
@@ -14,7 +14,7 @@ A **derived, read-only** index — not a database of record. The source of truth
 ## Physical schema (canonical `schema.sql`, mirrored by `model.ts` SCHEMA_SQL)
 
 ```sql
--- SCHEMA_VERSION = 2. Built write-once per indexed source state; rebuilt, never migrated.
+-- SCHEMA_VERSION = 3. Built write-once per indexed source state; rebuilt, never migrated.
 CREATE TABLE skills (
   id              TEXT PRIMARY KEY,                 -- "<pack>:<skillName>"
   pack            TEXT NOT NULL,
@@ -27,6 +27,7 @@ CREATE TABLE skills (
   body            TEXT NOT NULL,                    -- SKILL.md body after frontmatter separation
   category        TEXT NOT NULL,                    -- derived from name prefix
   category_source TEXT NOT NULL DEFAULT 'derived' CHECK (category_source IN ('derived')),
+  notice          TEXT NOT NULL DEFAULT '',         -- skill license/author/license-file declarations, appended to the served attribution
   UNIQUE (pack, name)
 );                                                  -- normal rowid table (FTS external-content needs rowid)
 CREATE INDEX idx_skills_pack_category ON skills(pack, category);
@@ -59,7 +60,7 @@ CREATE TABLE index_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 ## Installed expected-source manifest — `~/.grimoire/manifest.json`
 
 ```jsonc
-{ "schemaVersion": 2,
+{ "schemaVersion": 3,
   "packs": [ { "serviceId": "anthropic-cybersecurity-skills",
                "path": "external/anthropic-cybersecurity-skills",
                "commit": "<pinned sha or pinned sha-dirty>", "sourceHash": "<sha256 of the indexed source set>",
@@ -93,6 +94,7 @@ CREATE TABLE index_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 | skills.source_commit | text | 40-hex, `<40-hex>-dirty`, or `uncommitted`; not null | indexer | - (provenance/audit) |
 | skills.sha256 | text | 64-hex of body, not null | indexer | - |
 | skills.category / category_source | text | derived set / const `derived` | model.ts | - |
+| skills.notice | text | `license <id>; author <name>; license file <names>` subset from frontmatter `license` and `author`/`metadata.author` plus top-level LICENSE/LICENCE/COPYING files, or empty; not null | indexer | - (attribution) |
 | skill_files.rel_path | text | manifest-relative, not null | indexer | - (validated against manifest on `file_get`) |
 | skill_files.content | text | raw, not null | indexer | indexed supporting content (served labeled; Grimoire never executes it) |
 | index_meta('pack:*:source_hash') | text | sha256, not null | indexer | - (staleness) |

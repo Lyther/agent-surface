@@ -167,6 +167,7 @@
         "external/sanyuan-skills/skills/sigma",
         "external/sanyuan-skills/skills/wiki-ingest"
       ],
+      "license_file": "external/sanyuan-skills/LICENSE",
       "local_wiring": [
         "All supported Agent Skills runtimes: mirror the reviewed skills into each target's native skill directory."
       ],
@@ -185,6 +186,7 @@
         "external/sanyuan-skills/skills/skill-forge",
         "external/sanyuan-skills/skills/skill-review"
       ],
+      "license_file": "external/sanyuan-skills/LICENSE",
       "local_wiring": [
         "Development-category Agent Skills runtimes: mirror the reviewed development skills into each target's native skill directory."
       ],
@@ -203,6 +205,7 @@
       "skill_roots": [
         "external/archify/archify"
       ],
+      "license_file": "external/archify/LICENSE",
       "local_wiring": [
         "All supported Agent Skills runtimes: mirror the Archify skill and its deterministic renderer into each target's native skill directory."
       ],
@@ -221,6 +224,7 @@
       "skill_roots": [
         "external/ctf-skills/*"
       ],
+      "license_file": "external/ctf-skills/LICENSE",
       "local_wiring": [
         "All supported Agent Skills runtimes: mirror ctf-* plus solve-challenge into each target's native skill directory."
       ],
@@ -271,6 +275,87 @@
         "Use boundary is authorized security research only. Skill docs are CC BY 4.0; tooling is Apache-2.0."
       ]
     },
+    "tech-leads-club": {
+      "status": "optional",
+      "source_url": "https://github.com/tech-leads-club/agent-skills",
+      "path": "external/tech-leads-club",
+      "commit": "6df68d52028b9261058231e0f4998048c0352f45",
+      "attribution": "tech-leads-club agent-skills by Tech Leads Club and contributors; source https://github.com/tech-leads-club/agent-skills; maintainer-authored SKILL.md content CC BY 4.0 https://creativecommons.org/licenses/by/4.0/ unless a skill states otherwise, third-party skills keep their original licenses and authors, application code MIT https://opensource.org/licenses/MIT; Grimoire serves the SKILL.md body separately from its frontmatter.",
+      "kind": "source-pack",
+      "optional": true,
+      "index_root": "packages/skills-catalog/skills",
+      "served_by": [
+        "grimoire"
+      ],
+      "local_wiring": [
+        "Not emitted to runtime skill roots by default.",
+        "Served just-in-time by the grimoire MCP (see the grimoire service); reachable via grimoire_search/grimoire_get as tech-leads-club:<name>, not mirrored into any target startup catalog."
+      ],
+      "notes": [
+        "Optional tech-leadership skills catalog (architecture, cloud, design, decision-making, go-to-market, learning, monitoring) kept pinned and served just-in-time by grimoire.",
+        "Upstream nests skills under parenthesized category folders (packages/skills-catalog/skills/(architecture)/...); grimoire discovers them recursively and indexes 92 skills for on-demand retrieval."
+      ]
+    },
+    "open-code-review": {
+      "status": "optional",
+      "source_url": "https://github.com/alibaba/open-code-review",
+      "path": "external/open-code-review",
+      "commit": "3694a716c30e09a724ae39a37d4e307bbd6e902b",
+      "kind": "skill-pack",
+      "optional": true,
+      "skill_roots": [
+        "external/open-code-review/skills/open-code-review-delegate"
+      ],
+      "license_file": "external/open-code-review/LICENSE",
+      "local_wiring": [
+        "Development-category Agent Skills runtimes: mirror open-code-review-delegate into each target's native skill directory."
+      ],
+      "notes": [
+        "Apache-2.0 (github.com/alibaba/open-code-review). Only open-code-review-delegate is distributed; qa-review stays the review workflow and the full open-code-review skill is intentionally not distributed.",
+        "The delegate drives the `ocr` CLI (build it from the pinned revision; it is not an MCP service) for deterministic file selection and rule resolution. `ocr delegate` needs no model backend or API key; its preview and rule commands were qualified against the pinned revision."
+      ]
+    },
+    "no-ai-slop": {
+      "status": "optional",
+      "source_url": "https://github.com/petergyang/no-ai-slop",
+      "path": "external/no-ai-slop",
+      "commit": "000650b156983f5159695b441477f4e63b25dc85",
+      "kind": "skill-pack",
+      "optional": true,
+      "skill_roots": [
+        "external/no-ai-slop/skills/no-ai-slop"
+      ],
+      "license_file": "external/no-ai-slop/LICENSE",
+      "local_wiring": [
+        "Development-category Agent Skills runtimes: mirror no-ai-slop into each target's native skill directory."
+      ],
+      "notes": [
+        "MIT (github.com/petergyang/no-ai-slop). Optional copy-editing skill that preserves voice and meaning and separates editing from authorship guessing.",
+        "Do not promote its banned-word list to global rules; terms like \"harness\" are legitimate technical vocabulary."
+      ]
+    },
+    "diagram-design": {
+      "status": "optional",
+      "source_url": "https://github.com/cathrynlavery/diagram-design",
+      "path": "external/diagram-design",
+      "commit": "0a8ea20ae69b33a5edce6018eedd3a9d26e90c1c",
+      "kind": "skill-pack",
+      "optional": true,
+      "skill_roots": [
+        "external/diagram-design/skills/diagram-design"
+      ],
+      "license_file": "external/diagram-design/LICENSE",
+      "notice_files": [
+        "external/diagram-design/THIRD_PARTY_LICENSES.md"
+      ],
+      "local_wiring": [
+        "Development-category Agent Skills runtimes: mirror the diagram-design skill and its assets/references/scripts companions into each target's native skill directory."
+      ],
+      "notes": [
+        "MIT (github.com/cathrynlavery/diagram-design). Complements archify with Wardley maps and Sankey/Gantt diagrams; arch-diagram stays canonical for architecture evidence and view selection.",
+        "Verify export dependencies and prefer its system-font option for offline output; keep mutable client/project styles outside shared managed assets."
+      ]
+    },
     "codex-redteam-mode": {
       "status": "required",
       "source_url": "https://github.com/chAng-L19/codex-redteam-mode",
@@ -281,6 +366,7 @@
       "skill_roots": [
         "external/codex-redteam-mode/agents/skills/*"
       ],
+      "license_file": "external/codex-redteam-mode/LICENSE",
       "local_wiring": [
         "Agent Skills runtimes: mirror redteam-boundary-policy into each target's native skill directory.",
         "Codex-compatible skill roots: ~/.agents/skills/<skill-name> or .agents/skills/<skill-name>."

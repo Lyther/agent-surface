@@ -45,10 +45,15 @@ export const clineUserMcpRoutes = [
   )),
 ].sort();
 
+// An all-target plan prints one line per planned file, and npm pack JSON lists every packaged
+// file; both outgrow Node's 1 MiB default capture.
+export const MAX_CAPTURE_BYTES = 64 * 1024 * 1024;
+
 export function run(args, options = {}) {
   return execFileSync(process.execPath, [cli, ...args], {
     cwd: root,
     encoding: "utf8",
+    maxBuffer: MAX_CAPTURE_BYTES,
     ...options,
   });
 }
@@ -57,6 +62,7 @@ export function status(args, options = {}) {
   return spawnSync(process.execPath, [cli, ...args], {
     cwd: root,
     encoding: "utf8",
+    maxBuffer: MAX_CAPTURE_BYTES,
     ...options,
   });
 }

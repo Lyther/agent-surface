@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { buildIndex } from "../src/indexer.js";
+import { SCHEMA_VERSION } from "../src/model.js";
 import { Store } from "../src/store.js";
 import { FIXTURE_ATTRIBUTION, FIXTURE_PACK, setupIndex } from "./helpers.js";
 
@@ -102,6 +104,24 @@ test("INDEX_STALE when the installed manifest no longer matches the index", () =
     writeFileSync(mp, JSON.stringify(m));
     const store = new Store({ dir });
     assert.equal(store.search("cobalt").status, "INDEX_STALE");
+    store.close();
+  } finally { cleanup(); }
+});
+
+test("INDEX_STALE when the index was built under an earlier schema version", () => {
+  const { dir, cleanup } = setupIndex();
+  try {
+    const mp = join(dir, "manifest.json");
+    const m = JSON.parse(readFileSync(mp, "utf8"));
+    m.schemaVersion = SCHEMA_VERSION - 1;
+    writeFileSync(mp, JSON.stringify(m));
+    const db = new DatabaseSync(join(dir, "index.sqlite"));
+    db.prepare("UPDATE index_meta SET value=? WHERE key='schema_version'").run(String(SCHEMA_VERSION - 1));
+    db.close();
+    const store = new Store({ dir });
+    const status = store.indexStatus();
+    assert.equal(status.status, "INDEX_STALE");
+    assert.match("hint" in status ? status.hint : "", /schema changed/);
     store.close();
   } finally { cleanup(); }
 });
