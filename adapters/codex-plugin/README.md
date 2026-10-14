@@ -13,10 +13,10 @@ codex plugin remove agent-surface@agent-surface
 Generated layout, relative to the marketplace root you pass to `plugin marketplace add`:
 
 ```text
-.agents/plugins/marketplace.json                    Marketplace manifest
-plugins/agent-surface/plugin.json                   Portable Agent Plugins manifest
-plugins/agent-surface/skills/ops-swarm/SKILL.md     Canonical skill
-plugins/agent-surface/skills/ops-swarm/references/  Its companion files
+.agents/plugins/marketplace.json                    - Marketplace manifest
+plugins/agent-surface/plugin.json                   - Portable Agent Plugins manifest
+plugins/agent-surface/skills/ops-swarm/SKILL.md     - Canonical skill
+plugins/agent-surface/skills/ops-swarm/references/  - Its companion files
 ```
 
 One plugin manifest, in the portable location the format specifies. Its `$schema` identifier is a required const in the [published manifest schema](https://agent-plugins.org/schemas/1.0.0/plugin.schema.json), not decoration: against `codex-cli 0.153.2` a package whose manifest omits it is rejected on install with `missing plugin.json`, and the same package with it installs, caches its companions, appears in model-visible discovery, and is cleanly removed. An earlier revision read that rejection as a missing host-specific manifest and shipped a `.codex-plugin/` copy alongside; the copy was compensating for an invalid manifest and is gone. Installing here does **not** establish that other hosts load the package; they are unqualified.
