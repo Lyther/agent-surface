@@ -3,7 +3,7 @@
 // postprocess; the install + check layers import targets/targetOutputs/producers from here.
 import { closeSync, openSync, readSync } from "node:fs";
 import { foldedBlockScalar } from "./format.mjs";
-import { lstat, readFile, stat } from "node:fs/promises";
+import { lstat, readFile, readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { directDirectories, filesUnder } from "./fs-tree.mjs";
@@ -1031,6 +1031,13 @@ export async function externalSkillOutputs(adapter, context) {
   for (const { root: sourceRoot, serviceName, assetCategory, licenseFile, noticeFiles } of roots) {
     const skillName = path.basename(sourceRoot);
     const skillFiles = (await filesUnder(sourceRoot, textExtensions)).map((file) => [file, path.relative(sourceRoot, file)]);
+    // The text allowlist admits a bare LICENSE only; a skill's own COPYING, LICENCE or LICENSE-MIT
+    // ships as well, since it outranks the pack's license.
+    const rootLicenses = (await readdir(sourceRoot, { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && SKILL_LICENSE_RE.test(entry.name)).map((entry) => entry.name).sort();
+    for (const name of rootLicenses) {
+      if (!skillFiles.some(([, relativeFile]) => relativeFile === name)) skillFiles.push([path.join(sourceRoot, name), name]);
+    }
     // Deliver the pack's upstream license as the skill's LICENSE unless the skill already delivers its
     // own, and each further upstream notice under its own name unless the skill ships that file.
     const packFiles = [];
@@ -1045,7 +1052,7 @@ export async function externalSkillOutputs(adapter, context) {
       // Like filesUnder, accept only a regular file, so a symlink cannot pull in a host file.
       const info = await lstat(file).catch(() => null);
       if (!info) fail(`pack ${serviceName}: ${field} is missing: ${relative(file)}`);
-      if (!info.isFile()) fail(`pack ${serviceName}: ${field} is not a regular file: ${relative(file)}`);
+      else if (!info.isFile()) fail(`pack ${serviceName}: ${field} is not a regular file: ${relative(file)}`);
       skillFiles.push([file, relativeFile]);
     }
     for (const [file, relativeFile] of skillFiles) {
