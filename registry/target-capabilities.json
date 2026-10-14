@@ -1599,8 +1599,8 @@
           "message": "Antigravity retires its workflow format; Antigravity itself and its skills continue.",
           "action": "Keep the generated workflow files; a replacement using native manual rules is not yet qualified. Do not convert them with /migrate-workflows, which turns manual commands into autonomously invoked skills.",
           "source_url": "https://antigravity.google/docs/migration/workflows-to-skills/",
-          "checked_at": "2026-09-28",
-          "effective_on": "2026-11-01"
+          "checked_at": "2026-10-14",
+          "effective_on": "2026-10-19"
         }
       ]
     },

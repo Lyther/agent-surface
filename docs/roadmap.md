@@ -24,7 +24,7 @@ The [previous completed roadmap](https://github.com/Lyther/agent-surface/blob/3d
 Urgent parallel: RT0.1 DSH upgrade (done; requalification deferred), RT0.3 Antigravity GUI evidence (operator, now)
 First vertical: RT1.1 metadata/notices -> RT1.2 inventory corrections
 Ownership:      RT2.0 installer ownership protection (independent)
-Antigravity:    RT0.3 + RT1.1 + RT2.0 -> RT2.3, before November 1
+Antigravity:    RT0.3 + RT1.1 + RT2.0 -> RT2.3, before October 19
 Path repair:    RT2.0 -> RT2.1 Poolside route
 Cutover:        RT1.1 -> RT2.2 Cascade cutover; RT0.2 -> RT3.1 Devin (dropped: Devin CLI lists the other targets' output)
 Other paths:    RT1.2 + RT2.0 -> RT2.4
@@ -35,7 +35,7 @@ Separate follow-ups: RT3.3 Bot pilot, RT5.1 admission, RT5.2 comparison.
 They do not block source corrections or deadline notices.
 ```
 
-Unknown native behavior blocks only the corresponding expansion or readiness claim. Do not wait for every GUI runtime before shipping a truthful warning or an independently verified repair. Antigravity's notice is immediate; its qualified successor is due **before November 1, 2026**. Cascade project partitioning is not scheduled in this batch: no retained-user need is established, and the size guard does not depend on it.
+Unknown native behavior blocks only the corresponding expansion or readiness claim. Do not wait for every GUI runtime before shipping a truthful warning or an independently verified repair. Antigravity's notice is immediate; its qualified successor is due **before October 19, 2026**. Cascade project partitioning is not scheduled in this batch: no retained-user need is established, and the size guard does not depend on it.
 
 ## Phase 0: Bounded Evidence Gates
 
@@ -125,9 +125,9 @@ Files: targets registry/schema semantics, selectors in `install.mjs`, pure rende
 
 Exit: exact/over boundaries, conservative Unicode counting, `all` exclusions, build availability and explicit compatibility selection tested; old dist/destination/manifests remain unchanged on invalid selected output; unselected oversized rules do not block skills-only installation; no default `all` writes Cascade output. No unsafe old client is installed for a demo. Global limitations remain visible, not a full-parity claim.
 
-### RT2.3 Antigravity Successor Before November 1
+### RT2.3 Antigravity Successor Before October 19
 
-State: DEFERRED with `RT0.3` (user decision, 2026-10-08). Antigravity stops reading workflows on November 1, so the generated workflows go unread until the successor ships; the `ANTIGRAVITY_WORKFLOW_RETIREMENT` notice already says so, and nothing is deleted. Depends on: `RT0.3`, `RT1.1`, `RT2.0`. Covers: `G-RT-03`, `Q-RT-03`, `Q-RT-04`, `Q-RT-06`.
+State: DEFERRED with `RT0.3` (user decision, 2026-10-08). Antigravity stops reading workflows on October 19, 2026, so the generated workflows go unread until the successor ships; the `ANTIGRAVITY_WORKFLOW_RETIREMENT` notice already says so, and nothing is deleted. Depends on: `RT0.3`, `RT1.1`, `RT2.0`. Covers: `G-RT-03`, `Q-RT-03`, `Q-RT-04`, `Q-RT-06`.
 
 Implement the qualified native manual-rule producer and correct user/project root handling, retaining ordinary directory skills/companions. Update tokens to rules while preserving command source identity. Document `@` invocation and source/render category matching. Preserve legacy workflow files from current manifests and `legacy-owned.json`, including the former manifest, on full and partial installs; no generic stale deletion. A workflow-only old selector must not silently delete without replacement. Keep CLI plugin staging/registration unchanged. Build no co-discovery warning ahead of evidence: if `RT0.3` shows Antigravity invokes other targets' manual-only skills autonomously, decide then between a `CO_DISCOVERED_MANUAL_SKILL` warning and moving those skills out of the shared root.
 

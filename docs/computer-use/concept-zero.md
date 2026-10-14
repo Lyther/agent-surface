@@ -225,7 +225,7 @@ MOMO hands goals to Grok Bot, Dots or the Agents API and reads results back.
 2. **Probe and trials:** J0 passes on one pair, then one complete J1 and J3 run within budget. Repetitions follow only for a reliability question.
 3. **Skill and checklist:** the skill and a pre-run checklist (pins, key, loopback ports, workspace mount) live in agent-surface.
 4. **Recording:** results are recorded with identities.
-5. **Desktop rung:** J2 runs the Antigravity qualification once S-04 settles the platform. Antigravity stops reading workflows on November 1, so its generated workflows stay unread until this lands.
+5. **Desktop rung:** J2 runs the Antigravity qualification once S-04 settles the platform. Antigravity stops reading workflows on October 19, so its generated workflows stay unread until this lands.
 6. **Service configuration:** an agent-surface optional-service variant (for example a CDP-attached Playwright entry) ships only if the trials use it repeatedly.
 
 MOMO changes nothing in this slice.

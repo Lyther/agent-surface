@@ -196,7 +196,7 @@ Relevant assets are native config, unowned operator files, explicit-only command
 
 Runtime release procedure: identify exact client/package and advisory; select the newest applicable fixed build from the supported public line; preserve preview/channel labeling; have the lifecycle owner update it; then record the installed build and run bounded qualification. Confirmed exploitation raises priority and forbids using affected clients for experiments. Unverified reports remain visible and urgent without fabricated CVE IDs. Recheck release metadata immediately before actual deployment because the design's dated snapshot will age.
 
-Antigravity warning ships independently of migration completion. November 1 is a support deadline, not a delayed start date. OpenHands' lower recommendation neither removes files nor substitutes Canvas/SDK. Grok Bot is separately scoped: shared account access is not isolated by creating another Bot, local-computer execution is a separate setting, and a routine Test run performs real work.
+Antigravity warning ships independently of migration completion. October 19 is a support deadline, not a delayed start date. OpenHands' lower recommendation neither removes files nor substitutes Canvas/SDK. Grok Bot is separately scoped: shared account access is not isolated by creating another Bot, local-computer execution is a separate setting, and a routine Test run performs real work.
 
 ## Quality Scenarios and Fitness Gates
 

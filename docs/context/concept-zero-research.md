@@ -50,7 +50,7 @@ Omitted `model` on a custom Devin agent means the default router/admin setting, 
 
 ## Antigravity Successor
 
-November 1, 2026 retires the workflow format, not Antigravity. The official migration scans modern workflow roots, archives originals and enables autonomous skills. It does not qualify our historical `antigravity/global_workflows` path. Skills remain a documented shared IDE/2.0 surface. [Migration](https://antigravity.google/docs/migration/workflows-to-skills/), [IDE workflow notice](https://antigravity.google/docs/ide/workflows/), [skills](https://antigravity.google/docs/skills).
+October 19, 2026 retires the workflow format, not Antigravity (rechecked 2026-10-14; this record first read November 1). The official migration scans modern workflow roots, archives originals and enables autonomous skills. It does not qualify our historical `antigravity/global_workflows` path. Skills remain a documented shared IDE/2.0 surface. [Migration](https://antigravity.google/docs/migration/workflows-to-skills/), [IDE workflow notice](https://antigravity.google/docs/ide/workflows/), [skills](https://antigravity.google/docs/skills).
 
 The skills manual lists workspace `.agents/skills` (legacy `.agent/skills`), global `~/.gemini/config/skills` for 2.0/IDE (legacy `~/.gemini/antigravity/skills`) and `~/.gemini/antigravity-cli/skills` for the CLI. It documents only `name` and `description` frontmatter, and skills are invoked autonomously. User-global `~/.agents/skills` is not listed, so manual-only skills that other targets write there are outside Antigravity's documented discovery unless the home directory itself is opened as the workspace, while the same skills in a workspace `.agents/skills` are inside it.
 
@@ -58,7 +58,7 @@ Do not depend on undocumented `disable-model-invocation` behavior for 2.0. Selec
 
 Keep the `antigravity` ID for these shared skills/manual-rule surfaces and `antigravity-cli` for its separate staged plugin. Do not add a duplicate 2.0 target merely to own the same skills. Broader 2.0 agents, MCP and plugins can follow after separate contracts; [subagent docs](https://antigravity.google/docs/subagents/) cover 2.0/CLI, not standalone IDE. [Plugin registration](https://antigravity.google/docs/plugins/) is not identical to staging files.
 
-Warn immediately; prove the replacement before November 1; preserve legacy workflow bytes/ownership in the initial migration release. Never run the vendor migration command automatically. Foreign destinations, source-name collisions and an old category selector that omits the replacement must fail or retain old state as the contract specifies. No clock-triggered filesystem cleanup.
+Warn immediately; prove the replacement before October 19; preserve legacy workflow bytes/ownership in the initial migration release. Never run the vendor migration command automatically. Foreign destinations, source-name collisions and an old category selector that omits the replacement must fail or retain old state as the contract specifies. No clock-triggered filesystem cleanup.
 
 ## Retained OpenHands
 
