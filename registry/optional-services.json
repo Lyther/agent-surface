@@ -345,6 +345,9 @@
         "external/diagram-design/skills/diagram-design"
       ],
       "license_file": "external/diagram-design/LICENSE",
+      "notice_files": [
+        "external/diagram-design/THIRD_PARTY_LICENSES.md"
+      ],
       "local_wiring": [
         "Development-category Agent Skills runtimes: mirror the diagram-design skill and its assets/references/scripts companions into each target's native skill directory."
       ],

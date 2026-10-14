@@ -1028,16 +1028,25 @@ export async function externalSkillOutputs(adapter, context) {
   const textExtensions = [".md", ".mdx", ".json", ".yaml", ".yml", ".toml", ".txt", ".html", ".sh", ".py", ".js", ".mjs", ".ts", ".ps1", "LICENSE"];
 
   let totalBytes = 0;
-  for (const { root: sourceRoot, serviceName, assetCategory, licenseFile } of roots) {
+  for (const { root: sourceRoot, serviceName, assetCategory, licenseFile, noticeFiles } of roots) {
     const skillName = path.basename(sourceRoot);
     const skillFiles = (await filesUnder(sourceRoot, textExtensions)).map((file) => [file, path.relative(sourceRoot, file)]);
     // Deliver the pack's upstream license as the skill's LICENSE unless the skill already delivers its
-    // own. Like filesUnder, accept only a regular file, so a symlinked license cannot pull in a host file.
+    // own, and each further upstream notice under its own name unless the skill ships that file.
+    const packFiles = [];
     if (licenseFile && !skillFiles.some(([, relativeFile]) => SKILL_LICENSE_RE.test(relativeFile))) {
-      const info = await lstat(licenseFile).catch(() => null);
-      if (!info) fail(`pack ${serviceName}: license_file is missing: ${relative(licenseFile)}`);
-      if (!info.isFile()) fail(`pack ${serviceName}: license_file is not a regular file: ${relative(licenseFile)}`);
-      skillFiles.push([licenseFile, "LICENSE"]);
+      packFiles.push([licenseFile, "LICENSE", "license_file"]);
+    }
+    for (const noticeFile of noticeFiles) {
+      const name = path.basename(noticeFile);
+      if (![...skillFiles, ...packFiles].some(([, relativeFile]) => relativeFile === name)) packFiles.push([noticeFile, name, "notice_files"]);
+    }
+    for (const [file, relativeFile, field] of packFiles) {
+      // Like filesUnder, accept only a regular file, so a symlink cannot pull in a host file.
+      const info = await lstat(file).catch(() => null);
+      if (!info) fail(`pack ${serviceName}: ${field} is missing: ${relative(file)}`);
+      if (!info.isFile()) fail(`pack ${serviceName}: ${field} is not a regular file: ${relative(file)}`);
+      skillFiles.push([file, relativeFile]);
     }
     for (const [file, relativeFile] of skillFiles) {
       if (outputs.length >= MAX_EXTERNAL_FILES) {
@@ -1260,10 +1269,11 @@ export async function externalSkillRoots({ includeOptional = true, context = { m
     const required = service.optional === false || service.status === "required";
     if (!required && !includeOptional) continue;
     declaredPacks.push(serviceName);
-    const licenseFile = packLicenseFile(serviceName, service);
+    const licenseFile = service.license_file === undefined ? null : packFile(serviceName, service, "license_file", service.license_file);
+    const noticeFiles = (service.notice_files ?? []).map((file) => packFile(serviceName, service, "notice_files", file));
     for (const item of service.skill_roots ?? []) {
       for (const dir of await expandSkillRoot(item)) {
-        candidates.push({ root: dir, serviceName, required, assetCategory, licenseFile });
+        candidates.push({ root: dir, serviceName, required, assetCategory, licenseFile, noticeFiles });
       }
     }
   }
@@ -1295,12 +1305,11 @@ export async function externalSkillRoots({ includeOptional = true, context = { m
 
 const SKILL_LICENSE_RE = /^(?:LICEN[CS]E|COPYING)(?:[.-][A-Za-z0-9.-]+)?$/i;
 
-// Upstream licenses usually sit at the repository root, outside every distributed skill directory.
-function packLicenseFile(serviceName, service) {
-  const file = service.license_file;
-  if (file === undefined) return null;
+// Upstream license and notice files usually sit at the repository root, outside every distributed
+// skill directory.
+function packFile(serviceName, service, field, file) {
   if (typeof file !== "string" || !isSafeRelativePath(file) || !file.startsWith(`${service.path}/`)) {
-    fail(`pack ${serviceName}: license_file must be a safe path inside ${service.path}: ${file}`);
+    fail(`pack ${serviceName}: ${field} must be a safe path inside ${service.path}: ${file}`);
   }
   return path.join(root, file);
 }

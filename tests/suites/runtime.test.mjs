@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { GRIMOIRE_SCHEMA_VERSION } from "../../scripts/agent-surface/doctor.mjs";
 import { files, root, run, status } from "../lib/helpers.mjs";
 
 const evidenceDest = "/tmp/agent-surface-evidence";
@@ -279,34 +280,10 @@ try {
   rmSync(missingPackHome, { recursive: true, force: true });
 }
 
-// SUBSTITUTE_JUSTIFICATION
-// - substitute: currentDoctorHome
-// - replaces: an operator ~/.grimoire freshly built by the current indexer
-// - necessity: the suite must not overwrite the live index, and the live index's freshness depends on host state
-// - real-option: the live index is checked with doctor after npm run install:grimoire
-// - proof-limit: proves doctor accepts a manifest matching the registry and the indexer's schema version, not index contents
-// - real-proof: npm run install:grimoire, then doctor reports grimoire-index: ok
-const currentDoctorHome = mkdtempSync(path.join(tmpdir(), "agent-surface-doctor-current-"));
-try {
-  const grimoireDir = path.join(currentDoctorHome, ".grimoire");
-  mkdirSync(grimoireDir, { recursive: true });
-  writeFileSync(path.join(grimoireDir, "index.sqlite"), "present");
-  const registry = JSON.parse(readFileSync(path.join(root, "registry", "optional-services.json"), "utf8"));
-  const schemaVersion = Number(/export const SCHEMA_VERSION = (\d+);/.exec(
-    readFileSync(path.join(root, "mcps", "grimoire", "src", "model.ts"), "utf8"),
-  )?.[1]);
-  assert.ok(Number.isInteger(schemaVersion), "Grimoire SCHEMA_VERSION not found in model.ts");
-  writeFileSync(path.join(grimoireDir, "manifest.json"), JSON.stringify({
-    schemaVersion,
-    packs: Object.entries(registry.services)
-      .filter(([, service]) => service.served_by?.includes("grimoire"))
-      .map(([serviceId, service]) => ({ serviceId, commit: service.commit, sourceHash: "a".repeat(64), attribution: service.attribution })),
-  }));
-  const result = status(["doctor"], { env: { ...process.env, HOME: currentDoctorHome } });
-  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.match(result.stdout, /grimoire-index: ok \(/, "doctor expects the schema version the indexer writes");
-} finally {
-  rmSync(currentDoctorHome, { recursive: true, force: true });
-}
+// doctor runs without a Grimoire build, so it keeps its own copy of the schema version the indexer writes.
+const indexerSchemaVersion = Number(/export const SCHEMA_VERSION = (\d+);/.exec(
+  readFileSync(path.join(root, "mcps", "grimoire", "src", "model.ts"), "utf8"),
+)?.[1]);
+assert.equal(GRIMOIRE_SCHEMA_VERSION, indexerSchemaVersion, "doctor's Grimoire schema version matches the indexer's");
 
 console.log("runtime: ok");

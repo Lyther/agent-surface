@@ -131,7 +131,8 @@ planHas(qwenCodeDevelopmentPlan, [
   /\.qwen\/skills\/no-ai-slop\/LICENSE <- external\/no-ai-slop\/LICENSE$/m,
   /\.qwen\/skills\/skill-forge\/LICENSE <- external\/sanyuan-skills\/LICENSE$/m,
   /\.qwen\/skills\/archify\/LICENSE <- external\/archify\/archify\/LICENSE$/m,
-], "qwen-code development skills carry their upstream license");
+  /\.qwen\/skills\/diagram-design\/THIRD_PARTY_LICENSES\.md <- external\/diagram-design\/THIRD_PARTY_LICENSES\.md$/m,
+], "qwen-code development skills carry their upstream license and notices");
 planLacks(qwenCodeDevelopmentPlan, [/archify\/LICENSE <- external\/archify\/LICENSE$/m], "a skill's own LICENSE wins over the pack license_file");
 planLacks(qwenCodeDevelopmentPlan, [
   /skills\/ops-ask\//,
@@ -1505,7 +1506,9 @@ for (const [id, service] of Object.entries(JSON.parse(readFileSync(path.join(roo
       : packedPaths.has(`${skillRoot}/SKILL.md`);
     assert.equal(shipped, true, `npm package missing ${id} skill root ${skillRoot}`);
   }
-  if (service.license_file) assert.equal(packedPaths.has(service.license_file), true, `npm package missing ${id} license ${service.license_file}`);
+  for (const file of [service.license_file, ...(service.notice_files ?? [])].filter(Boolean)) {
+    assert.equal(packedPaths.has(file), true, `npm package missing ${id} license or notice ${file}`);
+  }
 }
 assert.equal(
   [...packedPaths].some((file) => file.startsWith("external/andrej-karpathy-skills/")),

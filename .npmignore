@@ -38,6 +38,7 @@ external/**
 
 !external/diagram-design/
 !external/diagram-design/LICENSE
+!external/diagram-design/THIRD_PARTY_LICENSES.md
 !external/diagram-design/skills/
 !external/diagram-design/skills/diagram-design/
 !external/diagram-design/skills/diagram-design/**
