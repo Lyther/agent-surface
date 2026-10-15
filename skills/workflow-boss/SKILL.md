@@ -212,7 +212,7 @@ Use this shape (v3):
       "depends_on": [],
       "parallel_group": "G1",
       "isolation": "same_worktree_read_only|separate_worktree|serial_required",
-      "suggested_runtime": "kilo-cli|kilo-ide|droid-exec|codex-exec|claude-code|cursor-agent|grok-build|goose|ollama-cloud|opencode|antigravity-cli|antigravity-desktop|current-session|unspecified",
+      "suggested_runtime": "kilo-cli|kilo-ide|droid|codex-exec|claude-code|cursor-agent|grok-build|goose|ollama-cloud|opencode|antigravity-cli|antigravity-desktop|current-session|unspecified",
       "subagent_suitable": true,
       "patch_required": true,
       "plan": [

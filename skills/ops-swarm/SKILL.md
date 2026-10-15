@@ -91,7 +91,7 @@ Runtime assignment fields:
 
 ```json
 {
-  "runtime": "kilo-cli|kilo-ide|droid-exec|codex-exec|claude-code|dsh|grok-build|opencode|cline|kimi-code|goose|cursor-agent|antigravity-cli|antigravity-desktop|ollama-cloud|current-session|manual",
+  "runtime": "kilo-cli|kilo-ide|droid|codex-exec|claude-code|dsh|grok-build|opencode|cline|kimi-code|goose|cursor-agent|antigravity-cli|antigravity-desktop|ollama-cloud|current-session|manual",
   "model": "exact model id, or a latest alias plus the model it ran",
   "agent_or_mode": "code|plan|debug|ask|custom-agent|not_applicable",
   "launch_shape": "headless_cli|native_agent_manager|ollama_launch|ollama_api|native_subagent|interactive_supervised|manual",
