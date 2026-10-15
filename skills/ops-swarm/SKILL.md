@@ -10,7 +10,7 @@ Coordinate multiple specialized agents to clarify, research, challenge, verify, 
 
 `ops-swarm` is a coordinator skill. It does not treat agent count, provider diversity, voting, or consensus as proof. It turns a broad issue into bounded work packets, assigns an explicit runtime for each packet, runs independent passes where they add value, then returns evidence, unresolved conflicts, verification status, and the smallest safe next action.
 
-Use real external/headless agents when they are available and approved. Codex-native subagents are useful for local fan-out, but they are not the whole swarm. For meaningful swarm work, explicitly consider Kilo CLI or Kilo IDE Agent Manager, Ollama Cloud-backed CLI launches, Grok Build, Claude Code headless, Codex exec, OpenCode, Goose, and other installed agents before falling back to only the current model's subagent tool.
+Use real external/headless agents when they are available and approved. Codex-native subagents are useful for local fan-out, but they are not the whole swarm. For meaningful swarm work, explicitly consider Kilo CLI or Kilo IDE Agent Manager, Droid exec, Ollama Cloud-backed CLI launches, Grok Build, Claude Code headless, Codex exec, OpenCode, Goose, and other installed agents before falling back to only the current model's subagent tool.
 
 Use this skill when the problem benefits from parallel exploration, adversarial review, or cross-domain synthesis. Do not use it for trivial edits, narrow bug fixes with an obvious reproduction, or serial implementation work where normal direct work or workflow mode is cheaper and clearer.
 
@@ -91,8 +91,8 @@ Runtime assignment fields:
 
 ```json
 {
-  "runtime": "kilo-cli|kilo-ide|codex-exec|claude-code|dsh|grok-build|opencode|cline|kimi-code|goose|cursor-agent|antigravity-cli|antigravity-desktop|ollama-cloud|current-session|manual",
-  "model": "exact provider/model id or env placeholder",
+  "runtime": "kilo-cli|kilo-ide|droid|codex-exec|claude-code|dsh|grok-build|opencode|cline|kimi-code|goose|cursor-agent|antigravity-cli|antigravity-desktop|ollama-cloud|current-session|manual",
+  "model": "exact model id, or a latest alias plus the model it ran",
   "agent_or_mode": "code|plan|debug|ask|custom-agent|not_applicable",
   "launch_shape": "headless_cli|native_agent_manager|ollama_launch|ollama_api|native_subagent|interactive_supervised|manual",
   "subagent_policy": "parallel_allowed|serial_only|disabled",
@@ -367,12 +367,15 @@ Provider adapter record:
 
 ### Current runtime and model hints
 
-Read `references/runtime-catalog.md` for the dated per-runtime model preferences, the Ollama Cloud
-pool, the thinking policy, and bounded probe commands. It is a preference table, not an allowlist:
-a runtime missing from it is a probe-on-demand candidate, not an unsupported one.
+Read `references/runtime-catalog.md` before assigning a model. Pick a tier from the packet's role
+(`frontier`, `workhorse`, `fast`, or `independent`), resolve it with the chosen runtime's model list
+or latest alias, and record the model the session actually ran in `probe_ref`. The catalog's dated
+snapshot is a preference table, not an allowlist: a runtime missing from it is a probe-on-demand
+candidate, not an unsupported one.
 
-Do not treat any row as current. Re-probe before assignment and record what you observed, because a
-stale catalog row is exactly the kind of assumption this skill exists to keep out of the evidence.
+Do not treat any snapshot row as current. Re-list before assignment and record what you observed,
+because a stale catalog row is exactly the kind of assumption this skill exists to keep out of the
+evidence.
 
 ## PROTOCOL
 
