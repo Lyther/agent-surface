@@ -660,7 +660,11 @@ const userScopeHome = "/tmp/agent-surface-user-scope-home";
 rmSync(userScopeHome, { recursive: true, force: true });
 mkdirSync(userScopeHome, { recursive: true });
 installClineExtension(userScopeHome);
-const userScopeEnv = { ...process.env, HOME: userScopeHome };
+// A desktop profile's Documents entry, which xdg-user-dir reads on Linux, so Cline's user paths below
+// stay under ~/Documents on any host; os-routes covers a redirected folder.
+mkdirSync(path.join(userScopeHome, ".config"), { recursive: true });
+writeFileSync(path.join(userScopeHome, ".config", "user-dirs.dirs"), "XDG_DOCUMENTS_DIR=\"$HOME/Documents\"\n");
+const userScopeEnv = { ...process.env, HOME: userScopeHome, XDG_CONFIG_HOME: path.join(userScopeHome, ".config") };
 const clineUserScope = status(["install", "--target", "cline", "--scope", "user", "--dry-run"], { env: userScopeEnv });
 assert.equal(clineUserScope.status, 0, `${clineUserScope.stdout}${clineUserScope.stderr}`);
 assert.match(clineUserScope.stdout, /\.cline\/skills\/ops-ask\/SKILL\.md <- skills\/ops-ask\/SKILL\.md/);

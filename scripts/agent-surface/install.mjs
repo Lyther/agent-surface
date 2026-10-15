@@ -16,6 +16,7 @@ import {
   formatCredentialPlan, formatMissingCredentialError, missingRequiredKeys,
   readEnvFile, resolveEnvFilePath, secretIgnorePatterns, writeEnvExample, writeEnvValues,
 } from "./credentials.mjs";
+import { osDocumentsDir } from "./documents.mjs";
 import { readFileIfExists, readJsonIfExists, removeTree } from "./io.mjs";
 import { mergeKiloInstructionJsonc, parseJsoncResult, setJsoncRootProperty } from "./jsonc.mjs";
 import { provisioningDecision, runProvisioning } from "./provision-exec.mjs";
@@ -775,6 +776,12 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   const previousManifest = manifestRouteError ? null : rootClaims.manifests.get(target) ?? null;
   const legacyOwnership = await readLegacyOwnership(target);
   const legacyClaims = new Set(legacyOwnership.files.map((item) => claimKey(item.output)));
+  const documentsDir = adapter.userDocumentsOutputs && scope === "user" ? osDocumentsDir() : null;
+  const warnings = [];
+  const relativeDocuments = documentsDir ? path.relative(os.homedir(), documentsDir) : "";
+  if (documentsDir && relativeDocuments !== "" && !isSafeRelativePath(relativeDocuments)) {
+    warnings.push(`DOCUMENTS_OUTSIDE_HOME: the OS Documents folder ${documentsDir} is outside the home, so ${target}'s user workflows and rules stay under ~/Documents only; the editor extensions that read the OS folder will not see them`);
+  }
   const outputs = (await targetOutputs(adapter, catalog, {
     target,
     scope,
@@ -785,6 +792,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     excludeServices,
     launchWiring,
     envFilePath: options.envFilePath ?? null,
+    documentsDir,
   })).filter((output) => outputAppliesToCategory(output, categoryFilter));
   const writes = [];
   const managed = [];
@@ -1091,7 +1099,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     notApplicableCategories,
     nonApplicable: nonApplicable.sort((left, right) => left.localeCompare(right)),
     notices: await planNotices(target, writes, installRoot),
-    warnings: [],
+    warnings,
     skippedConfigRoutes,
     manifest,
     // Inputs to the cross-plan ownership decisions and to the pending manifest.

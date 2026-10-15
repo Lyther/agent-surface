@@ -4,6 +4,7 @@
 // runs it natively, where it covers the AppData routes, the cleanup of what pre-fix Windows installs
 // left behind, and the per-editor routes under %APPDATA%.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -107,6 +108,67 @@ try {
     assert.equal(result.status, 0, out);
     assert.match(out, new RegExp(`^ {2}${escapeRegExp(route("Trae"))} MCP \\+= `, "m"));
     assert.match(out, new RegExp(`^ {2}${escapeRegExp(route("Trae CN"))}: .* does not exist yet; start the IDE once, then rerun$`, "m"));
+  }
+
+  // Cline's pre-SDK extension reads user workflows and rules under the OS Documents folder, and the
+  // CLI and SDK bundle under ~/Documents/Cline. With the OS folder elsewhere in the home, a user
+  // install writes both, and rules go only to a folder the SDK also scans. Linux asks the real
+  // xdg-user-dir, which reads the scratch profile's user-dirs.dirs; Windows CI points the runner's
+  // real per-user Documents shell folder into the scratch profile and restores it afterwards.
+  {
+    const workflow = (root) => path.join(root, "Cline", "Workflows", "ops-nuke.md");
+    const rule = (root) => path.join(root, "Cline", "Rules", "agent-surface.md");
+    const clinePlan = (clineHome, extraEnv = {}) => {
+      const clineEnv = { ...env, HOME: clineHome, USERPROFILE: clineHome, XDG_CONFIG_HOME: path.join(clineHome, ".config"), ...extraEnv };
+      for (const name of ["OneDrive", "OneDriveConsumer", "OneDriveCommercial"]) if (!(name in extraEnv)) delete clineEnv[name];
+      const result = status(["install", "--target", "cline", "--scope", "user", "--category", "development", "--dry-run"], { env: clineEnv });
+      const out = `${result.stdout}${result.stderr}`;
+      assert.equal(result.status, 0, out);
+      return (relativeOutput) => new RegExp(`^ {2}${escapeRegExp(relativeOutput)} <- `, "m").test(out);
+    };
+    if (process.platform === "linux" && spawnSync("xdg-user-dir", ["DOCUMENTS"]).status === 0) {
+      const xdgHome = path.join(scratch, "cline-xdg");
+      mkdirSync(path.join(xdgHome, ".config"), { recursive: true });
+      writeFileSync(path.join(xdgHome, ".config", "user-dirs.dirs"), "XDG_DOCUMENTS_DIR=\"$HOME/Dokumente\"\n");
+      const planned = clinePlan(xdgHome);
+      for (const output of [workflow("Documents"), workflow("Dokumente"), rule("Documents"), rule("Dokumente")]) assert.ok(planned(output), `${output} is planned`);
+      // With no DOCUMENTS entry xdg-user-dir names the home itself, so the extension reads ~/Cline,
+      // whose Rules folder the SDK also scans.
+      const bareHome = path.join(scratch, "cline-xdg-bare");
+      mkdirSync(path.join(bareHome, ".config"), { recursive: true });
+      const bare = clinePlan(bareHome);
+      for (const output of [workflow("Documents"), workflow(""), rule("")]) assert.ok(bare(output), `${output} is planned`);
+      assert.ok(!bare(rule("Documents")), "rules the SDK reads from ~/Cline/Rules are not written twice");
+    } else if (process.platform === "linux") {
+      console.log("os-routes: xdg-user-dir is not installed — skipping the Cline Documents redirect case");
+    }
+    if (windows && process.env.GITHUB_ACTIONS === "true") {
+      const key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders";
+      const original = /^\s*Personal\s+(REG_\w+)\s+(.+?)\s*$/m.exec(spawnSync("reg", ["query", key, "/v", "Personal"], { encoding: "utf8" }).stdout ?? "");
+      const pointDocumentsAt = (dir) => {
+        mkdirSync(dir, { recursive: true });
+        assert.equal(spawnSync("reg", ["add", key, "/v", "Personal", "/t", "REG_EXPAND_SZ", "/d", dir, "/f"]).status, 0, "the Documents shell folder is redirected");
+      };
+      try {
+        const oneDriveHome = path.join(scratch, "cline-onedrive");
+        const oneDriveDocuments = path.join("OneDrive", "Documents");
+        pointDocumentsAt(path.join(oneDriveHome, oneDriveDocuments));
+        const synced = clinePlan(oneDriveHome, { OneDrive: path.join(oneDriveHome, "OneDrive") });
+        for (const output of [workflow("Documents"), workflow(oneDriveDocuments), rule(oneDriveDocuments)]) assert.ok(synced(output), `${output} is planned`);
+        assert.ok(!synced(rule("Documents")), "rules the SDK reads from OneDrive's Documents are not written twice");
+        const movedHome = path.join(scratch, "cline-moved-documents");
+        pointDocumentsAt(path.join(movedHome, "Docs"));
+        const moved = clinePlan(movedHome);
+        for (const output of [workflow("Documents"), workflow("Docs"), rule("Documents"), rule("Docs")]) assert.ok(moved(output), `${output} is planned`);
+      } finally {
+        const restore = original
+          ? ["add", key, "/v", "Personal", "/t", original[1], "/d", original[2], "/f"]
+          : ["delete", key, "/v", "Personal", "/f"];
+        spawnSync("reg", restore);
+      }
+    } else if (windows) {
+      console.log("os-routes: outside CI — skipping the Cline Documents redirect case, which edits the user's Documents shell folder");
+    }
   }
 
   // A Windows profile installed before the per-OS routes: the old ~/.config settings go through

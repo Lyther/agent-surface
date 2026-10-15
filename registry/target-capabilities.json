@@ -737,7 +737,7 @@
             "~/Documents/Cline/Workflows/*.md",
             ".clinerules/workflows/*.md"
           ],
-          "notes": "Available high-impact commands render as manual workflows; safe reusable procedures are native skills."
+          "notes": "Available high-impact commands render as manual workflows; safe reusable procedures are native skills. The pre-SDK extension reads user workflows under the OS Documents folder, so a user install also writes them there when OneDrive or an XDG entry moves that folder elsewhere in the home."
         },
         "rules": {
           "support": "native",
@@ -750,7 +750,7 @@
             "~/Documents/Cline/Rules/agent-surface.md",
             ".clinerules/agent-surface.md"
           ],
-          "notes": "Always-on rules are bundled into one file under the shared CLI/extension global rules directory. Scoped rules remain reference-only because Cline's rules loader does not recursively discover the references directory."
+          "notes": "Always-on rules are bundled into one file under the CLI/extension global rules directory. The pre-SDK extension reads it under the OS Documents folder, so a moved folder gets a copy too, or the only copy when it is a OneDrive Documents folder the SDK bundle also scans. Scoped rules remain reference-only because Cline's rules loader does not recursively discover the references directory."
         },
         "subagents": {
           "support": "native",
