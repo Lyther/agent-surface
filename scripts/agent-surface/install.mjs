@@ -699,11 +699,18 @@ function installUsesEnvLauncher(plans, invocation = mcpLauncherInvocation()) {
 
 const shQuote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
 
+// The package's engines floor, which the launcher needs for parseEnv from node:util. Written without
+// quote characters so it embeds in a single-quoted sh argument, as in mcp-shims.mjs.
+const LAUNCHER_FLOOR_CHECK = "const v=process.versions.node.split(/\\./).map(Number);process.exit(v[0]>20||(v[0]===20&&v[1]>=12)?0:1)";
+
 // POSIX only (see mcpLauncherInvocation): materialize the shared env-loader wrapper into
 // ~/.local/bin as a tiny shell script that PINS the
 // Node executable validated at install time (process.execPath). An IDE launches MCP servers with a
 // minimal PATH, so a `#!/usr/bin/env node` wrapper would fail to find Node (exit 127); the pinned
-// absolute path avoids that. The wrapper execs the shipped, self-contained launcher .mjs.
+// absolute path avoids that. A Node upgrade can remove that path (Homebrew's versioned Cellar
+// directory, for one), so the wrapper then falls back to PATH's node once that node passes the
+// floor, as the first-party shims in mcp-shims.mjs re-check theirs. The wrapper execs the shipped,
+// self-contained launcher .mjs.
 // Regenerated every install so a moved package or upgraded Node is picked up. The destination
 // tracks os.homedir() — the same $HOME the generated config's "~" resolves against — so the wrapper
 // always lands exactly where the config points (tests isolate via a disposable HOME, not an override).
@@ -714,8 +721,18 @@ async function materializeMcpLauncher() {
   const content = [
     "#!/bin/sh",
     "# agent-surface MCP env-loader wrapper — pins the Node validated at install so an IDE-launched",
-    "# MCP (minimal PATH) still resolves it. Regenerated on each install.",
-    `exec ${shQuote(process.execPath)} ${shQuote(launcherJs)} "$@"`,
+    "# MCP (minimal PATH) still resolves it; PATH's node once an upgrade removes it. Regenerated on each install.",
+    "# A lowercase name: npm exports NODE, and the launched server must not inherit a changed one.",
+    `node_bin=${shQuote(process.execPath)}`,
+    'if ! command -v "$node_bin" >/dev/null 2>&1; then',
+    `  if ! node -e '${LAUNCHER_FLOOR_CHECK}' 2>/dev/null; then`,
+    '    echo "agent-surface-mcp-env: $node_bin is gone and node on PATH is $(node -v 2>/dev/null || echo missing); needs Node 20.12 or newer (rerun agent-surface install)" >&2',
+    "    exit 1",
+    "  fi",
+    '  echo "agent-surface-mcp-env: $node_bin is gone; using node from PATH (rerun agent-surface install)" >&2',
+    "  node_bin=node",
+    "fi",
+    `exec "$node_bin" ${shQuote(launcherJs)} "$@"`,
     "",
   ].join("\n");
   await mkdir(binDir, { recursive: true });

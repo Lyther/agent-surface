@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -123,6 +124,52 @@ for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     restoreGuardedFiles();
     process.exit(130);
   });
+}
+
+// An install that wires a credentialed MCP server writes the shared env launcher into
+// $HOME/.local/bin, naming the checkout it ran from. A suite that runs such installs calls this
+// first: HOME points at a disposable home with the operator's provisioned binaries and uv tool
+// environments linked in, so prerequisite detection finds the real tools while the launcher lands
+// in the disposable home and the operator's is never rewritten.
+export function useDisposableHome() {
+  const operatorHome = os.homedir();
+  const home = mkdtempSync(path.join(os.tmpdir(), "agent-surface-home-"));
+  const links = [];
+  const link = (target, source) => {
+    mkdirSync(path.dirname(target), { recursive: true });
+    symlinkSync(source, target);
+    links.push(target);
+  };
+  const operatorBin = path.join(operatorHome, ".local", "bin");
+  for (const name of existsSync(operatorBin) ? readdirSync(operatorBin) : []) {
+    if (name !== "agent-surface-mcp-env") link(path.join(home, ".local", "bin", name), path.join(operatorBin, name));
+  }
+  // uv keeps its tool environments under the home, and openosint's extras are detected inside them.
+  const uvTools = path.join(operatorHome, ".local", "share", "uv");
+  if (existsSync(uvTools)) link(path.join(home, ".local", "share", "uv"), uvTools);
+  const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME };
+  // os.homedir() reads USERPROFILE on Windows and HOME elsewhere.
+  process.env.HOME = home;
+  process.env.USERPROFILE = home;
+  process.env.XDG_CONFIG_HOME = path.join(home, ".config");
+  let restored = false;
+  const restore = () => {
+    if (restored) return;
+    restored = true;
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    try {
+      // Unlink first, so removing the home never descends into the operator's.
+      for (const target of links) rmSync(target, { force: true });
+      rmSync(home, { recursive: true, force: true });
+    } catch {
+      // best-effort cleanup during teardown
+    }
+  };
+  process.once("exit", restore);
+  return { home, restore };
 }
 
 function assertTomlParses(dir) {
