@@ -26,7 +26,7 @@ Choose the tier from the packet's role, then resolve that tier to a model on the
 | Runtime | List models | Latest aliases | The model that ran |
 |---|---|---|---|
 | Droid | `droid exec --help` (Available Models) | `anthropic-latest-{premium,balanced,medium,fast}`, `openai-latest-{premium,balanced,medium,fast}`, `oss-latest-{premium,balanced,fast}`; version wildcards such as `claude-opus-*` or `gpt-*-sol` | `-o stream-json`: the `system`/`init` event's `model` |
-| Codex | `~/.codex/models_cache.json` (command below) | none | the `-m` value |
+| Codex | `~/.codex/models_cache.json` (command below) | none | the `-m` value, so pass a listed slug: `--json` events do not name the model, and an alias leaves no record of what ran |
 | Claude Code | no list command; `/model` in an interactive session | `fable`, `opus`, `sonnet`, `haiku` | `--output-format json`: the `modelUsage` keys |
 | Cursor Agent | `cursor-agent models` | none | the `--model` value |
 | Grok Build | `grok models` | the `(default)` entry | the `-m` value |
@@ -51,7 +51,7 @@ Versions, catalogs, and aliases were read from the installed CLIs on 2026-10-15.
 | Runtime | `frontier` | `workhorse` | `fast` | Evidence and boundary |
 |---|---|---|---|---|
 | Droid 0.241.1 | `anthropic-latest-premium`, `claude-opus-5-5`, `gpt-6-astra` | `gpt-6-sol` (default), or `gpt-*-sol` for the newest Sol line | `openai-latest-fast` (ran `gpt-6-luna`), `glm-5.3-flash`, `gemini-3.8-flash` | `openai-latest-fast` live. No Sonnet 5.5 or Haiku 5.5 in its catalog yet. Custom droids need `--auto high` (see `runtime-launch.md`). Usage is billed in Factory credits. |
-| Codex 0.159.2 | `gpt-6-astra` (the operator default, at `max`) | `gpt-6.1-sol` | `gpt-6-luna` | `gpt-6-luna` live; catalog fetched 2026-10-15. Every listed model outside the Luna line adds an `ultra` effort. A provisioned alias outside the listed catalog, such as `gpt-daybreak-blue-latest`, needs its own probe. Use `ollama launch codex --model <ollama-id>` for the Ollama pool. |
+| Codex 0.159.2 | `gpt-6-astra` (the operator default, at `max`) | `gpt-6.1-sol` | `gpt-6-luna` | `gpt-6-luna` live; catalog fetched 2026-10-15. Every listed model outside the Luna line adds an `ultra` effort. A provisioned alias outside the listed catalog, such as `gpt-daybreak-blue-latest`, needs its own probe and leaves no record of the model it ran. Use `ollama launch codex --model <ollama-id>` for the Ollama pool. |
 | Claude Code 2.1.280 | `opus` (ran `claude-opus-5-5`); `fable` resolves to `claude-fable-5-1` | `sonnet` (ran `claude-sonnet-5-5`; this CLI version warns that it does not recognise the ID) | `claude-haiku-5-5` (the `haiku` alias still ran Haiku 4.5) | `opus`, `sonnet`, `haiku`, and `claude-haiku-5-5` live; `fable` not live-verified. Prefer native Claude models: the operator observes poor cache reuse for non-Claude compatibility models. |
 | Cursor Agent 2026.09.02 | `claude-fable-5-1-thinking-xhigh`, `grok-4.7-xhigh` | `grok-4.7-high-fast`, `claude-sonnet-5-thinking-high`, `gpt-5.6-sol-high` | `composer-2.5` | Model list only. The `cursor-grok-4.7-*` IDs are gone, and no GPT-6 or Sonnet 5.5 is listed yet. Fable variants are marked NO ZDR. Resolve `cursor-agent` explicitly; the bare `agent` alias is unstable. |
 | Grok Build 1.0.46 | `grok-4.7` | `grok-4.7` | `grok-4.7-build-fast` | Model list only; last live 2026-10-08. The allowance has run out before (2026-09-30), so never treat it as unlimited. |
