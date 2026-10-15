@@ -15,21 +15,16 @@ jobs:
           submodules: recursive
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22" # the suite installs and wires the first-party MCPs, whose floor is 22.17
+          node-version: "22" # MCP suite runs on Node >=22.17
           cache: npm
       - run: npm ci
-      # The suite exercises installing MCP config, which now refuses to wire a server whose binary is
-      # absent — so the environment must actually contain the MCPs it wires, as a user's would.
+      # Ensure wired MCPs are present in env
       - run: npm run install:mcps
-      # The opt-in cybersecurity MCPs the suite wires include openosint, whose prerequisites are uv
-      # and its provider extras. Establish them through agent-surface's own provisioning (-y), which
-      # also exercises the real recipe path — uv standalone installer, then `uv tool install` — on a
-      # machine that has neither.
-      - name: establish external MCP prerequisites (real provisioning run)
+      # Provision openosint MCP prerequisites via agent-surface
+      - name: establish external MCP prerequisites
         run: node scripts/agent-surface.mjs install --target droid --dest "$RUNNER_TEMP/prep" --category mcps --service openosint -y
-      # The first-party MCPs now install through a portable Node installer. Prove the whole path on
-      # POSIX as well: registry recipe -> build -> launcher -> real MCP session -> repeat install.
-      - name: first-party MCP acceptance (install -> startup -> repeat -> lifecycle)
+      # Validate full install/startup/lifecycle for first-party MCPs
+      - name: first-party MCP acceptance
         env:
           AGENT_SURFACE_LIVE_FIRST_PARTY: "1"
         run: node tests/suites/live-first-party.test.mjs
@@ -41,8 +36,7 @@ jobs:
       - run: npm run build -- --target all
       - run: npm pack --dry-run --json
 
-  # The root CLI declares engines.node >=20.12; keep proving the compiler itself runs on that floor
-  # even though the MCP packages (and therefore the install suite) require 22.17.
+  # Ensure CLI works with Node >=20.12 (just check/build, not MCP suite)
   floor:
     runs-on: ubuntu-24.04
     steps:
@@ -57,15 +51,11 @@ jobs:
       - run: npm run check
       - run: npm run build -- --target all
 
-  # Native Windows acceptance. The Windows launch path cannot be proven from POSIX: batch-shim
-  # spawning, PATHEXT resolution and the node.exe wrapper are all decided by the OS, so this job runs
-  # the real installer and then launches the EXACT command it generated under a minimal PATH.
-  # The full suite is still not run here: several of its cases assume a POSIX filesystem and shell.
-  # This job proves the launch, provisioning and first-party installation paths instead.
+  # Native Windows tests: prove real install/launch/provision paths and Windows specifics
   windows:
     runs-on: windows-2025
     steps:
-      - name: allow long paths (submodule checkout)
+      - name: allow long paths
         run: git config --global core.longpaths true
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -76,28 +66,21 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - name: native launch acceptance (real install -> generated command -> MCP session -> page render)
+      - name: native launch acceptance
         env:
           AGENT_SURFACE_LIVE_LAUNCH: "1"
         run: node tests/suites/live-launch.test.mjs
-      # Closes the other Windows gap: a credentialed external MCP, provisioned from nothing (uv
-      # bootstrap -> uv tool install -> extras), then started through the UNCHANGED generated command
-      # and required to serve a real MCP session.
-      - name: native provisioning acceptance (uv bootstrap -> openosint -> real MCP session)
+      # Provision and launch credentialed external MCP under Windows
+      - name: native provisioning acceptance
         env:
           AGENT_SURFACE_LIVE_PROVISION: "1"
         run: node tests/suites/live-provision.test.mjs
-      # The first-party MCPs: built and launched natively here, including a rebuild while the
-      # sidecar is running — the case Windows makes distinct, since a live process there can hold
-      # the files an install rewrites.
-      - name: first-party MCP acceptance (install -> startup -> repeat -> lifecycle)
+      # Native first-party MCPs: build, launch, repeat (Windows distinction: live process holds files)
+      - name: first-party MCP acceptance
         env:
           AGENT_SURFACE_LIVE_FIRST_PARTY: "1"
         run: node tests/suites/live-first-party.test.mjs
-      # Suites that must hold on every platform: launch-command construction, credential handling
-      # (where Windows uses ACLs, not mode bits), and prerequisite detection under PATHEXT.
-      # ONE STEP PER SUITE — the shell reports only the LAST command's exit status, so chaining them
-      # in a single step would let an earlier failure pass as green.
+      # Cross-platform suites, ensure each test's exit code is respected
       - run: node tests/suites/credentials.test.mjs
       - run: node tests/suites/mcp-env-launch.test.mjs
       - run: node tests/suites/mcp-shims.test.mjs
@@ -105,8 +88,7 @@ jobs:
       - run: node tests/suites/provision.test.mjs
       - run: node tests/suites/provision-exec.test.mjs
       - run: node tests/suites/provision-install.test.mjs
-      # Per-OS install routes planned natively: Zed's and Goose's AppData roots, the cleanup of what
-      # pre-fix Windows installs left in ~/.config, and Cline's per-editor route under %APPDATA%.
+      # Native per-OS install routes, cleanup, and editor paths
       - run: node tests/suites/os-routes.test.mjs
 
   mcp:
@@ -118,13 +100,13 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22" # node:sqlite needs >=22.17
-      - name: grimoire (build, tests incl. real-pack eval gate, audit)
+      - name: grimoire (build & test & audit)
         working-directory: mcps/grimoire
         run: |
           npm ci
           npm test
           npm audit --omit=dev
-      - name: synapse (build, tests, audit)
+      - name: synapse (build & test & audit)
         working-directory: mcps/synapse
         run: |
           npm ci
