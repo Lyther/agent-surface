@@ -15,7 +15,7 @@
 // - real-proof: a read-only `install --target all --scope user --dry-run` against the real HOME
 //   plans no unowned destination and no unreadable manifest
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -62,6 +62,28 @@ function claims(dest, target, output) {
 
 function read(dest, relative) {
   return readFileSync(path.join(dest, relative), "utf8");
+}
+
+// Whether this user can read a file or list a directory despite its mode: root can, and so can a
+// mount that ignores modes, where an unreadable case cannot arise.
+function canOpen(target) {
+  try {
+    if (statSync(target).isDirectory()) readdirSync(target);
+    else readFileSync(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Whether this user can resolve a path inside a directory despite its mode, as root can.
+function canSearch(directory) {
+  try {
+    statSync(`${directory}${path.sep}.`);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Every directory and file under a root, with file contents, to prove a refused plan changed nothing.
@@ -431,6 +453,97 @@ try {
     });
     assert.equal(userViaLink.status, 0, `${userViaLink.stdout}${userViaLink.stderr}`);
     assert.ok(Object.hasOwn(JSON.parse(read(home, ".claude.json")).mcpServers, "synapse"), "the MCP merge lands in the linked home");
+  }
+
+  // A destination the planner cannot read blocks with a named line, as an unparsable config does,
+  // instead of ending the run with a bare filesystem error; nothing is written.
+  {
+    const dest = path.join(scratch, "unreadable");
+    const rule = path.join(".cursor", "rules", "00-precedence-and-safety.mdc");
+    // A directory where a file belongs fails the same read for any user.
+    mkdirSync(path.join(dest, rule), { recursive: true });
+    const directory = project(dest, "cursor", ["--category", "rules"]);
+    assert.equal(directory.code, 1, directory.out);
+    assert.match(directory.out, /^ {2}managed output \.cursor\/rules\/00-precedence-and-safety\.mdc cannot be read \(EISDIR\)$/m);
+    assert.equal(manifest(dest, "cursor"), null, "the refused run wrote no manifest");
+    rmSync(path.join(dest, rule), { recursive: true });
+
+    const unreadable = [
+      ["cursor", path.join(".cursor", "mcp.json"), "mcps", "{\"mcpServers\":{}}\n", /^ {2}MCP config \.cursor\/mcp\.json cannot be read \(EACCES\)$/m],
+      ["cursor", rule, "rules", "the operator's text\n", /^ {2}managed output \.cursor\/rules\/00-precedence-and-safety\.mdc cannot be read \(EACCES\)$/m],
+      ["kilo", "kilo.jsonc", "rules", "{}\n", /^ {2}Kilo config kilo\.jsonc cannot be read \(EACCES\)$/m],
+    ];
+    for (const [target, relative, category, content, line] of unreadable) {
+      const file = path.join(dest, relative);
+      writeFileSync(file, content);
+      chmodSync(file, 0o000);
+      try {
+        if (canOpen(file)) continue;
+        const refused = project(dest, target, ["--category", category]);
+        assert.equal(refused.code, 1, refused.out);
+        assert.match(refused.out, line);
+        assert.doesNotMatch(refused.out, /EACCES: permission denied/, "no bare filesystem error");
+      } finally {
+        chmodSync(file, 0o644);
+      }
+      assert.equal(read(dest, relative), content, `${relative} is untouched`);
+      assert.equal(manifest(dest, target), null, "the refused run wrote no manifest");
+    }
+  }
+
+  // A stale managed output the planner cannot read blocks the same way: a development install leaves
+  // rules a later general install no longer plans, and one of them has lost its read permission.
+  {
+    const dest = path.join(scratch, "unreadable-stale");
+    const staleRule = path.join(".cursor", "rules", "02-agent-workflow.mdc");
+    const developed = project(dest, "cursor", ["--category", "development"]);
+    assert.equal(developed.code, 0, developed.out);
+    const content = read(dest, staleRule);
+    const recorded = manifest(dest, "cursor");
+    const file = path.join(dest, staleRule);
+    chmodSync(file, 0o000);
+    try {
+      if (!canOpen(file)) {
+        const refused = project(dest, "cursor");
+        assert.equal(refused.code, 1, refused.out);
+        assert.match(refused.out, /^ {2}stale managed output \.cursor\/rules\/02-agent-workflow\.mdc cannot be read \(EACCES\)$/m);
+        assert.doesNotMatch(refused.out, /EACCES: permission denied/, "no bare filesystem error");
+      }
+    } finally {
+      chmodSync(file, 0o644);
+    }
+    assert.equal(read(dest, staleRule), content, "the stale rule is untouched");
+    assert.deepEqual(manifest(dest, "cursor"), recorded, "the refused run kept the manifest");
+    assert.ok(!existsSync(path.join(dest, ".cursor", "rules", "00-precedence-and-safety.mdc")), "the refused run wrote no general rule");
+  }
+
+  // A manifest directory that cannot be listed or searched, or a legacy nested manifest whose
+  // directory cannot be searched, blocks the plan with MANIFEST_UNREADABLE instead of a bare
+  // filesystem error. A directory that lists but cannot be searched blocks even with no manifest in
+  // it, since the run could not write its own there.
+  {
+    const dest = path.join(scratch, "unreadable-claims");
+    const nested = path.join(dest, ".config", "Code", "User");
+    mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
+    mkdirSync(path.join(nested, ".agent-surface"), { recursive: true });
+    const locked = [
+      [path.join(dest, ".agent-surface"), 0o000, /^install blocked: .*: MANIFEST_UNREADABLE: \.agent-surface cannot be listed \(EACCES\); /m],
+      [path.join(dest, ".agent-surface"), 0o444, /^install blocked: .*: MANIFEST_UNREADABLE: \.agent-surface cannot be searched \(EACCES\); /m],
+      [nested, 0o000, /^install blocked: .*: MANIFEST_UNREADABLE: \.config\/Code\/User\/\.agent-surface\/vscode-manifest\.json cannot be checked \(EACCES\); /m],
+    ];
+    for (const [directory, mode, line] of locked) {
+      chmodSync(directory, mode);
+      try {
+        if (canOpen(directory) && canSearch(directory)) continue;
+        const refused = project(dest, "cursor", ["--category", "rules"]);
+        assert.equal(refused.code, 1, refused.out);
+        assert.match(refused.out, line);
+        assert.doesNotMatch(refused.out, /^Error: /m, "no bare filesystem error");
+      } finally {
+        chmodSync(directory, 0o755);
+      }
+    }
+    assert.equal(manifest(dest, "cursor"), null, "the refused runs wrote no manifest");
   }
 } finally {
   rmSync(scratch, { recursive: true, force: true });

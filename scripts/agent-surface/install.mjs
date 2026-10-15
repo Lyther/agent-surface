@@ -830,7 +830,13 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       item.action = "blocked";
       continue;
     }
-    const current = await readFileIfExists(item.output);
+    const read = await readDestination(item.output, `managed output ${item.relativeOutput}`);
+    if (read.error) {
+      blocked.push(read.error);
+      item.action = "blocked";
+      continue;
+    }
+    const current = read.content;
     if (current === null) {
       item.action = "write";
       continue;
@@ -1032,7 +1038,12 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       blocked.push(routeError);
       continue;
     }
-    const current = await readFileIfExists(output);
+    const read = await readDestination(output, `stale managed output ${item.output}`);
+    if (read.error) {
+      blocked.push(read.error);
+      continue;
+    }
+    const current = read.content;
     if (current === null) {
       staleRemovalActions.push({ output, relativeOutput: item.output, action: "missing" });
       continue;
@@ -1114,7 +1125,8 @@ function releaseSuccessorIds(entries, handedRoutes, manifests) {
 // in its .agent-surface/ (retired and unknown IDs included; other files there are not manifests), and
 // every legacy-listed nested manifest present under it, whose outputs are rebased to its own root.
 // A claim grants ownership and cleanup retention; removal stays with a target's own manifest and
-// legacy entries. A manifest that cannot be read or parsed blocks every plan in the root.
+// legacy entries. A manifest that cannot be read or parsed, or a manifest directory that cannot be
+// listed or searched, blocks every plan in the root.
 const MANIFEST_FILE = /^(.+)-manifest\.json$/;
 
 async function readRootClaims(installRoot) {
@@ -1125,7 +1137,22 @@ async function readRootClaims(installRoot) {
     claims.blocked.push(directoryError);
     return claims;
   }
-  for (const entry of await readDirectoryIfExists(directory)) {
+  let entries;
+  try {
+    entries = await readDirectoryIfExists(directory);
+  } catch (error) {
+    claims.blocked.push(`MANIFEST_UNREADABLE: ${path.relative(installRoot, directory)} cannot be listed (${error.code ?? error.message}); repair its permissions, then rerun`);
+    return claims;
+  }
+  // Listing needs only read permission. Reading a manifest there, or writing this run's, also needs
+  // search permission, which a listing without a manifest never exercises; resolving "<dir>/."
+  // checks it without depending on an entry.
+  const searchError = await lstat(`${directory}${path.sep}.`).then(() => null, (error) => error);
+  if (searchError && searchError.code !== "ENOENT" && searchError.code !== "ENOTDIR") {
+    claims.blocked.push(`MANIFEST_UNREADABLE: ${path.relative(installRoot, directory)} cannot be searched (${searchError.code ?? searchError.message}); repair its permissions, then rerun`);
+    return claims;
+  }
+  for (const entry of entries) {
     const owner = MANIFEST_FILE.exec(entry.name)?.[1];
     if (!owner) continue;
     const manifest = await readClaimManifest(installRoot, path.join(directory, entry.name), entry, claims.blocked);
@@ -1137,7 +1164,13 @@ async function readRootClaims(installRoot) {
   }
   for (const legacy of await legacyNestedManifests()) {
     const file = path.join(installRoot, legacy.output);
-    const info = await lstatIfExists(file);
+    let info;
+    try {
+      info = await lstatIfExists(file);
+    } catch (error) {
+      claims.blocked.push(`MANIFEST_UNREADABLE: ${legacy.output} cannot be checked (${error.code ?? error.message}); repair the permissions on the directories leading to it, then rerun`);
+      continue;
+    }
     if (!info) continue;
     const manifest = await readClaimManifest(installRoot, file, info, claims.blocked);
     if (!manifest) continue;
@@ -1827,7 +1860,9 @@ async function prepareMcpConfigMerge(merge, previousConfigEntries, pruneCategori
   // A service excluded because its prerequisites failed this run is a pure no-op: not added (it is
   // already absent from currentIds) and never pruned, so its existing config survives untouched.
   const removeIds = previousIds.filter((id) => !currentIds.includes(id) && !merge.excludeServices?.has(id));
-  const existing = await readFileIfExists(merge.output);
+  const read = await readDestination(merge.output, `MCP config ${merge.relativeOutput}`);
+  if (read.error) return { ...merge, action: "blocked", error: read.error };
+  const existing = read.content;
   const addMcpServers = currentIds;
   const removeMcpServers = removeIds;
   if (existing === null) {
@@ -1883,6 +1918,16 @@ function configRouteSafetyRoot(configPath, allowAbsoluteOutput, installRoot) {
   ].filter((value) => typeof value === "string" && value.length > 0).map((value) => path.resolve(value)));
   const normalized = path.resolve(configPath);
   return trustedRoots.find((trustedRoot) => isPathInside(trustedRoot, normalized)) ?? null;
+}
+
+// A destination the planner cannot read blocks with a named line, as an unparsable config does,
+// instead of ending the plan with a bare filesystem error. Nothing is written either way.
+async function readDestination(file, label) {
+  try {
+    return { content: await readFileIfExists(file) };
+  } catch (error) {
+    return { error: `${label} cannot be read (${error.code ?? error.message})` };
+  }
 }
 
 async function installPathError(safetyRoot, candidate, label) {
@@ -2024,7 +2069,9 @@ async function prepareKiloConfigMerge(merge, previousConfigEntries, pruneCategor
   const previousMcpIds = previousConfigIds(previousConfigEntries, merge.relativeOutput, merge.format, pruneCategories, categories);
   // Never prune a service excluded for failed provisioning — leave its existing entry untouched.
   const removeMcpIds = previousMcpIds.filter((id) => !currentMcpIds.includes(id) && !merge.excludeServices?.has(id));
-  const existing = await readFileIfExists(merge.output);
+  const read = await readDestination(merge.output, `Kilo config ${merge.relativeOutput}`);
+  if (read.error) return { ...merge, action: "blocked", error: read.error };
+  const existing = read.content;
   if (existing === null) {
     const content = {
       $schema: "https://app.kilo.ai/config.json",
