@@ -1127,6 +1127,14 @@ async function readRootClaims(installRoot) {
     claims.blocked.push(`MANIFEST_UNREADABLE: ${path.relative(installRoot, directory)} cannot be listed (${error.code ?? error.message}); repair its permissions, then rerun`);
     return claims;
   }
+  // Listing needs only read permission. Reading a manifest there, or writing this run's, also needs
+  // search permission, which a listing without a manifest never exercises; resolving "<dir>/."
+  // checks it without depending on an entry.
+  const searchError = await lstat(`${directory}${path.sep}.`).then(() => null, (error) => error);
+  if (searchError && searchError.code !== "ENOENT" && searchError.code !== "ENOTDIR") {
+    claims.blocked.push(`MANIFEST_UNREADABLE: ${path.relative(installRoot, directory)} cannot be searched (${searchError.code ?? searchError.message}); repair its permissions, then rerun`);
+    return claims;
+  }
   for (const entry of entries) {
     const owner = MANIFEST_FILE.exec(entry.name)?.[1];
     if (!owner) continue;

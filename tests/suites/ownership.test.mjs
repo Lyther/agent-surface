@@ -76,6 +76,16 @@ function canOpen(target) {
   }
 }
 
+// Whether this user can resolve a path inside a directory despite its mode, as root can.
+function canSearch(directory) {
+  try {
+    statSync(`${directory}${path.sep}.`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Every directory and file under a root, with file contents, to prove a refused plan changed nothing.
 function snapshot(dir, entries = {}, base = dir) {
   if (!existsSync(dir)) return entries;
@@ -507,21 +517,24 @@ try {
     assert.ok(!existsSync(path.join(dest, ".cursor", "rules", "00-precedence-and-safety.mdc")), "the refused run wrote no general rule");
   }
 
-  // A manifest directory that cannot be listed, or a legacy nested manifest whose directory cannot be
-  // searched, blocks the plan with MANIFEST_UNREADABLE instead of a bare filesystem error.
+  // A manifest directory that cannot be listed or searched, or a legacy nested manifest whose
+  // directory cannot be searched, blocks the plan with MANIFEST_UNREADABLE instead of a bare
+  // filesystem error. A directory that lists but cannot be searched blocks even with no manifest in
+  // it, since the run could not write its own there.
   {
     const dest = path.join(scratch, "unreadable-claims");
     const nested = path.join(dest, ".config", "Code", "User");
     mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
     mkdirSync(path.join(nested, ".agent-surface"), { recursive: true });
     const locked = [
-      [path.join(dest, ".agent-surface"), /^install blocked: .*: MANIFEST_UNREADABLE: \.agent-surface cannot be listed \(EACCES\); /m],
-      [nested, /^install blocked: .*: MANIFEST_UNREADABLE: \.config\/Code\/User\/\.agent-surface\/vscode-manifest\.json cannot be checked \(EACCES\); /m],
+      [path.join(dest, ".agent-surface"), 0o000, /^install blocked: .*: MANIFEST_UNREADABLE: \.agent-surface cannot be listed \(EACCES\); /m],
+      [path.join(dest, ".agent-surface"), 0o444, /^install blocked: .*: MANIFEST_UNREADABLE: \.agent-surface cannot be searched \(EACCES\); /m],
+      [nested, 0o000, /^install blocked: .*: MANIFEST_UNREADABLE: \.config\/Code\/User\/\.agent-surface\/vscode-manifest\.json cannot be checked \(EACCES\); /m],
     ];
-    for (const [directory, line] of locked) {
-      chmodSync(directory, 0o000);
+    for (const [directory, mode, line] of locked) {
+      chmodSync(directory, mode);
       try {
-        if (canOpen(directory)) continue;
+        if (canOpen(directory) && canSearch(directory)) continue;
         const refused = project(dest, "cursor", ["--category", "rules"]);
         assert.equal(refused.code, 1, refused.out);
         assert.match(refused.out, line);
