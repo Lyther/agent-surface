@@ -226,6 +226,7 @@ export const targets = {
     ignoreFilename: ".clineignore",
     staticOutputs: clineStaticOutputs,
     userDocumentsOutputs: clineDocumentsOutputs,
+    relocatedRoutes: clineRelocatedRoutes,
     mcpConfigs: [
       {
         relativeOutput: clineMcpPath,
@@ -1598,6 +1599,33 @@ export function clineDocumentsOutputs(outputs, context) {
     if (!roots.some((root) => isPathInside(root, output.relativeOutput))) return [output];
     const copy = { ...output, relativeOutput: path.join(relativeDocuments, path.relative("Documents", output.relativeOutput)) };
     return rulesMove && isPathInside(ruleRoot, output.relativeOutput) ? [copy] : [output, copy];
+  });
+}
+
+// A workflow or rule under <root>/Cline, whichever Documents folder <root> is.
+const CLINE_DOCUMENTS_OUTPUT = /^(?:(.+?)[\\/])?Cline[\\/]((?:Workflows|Rules)[\\/].+)$/;
+
+// A workflow or rule an earlier install wrote under another Documents folder, and this plan writes
+// elsewhere, moved with that folder (contract Migration step 4): its new place, the relocated copy
+// when there is one, keeps the old route's category for the guard, and the old route is retired once
+// the new one is written.
+export function clineRelocatedRoutes(previousOutputs, plannedOutputs) {
+  const place = (output) => {
+    const match = CLINE_DOCUMENTS_OUTPUT.exec(output);
+    return match ? { root: match[1] ?? "", file: match[2].split(/[\\/]+/).join("/") } : null;
+  };
+  const planned = new Set(plannedOutputs.map((output) => path.normalize(output)));
+  const destinations = new Map();
+  for (const output of plannedOutputs) {
+    const found = place(output);
+    if (!found) continue;
+    const current = destinations.get(found.file);
+    if (!current || place(current).root === "Documents") destinations.set(found.file, output);
+  }
+  return previousOutputs.flatMap((output) => {
+    const found = place(output);
+    const to = found && destinations.get(found.file);
+    return to && !planned.has(path.normalize(output)) ? [{ from: output, to }] : [];
   });
 }
 

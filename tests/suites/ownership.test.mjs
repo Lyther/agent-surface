@@ -15,6 +15,7 @@
 // - real-proof: a read-only `install --target all --scope user --dry-run` against the real HOME
 //   plans no unowned destination and no unreadable manifest
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -365,6 +366,41 @@ try {
     assert.equal(replaced.code, 0, replaced.out);
     assert.ok(existsSync(path.join(general, ".config", "poolside", "AGENTS.md")), replaced.out);
     assert.ok(!existsSync(path.join(general, legacy)), "the old route is retired with its replacement");
+  }
+
+  // The same identity for a document Cline's OS Documents folder relocates after a real development
+  // install: the relocated rules document keeps the old route's category, so a rules-only refresh is
+  // refused, and a development refresh rewrites it and retires the old route. Linux only, through the
+  // real xdg-user-dir, which reads this home's user-dirs.dirs.
+  if (spawnSync("xdg-user-dir", ["DOCUMENTS"]).status === 0) {
+    const dest = path.join(scratch, "cline-relocated");
+    const userDirs = path.join(home, ".config", "user-dirs.dirs");
+    const cline = (category) => install(["--target", "cline", "--scope", "user", "--dest", dest, "--category", category]);
+    const oldRules = path.join("Documents", "Cline", "Rules", "agent-surface.md");
+    const newRules = path.join("Cline", "Rules", "agent-surface.md");
+    mkdirSync(path.dirname(userDirs), { recursive: true });
+    writeFileSync(userDirs, "XDG_DOCUMENTS_DIR=\"$HOME/Documents\"\n");
+    try {
+      const first = cline("development");
+      assert.equal(first.code, 0, first.out);
+      const developmentRules = read(dest, oldRules);
+      // No DOCUMENTS entry: the extension reads ~/Cline, and rules go there alone.
+      writeFileSync(userDirs, "");
+      const before = snapshot(dest);
+      const narrower = cline("rules");
+      assert.equal(narrower.code, 1, narrower.out);
+      assert.match(narrower.out, new RegExp(`${escapeRegExp(newRules)} replaces ${escapeRegExp(oldRules)}, which carries the development category's contribution`));
+      assert.deepEqual(snapshot(dest), before, "a refused relocation writes nothing");
+      const refreshed = cline("development");
+      assert.equal(refreshed.code, 0, refreshed.out);
+      assert.equal(read(dest, newRules), developmentRules, "the relocated document keeps the development contribution");
+      assert.ok(!existsSync(path.join(dest, oldRules)) && !claims(dest, "cline", oldRules), "the old route is retired with its replacement");
+      for (const root of ["Documents", ""]) assert.ok(existsSync(path.join(dest, root, "Cline", "Workflows", "ops-nuke.md")), `workflows land under ${root || "the home"}`);
+    } finally {
+      rmSync(userDirs, { force: true });
+    }
+  } else if (process.platform === "linux") {
+    console.log("ownership: xdg-user-dir is not installed — skipping the Cline relocation case");
   }
 
   // Steps 6 and 7: every participant's pending manifest lands before the run's first mutation and

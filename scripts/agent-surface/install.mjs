@@ -873,10 +873,16 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   // A moved document keeps its identity (contract Migration step 4): until the new route records its
   // own category, the guard below reads the old route's, and once a selection plans the new route the
   // owned old route is retired with it, so a client that reads both never loads two copies.
-  const movedRoutes = (adapter.movedRoutes ?? []).flatMap((route) => {
-    const from = route.from({ scope });
-    return from ? [{ from: claimKey(from), to: claimKey(route.to({ scope })) }] : [];
-  });
+  // An output the adapter relocates between installs, such as Cline's when the OS Documents folder
+  // moves, is a moved route too.
+  const movedRoutes = [
+    ...(adapter.movedRoutes ?? []).flatMap((route) => {
+      const from = route.from({ scope });
+      return from ? [{ from: claimKey(from), to: claimKey(route.to({ scope })) }] : [];
+    }),
+    ...(adapter.relocatedRoutes?.(previousFileEntries.map((item) => item.output), [...liveOutputs]) ?? [])
+      .map((route) => ({ from: claimKey(route.from), to: claimKey(route.to) })),
+  ];
 
   // An aggregate instruction document (Codex's AGENTS.md and its kin) holds several categories'
   // always-on rules in ONE file. Regenerating it under a narrower selection therefore erases what
