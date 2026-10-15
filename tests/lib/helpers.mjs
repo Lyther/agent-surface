@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -89,41 +89,87 @@ export function files(dir) {
   return out;
 }
 
-const guardedRepoFiles = [
-  path.join(root, "registry", "targets.json"),
-  path.join(root, "registry", "optional-services.json"),
-  path.join(root, "registry", "cybersecurity-assets.json"),
-  path.join(root, "registry", "private-secret.json"),
-  path.join(root, "registry", "modding.json"),
-  path.join(root, "registry", "legacy-owned.json"),
-  path.join(root, "subagents", "boss.md"),
-];
-const guardedSnapshots = new Map();
-for (const file of guardedRepoFiles) {
-  try {
-    guardedSnapshots.set(file, readFileSync(file, "utf8"));
-  } catch {
-    guardedSnapshots.set(file, null);
-  }
+// An interrupted run reaches the exit hooks that remove disposable checkouts and homes only
+// through process.exit.
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  process.on(signal, () => process.exit(130));
 }
 
-function restoreGuardedFiles() {
-  for (const [file, content] of guardedSnapshots) {
-    if (content !== null) {
+// A case that rewrites tracked sources runs in a disposable worktree of HEAD carrying this
+// checkout's uncommitted changes, so neither the rewrite nor an interrupted run can touch the
+// checkout the operator and other agents edit. check reads only gitlinks; build needs the
+// populated submodules, which linkSubmodules links in rather than clones.
+export function disposableCheckout({ linkSubmodules = false } = {}) {
+  const parent = mkdtempSync(path.join(os.tmpdir(), "agent-surface-checkout-"));
+  const dir = path.join(parent, "repo");
+  const git = (args, options = {}) => execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: MAX_CAPTURE_BYTES, ...options });
+  const links = [];
+  const remove = () => {
+    if (!existsSync(parent)) return;
+    try {
+      // Unlink first, so removing the worktree never descends into the shared checkout.
+      for (const link of links) rmSync(link, { force: true });
       try {
-        writeFileSync(file, content);
+        git(["worktree", "remove", "--force", dir]);
       } catch {
-        // best-effort restore during teardown
+        // the directory is removed below either way
       }
+      rmSync(parent, { recursive: true, force: true });
+      git(["worktree", "prune"]);
+    } catch {
+      // best-effort cleanup during teardown
+    }
+  };
+  process.once("exit", remove);
+  // One HEAD for the worktree and the diff, even if another agent commits in between.
+  const head = git(["rev-parse", "HEAD"]).trim();
+  git(["worktree", "add", "--detach", "--quiet", dir, head]);
+  // Submodule pointers, a staged pin bump included, carry over as index entries; a pointer change
+  // cannot apply where the submodules are not initialized.
+  const gitlinks = git(["ls-files", "--stage"]).split("\n").filter((line) => line.startsWith("160000 "));
+  if (gitlinks.length > 0) git(["update-index", "--index-info"], { cwd: dir, input: `${gitlinks.join("\n")}\n` });
+  const excludeGitlinks = gitlinks.map((line) => `:(exclude)${line.split("\t")[1]}`);
+  const changes = git(
+    ["diff", "--no-ext-diff", "--no-color", "--src-prefix=a/", "--dst-prefix=b/", "--binary", head, "--", ".", ...excludeGitlinks],
+    { encoding: "buffer" },
+  );
+  if (changes.length > 0) git(["apply", "--whitespace=nowarn"], { cwd: dir, input: changes });
+  for (const file of git(["ls-files", "--others", "--exclude-standard", "-z", "--", ".", ":(exclude)external"]).split("\0")) {
+    // An embedded repository is listed as a directory; a file can vanish after the listing.
+    if (!file || file.endsWith("/")) continue;
+    const source = path.join(root, file);
+    const info = lstatSync(source, { throwIfNoEntry: false });
+    if (!info || !(info.isFile() || info.isSymbolicLink())) continue;
+    mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+    try {
+      if (info.isSymbolicLink()) symlinkSync(readlinkSync(source), path.join(dir, file));
+      else copyFileSync(source, path.join(dir, file));
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
     }
   }
-}
-
-for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
-  process.on(signal, () => {
-    restoreGuardedFiles();
-    process.exit(130);
-  });
+  const link = (relative) => {
+    const target = path.join(dir, relative);
+    rmSync(target, { recursive: true, force: true });
+    symlinkSync(path.join(root, relative), target, "dir");
+    links.push(target);
+  };
+  link("node_modules");
+  if (linkSubmodules) {
+    for (const line of git(["submodule", "status"]).split("\n")) {
+      const initialized = /^[ +U][0-9a-f]+ (\S+)/.exec(line);
+      if (initialized) link(initialized[1]);
+    }
+  }
+  const sandboxCli = path.join(dir, "scripts", "agent-surface.mjs");
+  // For check and build only: an install here would write the MCP launcher into HOME, naming this
+  // sandbox.
+  return {
+    root: dir,
+    run: (args, options = {}) => execFileSync(process.execPath, [sandboxCli, ...args], { cwd: dir, encoding: "utf8", maxBuffer: MAX_CAPTURE_BYTES, ...options }),
+    status: (args, options = {}) => spawnSync(process.execPath, [sandboxCli, ...args], { cwd: dir, encoding: "utf8", maxBuffer: MAX_CAPTURE_BYTES, ...options }),
+    remove,
+  };
 }
 
 // An install that wires a credentialed MCP server writes the shared env launcher into

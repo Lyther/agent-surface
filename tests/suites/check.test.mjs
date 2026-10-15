@@ -20,6 +20,7 @@ import {
   expectedCommandCount,
   expectedSkillCount,
   files,
+  disposableCheckout,
   hasLocalOpsServerCommand,
   MAX_CAPTURE_BYTES,
   root,
@@ -47,63 +48,67 @@ assert.deepEqual(targetCapabilities.targets["grok-build"].surfaces.rules.paths, 
   ".grok/references/rules/<rule>.md",
 ]);
 
+// Every case below rewrites a tracked registry file, so it runs in a disposable checkout: neither
+// the rewrite nor an interrupted run can reach the shared one.
+const sandbox = disposableCheckout();
+
 // renders validation: registry must not claim a surface token that no producer emits
-const targetsRegistryPath = path.join(root, "registry", "targets.json");
+const targetsRegistryPath = path.join(sandbox.root, "registry", "targets.json");
 const targetsRegistryOriginal = readFileSync(targetsRegistryPath, "utf8");
 try {
   const mutatedTargets = JSON.parse(targetsRegistryOriginal);
   mutatedTargets.in_scope.codex.renders.push("bogus-token");
   writeFileSync(targetsRegistryPath, `${JSON.stringify(mutatedTargets, null, 2)}\n`);
-  const bogusRenders = status(["check"]);
+  const bogusRenders = sandbox.status(["check"]);
   assert.equal(bogusRenders.status, 1);
   assert.match(bogusRenders.stderr, /renders token not emitted by producer: bogus-token/);
 } finally {
   writeFileSync(targetsRegistryPath, targetsRegistryOriginal);
 }
-assert.equal(run(["check"]).trim(), "check: ok");
+assert.equal(sandbox.run(["check"]).trim(), "check: ok");
 
 // SUBSTITUTE_JUSTIFICATION
-// - substitute: one malformed legacy-owned registry value restored immediately after the check
+// - substitute: one malformed legacy-owned registry value in the disposable checkout
 // - replaces: a historical ownership typo that would otherwise require corrupting a real release registry
-// - necessity: schema rejection requires a deterministic invalid value and must not leave repository state changed
+// - necessity: schema rejection requires a deterministic invalid value, which the disposable checkout keeps out of the shared one
 // - real-option: the production check command and real registry loader are used; only the invalid input is controlled
 // - proof-limit: proves structural validation, not the later filesystem cleanup operation
 // - real-proof: tests/suites/install.test.mjs exercises real retired-target cleanup on a disposable filesystem
-const legacyOwnedPath = path.join(root, "registry", "legacy-owned.json");
+const legacyOwnedPath = path.join(sandbox.root, "registry", "legacy-owned.json");
 const legacyOwnedOriginal = readFileSync(legacyOwnedPath, "utf8");
 try {
   const malformedLegacyOwned = JSON.parse(legacyOwnedOriginal);
   malformedLegacyOwned.files[0].output = 17;
   writeFileSync(legacyOwnedPath, `${JSON.stringify(malformedLegacyOwned, null, 2)}\n`);
-  const malformedLegacy = status(["check"]);
+  const malformedLegacy = sandbox.status(["check"]);
   assert.equal(malformedLegacy.status, 1);
   assert.match(`${malformedLegacy.stdout}${malformedLegacy.stderr}`, /registry\/legacy-owned\.json/);
 } finally {
   writeFileSync(legacyOwnedPath, legacyOwnedOriginal);
 }
-assert.equal(run(["check"]).trim(), "check: ok");
+assert.equal(sandbox.run(["check"]).trim(), "check: ok");
 
-const optionalServicesPath = path.join(root, "registry", "optional-services.json");
+const optionalServicesPath = path.join(sandbox.root, "registry", "optional-services.json");
 const optionalServicesOriginal = readFileSync(optionalServicesPath, "utf8");
 try {
   const mutatedServices = JSON.parse(optionalServicesOriginal);
   mutatedServices.services["ctf-skills"].optional = true;
   writeFileSync(optionalServicesPath, `${JSON.stringify(mutatedServices, null, 2)}\n`);
-  const inconsistentService = status(["check"]);
+  const inconsistentService = sandbox.status(["check"]);
   assert.equal(inconsistentService.status, 1);
   assert.match(`${inconsistentService.stdout}${inconsistentService.stderr}`, /registry\/optional-services\.json/);
   assert.match(`${inconsistentService.stdout}${inconsistentService.stderr}`, /optional/);
 } finally {
   writeFileSync(optionalServicesPath, optionalServicesOriginal);
 }
-assert.equal(run(["check"]).trim(), "check: ok");
+assert.equal(sandbox.run(["check"]).trim(), "check: ok");
 
 // Required external pack without a committed submodule gitlink must fail check.
 try {
   const mutatedServices = JSON.parse(optionalServicesOriginal);
   mutatedServices.services["ctf-skills"].path = "external/unregistered-required-pin";
   writeFileSync(optionalServicesPath, `${JSON.stringify(mutatedServices, null, 2)}\n`);
-  const unpinnedRequired = status(["check"]);
+  const unpinnedRequired = sandbox.status(["check"]);
   assert.equal(unpinnedRequired.status, 1);
   assert.match(
     `${unpinnedRequired.stdout}${unpinnedRequired.stderr}`,
@@ -112,27 +117,27 @@ try {
 } finally {
   writeFileSync(optionalServicesPath, optionalServicesOriginal);
 }
-assert.equal(run(["check"]).trim(), "check: ok");
+assert.equal(sandbox.run(["check"]).trim(), "check: ok");
 
 // Demoting first-party synapse must re-impose external pin requirements.
 try {
   const mutatedServices = JSON.parse(optionalServicesOriginal);
   delete mutatedServices.services.synapse.first_party;
   writeFileSync(optionalServicesPath, `${JSON.stringify(mutatedServices, null, 2)}\n`);
-  const demotedFirstParty = status(["check"]);
+  const demotedFirstParty = sandbox.status(["check"]);
   assert.equal(demotedFirstParty.status, 1);
   assert.match(`${demotedFirstParty.stdout}${demotedFirstParty.stderr}`, /registry\/optional-services\.json/);
 } finally {
   writeFileSync(optionalServicesPath, optionalServicesOriginal);
 }
-assert.equal(run(["check"]).trim(), "check: ok");
+assert.equal(sandbox.run(["check"]).trim(), "check: ok");
 
 // served_by: served packs must not declare skill_roots; served_by must name a first-party MCP.
 try {
   const mutated = JSON.parse(optionalServicesOriginal);
   mutated.services["anthropic-cybersecurity-skills"].skill_roots = ["external/anthropic-cybersecurity-skills/skills/*"];
   writeFileSync(optionalServicesPath, `${JSON.stringify(mutated, null, 2)}\n`);
-  const r = status(["check"]);
+  const r = sandbox.status(["check"]);
   assert.equal(r.status, 1, "served pack regaining skill_roots must fail check");
   assert.match(`${r.stdout}${r.stderr}`, /served pack anthropic-cybersecurity-skills must not declare skill_roots/);
 } finally {
@@ -142,7 +147,7 @@ try {
   const mutated = JSON.parse(optionalServicesOriginal);
   mutated.services["anthropic-cybersecurity-skills"].served_by = ["codex-redteam-mode"];
   writeFileSync(optionalServicesPath, `${JSON.stringify(mutated, null, 2)}\n`);
-  const r = status(["check"]);
+  const r = sandbox.status(["check"]);
   assert.equal(r.status, 1, "served_by must reference a first-party mcp service");
   assert.match(`${r.stdout}${r.stderr}`, /server "codex-redteam-mode" must be a first-party mcp service/);
 } finally {
@@ -152,13 +157,14 @@ try {
   const mutated = JSON.parse(optionalServicesOriginal);
   mutated.services["anthropic-cybersecurity-skills"].attribution = "   ";
   writeFileSync(optionalServicesPath, `${JSON.stringify(mutated, null, 2)}\n`);
-  const r = status(["check"]);
+  const r = sandbox.status(["check"]);
   assert.equal(r.status, 1, "served Grimoire pack attribution must contain non-whitespace text");
   assert.match(`${r.stdout}${r.stderr}`, /registry\/optional-services\.json/);
 } finally {
   writeFileSync(optionalServicesPath, optionalServicesOriginal);
 }
-assert.equal(run(["check"]).trim(), "check: ok");
+assert.equal(sandbox.run(["check"]).trim(), "check: ok");
+sandbox.remove();
 
 const inventory = run(["inventory"]);
 const expectedInventory = {

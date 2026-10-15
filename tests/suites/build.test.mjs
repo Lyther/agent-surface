@@ -8,6 +8,7 @@ import { readSkills } from "../../scripts/agent-surface/skills.mjs";
 import { codexOpenAiAgentPolicyOutput, produceSkillOutputs, targets } from "../../scripts/agent-surface/targets.mjs";
 import {
   assertCodexAgentTomlParses,
+  disposableCheckout,
   files,
   hasLocalOpsServerCommand,
   root, run, status,
@@ -374,11 +375,14 @@ for (const target of Object.keys(targetsRegistry.in_scope)) {
 }
 assert.match(run(["check", "subagents"]), /subagents check: ok/);
 
-const subagentSourcePath = path.join(root, "subagents", "boss.md");
+// The subagent cases rewrite a tracked source, so they run in a disposable checkout; the build
+// cases there need the populated packs.
+const subagentSandbox = disposableCheckout({ linkSubmodules: true });
+const subagentSourcePath = path.join(subagentSandbox.root, "subagents", "boss.md");
 const subagentSourceOriginal = readFileSync(subagentSourcePath, "utf8");
 try {
   writeFileSync(subagentSourcePath, subagentSourceOriginal.replace(/description:.*\n/, ""));
-  const invalidSubagent = status(["check", "subagents"]);
+  const invalidSubagent = subagentSandbox.status(["check", "subagents"]);
   assert.equal(invalidSubagent.status, 1);
   assert.match(`${invalidSubagent.stdout}${invalidSubagent.stderr}`, /missing required field description/);
 } finally {
@@ -388,15 +392,16 @@ try {
 // Cursor cannot express read-write without shell; refuse, do not silently grant shell.
 try {
   writeFileSync(subagentSourcePath, subagentSourceOriginal.replace("access: read-only", "access: read-write"));
-  const cursorRefusal = status(["build", "--target", "cursor"]);
+  const cursorRefusal = subagentSandbox.status(["build", "--target", "cursor"]);
   assert.notEqual(cursorRefusal.status, 0);
   assert.match(`${cursorRefusal.stdout}${cursorRefusal.stderr}`, /not representable/);
-  const codexRefusal = status(["build", "--target", "codex"]);
+  const codexRefusal = subagentSandbox.status(["build", "--target", "codex"]);
   assert.notEqual(codexRefusal.status, 0);
   assert.match(`${codexRefusal.stdout}${codexRefusal.stderr}`, /not representable/);
 } finally {
   writeFileSync(subagentSourcePath, subagentSourceOriginal);
 }
+subagentSandbox.remove();
 run(["build", "--target", "all"]);
 
 // ---- a skill is a package: its companion files travel with it ------------------------
