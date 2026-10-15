@@ -22,12 +22,13 @@ and only the autonomy its write scope needs.
 | Cursor Agent | `cursor-agent -p --workspace "$repo" --mode ask --model "$model" --output-format json "$packet"` | omit `--mode` and add `--force`, which allows commands unless explicitly denied | not verified |
 | Kimi Code | none: `--plan` cannot be combined with `-p`, and prompt mode runs tool calls automatically | `kimi -m "$model" -p "$packet" --output-format stream-json`, started inside the packet's worktree | not verified |
 | Kilo CLI | `kilo run --dir "$repo" --model "$model" --variant "$effort" --agent ask --format json "$packet"` | `--auto --agent code` instead of `--agent ask` | Task tool or `@agent-name` subagents |
-| DSH | `dsh --profile headless "$packet"` | not verified | not verified |
+| DSH | none verified | `dsh --profile headless "$packet"` | not verified |
 
 `$repo` is the packet's own worktree. Claude Code, Kimi, and DSH take no directory flag, so start them
-from inside it. Grok and Kimi have no verified read-only launch, so give them only packets that may
-write, each in a disposable worktree. Record the model that ran, as `runtime-catalog.md` describes, in
-the packet's `probe_ref`.
+from inside it. Grok, Kimi, and DSH have no verified read-only launch, so give them only packets that
+may write, each in a disposable worktree. Claude Code's `plan` mode blocked a shell write in a
+2026-10-15 probe; Kilo's `ask` agent is unverified while its CLI is blocked. Record the model that ran,
+as `runtime-catalog.md` describes, in the packet's `probe_ref`.
 
 When the driver's own subagent or agent-manager tool can select the model, isolate the packet, and
 return its artifact, use it instead of a headless subprocess. Launch a subprocess when the packet needs
