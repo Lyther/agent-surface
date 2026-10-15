@@ -25,17 +25,25 @@ and only the autonomy its write scope needs.
 | DSH | none verified | `dsh --profile headless "$packet"` | not verified |
 
 `$repo` is the packet's own worktree. Claude Code, Kimi, and DSH take no directory flag, so start them
-from inside it. Grok, Cursor, Kimi, and DSH have no verified read-only launch, so never assign them
-research, analysis, or critic packets; give them only packets that may write, each in a disposable
-worktree. A worktree does not stop host reads, network access, pushes, or deploys, and a
-forbidden-actions list in the prompt is not an authorization boundary: deny those with the runtime's
-own controls, such as Claude Code's `--disallowedTools`, Grok's `--deny`, or Cursor's
-`--sandbox enabled`, and keep untrusted targets off runtimes that have none. Verification commands
-such as `npm test` run the checkout's own scripts with your identity, so on an untrusted checkout run
-them only in an OS or container sandbox with a disposable home, a scrubbed environment, and restricted
-network. Claude Code's `plan` mode blocked a shell write in a 2026-10-15 probe; Kilo's `ask` agent is
-unverified while its CLI is blocked. Record the model that ran, as `runtime-catalog.md` describes, in
-the packet's `probe_ref`.
+from inside it. Record the model that ran, as `runtime-catalog.md` describes, in the packet's
+`probe_ref`.
+
+Grok, Cursor, Kimi, and DSH have no verified read-only launch, so never assign them research,
+analysis, or critic packets; give them only packets that may write, each in a disposable worktree.
+Claude Code's `plan` mode blocked a shell write in a 2026-10-15 probe; Kilo's `ask` agent is
+unverified while its CLI is blocked.
+
+A worktree does not stop host reads, network access, pushes, or deploys, and a forbidden-actions list
+in the prompt is not an authorization boundary. Deny those with the runtime's own controls, such as
+Claude Code's `--disallowedTools`, Grok's `--deny`, Droid's `block` rules, or Cursor's
+`--sandbox enabled`. Launch a runtime that has no such control, such as Kimi or DSH, without push or
+deploy credentials.
+
+An untrusted target, such as an outside repository, web page, or artifact, can inject instructions into
+any packet. Read-only modes still read files and the environment, verification commands such as
+`npm test` run the checkout's own scripts with your identity, and the model's output leaves the host.
+Run every packet over an untrusted target, whatever its runtime or role, in an isolated container or VM
+with a scrubbed home and environment, no credentials, and restricted network.
 
 When the driver's own subagent or agent-manager tool can select the model, isolate the packet, and
 return its artifact, use it instead of a headless subprocess. Launch a subprocess when the packet needs
@@ -66,9 +74,9 @@ Return one summary with changed files, evidence, blockers, residual risk, and th
 Droid:
 
 - `droid exec` is read-only by default. `--auto low|medium|high` widens it step by step; `--skip-permissions-unsafe` bypasses every check and belongs only in a disposable environment.
-- The Task tool that runs custom droids (`.factory/droids/`, which agent-surface installs) is allowed only at `--auto high` or `--skip-permissions-unsafe` in 0.241.1, and `--auto high` also permits `git push`. Give such a lead its own worktree (`-w`) and list push and deploy as forbidden actions.
+- The Task tool that runs custom droids (`.factory/droids/`, which agent-surface installs) is allowed only at `--auto high` or `--skip-permissions-unsafe` in 0.241.1, and `--auto high` also permits pushes and deploys, which neither a worktree nor the prompt can stop. Before running a Droid lead, add `block` rules for push and deploy commands to Droid's command permission rules and confirm each with, for example, `droid rules check --command 'git push'`; without them, keep Droid packets single-agent. Give such a lead its own worktree (`-w`).
 - The `-w` name selects the branch to use or create, so make it unique per run; a reused name reuses that branch and its worktree.
-- `--mission` hands orchestration to Droid: it starts its own workers (`--worker-model`) and validators (`--validator-model`) and auto-approves their proposals, and it requires `--auto high`. Use it only when the packet's whole write scope is isolated, and treat its validation as packet-internal evidence, not the swarm's verifier.
+- `--mission` hands orchestration to Droid: it starts its own workers (`--worker-model`) and validators (`--validator-model`) and auto-approves their proposals, and it requires `--auto high`. Use it only with the same `block` rules in place and when the packet's whole write scope is isolated, and treat its validation as packet-internal evidence, not the swarm's verifier.
 
 Kilo:
 
