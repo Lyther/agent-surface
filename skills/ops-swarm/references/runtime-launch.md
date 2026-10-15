@@ -35,9 +35,9 @@ unverified while its CLI is blocked.
 
 A worktree does not stop host reads, network access, pushes, or deploys, and a forbidden-actions list
 in the prompt is not an authorization boundary. Deny those with the runtime's own controls, such as
-Claude Code's `--disallowedTools`, Grok's `--deny`, Droid's `block` rules, or Cursor's
-`--sandbox enabled`. Launch a runtime that has no such control, such as Kimi or DSH, without push or
-deploy credentials.
+Claude Code's `--disallowedTools`, Grok's `--deny`, Droid's `block` rules, Kimi's
+`[[permission.rules]]` deny rules (which prompt mode still honors), or Cursor's `--sandbox enabled`.
+Launch a runtime whose controls are unverified, such as DSH, without push or deploy credentials.
 
 An untrusted target, such as an outside repository, web page, or artifact, can inject instructions into
 any packet. Read-only modes still read files and the environment, verification commands such as
