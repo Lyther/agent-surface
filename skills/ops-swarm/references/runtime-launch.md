@@ -30,10 +30,12 @@ research, analysis, or critic packets; give them only packets that may write, ea
 worktree. A worktree does not stop host reads, network access, pushes, or deploys, and a
 forbidden-actions list in the prompt is not an authorization boundary: deny those with the runtime's
 own controls, such as Claude Code's `--disallowedTools`, Grok's `--deny`, or Cursor's
-`--sandbox enabled`, and keep untrusted targets off runtimes that have none. Claude Code's `plan` mode
-blocked a shell write in a 2026-10-15 probe; Kilo's
-`ask` agent is unverified while its CLI is blocked. Record the model that ran, as `runtime-catalog.md`
-describes, in the packet's `probe_ref`.
+`--sandbox enabled`, and keep untrusted targets off runtimes that have none. Verification commands
+such as `npm test` run the checkout's own scripts with your identity, so on an untrusted checkout run
+them only in an OS or container sandbox with a disposable home, a scrubbed environment, and restricted
+network. Claude Code's `plan` mode blocked a shell write in a 2026-10-15 probe; Kilo's `ask` agent is
+unverified while its CLI is blocked. Record the model that ran, as `runtime-catalog.md` describes, in
+the packet's `probe_ref`.
 
 When the driver's own subagent or agent-manager tool can select the model, isolate the packet, and
 return its artifact, use it instead of a headless subprocess. Launch a subprocess when the packet needs
