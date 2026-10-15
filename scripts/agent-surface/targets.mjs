@@ -2,6 +2,7 @@
 // (commands/rules/subagents/skills/mcp) into per-target outputs. Imports render/roots/merge/
 // postprocess; the install + check layers import targets/targetOutputs/producers from here.
 import { closeSync, openSync, readSync } from "node:fs";
+import { oneDriveDocumentsDirs, samePath } from "./documents.mjs";
 import { foldedBlockScalar } from "./format.mjs";
 import { lstat, readFile, readdir, stat } from "node:fs/promises";
 import os from "node:os";
@@ -14,7 +15,7 @@ import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityCliSub
 import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, clineAgentRoot, clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, droidSkillRoot, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildAgentRoot, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
 import { readRulesForContext } from "./rules.mjs";
 import { ignoreOutputs, subagentOutputs } from "./source-primitives.mjs";
-import { exists, fail, isSafeRelativePath } from "./util.mjs";
+import { exists, fail, isPathInside, isSafeRelativePath } from "./util.mjs";
 
 // The pre-SDK Cline extension that 3.x and most 4.x installs run reads MCP servers from its
 // per-editor storage; only the SDK-based extension reads the shared ~/.cline file (and imports a
@@ -224,6 +225,8 @@ export const targets = {
     installRoot: installRootUserOrProject,
     ignoreFilename: ".clineignore",
     staticOutputs: clineStaticOutputs,
+    userDocumentsOutputs: clineDocumentsOutputs,
+    relocatedRoutes: clineRelocatedRoutes,
     mcpConfigs: [
       {
         relativeOutput: clineMcpPath,
@@ -910,8 +913,10 @@ export async function targetOutputs(adapter, catalog, context) {
     }));
   }
 
+  // Placement that depends on the machine applies to installs only, so builds stay machine-independent.
+  const placed = context.mode === "install" && adapter.userDocumentsOutputs ? adapter.userDocumentsOutputs(outputs, context) : outputs;
   const seen = new Map();
-  for (const output of outputs) {
+  for (const output of placed) {
     if (!isSafeRelativePath(output.relativeOutput)) fail(`unsafe generated output path: ${output.relativeOutput}`);
     const previous = seen.get(output.relativeOutput);
     if (previous) {
@@ -922,7 +927,7 @@ export async function targetOutputs(adapter, catalog, context) {
     seen.set(output.relativeOutput, output);
   }
 
-  return outputs.sort((left, right) => left.relativeOutput.localeCompare(right.relativeOutput));
+  return placed.sort((left, right) => left.relativeOutput.localeCompare(right.relativeOutput));
 }
 
 export function producerEmitsFor(adapter) {
@@ -1574,6 +1579,53 @@ export async function clineStaticOutputs(_commands, context) {
     relativeOutput: path.join(outputRootFor(clineRuleRoot, context), "agent-surface.md"),
     referencesRoot: path.join(outputRootFor(clineRuleRoot, context), "references", "rules"),
     renderKind: null,
+  });
+}
+
+// Cline's pre-SDK extension (3.x and most 4.x installs) reads user workflows and rules under the OS
+// Documents folder (context.documentsDir), while the CLI and the SDK bundle read ~/Documents/Cline.
+// When the OS folder is elsewhere in the home, a user install writes both. The SDK also scans
+// ~/Cline/Rules and each OneDrive account's Documents for rules, so rules under one of those go
+// there alone rather than load twice; workflows have no such second route.
+export function clineDocumentsOutputs(outputs, context) {
+  if (context.scope !== "user" || !context.documentsDir) return outputs;
+  const relativeDocuments = path.relative(os.homedir(), context.documentsDir);
+  const insideHome = relativeDocuments === "" || isSafeRelativePath(relativeDocuments);
+  if (!insideHome || samePath(context.documentsDir, path.join(os.homedir(), "Documents"))) return outputs;
+  const ruleRoot = outputRootFor(clineRuleRoot, context);
+  const roots = [outputRootFor(clineWorkflowRoot, context), ruleRoot];
+  const rulesMove = [os.homedir(), ...oneDriveDocumentsDirs()].some((dir) => samePath(dir, context.documentsDir));
+  return outputs.flatMap((output) => {
+    if (!roots.some((root) => isPathInside(root, output.relativeOutput))) return [output];
+    const copy = { ...output, relativeOutput: path.join(relativeDocuments, path.relative("Documents", output.relativeOutput)) };
+    return rulesMove && isPathInside(ruleRoot, output.relativeOutput) ? [copy] : [output, copy];
+  });
+}
+
+// A workflow or rule under <root>/Cline, whichever Documents folder <root> is.
+const CLINE_DOCUMENTS_OUTPUT = /^(?:(.+?)[\\/])?Cline[\\/]((?:Workflows|Rules)[\\/].+)$/;
+
+// A workflow or rule an earlier install wrote under another Documents folder, and this plan writes
+// elsewhere, moved with that folder (contract Migration step 4): its new place, the relocated copy
+// when there is one, keeps the old route's category for the guard, and the old route is retired once
+// the new one is written.
+export function clineRelocatedRoutes(previousOutputs, plannedOutputs) {
+  const place = (output) => {
+    const match = CLINE_DOCUMENTS_OUTPUT.exec(output);
+    return match ? { root: match[1] ?? "", file: match[2].split(/[\\/]+/).join("/") } : null;
+  };
+  const planned = new Set(plannedOutputs.map((output) => path.normalize(output)));
+  const destinations = new Map();
+  for (const output of plannedOutputs) {
+    const found = place(output);
+    if (!found) continue;
+    const current = destinations.get(found.file);
+    if (!current || place(current).root === "Documents") destinations.set(found.file, output);
+  }
+  return previousOutputs.flatMap((output) => {
+    const found = place(output);
+    const to = found && destinations.get(found.file);
+    return to && !planned.has(path.normalize(output)) ? [{ from: output, to }] : [];
   });
 }
 
