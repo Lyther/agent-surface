@@ -103,6 +103,18 @@ try {
     assert.equal(fallback.stdout, "fallback-ok", `a wrapper whose pinned Node is gone launches through PATH's node: ${fallback.stderr}`);
     assert.equal(fallback.status, 0, fallback.stderr);
     assert.match(fallback.stderr, /is gone; using node from PATH/, "the fallback names the missing Node");
+    // Without a node on PATH that meets the package's floor, the wrapper stops on a line naming the
+    // floor instead of failing inside the launcher. An empty PATH directory stands for the IDE's.
+    const floor = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).engines.node.replace(/^>=(\d+\.\d+)\.0$/, "$1");
+    const noNodeBin = path.join(dir, "no-node-bin");
+    mkdirSync(noNodeBin);
+    const unusable = spawnSync(staleWrapper, ["--as-env-file", emptyEnv, "--", "/bin/sh", "-c", "printf unreachable"], {
+      encoding: "utf8",
+      env: { PATH: noNodeBin, HOME: home },
+    });
+    assert.equal(unusable.status, 1, unusable.stderr);
+    assert.equal(unusable.stdout, "", "nothing launches without a usable node");
+    assert.ok(unusable.stderr.includes(`is gone and node on PATH is missing; needs Node ${floor} or newer`), unusable.stderr);
 
     // F006: the installer-resolved env-file path is baked into the launch args (project .env here).
     const envFlag = entry.args.indexOf("--as-env-file");
