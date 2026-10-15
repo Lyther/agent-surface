@@ -30,7 +30,7 @@ Choose the tier from the packet's role, then resolve that tier to a model on the
 | Claude Code | no list command; `/model` in an interactive session | `fable`, `opus`, `sonnet`, `haiku` | `--output-format json`: the `modelUsage` keys |
 | Cursor Agent | `cursor-agent models` | none | the `--model` value |
 | Grok Build | `grok models` | the `(default)` entry | the `-m` value |
-| Kimi Code | `default_model` and `[models.*]` in `~/.kimi-code/config.toml` | the configured `default_model` | the `-m` value |
+| Kimi Code | `default_model` and `[models.*]` in `~/.kimi-code/config.toml` | the configured `default_model` | the `model` field of the `-m` alias's `[models.*]` table (`kimi-code/k3` sends `k3`) |
 | Kilo | `kilo models` | none | the `--model` value |
 | OpenCode | `opencode models` | none | the `--model` value |
 | DSH | `dsh --profile headless --dump-config` (`model:`) | profile-owned | the composed profile |

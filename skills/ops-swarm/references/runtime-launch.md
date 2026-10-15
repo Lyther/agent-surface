@@ -20,13 +20,13 @@ and only the autonomy its write scope needs.
 | Claude Code | `claude -p "$packet" --model "$model" --permission-mode plan --output-format json` | `--permission-mode acceptEdits` instead of `plan` | Agent tool or agent teams |
 | Grok Build | `grok --cwd "$repo" -m "$model" --reasoning-effort "$effort" --permission-mode plan -p "$packet" --output-format json --max-turns "$turns"` | `--permission-mode acceptEdits` instead of `plan` | `.grok/agents` roles (1.0.46 or later) |
 | Cursor Agent | `cursor-agent -p --workspace "$repo" --mode ask --model "$model" --output-format json "$packet"` | omit `--mode` and add `--force`, which allows commands unless explicitly denied | not verified |
-| Kimi Code | `kimi -m "$model" --plan -p "$packet" --output-format stream-json` | omit `--plan` | not verified |
+| Kimi Code | none: `--plan` cannot be combined with `-p`, and prompt mode runs tool calls automatically | `kimi -m "$model" -p "$packet" --output-format stream-json`, started inside the packet's worktree | not verified |
 | Kilo CLI | `kilo run --dir "$repo" --model "$model" --variant "$effort" --agent ask --format json "$packet"` | `--auto --agent code` instead of `--agent ask` | Task tool or `@agent-name` subagents |
 | DSH | `dsh --profile headless "$packet"` | not verified | not verified |
 
 `$repo` is the packet's own worktree. Claude Code, Kimi, and DSH take no directory flag, so start them
-from inside it. Grok's `--permission-mode plan` and Kimi's `--plan` in prompt mode are unverified as
-read-only; confirm each blocks edits before relying on it. Record the model that ran, as
+from inside it. Grok's `--permission-mode plan` is unverified as read-only; confirm it blocks edits
+before relying on it, and give Kimi only packets that may write. Record the model that ran, as
 `runtime-catalog.md` describes, in the packet's `probe_ref`.
 
 When the driver's own subagent or agent-manager tool can select the model, isolate the packet, and
