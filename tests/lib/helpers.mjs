@@ -147,8 +147,10 @@ export function useDisposableHome() {
   // uv keeps its tool environments under the home, and openosint's extras are detected inside them.
   const uvTools = path.join(operatorHome, ".local", "share", "uv");
   if (existsSync(uvTools)) link(path.join(home, ".local", "share", "uv"), uvTools);
-  const saved = { HOME: process.env.HOME, XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME };
+  const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME };
+  // os.homedir() reads USERPROFILE on Windows and HOME elsewhere.
   process.env.HOME = home;
+  process.env.USERPROFILE = home;
   process.env.XDG_CONFIG_HOME = path.join(home, ".config");
   let restored = false;
   const restore = () => {
