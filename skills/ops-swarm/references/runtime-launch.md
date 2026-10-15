@@ -17,8 +17,8 @@ and only the autonomy its write scope needs.
 |---|---|---|---|
 | Droid | `droid exec --cwd "$repo" -m "$model" -r "$effort" -o stream-json "$packet"` (read-only by default) | add `--auto low` for edits or `--auto medium` for installs, builds, and local git; add `-w "swarm-$run-$packet_id"` for its own worktree | Custom droids through the Task tool, at `--auto high` only; `--mission` |
 | Codex | `codex exec -m "$model" -c "model_reasoning_effort=\"$effort\"" -C "$repo" -s read-only --ephemeral --json "$packet"` | `-s workspace-write` instead of `-s read-only` | Subagents spawned by the parent session |
-| Claude Code | `claude -p "$packet" --model "$model" --permission-mode plan --output-format json` | `--permission-mode acceptEdits` instead of `plan`, plus `--allowedTools "Bash(<verify command> *)"` for each verification command, since `-p` cannot approve other shell commands | Agent tool or agent teams |
-| Grok Build | none verified: `--permission-mode plan` is not shown to block shell writes | `grok --cwd "$repo" -m "$model" --reasoning-effort "$effort" --permission-mode bypassPermissions -p "$packet" --output-format json --max-turns "$turns"`, as in `workflow-runtime`, so its verification commands run without an approver | `.grok/agents` roles (1.0.46 or later) |
+| Claude Code | `claude -p "$packet" --model "$model" --permission-mode plan --output-format json` | `--permission-mode acceptEdits` instead of `plan`, plus one `--allowedTools` prefix rule per verification command, such as `"Bash(npm test:*)"`, since `-p` cannot approve other shell commands | Agent tool or agent teams |
+| Grok Build | none verified: `--permission-mode plan` is not shown to block shell writes | `grok --cwd "$repo" -m "$model" --reasoning-effort "$effort" --permission-mode dontAsk --allow "$rule" -p "$packet" --output-format json --max-turns "$turns"`, with one `--allow` per edit tool and verification command; never `bypassPermissions`, which also permits `git push` | `.grok/agents` roles (1.0.46 or later) |
 | Cursor Agent | none verified: `--mode ask` is reported to still run shell commands | `cursor-agent -p --force --workspace "$repo" --model "$model" --output-format json "$packet"`; `--force` allows commands unless explicitly denied | not verified |
 | Kimi Code | none: `--plan` cannot be combined with `-p`, and prompt mode runs tool calls automatically | `kimi -m "$model" -p "$packet" --output-format stream-json`, started inside the packet's worktree | not verified |
 | Kilo CLI | `kilo run --dir "$repo" --model "$model" --variant "$effort" --agent ask --format json "$packet"` | `--auto --agent code` instead of `--agent ask` | Task tool or `@agent-name` subagents |
@@ -26,9 +26,12 @@ and only the autonomy its write scope needs.
 
 `$repo` is the packet's own worktree. Claude Code, Kimi, and DSH take no directory flag, so start them
 from inside it. Grok, Cursor, Kimi, and DSH have no verified read-only launch, so run every packet on
-them, whatever its role, in a disposable worktree. Claude Code's `plan` mode blocked a shell write in a
-2026-10-15 probe; Kilo's `ask` agent is unverified while its CLI is blocked. Record the model that ran,
-as `runtime-catalog.md` describes, in the packet's `probe_ref`.
+them, whatever its role, in a disposable worktree. A worktree does not stop pushes, deploys, or network
+access: list those as forbidden actions in the packet, and deny them with the runtime's own controls
+where it has them, such as Claude Code's `--disallowedTools`, Grok's `--deny`, or Cursor's
+`--sandbox enabled`. Claude Code's `plan` mode blocked a shell write in a 2026-10-15 probe; Kilo's
+`ask` agent is unverified while its CLI is blocked. Record the model that ran, as `runtime-catalog.md`
+describes, in the packet's `probe_ref`.
 
 When the driver's own subagent or agent-manager tool can select the model, isolate the packet, and
 return its artifact, use it instead of a headless subprocess. Launch a subprocess when the packet needs
