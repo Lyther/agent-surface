@@ -157,9 +157,11 @@ try {
         for (const output of [workflow("Documents"), workflow(oneDriveDocuments), rule(oneDriveDocuments)]) assert.ok(synced(output), `${output} is planned`);
         assert.ok(!synced(rule("Documents")), "rules the SDK reads from OneDrive's Documents are not written twice");
         const movedHome = path.join(scratch, "cline-moved-documents");
-        pointDocumentsAt(path.join(movedHome, "Docs"));
+        // A non-ASCII folder name proves the path survives the PowerShell query's output encoding.
+        const movedName = "Docs-文档-Ä";
+        pointDocumentsAt(path.join(movedHome, movedName));
         const moved = clinePlan(movedHome);
-        for (const output of [workflow("Documents"), workflow("Docs"), rule("Documents"), rule("Docs")]) assert.ok(moved(output), `${output} is planned`);
+        for (const output of [workflow("Documents"), workflow(movedName), rule("Documents"), rule(movedName)]) assert.ok(moved(output), `${output} is planned`);
       } finally {
         const restore = original
           ? ["add", key, "/v", "Personal", "/t", original[1], "/d", original[2], "/f"]
