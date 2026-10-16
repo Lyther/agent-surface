@@ -356,3 +356,43 @@ test("R4b: memory_get fails loud (PAYLOAD_TOO_LARGE) when combined content is to
     assert.equal(JSON.parse(tooBig.content[0]!.text).code, "PAYLOAD_TOO_LARGE");
   } finally { cleanup(); }
 });
+
+// One tagged record that lies outside the first `limit` rows both ways: it is the oldest (browse pages
+// newest-first) and the longest (bm25 favors short documents), behind `limit + 1` untagged matches.
+function seedTaggedBelowLimit(store: Store, P: string, limit: number): number {
+  const tagged = store.remember({
+    projectDbPath: P, agentId: "a", content: "rollout " + "padding ".repeat(60), tags: ["keep", "audit"],
+  });
+  for (let i = 0; i <= limit; i++) store.remember({ projectDbPath: P, agentId: "a", content: `rollout note ${i}` });
+  return tagged.id;
+}
+
+test("tags filter runs before the row limit: query recall", () => {
+  const { store, P, cleanup } = setup();
+  try {
+    const limit = 5;
+    const tagged = seedTaggedBelowLimit(store, P, limit);
+    const page = store.recall(recall(P, { query: "rollout", limit }));
+    assert.equal(page.results.length, limit);
+    assert.ok(!page.results.some((r) => r.id === tagged), "premise: the tagged record ranks below the first page");
+    const hit = store.recall(recall(P, { query: "rollout", tags: ["audit", "keep"], limit }));
+    assert.deepEqual(hit.results.map((r) => r.id), [tagged]);
+    const miss = store.recall(recall(P, { query: "rollout", tags: ["keep", "absent"], limit }));
+    assert.equal(miss.results.length, 0, "every requested tag is required");
+  } finally { cleanup(); }
+});
+
+test("tags filter runs before the row limit: browse recall", () => {
+  const { store, P, cleanup } = setup();
+  try {
+    const limit = 5;
+    const tagged = seedTaggedBelowLimit(store, P, limit);
+    const page = store.recall(recall(P, { limit }));
+    assert.equal(page.results.length, limit);
+    assert.ok(!page.results.some((r) => r.id === tagged), "premise: the tagged record is older than the newest page");
+    const hit = store.recall(recall(P, { tags: ["audit", "keep"], limit }));
+    assert.deepEqual(hit.results.map((r) => r.id), [tagged]);
+    const miss = store.recall(recall(P, { tags: ["keep", "absent"], limit }));
+    assert.equal(miss.results.length, 0, "every requested tag is required");
+  } finally { cleanup(); }
+});

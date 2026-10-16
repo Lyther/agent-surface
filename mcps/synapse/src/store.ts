@@ -17,6 +17,13 @@ import { resolveProjectRef } from "./namespace.js";
 const ftsQuery = (q: string): string =>
   q.split(/\s+/).filter(Boolean).map((t) => `"${t.replace(/"/g, "")}"`).join(" ") || '""';
 
+// Every requested tag must be in the row's JSON `tags` array (NULL = no tags). It runs in SQL, before
+// LIMIT: filtering the page afterwards drops eligible rows that rank or sort below it. The SQL text is
+// a constant; the tag list travels as one bound JSON parameter and is never spliced into the statement.
+const TAGS_ALL_SQL = "AND NOT EXISTS (SELECT 1 FROM json_each(?) w WHERE w.value NOT IN (SELECT value FROM json_each(COALESCE(m.tags,'[]'))))";
+const tagFilter = (tags: string[] | undefined): { sql: string; params: string[] } =>
+  tags && tags.length ? { sql: TAGS_ALL_SQL, params: [JSON.stringify(tags)] } : { sql: "", params: [] };
+
 function openDb(path: string, readonly: boolean): DatabaseSync {
   if (!readonly) { mkdirSync(dirname(path), { recursive: true }); ensureOwnerOnlyDir(dirname(path)); }
   const db = new DatabaseSync(path, { readOnly: readonly });
@@ -149,21 +156,17 @@ export class Store implements IStore {
     const hits: { row: MemoryRow; store: Scope; rank?: number; readOnly?: true }[] = [];
     let sourceCapped = false; // browse: any source filled its page (informational "there is more")
     let projectCapped = false; // drain: the project page was full ⇒ more project rows lie beyond it
-    let projectScannedMax = q.since ?? 0; // drain: highest project id the SQL scanned (safe to skip past)
+    let projectScannedMax = q.since ?? 0; // drain: highest project id the SQL returned (safe to skip past)
     for (const s of sources) {
       if (!s.db) continue;
       const order = incremental && s.store === "project" ? "asc" : "desc";
-      const rows = q.query ? this.searchRows(s.db, q.query, s.since, q.limit) : this.recentRows(s.db, s.since, q.limit, order);
+      const rows = q.query ? this.searchRows(s.db, q.query, s.since, q.limit, q.tags) : this.recentRows(s.db, s.since, q.limit, order, q.tags);
       if (rows.length >= q.limit) sourceCapped = true; // more rows may remain beyond this page
       if (s.store === "project") {
         projectCapped = rows.length >= q.limit;
         if (incremental && rows.length) projectScannedMax = rows[rows.length - 1]!.row.id; // ASC ⇒ last is max
       }
       for (const r of rows) {
-        if (q.tags && q.tags.length) {
-          const t = r.row.tags ? (JSON.parse(r.row.tags) as string[]) : [];
-          if (!q.tags.every((x) => t.includes(x))) continue;
-        }
         const readOnly = q.project && s.store === "project" ? true : undefined;
         hits.push(r.rank !== undefined
           ? { row: r.row, store: s.store, rank: r.rank, ...(readOnly ? { readOnly } : {}) }
@@ -210,8 +213,8 @@ export class Store implements IStore {
     if (incremental) {
       // Cursor/`truncated` reflect PROJECT drain only: global is re-scanned from 0 every call and
       // can never be advanced by the cursor, so counting it would loop forever once the project is
-      // drained. Advance past scanned project rows (delivered or filtered); stop before the first
-      // budget-cut project row so it is refetched next call.
+      // drained. Advance past the project rows the SQL returned (tags are filtered there, before
+      // LIMIT); stop before the first budget-cut project row so it is refetched next call.
       const cursor = firstDroppedProjectId ? firstDroppedProjectId - 1 : projectScannedMax;
       return { results, truncated: firstDroppedProjectId !== 0 || projectCapped, cursor };
     }
@@ -221,22 +224,24 @@ export class Store implements IStore {
     return { results, truncated: truncated || sourceCapped, cursor: browseCursor };
   }
 
-  private searchRows(db: DatabaseSync, query: string, since: number, limit: number): RowHit[] {
+  private searchRows(db: DatabaseSync, query: string, since: number, limit: number, tags?: string[]): RowHit[] {
+    const tf = tagFilter(tags);
     const rows = db.prepare(
       `SELECT m.id,m.ts,m.agent_id,m.content,m.tags,m.supersedes,m.status, bm25(memory_fts) AS rank
        FROM memory_fts JOIN memory m ON m.id=memory_fts.rowid
-       WHERE memory_fts MATCH ? AND m.status='live' AND m.id > ?
+       WHERE memory_fts MATCH ? AND m.status='live' AND m.id > ? ${tf.sql}
        ORDER BY rank LIMIT ?`,
-    ).all(ftsQuery(query), since, limit) as unknown as (MemoryRow & { rank: number })[];
+    ).all(ftsQuery(query), since, ...tf.params, limit) as unknown as (MemoryRow & { rank: number })[];
     return rows.map((r) => ({ row: r, rank: r.rank }));
   }
 
-  private recentRows(db: DatabaseSync, since: number, limit: number, order: "asc" | "desc" = "desc"): RowHit[] {
+  private recentRows(db: DatabaseSync, since: number, limit: number, order: "asc" | "desc" = "desc", tags?: string[]): RowHit[] {
     // `order` is an internal literal (never user input): ASC drains forward from a cursor,
     // DESC shows the newest slice for browse.
+    const tf = tagFilter(tags);
     const rows = db.prepare(
-      `SELECT id,ts,agent_id,content,tags,supersedes,status FROM memory WHERE status='live' AND id > ? ORDER BY id ${order === "asc" ? "ASC" : "DESC"} LIMIT ?`,
-    ).all(since, limit) as unknown as MemoryRow[];
+      `SELECT id,ts,agent_id,content,tags,supersedes,status FROM memory m WHERE status='live' AND id > ? ${tf.sql} ORDER BY id ${order === "asc" ? "ASC" : "DESC"} LIMIT ?`,
+    ).all(since, ...tf.params, limit) as unknown as MemoryRow[];
     return rows.map((row) => ({ row }));
   }
 
