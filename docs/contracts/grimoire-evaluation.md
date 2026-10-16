@@ -21,7 +21,7 @@ The actual reader's [term construction](../../mcps/grimoire/src/store.ts) uses [
 
 ## Shipped Change
 
-The reader's [term construction](../../mcps/grimoire/src/store.ts) required every query term, which [FTS5 reads as a conjunction](https://www.sqlite.org/fts5.html), so `service` or `setup` excluded an intended document before ranking and joined versus split `spearphishing` also decided a match. Terms are now OR-ed with filler words dropped, leaving BM25 to rank a document matching more of the query higher. Measured on the pinned cybersecurity pack over the same 30 reviewed queries:
+The reader's [term construction](../../mcps/grimoire/src/store.ts) required every query term, which [FTS5 reads as a conjunction](https://www.sqlite.org/fts5.html), so `service` or `setup` excluded an intended document before ranking and joined versus split `spearphishing` also decided a match. Terms are now OR-ed with filler words dropped, so an unmatched term no longer excludes a document, and weighted BM25 orders the candidates by term rarity, frequency, document length and column rather than by how many terms matched. Measured on the pinned cybersecurity pack over the same 30 reviewed queries:
 
 | Arm | Target hit@1 | Target hit@5 | MRR@5 | Out-of-corpus queries returning a hit |
 |---|---:|---:|---:|---:|

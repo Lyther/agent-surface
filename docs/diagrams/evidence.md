@@ -26,7 +26,7 @@ The SVG is the editable source and browser-renderable artifact. Its text equival
 
 ## Text Alternative and Boundaries
 
-Measured: a task description enters the approved model API; the model emits one search call. The actual stdio MCP server validates it, and the reader queries the frozen local SQLite FTS5 index. Every lexical term was required before weighted BM25 ranking, which is where a relevant skill was lost; any term is now eligible and ranking carries the breadth. Real returned hits go back to the model for ID selection. Credentials go only to the approved provider, never into task prompts or retained outputs. The baseline also sends literal task wording directly to the same MCP search.
+Measured: a task description enters the approved model API; the model emits one search call. The actual stdio MCP server validates it, and the reader queries the frozen local SQLite FTS5 index. Every lexical term was required before weighted BM25 ranking, which is where a relevant skill was lost; any term now makes a skill a candidate and weighted BM25 orders the candidates. Real returned hits go back to the model for ID selection. Credentials go only to the approved provider, never into task prompts or retained outputs. The baseline also sends literal task wording directly to the same MCP search.
 
 Baseline target hit@5 under the conjunctive reader: literal 24/30; one model's queries 22/30; the other's 26/30. Warm literal search p50/p95: 1.63/2.56 ms. Literal hit@5 is now 29/30. These numbers do not establish task success, corpus-wide recall, a model advantage or a host context-limit defect.
 

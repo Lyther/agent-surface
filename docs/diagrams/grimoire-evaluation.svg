@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
   <title id="title">Grimoire: retrieval evidence before architecture</title>
-  <desc id="desc">Measured task to model to MCP to SQLite retrieval, followed by model selection. Requiring every query term excluded relevant skills, so any term is now eligible and BM25 ranks the breadth. A held-out comparison still precedes any native task-verifier claim.</desc>
+  <desc id="desc">Measured task to model to MCP to SQLite retrieval, followed by model selection. Requiring every query term excluded relevant skills, so any term now makes a skill a candidate and weighted BM25 orders them. A held-out comparison still precedes any native task-verifier claim.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#4b5563"/></marker>
     <style>
