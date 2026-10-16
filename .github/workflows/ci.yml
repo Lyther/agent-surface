@@ -15,15 +15,15 @@ jobs:
           submodules: recursive
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22" # MCP suite runs on Node >=22.17
+          node-version: "22" # Node >=22.17
           cache: npm
       - run: npm ci
-      # Ensure wired MCPs are present in env
+      # Install MCPs
       - run: npm run install:mcps
-      # Provision openosint MCP prerequisites via agent-surface
+      # Setup external MCP prereqs
       - name: establish external MCP prerequisites
         run: node scripts/agent-surface.mjs install --target droid --dest "$RUNNER_TEMP/prep" --category mcps --service openosint -y
-      # Validate full install/startup/lifecycle for first-party MCPs
+      # First-party MCP tests
       - name: first-party MCP acceptance
         env:
           AGENT_SURFACE_LIVE_FIRST_PARTY: "1"
@@ -32,14 +32,13 @@ jobs:
       - run: npm run check:commands
       - run: npm run check:generated
       - run: npm run check:rules
-      # Cline's pre-SDK extension finds the Documents folder through xdg-user-dir on Linux, and the
-      # os-routes suite exercises that redirect with the real tool.
+      # xdg-user-dirs for os-routes
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends xdg-user-dirs
       - run: npm test
       - run: npm run build -- --target all
       - run: npm pack --dry-run --json
 
-  # Ensure CLI works with Node >=20.12 (just check/build, not MCP suite)
+  # CLI check/build against Node >=20.12
   floor:
     runs-on: ubuntu-24.04
     steps:
@@ -54,7 +53,7 @@ jobs:
       - run: npm run check
       - run: npm run build -- --target all
 
-  # Native Windows tests: prove real install/launch/provision paths and Windows specifics
+  # Native Windows tests (real install, launch, and provision)
   windows:
     runs-on: windows-2025
     steps:
@@ -69,21 +68,21 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - name: native launch acceptance
+      - name: native launch tests
         env:
           AGENT_SURFACE_LIVE_LAUNCH: "1"
         run: node tests/suites/live-launch.test.mjs
-      # Provision and launch credentialed external MCP under Windows
+      # External MCP provision test
       - name: native provisioning acceptance
         env:
           AGENT_SURFACE_LIVE_PROVISION: "1"
         run: node tests/suites/live-provision.test.mjs
-      # Native first-party MCPs: build, launch, repeat (Windows distinction: live process holds files)
+      # First-party MCP tests on Windows
       - name: first-party MCP acceptance
         env:
           AGENT_SURFACE_LIVE_FIRST_PARTY: "1"
         run: node tests/suites/live-first-party.test.mjs
-      # Cross-platform suites, ensure each test's exit code is respected
+      # Cross-platform test suites
       - run: node tests/suites/credentials.test.mjs
       - run: node tests/suites/mcp-env-launch.test.mjs
       - run: node tests/suites/mcp-shims.test.mjs
@@ -91,7 +90,7 @@ jobs:
       - run: node tests/suites/provision.test.mjs
       - run: node tests/suites/provision-exec.test.mjs
       - run: node tests/suites/provision-install.test.mjs
-      # Native per-OS install routes, cleanup, and editor paths
+      # OS-specific routes and cleanup
       - run: node tests/suites/os-routes.test.mjs
 
   mcp:
@@ -102,7 +101,7 @@ jobs:
           submodules: recursive
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22" # node:sqlite needs >=22.17
+          node-version: "22" # sqlite needs >=22.17
       - name: grimoire (build & test & audit)
         working-directory: mcps/grimoire
         run: |

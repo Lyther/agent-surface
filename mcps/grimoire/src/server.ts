@@ -1,6 +1,4 @@
-// grimoire — stdio MCP server. Read-only: opens the self-contained index via Store and
-// serves the 4 tools. Every result is structuredContent (the typed status DTO) plus a
-// text mirror labeled so hosts/models recognize the payload as an indexed Agent Skill.
+// grimoire: read-only stdio MCP server exposing 4 tools and returning results as structuredContent + labeled text.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CONTRACT_VERSION, REFERENCE_LABEL, SERVER_INSTRUCTIONS } from "./contract.js";

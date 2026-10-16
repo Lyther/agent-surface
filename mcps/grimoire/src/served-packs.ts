@@ -1,5 +1,5 @@
-// grimoire — discover source-packs served_by grimoire from optional-services.json.
-// Used by install.mjs so adding a served_by pack does not require another hardcoded path.
+// Discover source-packs served by grimoire from optional-services.json.
+// Used by install.mjs for dynamic pack discovery.
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -74,6 +74,7 @@ export function indexerArgv(packs: ServedPack[]): { args: string[]; missingRequi
   return { args, missingRequired };
 }
 
+// CLI entry: parses args, handles indexing and error output.
 function main(argv: string[]): void {
   let repo = "";
   let indexer = "";
@@ -83,7 +84,7 @@ function main(argv: string[]): void {
     if (a === "--repo") repo = argv[++i] ?? "";
     else if (a === "--indexer") indexer = argv[++i] ?? "";
     else if (a === "--print-index-args") printArgs = true;
-    else if (a === "--index") { /* consumed with --indexer */ }
+    else if (a === "--index") { /* with --indexer */ }
   }
   if (!repo) { process.stderr.write("[grimoire-served-packs] --repo is required\n"); process.exit(2); }
   const packs = servedPacksFromRegistry(repo);
@@ -93,7 +94,7 @@ function main(argv: string[]): void {
       process.stderr.write(`ERROR: required pack ${pack.serviceId} not found at ${join(pack.absPath, pack.skillsRel)}.\n`);
       process.stderr.write(`       Run: git submodule update --init -- ${pack.path}, then re-run npm run install:grimoire.\n`);
     }
-    process.stderr.write("       Index was NOT rebuilt; install is incomplete. Any existing index is left untouched; a clean machine reports INDEX_MISSING.\n");
+    process.stderr.write("       Index NOT rebuilt; install incomplete. Existing index untouched; clean machine reports INDEX_MISSING.\n");
     process.exit(1);
   }
   if (!args.length) {
@@ -110,6 +111,7 @@ function main(argv: string[]): void {
   process.exit(result.status ?? 1);
 }
 
+// Entrypoint if invoked directly.
 if (process.argv[1] && process.argv[1].endsWith("served-packs.js")) {
   try { main(process.argv.slice(2)); }
   catch (e) { process.stderr.write(`[grimoire-served-packs] fatal: ${e instanceof Error ? e.message : String(e)}\n`); process.exit(1); }

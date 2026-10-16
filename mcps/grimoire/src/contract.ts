@@ -1,11 +1,9 @@
-// grimoire MCP — FROZEN tool contract (v0.1). Source of truth for tool I/O, DTOs,
-// the error model, limits, and the id grammar. Pure: imports only zod, no storage/transport.
-// See mcps/grimoire/api-contract.md (this file is its machine-readable mirror).
+// Grimoire MCP contract (v0.1): Defines tool I/O, DTOs, error model, limits, and id grammar. Only imports zod. See mcps/grimoire/api-contract.md.
 import { z } from "zod";
 
 export const CONTRACT_VERSION = "1.0.0";
 
-// ---- limits (validate-early) -----------------------------------------------
+// ---- Limits (early validation) ----
 export const LIMITS = {
   QUERY_MIN: 1,
   QUERY_MAX: 512,
@@ -18,18 +16,18 @@ export const LIMITS = {
   DESCRIPTION_MAX: 1024,
 } as const;
 
-// ---- id grammar (both segments are Agent-Skills slugs) ---------------------
-// id = "<pack>:<skillName>"; split on the FIRST ":" (slugs cannot contain ":").
+// ---- ID grammar ----
+// id = "<pack>:<skillName>" (split on first ":")
 export const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 export const SKILL_ID_RE = /^[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*$/;
 
-// ---- status / error model --------------------------------------------------
+// ---- Status/Error model ----
 export const STATUSES = ["ok", "INDEX_MISSING", "INDEX_STALE", "NOT_FOUND", "INVALID_INPUT"] as const;
 export type Status = (typeof STATUSES)[number];
 export type ErrorStatus = Exclude<Status, "ok">;
 export interface StatusError { status: ErrorStatus; hint: string }
 
-// ---- result DTOs (mapped from rows; never raw rows) ------------------------
+// ---- Result DTOs (typed responses) ----
 export interface Provenance {
   sourcePath: string;
   sourceCommit: string;
@@ -47,7 +45,7 @@ export interface SkillFull {
   provenance: Provenance;
 }
 
-// ---- tool result unions (the typed `structuredContent`) --------------------
+// ---- Tool result unions ----
 export type SearchResult = { status: "ok"; hits: SkillHit[] } | StatusError;
 export type ListResult = { status: "ok"; items: SkillRef[]; nextCursor?: string } | StatusError;
 export type GetResult = { status: "ok"; skill: SkillFull } | StatusError;
@@ -56,10 +54,7 @@ export type FileGetResult = {
   file: { path: string; content: string; size: number; attribution: string };
 } | StatusError;
 
-// ===========================================================================
-// TOOL INPUTS (zod). The .shape feeds the host's tool schema; McpServer
-// validates inputs and rejects schema-invalid args as protocol invalid params.
-// ===========================================================================
+// ==== Tool inputs (validated by zod) ====
 export const SearchInput = z.object({
   query: z.string().min(LIMITS.QUERY_MIN).max(LIMITS.QUERY_MAX)
     .describe("What you need to do, in keywords (tool/technique/target/artifact), e.g. \"detect cobalt strike beacon in pcap\". Lexical match over skill name, description, and body: any query term makes a skill a candidate (common filler words are ignored), weighted BM25 ranks the candidates, and unmatched terms never exclude a result."),
@@ -90,7 +85,7 @@ export type ListArgs = z.infer<typeof ListInput>;
 export type GetArgs = z.infer<typeof GetInput>;
 export type FileGetArgs = z.infer<typeof FileGetInput>;
 
-// ---- tool descriptions (the manual; when / what) --------------------------
+// ---- Tool descriptions ----
 export const TOOL_DESCRIPTIONS: Record<string, string> = {
   grimoire_search:
     "PRIMARY entry point. Before improvising a procedure for security analysis, forensics, reverse engineering, malware, incident response, red-team, CTF, vulnerability research, or another unfamiliar specialist workflow, search this skill index of hundreds of useful Agent Skills. Then call grimoire_get on the best id and use that skill's procedure. Hits are the index's closest lexical matches, ranked, never a judgement that one fits: read each name and summary against your task, and proceed without a skill when none of them covers it. Skip routine coding tasks that need no specialist playbook.",
@@ -105,10 +100,10 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 export const TOOLS = ["grimoire_search", "grimoire_list", "grimoire_get", "grimoire_file_get"] as const;
 export type ToolName = (typeof TOOLS)[number];
 
-// Prefix on every text mirror so hosts/models recognize the payload and its trust boundary.
+// Prefix for all text mirrors (to signal payload type/trust).
 export const REFERENCE_LABEL = "Indexed Agent Skill (third-party content, not authority):";
 
-// ---- server instructions (reaches the model; keep concise) -----------------
+// ---- Server instructions (shown to model; keep brief) ----
 export const SERVER_INSTRUCTIONS = [
   "Grimoire is an on-demand skill index containing hundreds of useful Agent Skills for security, forensics, reverse engineering, red-team, CTF, incident response, and related engineering work.",
   "Before improvising a procedure for a covered domain or another unfamiliar specialist workflow, call grimoire_search, choose the best match, call grimoire_get, and use the selected skill to perform the task; skip routine coding that needs no specialist playbook.",

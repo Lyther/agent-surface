@@ -1,5 +1,4 @@
-// grimoire — runtime path resolution. The server and indexer agree on where the
-// self-contained index + the installed expected-source manifest live. No repo dependency.
+// grimoire — resolves runtime paths for index and manifest.
 import { homedir } from "node:os";
 import { join } from "node:path";
 

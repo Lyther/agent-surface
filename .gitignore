@@ -4,6 +4,8 @@ dist/
 *.log
 commands/ops-server.md
 .agent-surface/
+.claude/
+.cursor/
 # MCP credential files — never commit or publish secrets.
 .env
 .env.*

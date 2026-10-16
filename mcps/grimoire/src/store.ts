@@ -1,6 +1,4 @@
-// grimoire — the only runtime seam. Read-only reader over the self-contained index.
-// Never writes (all writes live in indexer, build-time). Every public method first
-// checks index health and returns INDEX_MISSING/INDEX_STALE instead of throwing.
+// grimoire: read-only index reader. No writes; all writes are build-time. Public methods check index health and return INDEX_MISSING/INDEX_STALE, never throw.
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import {
@@ -23,7 +21,7 @@ const FILLER = new Set(["a", "an", "the", "and", "or", "for", "to", "of", "in", 
 // "out" and "off" stay searchable on purpose: dropping them collapses a spaced technique name
 // such as "out of band" or "off by one" to one weak word, and both appear in indexed skills.
 
-// Quote each token so user text can never be FTS5 query syntax; "" matches nothing safely.
+// Quote each token to defend against FTS5 query syntax injection; "" is always safe.
 // Terms are OR-ed, not AND-ed: FTS5 reads space-separated terms as a conjunction, which
 // discards a relevant skill the moment a caller adds one word its text happens to lack
 // ("configure tls 1.3 for a service" lost the TLS skill on "service"). Weighted BM25 then orders
@@ -90,7 +88,7 @@ export class Store {
     return row?.value;
   }
 
-  /** Compares the index against the INSTALLED manifest (never the repo registry). */
+  /** Checks index and manifest integrity against installed manifest, not repo registry. */
   indexStatus(): StatusError | { status: "ok" } {
     if (!existsSync(this.paths.indexPath) || !existsSync(this.paths.manifestPath)) {
       return { status: "INDEX_MISSING", hint: `index not built; ${REBUILD}` };

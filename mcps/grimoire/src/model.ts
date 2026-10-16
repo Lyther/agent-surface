@@ -1,11 +1,9 @@
-// grimoire — row entities + mappers + the id codec + the canonical runtime schema
-// (mirrors schema.sql). Pure: no node:sqlite, no fs, no Date.
+// Grimoire: row types, mappers, id codec, and runtime schema (mirrors schema.sql). Pure: no Node.js/SQLite/fs/Date.
 import { LIMITS, SLUG_RE, type FileManifestEntry, type Provenance, type SkillFull, type SkillHit, type SkillRef } from "./contract.js";
 
 export const SCHEMA_VERSION = 3;
 
-// External id codec. id = "<pack>:<skillName>"; both segments are slugs (no ":"),
-// so decId splits on the FIRST ":". Ids are content-independent → stable across rebuilds.
+// Id codec: id = "<pack>:<skillName>"; both are slugs (no ":"); decId splits on first ":".
 export const extId = (pack: string, name: string): string => `${pack}:${name}`;
 export function decId(id: string): { pack: string; name: string } | null {
   const i = id.indexOf(":");
@@ -16,8 +14,7 @@ export function decId(id: string): { pack: string; name: string } | null {
   return { pack, name };
 }
 
-// Derived category = the leading token of the skill name (before the first "-"),
-// mapped to a small fixed set; everything else → "other". Never authoritative.
+// Derive category: first token of skill name before "-", mapped to set or "other".
 export const CATEGORIES = new Set([
   "analyzing", "detecting", "conducting", "building", "configuring", "auditing",
   "collecting", "deploying", "implementing", "performing", "hunting", "exploiting",
@@ -32,7 +29,7 @@ export function deriveCategory(name: string): { category: string; categorySource
   return { category: CATEGORIES.has(mapped) ? mapped : "other", categorySource: "derived" };
 }
 
-// Inlined so the compiled server needs no file lookup. Keep in sync with schema.sql.
+// Inlined schema for server. Keep in sync with schema.sql.
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS skills (
   id              TEXT PRIMARY KEY,
@@ -84,8 +81,7 @@ export function rowToRef(r: RefRow): SkillRef {
 export function rowToHit(r: RefRow, score: number): SkillHit {
   return { ...rowToRef(r), score };
 }
-// A catalog can mix licenses and authors, and frontmatter is not served, so a skill's own
-// license/author/license-file declarations travel with its pack's attribution.
+// Skill license/author/notice travels with pack's attribution; frontmatter is not served.
 export const servedAttribution = (packAttribution: string, notice: string): string =>
   notice ? `${packAttribution} Skill declares ${notice}.` : packAttribution;
 

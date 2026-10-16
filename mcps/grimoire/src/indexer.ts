@@ -1,7 +1,4 @@
-// grimoire — build-time ONLY writer. Walks pinned skill packs, validates metadata,
-// stores body + every UTF-8 supporting file verbatim in a self-contained sqlite index, writes
-// index_meta + the installed expected-source manifest. Write-once: builds temp artifacts,
-// then publishes them fail-closed. Not imported by the server.
+// grimoire: Build-time indexer. Walks skills packs, validates, writes all bodies/files to SQLite index + manifest. Not server-imported. Writes once, fail-closed.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -97,14 +94,12 @@ const stringEntries = (value: unknown): Record<string, string> =>
     ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string"))
     : {};
 
-// Split the Markdown body here; the YAML library owns frontmatter syntax. `metadata` holds the
-// string entries of the spec's optional `metadata` map.
+// Splits Markdown from YAML frontmatter. `metadata` is string entries from optional `metadata` map.
 export function parseFrontmatter(text: string): { fields: Record<string, string>; metadata: Record<string, string>; body: string } | null {
   const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
   if (!m) return null;
   try {
-    // Third-party packs sometimes have malformed nonessential fields. YAML's
-    // recovery mode still provides the scalar name/description we index.
+    // Yields scalar fields for indexing even on bad YAML.
     const parsed: unknown = parseYamlDocument(m[1] ?? "", { strict: false, logLevel: "silent" }).toJS();
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
     return { fields: stringEntries(parsed), metadata: stringEntries((parsed as Record<string, unknown>)["metadata"]), body: text.slice(m[0].length) };
@@ -116,8 +111,7 @@ export function parseFrontmatter(text: string): { fields: Record<string, string>
 const NOTICE_FIELD_MAX = 200;
 const LICENSE_FILE_RE = /^(?:LICEN[CS]E|COPYING)(?:[.-][A-Za-z0-9.-]+)?$/i;
 
-// The skill's own license and author declarations, which outrank a pack's blanket attribution. A
-// license file in the skill root is served as a companion, so the notice names it as well.
+// Gets license/author/companion license files for this skill.
 function skillNotice(skillDir: string, fields: Record<string, string>, metadata: Record<string, string>): string {
   const clean = (value: string | undefined): string => (value ?? "").replace(/\s+/g, " ").trim().slice(0, NOTICE_FIELD_MAX);
   const license = clean(fields["license"]);
@@ -128,6 +122,7 @@ function skillNotice(skillDir: string, fields: Record<string, string>, metadata:
     .filter(Boolean).join("; ");
 }
 
+// Recursively lists all supporting files in a skill dir (excl. SKILL.md).
 function listSupportingFiles(skillDir: string): string[] {
   const out: string[] = [];
   const walk = (rel: string): void => {
@@ -141,19 +136,14 @@ function listSupportingFiles(skillDir: string): string[] {
   return out.sort();
 }
 
-// Discover skill directories beneath a pack's skills root. A child directory holding a SKILL.md is a
-// skill; intermediate directories (e.g. a catalog's category folders) are traversed, but a skill's
-// own subtree is never descended — those files are its companions, listed separately. Returns each
-// skill directory as a POSIX-style path relative to skillsDir, sorted for a deterministic build.
+// Recursively finds all child dirs under skillsDir that have SKILL.md. Skips descending into subdirs of skills.
 function findSkillDirs(skillsDir: string): string[] {
   const out: string[] = [];
   const walk = (rel: string): void => {
     const entries = readdirSync(rel ? join(skillsDir, rel) : skillsDir, { withFileTypes: true });
-    // A SKILL.md in the root itself is not a skill — skills live in child directories, so only a
-    // non-empty rel can be a skill root (matching the old loop, which only ever saw children).
+    // Only non-root child dirs with SKILL.md count as skills.
     if (rel && entries.some((e) => e.name === "SKILL.md" && !e.isDirectory())) { out.push(rel); return; }
-    // Directory symlinks report isDirectory() === false, so they are never followed: no symlink
-    // cycles. Code-unit order (not locale-aware) keeps the emitted index stable across host locales.
+    // Directory symlinks not followed; keep output deterministic.
     const childDirs = entries.filter((e) => e.isDirectory()).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     for (const child of childDirs) walk(rel ? `${rel}/${child.name}` : child.name);
   };
@@ -211,13 +201,11 @@ export function buildIndex(opts: {
       let commit = baseCommit;
       const skillsRel = resolveSkillsRel(pack.skillsRel);
       const skillsDir = join(pack.path, skillsRel);
-      // A pack was explicitly requested: a missing skills dir is a hard error, not a skip.
-      // Failing here (vs. quietly producing an empty index) prevents a broken/incomplete
-      // checkout from clobbering a good index or shipping a contradictory manifest.
+      // Missing skills dir is a hard error (prevents empty or broken index).
       if (!existsSync(skillsDir)) throw new Error(`pack ${pack.serviceId}: no skills directory at ${skillsDir}`);
-      const fingerprints: string[] = []; // per-skill stable digests → pack sourceHash
+      const fingerprints: string[] = []; // Stable per-skill digests to generate pack sourceHash.
       const sourceSnapshots = new Map<string, string>();
-      const seenIds = new Set<string>(); // first path for an id wins; later same-name dirs are skipped
+      const seenIds = new Set<string>(); // First path for an id wins, others skipped.
       const skillsAtPackStart = result.skills;
       let packFiles = 0;
 
@@ -244,9 +232,7 @@ export function buildIndex(opts: {
         const { category } = deriveCategory(name);
         const sourcePath = relative(pack.path, skillMd);
 
-        // Two skills sharing a name (e.g. the same leaf under different category folders) collide on
-        // id; the first discovered path wins and the rest are reported. Pre-checking keeps a genuine
-        // insert failure (not a collision) propagating as a hard error instead of a silent skip.
+        // If a skill id was already seen, skip; otherwise, store and continue.
         if (seenIds.has(id)) { result.skipped.push({ dir: dirLabel, reason: `duplicate skill id: ${id}` }); continue; }
         seenIds.add(id);
         const notice = skillNotice(skillDir, parsed.fields, parsed.metadata);
@@ -270,8 +256,7 @@ export function buildIndex(opts: {
         }
         fingerprints.push(`${id}|${sha256(raw)}|${fileDigests.join(",")}`);
       }
-      // Fail closed: a requested pack that indexes nothing is a misconfiguration (usually a wrong
-      // index_root), not a reason to publish an empty index over a good one.
+      // Any pack yielding no skills is a hard error (usually misconfig, not empty).
       if (result.skills === skillsAtPackStart) throw new Error(`pack ${pack.serviceId}: no skills found under ${skillsRel}`);
       if (baseCommit !== "uncommitted" && !baseCommit.endsWith("-dirty")
         && (indexedSourceIsDirty(pack.path, skillsRel) || indexedSourceChanged(sourceSnapshots)
@@ -291,8 +276,7 @@ export function buildIndex(opts: {
     }
     insMeta.run("pack_ids", JSON.stringify([...packIds].sort()));
   } catch (e) {
-    // Non-destructive: a failed build leaves any existing index + manifest untouched and
-    // removes only the half-written temp db (the rename below never ran).
+    // On build failure, leave existing index, manifest. Remove temp db.
     db.close();
     if (existsSync(tmp)) rmSync(tmp, { force: true });
     throw e;
@@ -313,7 +297,7 @@ export function buildIndex(opts: {
   return result;
 }
 
-// ---- CLI: grimoire-index --pack <serviceId>:<absPath> [...] [--out <dir>] ----
+// CLI: grimoire-index --pack <serviceId>:<absPath> [...] [--out <dir>]
 function main(argv: string[]): void {
   const packs: PackSpec[] = [];
   let outDir: string | undefined;

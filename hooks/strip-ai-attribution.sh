@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-#
-# strip-ai-attribution.sh - Remove AI vendor trailers/signatures from commit messages.
-#
-# Usage:
-#   strip-ai-attribution.sh [--check] <commit-message-file>
-#
+# Remove AI vendor lines from commit messages.
+# Usage: strip-ai-attribution.sh [--check] <commit-message-file>
 
 set -euo pipefail
 

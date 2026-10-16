@@ -1,7 +1,4 @@
-// grimoire — the 4 read-only tool definitions: their input shapes (zod, for the host
-// schema + validation) and the dispatch to the store. server.ts wires these onto an
-// McpServer. Results are the typed status DTOs from store; the server renders them as
-// structuredContent + a labeled text mirror.
+// Four read-only tool definitions: their zod input shapes and store dispatchers.
 import type { ZodRawShape } from "zod";
 import {
   FileGetInput, GetInput, ListInput, SearchInput, TOOL_DESCRIPTIONS,
