@@ -35,7 +35,8 @@ interface SkillFull {
 
 ```ts
 // 1. PRIMARY. Lexical (BM25) top-k over name^/description^/body. A skill matching any query
-//    term (filler words dropped) is a candidate, and weighted BM25 orders candidates by term
+//    term (filler words dropped, all-caps names kept; `/ , ; |` split alternatives) is a
+//    candidate, and weighted BM25 orders candidates by term
 //    rarity, frequency, document length and column, not by how many terms matched; an
 //    unmatched term never excludes a result. Hits are the closest lexical matches, not a
 //    relevance guarantee, so a query about an uncovered topic still returns its nearest rows.

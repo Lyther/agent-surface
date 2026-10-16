@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { LIMITS } from "../src/contract.js";
 import { buildIndex } from "../src/indexer.js";
 import { SCHEMA_VERSION } from "../src/model.js";
-import { Store } from "../src/store.js";
+import { Store, ftsQuery } from "../src/store.js";
 import { FIXTURE_ATTRIBUTION, FIXTURE_PACK, setupIndex } from "./helpers.js";
 
 const COBALT = "fixture:detecting-cobalt-strike-beacons";
@@ -48,6 +48,36 @@ test("search: a word no skill contains does not exclude the match", () => {
     assert.equal(ranked.status, "ok");
     if (ranked.status !== "ok") return;
     assert.equal(ranked.hits[0]?.id, "fixture:analyzing-malware-with-ghidra");
+  } finally { cleanup(); }
+});
+
+test("query terms: separators split alternatives, names survive the filler list", () => {
+  // Alternatives written with a separator each become a term of their own.
+  assert.equal(ftsQuery("tls/ssl"), '"tls" OR "ssl"');
+  assert.equal(ftsQuery("xss,csrf; ssrf|xxe"), '"xss" OR "csrf" OR "ssrf" OR "xxe"');
+  // "." and "-" stay inside a term, which the tokenizer matches as an adjacent phrase.
+  assert.equal(ftsQuery("tls 1.3"), '"tls" OR "1.3"');
+  assert.equal(ftsQuery("cve-2021-44228"), '"cve-2021-44228"');
+  // An all-caps word is a name even when its lowercase form is filler.
+  assert.equal(ftsQuery("CAN bus fuzzing"), '"CAN" OR "bus" OR "fuzzing"');
+  assert.equal(ftsQuery("can bus fuzzing"), '"bus" OR "fuzzing"');
+  assert.equal(ftsQuery("IT forensics"), '"IT" OR "forensics"');
+  assert.equal(ftsQuery("I need ghidra"), '"ghidra"', "a single capital letter is still filler");
+  // A query of filler only keeps its words; quotes never survive into the expression.
+  assert.equal(ftsQuery("the and of"), '"the" OR "and" OR "of"');
+  assert.equal(ftsQuery('beacon "pcap'), '"beacon" OR "pcap"');
+  assert.equal(ftsQuery('"'), '""');
+  assert.equal(ftsQuery("   "), '""');
+});
+
+test("search: a separator-joined pair finds each alternative", () => {
+  const { store, cleanup } = setupIndex();
+  try {
+    // Quoted whole, "ghidra/mfa" was the adjacent phrase "ghidra mfa", which no skill contains.
+    const r = store.search("ghidra/mfa", 5);
+    assert.equal(r.status, "ok");
+    if (r.status !== "ok") return;
+    assert.deepEqual(r.hits.map((h) => h.id).sort(), ["fixture:analyzing-malware-with-ghidra", "fixture:implementing-mfa-enforcement"]);
   } finally { cleanup(); }
 });
 

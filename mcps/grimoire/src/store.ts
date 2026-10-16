@@ -33,10 +33,19 @@ const FILLER = new Set(["a", "an", "the", "and", "or", "for", "to", "of", "in", 
 // lexical matches rather than nothing, so a caller must judge a hit's summary against its own
 // task. Nothing is padded — a query whose every term is absent from the index still matches no
 // row.
-const ftsQuery = (q: string): string => {
-  const all = q.split(/\s+/).filter(Boolean);
-  const kept = all.filter((t) => !FILLER.has(t.toLowerCase()));
-  return (kept.length ? kept : all).map((t) => `"${t.replace(/"/g, "")}"`).join(" OR ") || '""';
+// Whitespace and the separators written between alternatives ("tls/ssl", "xss,csrf") split
+// terms, so each alternative is a candidate on its own. "." and "-" do not split: inside a
+// term they join a version, CVE ID or compound name, which the tokenizer then matches as an
+// adjacent phrase ("1.3", "cve-2021-44228").
+const TERM_SPLIT = /[\s/,;|]+/;
+// An all-caps word is a name, not filler, even when its lowercase form is: "CAN" bus, "IT" forensics.
+const isFiller = (t: string): boolean =>
+  FILLER.has(t.toLowerCase()) && !(t.length > 1 && t === t.toUpperCase() && t !== t.toLowerCase());
+
+export const ftsQuery = (q: string): string => {
+  const all = q.split(TERM_SPLIT).map((t) => t.replace(/"/g, "")).filter(Boolean);
+  const kept = all.filter((t) => !isFiller(t));
+  return (kept.length ? kept : all).map((t) => `"${t}"`).join(" OR ") || '""';
 };
 
 function isUnsafePath(p: string): boolean {
