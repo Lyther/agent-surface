@@ -62,7 +62,7 @@ export type FileGetResult = {
 // ===========================================================================
 export const SearchInput = z.object({
   query: z.string().min(LIMITS.QUERY_MIN).max(LIMITS.QUERY_MAX)
-    .describe("What you need to do, in keywords (tool/technique/target/artifact), e.g. \"detect cobalt strike beacon in pcap\". Lexical BM25 match over skill name, description, and body; a skill matching more of your words ranks higher, and extra words cost rank without excluding a match."),
+    .describe("What you need to do, in keywords (tool/technique/target/artifact), e.g. \"detect cobalt strike beacon in pcap\". Lexical match over skill name, description, and body: any query term makes a skill a candidate (common filler words are ignored), weighted BM25 ranks the candidates, and unmatched terms never exclude a result."),
   k: z.number().int().min(LIMITS.K_MIN).max(LIMITS.K_MAX).optional()
     .describe(`Max hits to return (default ${LIMITS.K_DEFAULT}). Start small; grimoire_get the one you want.`),
 }).strict();

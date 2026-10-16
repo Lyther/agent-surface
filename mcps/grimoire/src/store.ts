@@ -26,9 +26,10 @@ const FILLER = new Set(["a", "an", "the", "and", "or", "for", "to", "of", "in", 
 // Quote each token so user text can never be FTS5 query syntax; "" matches nothing safely.
 // Terms are OR-ed, not AND-ed: FTS5 reads space-separated terms as a conjunction, which
 // discards a relevant skill the moment a caller adds one word its text happens to lack
-// ("configure tls 1.3 for a service" lost the TLS skill on "service"). BM25 already ranks a
-// skill matching more of the query above one matching less, so breadth costs rank, not
-// eligibility. The trade is deliberate: a query about an uncovered topic now returns its best
+// ("configure tls 1.3 for a service" lost the TLS skill on "service"). Weighted BM25 then orders
+// the candidates by each matched term's rarity and frequency, document length and column, not by
+// how many terms matched: an unmatched term adds nothing to a skill's score and no longer
+// excludes it, though it can lift other skills that contain it. The trade is deliberate: a query about an uncovered topic now returns its best
 // lexical matches rather than nothing, so a caller must judge a hit's summary against its own
 // task. Nothing is padded — a query whose every term is absent from the index still matches no
 // row.

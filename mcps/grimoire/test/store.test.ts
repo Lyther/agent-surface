@@ -27,7 +27,7 @@ test("search ranks the relevant skill first and respects k", () => {
   } finally { cleanup(); }
 });
 
-test("search: a word no skill contains costs rank, not the match", () => {
+test("search: a word no skill contains does not exclude the match", () => {
   const { store, cleanup } = setupIndex();
   try {
     // "kubernetes" and "yesterday" appear in no fixture skill; the beacon skill is still the
@@ -43,7 +43,7 @@ test("search: a word no skill contains costs rank, not the match", () => {
     if (split.status !== "ok") return;
     assert.deepEqual(split.hits.map((h) => h.id).sort(), ["fixture:analyzing-malware-with-ghidra", "fixture:implementing-mfa-enforcement"]);
 
-    // More matched terms must outrank fewer.
+    // The skill containing every term outranks one that shares a single common word with the query.
     const ranked = store.search("ghidra decompiled control flow", 5);
     assert.equal(ranked.status, "ok");
     if (ranked.status !== "ok") return;
