@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">Grimoire: retrieval evidence before architecture</title>
+  <desc id="desc">Measured task to model to MCP to SQLite retrieval, followed by model selection. Requiring every query term excluded relevant skills, so any term is now eligible and BM25 ranks the breadth. A held-out comparison still precedes any native task-verifier claim.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#4b5563"/></marker>
+    <style>
+      text {font-family:Arial,Helvetica,sans-serif;letter-spacing:0;fill:#17212b}
+      .title {font-size:28px;font-weight:700}.section {font-size:19px;font-weight:700}
+      .label {font-size:17px;font-weight:700}.body {font-size:16px}.small {font-size:14px;fill:#4b5563}
+      .node {fill:#fff;stroke:#56616c;stroke-width:1.5}.proposed {fill:#fff;stroke:#477963;stroke-width:1.5;stroke-dasharray:7 5}
+      .edge {fill:none;stroke:#4b5563;stroke-width:1.8;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1200" height="760" fill="#fff"/>
+  <text x="40" y="46" class="title">Grimoire: retrieval evidence before architecture</text>
+  <text x="40" y="75" class="body">The problem was candidate exclusion, not slow search. Held-out relevance and task benefit are still untested.</text>
+  <rect x="28" y="98" width="1144" height="334" rx="6" fill="#f3f6f8"/>
+  <text x="48" y="129" class="section">OBSERVED | Controlled retrieval probe, 2026-10-16</text>
+  <text x="48" y="152" class="small">Literal arm bypasses the provider query step; all arms use the real stdio MCP server and the same frozen index.</text>
+  <rect x="48" y="188" width="190" height="112" rx="5" class="node"/>
+  <text x="64" y="215" class="small">T / DATASET</text>
+  <text x="64" y="243" class="label">30 task requests</text>
+  <text x="64" y="269" class="body">Expected IDs hidden</text>
+  <path d="M238 244 H290" class="edge"/>
+  <text x="248" y="230" class="small">task</text>
+  <rect x="292" y="188" width="220" height="112" rx="5" class="node"/>
+  <text x="308" y="215" class="small">P / PROVIDER API</text>
+  <text x="308" y="243" class="label">Model emits query</text>
+  <text x="308" y="269" class="body">60 real model cells</text>
+  <path d="M512 244 H564" class="edge"/>
+  <text x="519" y="230" class="small">call</text>
+  <a href="../../mcps/grimoire/src/contract.ts">
+    <rect x="566" y="188" width="220" height="112" rx="5" class="node"/>
+    <text x="582" y="215" class="small">M / STDIO PROCESS</text>
+    <text x="582" y="243" class="label">grimoire_search</text>
+    <text x="582" y="269" class="body">Validate query + k</text>
+  </a>
+  <path d="M786 244 H838" class="edge"/>
+  <text x="794" y="230" class="small">read</text>
+  <a href="../../mcps/grimoire/src/store.ts">
+    <rect x="840" y="188" width="310" height="112" rx="5" class="node"/>
+    <text x="856" y="215" class="small">S + I / READER + SQLITE</text>
+    <text x="856" y="243" class="label">Any term, then BM25</text>
+    <text x="856" y="269" class="body">1,137 skills / five pinned packs</text>
+  </a>
+  <path d="M995 300 V326 H402 V344" class="edge"/>
+  <text x="590" y="319" class="small">Actual returned hits, not expected IDs</text>
+  <rect x="48" y="346" width="1102" height="64" rx="5" fill="#e6f0eb"/>
+  <text x="64" y="371" class="label">R / Same model selects a returned ID or NONE</text>
+  <text x="64" y="395" class="body">Baseline hit@5: literal 24/30; model queries 22/30 and 26/30. Literal now 29/30. Warm search p50 / p95: 1.63 / 2.56 ms.</text>
+  <text x="48" y="461" class="section">SHIPPED, THEN PROPOSED | One narrow change measured; held-out proof still owed</text>
+  <rect x="48" y="486" width="326" height="112" rx="5" class="node"/>
+  <text x="64" y="514" class="label">C / Shipped reader change</text>
+  <text x="64" y="540" class="body">Any term eligible, BM25 ranks</text>
+  <text x="64" y="564" class="body">Uncovered query returns near misses</text>
+  <path d="M374 542 H424" class="edge" stroke-dasharray="6 4"/>
+  <rect x="426" y="486" width="326" height="112" rx="5" class="proposed"/>
+  <text x="442" y="514" class="label">V / Held-out relevance</text>
+  <text x="442" y="540" class="body">Multiple useful skills, all packs</text>
+  <text x="442" y="564" class="body">No-skill controls, failures, usage</text>
+  <path d="M752 542 H802" class="edge" stroke-dasharray="6 4"/>
+  <rect x="804" y="486" width="346" height="112" rx="5" class="proposed"/>
+  <text x="820" y="514" class="label">V / Native task outcome</text>
+  <text x="820" y="540" class="body">Matched tools and total allowance</text>
+  <text x="820" y="564" class="body">Official environment and verifier</text>
+  <text x="48" y="635" class="body">Existing MCP tools, schema and provenance unchanged. No new service, embedding store or default-profile change.</text>
+  <line x1="48" y1="662" x2="1150" y2="662" stroke="#d2d7dc"/>
+  <rect x="48" y="681" width="24" height="16" class="node"/>
+  <text x="83" y="695" class="small">Solid: measured runtime</text>
+  <rect x="282" y="681" width="24" height="16" class="proposed"/>
+  <text x="317" y="695" class="small">Dashed: proposed, not implemented</text>
+  <a href="evidence.md"><text x="660" y="695" class="small" text-decoration="underline">Source and evidence ledger</text></a>
+  <a href="../contracts/grimoire-evaluation.md"><text x="916" y="695" class="small" text-decoration="underline">Evaluation contract</text></a>
+  <text x="48" y="730" class="small">Scope: engineering evaluation / one existing diagnostic set, tuned not held out; no corpus-wide or task-success claim.</text>
+</svg>
