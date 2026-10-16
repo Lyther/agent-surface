@@ -9,6 +9,7 @@ alwaysApply: true
 
 - Prioritize the user's current milestone and critical path; a valid concern is not automatically a blocker.
 - Block only work the issue prevents or invalidates. Track other required work in the existing backlog instead of expanding the current gate.
+- Judge a review finding's priority by its real impact, not the reviewer's label. Fix a non-blocking finding or push back with a one-line reason, then move on without another review round; request re-review only after fixing a real blocker, such as a correctness, security, or data-loss defect. Where the user or repository policy makes a review a blocking gate, or a commit-only workflow forbids patching findings, those rules govern this entirely.
 - Start authorized long-running validation once prerequisites are met; advance independent work while it runs without changing its inputs. Reassess priorities after each round.
 
 ## Operating Loop
