@@ -7,7 +7,7 @@ Small build. Phases are checkpoints, not ceremony; each box names its acceptance
 ## P0 — eval baseline (do first)
 
 - [x] Committed `test/fixtures/queries/real-pack.json` (30 reviewed model-phrased queries with expected skill ids) + a fixture set with negatives.
-- [x] BM25 index over the real pack; baseline recorded (hit@1 0.60 / hit@5 0.80 / MRR 0.686) and thresholds derived into `architecture.md`; hybrid trigger noted (not built).
+- [x] BM25 index over the real pack; baseline recorded and thresholds derived into `architecture.md`; hybrid trigger noted (not built). The conjunctive query scored hit@1 0.60 / hit@5 0.80 / MRR 0.686; matching any word and ranking by BM25 now scores hit@1 0.767 / hit@5 0.967 / MRR 0.836.
 
 ## P1 — build the server (fixture-backed)
 
@@ -47,7 +47,7 @@ The honest blockers before an unqualified "production-ready" claim. Items marked
 
 ## Later (deferred-by-design — open only if a trigger fires)
 
-- **Hybrid / embedding retrieval** — only if the eval gate floor proves insufficient or higher recall is required (current BM25 v0 baseline: hit@5 0.80 / MRR 0.686).
+- **Hybrid / embedding retrieval** — only if the eval gate floor proves insufficient or higher recall is required (current any-word BM25 baseline: hit@5 0.967 / MRR 0.836).
 - **More packs** — add `--pack` + `served_by` as other large packs are de-scoped to grimoire (now: `anthropic-cybersecurity-skills`, `rev-skills`, and `hack-skills`; further packs still require the same native Agent-Skill contract).
 - **`resource_link`** — expose skills/files as MCP resources once client support is even (`grimoire_file_get` covers it today).
 - **Binary supporting files** — not supported by the text tool contract; indexing fails clearly on non-UTF-8 bytes instead of corrupting them.

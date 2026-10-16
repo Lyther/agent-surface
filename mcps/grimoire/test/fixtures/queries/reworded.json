@@ -1,0 +1,30 @@
+[
+  {
+    "query": "please configure tls 1.3 on one of my services",
+    "expect": ["anthropic-cybersecurity-skills:configuring-tls-1-3-for-secure-communications"]
+  },
+  {
+    "query": "help me set up the oauth2 authorization code flow for an app",
+    "expect": ["anthropic-cybersecurity-skills:configuring-oauth2-authorization-flow"]
+  },
+  {
+    "query": "investigate a phishing email by its header lines",
+    "expect": ["anthropic-cybersecurity-skills:analyzing-email-headers-for-phishing-investigation"]
+  },
+  {
+    "query": "hold a lessons learned review after an incident",
+    "expect": ["anthropic-cybersecurity-skills:conducting-post-incident-lessons-learned"]
+  },
+  {
+    "query": "i need to set up an active directory tiered admin model please",
+    "expect": ["anthropic-cybersecurity-skills:configuring-active-directory-tiered-model"]
+  },
+  {
+    "query": "find malicious scheduled tasks on a host with sysmon",
+    "expect": ["anthropic-cybersecurity-skills:detecting-malicious-scheduled-tasks-with-sysmon"]
+  },
+  {
+    "query": "audit the permissions on an s3 bucket that may be public",
+    "expect": ["anthropic-cybersecurity-skills:auditing-aws-s3-bucket-permissions"]
+  }
+]

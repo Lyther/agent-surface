@@ -62,7 +62,7 @@ export type FileGetResult = {
 // ===========================================================================
 export const SearchInput = z.object({
   query: z.string().min(LIMITS.QUERY_MIN).max(LIMITS.QUERY_MAX)
-    .describe("What you need to do, in keywords (tool/technique/target/artifact), e.g. \"detect cobalt strike beacon in pcap\". Lexical BM25 match over skill name, description, and body."),
+    .describe("What you need to do, in keywords (tool/technique/target/artifact), e.g. \"detect cobalt strike beacon in pcap\". Lexical match over skill name, description, and body: any query term makes a skill a candidate (common filler words are ignored), weighted BM25 ranks the candidates, and unmatched terms never exclude a result."),
   k: z.number().int().min(LIMITS.K_MIN).max(LIMITS.K_MAX).optional()
     .describe(`Max hits to return (default ${LIMITS.K_DEFAULT}). Start small; grimoire_get the one you want.`),
 }).strict();
@@ -93,7 +93,7 @@ export type FileGetArgs = z.infer<typeof FileGetInput>;
 // ---- tool descriptions (the manual; when / what) --------------------------
 export const TOOL_DESCRIPTIONS: Record<string, string> = {
   grimoire_search:
-    "PRIMARY entry point. Before improvising a procedure for security analysis, forensics, reverse engineering, malware, incident response, red-team, CTF, vulnerability research, or another unfamiliar specialist workflow, search this skill index of hundreds of useful Agent Skills. Then call grimoire_get on the best id and use that skill's procedure. Skip routine coding tasks that need no specialist playbook.",
+    "PRIMARY entry point. Before improvising a procedure for security analysis, forensics, reverse engineering, malware, incident response, red-team, CTF, vulnerability research, or another unfamiliar specialist workflow, search this skill index of hundreds of useful Agent Skills. Then call grimoire_get on the best id and use that skill's procedure. Hits are the index's closest lexical matches, ranked, never a judgement that one fits: read each name and summary against your task, and proceed without a skill when none of them covers it. Skip routine coding tasks that need no specialist playbook.",
   grimoire_list:
     "Browse the skill index when search keywords are unclear. Lists skills, optionally filtered by a derived category, and paginates via cursor. Prefer grimoire_search when you can describe the task.",
   grimoire_get:

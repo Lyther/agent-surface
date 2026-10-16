@@ -153,9 +153,11 @@ if (enabled) {
     const retrieval = await useServer(servers.grimoire, async ({ call }) => ({
       known: await callTool(call, "grimoire_search", { query: "angr symbolic execution", k: 5 }),
       duplicates: await callTool(call, "grimoire_search", { query: "certificate pinning bypass", k: 5 }),
-      // An index that pads results would answer this too. Retrieval is only useful if it can
-      // say "nothing here" instead of returning the least-bad row.
-      absent: await callTool(call, "grimoire_search", { query: "sourdough proofing", k: 5 }),
+      // Search matches any query word, so a query about an uncovered topic still returns its
+      // nearest lexical rows. What must stay true is that nothing is padded: when no word of
+      // the query occurs in any indexed skill, the answer is empty. Both of these words do
+      // occur in none of them ("proofing" would not qualify: it stems to "proof").
+      absent: await callTool(call, "grimoire_search", { query: "sourdough marzipan", k: 5 }),
       document: await callTool(call, "grimoire_get", { id: knownSkill }),
     }));
     assert.equal(retrieval.known.hits?.[0]?.id, knownSkill, `the distinctive query did not rank its skill first: ${JSON.stringify(retrieval.known).slice(0, 300)}`);
@@ -168,8 +170,8 @@ if (enabled) {
     assert.equal(retrieval.document.skill?.body, sourceSkill.slice(frontmatter[0].length), "the served body is the packaged source, complete and unmodified");
     const duplicateIds = (retrieval.duplicates.hits ?? []).map((hit) => hit.id);
     for (const id of nearDuplicates) assert.ok(duplicateIds.includes(id), `${id} did not survive indexing alongside its near-duplicate: ${duplicateIds.join(", ")}`);
-    assert.deepEqual(retrieval.absent.hits, [], `an off-corpus query returned rows: ${JSON.stringify(retrieval.absent).slice(0, 300)}`);
-    console.log(`live-first-party: recalled the disposable record, ranked ${knownSkill} first and served its whole body, kept both near-duplicates, returned nothing off-corpus`);
+    assert.deepEqual(retrieval.absent.hits, [], `a query whose every word is absent from the index returned rows: ${JSON.stringify(retrieval.absent).slice(0, 300)}`);
+    console.log(`live-first-party: recalled the disposable record, ranked ${knownSkill} first and served its whole body, kept both near-duplicates, returned nothing for words absent from every pack`);
 
     // ---- phase 4: repeat install is idempotent -------------------------------------------
     const before = readFileSync(configPath, "utf8");

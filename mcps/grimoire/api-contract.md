@@ -34,7 +34,13 @@ interface SkillFull {
 ## Tools
 
 ```ts
-// 1. PRIMARY. Lexical (BM25) top-k over name^/description^/body.
+// 1. PRIMARY. Lexical (BM25) top-k over name^/description^/body. A skill matching any query
+//    term (filler words dropped, all-caps names kept; `/ , ; |` split alternatives) is a
+//    candidate, and weighted BM25 orders candidates by term
+//    rarity, frequency, document length and column, not by how many terms matched; an
+//    unmatched term never excludes a result. Hits are the closest lexical matches, not a
+//    relevance guarantee, so a query about an uncovered topic still returns its nearest rows.
+//    Only a query whose every word is absent from the index returns none: nothing is padded.
 grimoire_search(input: { query: string /*1..512*/; k?: number /*1..50, default 5*/ })
   -> { status: "ok"; hits: SkillHit[] /*≤k, score-desc*/ } | { status; hint }
 
