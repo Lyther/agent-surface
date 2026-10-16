@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
+import { LIMITS } from "../src/contract.js";
 import { buildIndex } from "../src/indexer.js";
 import { SCHEMA_VERSION } from "../src/model.js";
 import { Store } from "../src/store.js";
@@ -23,6 +24,66 @@ test("search ranks the relevant skill first and respects k", () => {
     }
     const one = store.search("malware ghidra reverse", 1);
     if (one.status === "ok") assert.ok(one.hits.length <= 1);
+  } finally { cleanup(); }
+});
+
+test("search: a word no skill contains costs rank, not the match", () => {
+  const { store, cleanup } = setupIndex();
+  try {
+    // "kubernetes" and "yesterday" appear in no fixture skill; the beacon skill is still the
+    // best lexical match for the rest of the sentence. Requiring every word returned nothing.
+    const wordy = store.search("detect cobalt strike beacon in a kubernetes pcap from yesterday", 5);
+    assert.equal(wordy.status, "ok");
+    if (wordy.status === "ok") assert.equal(wordy.hits[0]?.id, COBALT);
+
+    // Terms are OR-ed, so two unrelated words each match their own skill: ranking, not
+    // eligibility, keeps an irrelevant skill down. Requiring both words returned neither.
+    const split = store.search("ghidra mfa", 5);
+    assert.equal(split.status, "ok");
+    if (split.status !== "ok") return;
+    assert.deepEqual(split.hits.map((h) => h.id).sort(), ["fixture:analyzing-malware-with-ghidra", "fixture:implementing-mfa-enforcement"]);
+
+    // More matched terms must outrank fewer.
+    const ranked = store.search("ghidra decompiled control flow", 5);
+    assert.equal(ranked.status, "ok");
+    if (ranked.status !== "ok") return;
+    assert.equal(ranked.hits[0]?.id, "fixture:analyzing-malware-with-ghidra");
+  } finally { cleanup(); }
+});
+
+test("search: filler-only and operator-shaped queries stay safe", () => {
+  const { store, cleanup } = setupIndex();
+  try {
+    // Every word is filler, so none can be dropped and the query runs as written. "the" is in
+    // the fixture bodies, so the fallback is observable: dropping the words instead would
+    // search nothing and return nothing.
+    const filler = store.search("the and of", 5);
+    assert.equal(filler.status, "ok");
+    if (filler.status !== "ok") return;
+    assert.ok(filler.hits.length > 0, "a filler-only query keeps its words rather than searching nothing");
+
+    // A word absent from every skill matches no row: breadth never pads the result.
+    const absent = store.search("sourdough marzipan", 5);
+    assert.equal(absent.status, "ok");
+    if (absent.status !== "ok") return;
+    assert.equal(absent.hits.length, 0);
+
+    // FTS5 operators and punctuation are quoted into literal terms, never query syntax.
+    for (const q of ["beacon OR NOT mfa", "pcap AND (ghidra", 'beacon "unterminated', "NEAR(beacon pcap)", "*", "^beacon", "-"]) {
+      const r = store.search(q, 5);
+      assert.equal(r.status, "ok", `"${q}" must not raise an FTS5 syntax error`);
+    }
+
+    // A bare operator is filler, so the fallback searches the literal word "or" instead of
+    // injecting an operator into the expression.
+    const op = store.search("OR", 5);
+    assert.equal(op.status, "ok");
+
+    // One term joins the expression per query word, so a maximum-length query of the shortest
+    // possible terms builds the longest chain the input limit allows. FTS5 must still parse it.
+    const widest = Array.from({ length: 256 }, (_, i) => String.fromCharCode(97 + (i % 26))).join(" ").slice(0, LIMITS.QUERY_MAX);
+    assert.equal(widest.length, 511);
+    assert.equal(store.search(widest, 5).status, "ok", "the widest query the input limit allows must parse");
   } finally { cleanup(); }
 });
 test("list: all / by derived category / unknown category / cursor paging", () => {

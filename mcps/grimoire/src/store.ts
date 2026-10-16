@@ -14,9 +14,29 @@ interface Manifest { schemaVersion: number; packs: ManifestPack[] }
 
 const REBUILD = "run: npm run install:grimoire";
 
+// Words carrying no retrieval signal. They are dropped before the query is built so they
+// cannot lend rank to a skill that matches nothing else; a query made only of them keeps them.
+const FILLER = new Set(["a", "an", "the", "and", "or", "for", "to", "of", "in", "on", "with", "my", "me", "i", "it", "its",
+  "is", "am", "are", "was", "were", "be", "been", "do", "does", "did", "how", "what", "when", "which", "who", "why",
+  "by", "at", "from", "as", "that", "this", "these", "those", "there", "their", "any", "some", "into", "over", "about",
+  "can", "could", "should", "would", "will", "want", "need", "please", "help", "up", "so", "if", "then", "than"]);
+// "out" and "off" stay searchable on purpose: dropping them collapses a spaced technique name
+// such as "out of band" or "off by one" to one weak word, and both appear in indexed skills.
+
 // Quote each token so user text can never be FTS5 query syntax; "" matches nothing safely.
-const ftsQuery = (q: string): string =>
-  q.split(/\s+/).filter(Boolean).map((t) => `"${t.replace(/"/g, "")}"`).join(" ") || '""';
+// Terms are OR-ed, not AND-ed: FTS5 reads space-separated terms as a conjunction, which
+// discards a relevant skill the moment a caller adds one word its text happens to lack
+// ("configure tls 1.3 for a service" lost the TLS skill on "service"). BM25 already ranks a
+// skill matching more of the query above one matching less, so breadth costs rank, not
+// eligibility. The trade is deliberate: a query about an uncovered topic now returns its best
+// lexical matches rather than nothing, so a caller must judge a hit's summary against its own
+// task. Nothing is padded — a query whose every term is absent from the index still matches no
+// row.
+const ftsQuery = (q: string): string => {
+  const all = q.split(/\s+/).filter(Boolean);
+  const kept = all.filter((t) => !FILLER.has(t.toLowerCase()));
+  return (kept.length ? kept : all).map((t) => `"${t.replace(/"/g, "")}"`).join(" OR ") || '""';
+};
 
 function isUnsafePath(p: string): boolean {
   if (p.includes("\0")) return true;
