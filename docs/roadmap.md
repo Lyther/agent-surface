@@ -211,7 +211,7 @@ Exit for any admission: current exact component, package/license/security review
 
 ### RT5.2 Task-Shaped Distribution Comparison
 
-State: DEFERRED. Depends on: `RT4.1`. Compare direct files, native plugins and on-demand retrieval only on matched tasks and actual outcomes, including child costs when exposed. Keep failures and contaminated runs visible. Do not infer quality/cost from body size or tool-list bytes. No code change or efficiency claim is required just to close this design.
+State: ACTIVE EXPERIMENT, 2026-10-16, through [Phase GR](#phase-gr-grimoire-and-asset-effectiveness). The Grimoire retrieval baseline is measured; native task/category ROI is still unrun. Depends on: `RT4.1`. Compare direct files, native plugins and on-demand retrieval only on matched tasks and actual outcomes, including child costs when exposed. Keep failures and contaminated runs visible. Do not infer quality/cost from body size or tool-list bytes. No code change or efficiency claim is required just to close this design.
 
 ### RT5.3 Gaps Found During RT2.4
 
@@ -295,3 +295,25 @@ State: PREPARED at the operator's 2026-10-13 request: experimental `web-api-foll
 Use the original low-scoring and 50/59 Kilo traces, when available, to distinguish unvisited surfaces, attempted-unsolved work, repetition and early termination; missing traces remain unknown. The prepared asset targets observed web/API follow-through as a hypothesis, not a diagnosed cause of those scores. Retain notices/provenance, map tools to the selected runtime, take scope from the Task, and remove fixed model selection, redundant interactive consent and foreign findings-store coupling. Leave broader workflow redesign to MOMO's existing owners.
 
 First deliver a separately selected trial asset, not a category-wide installation or extra default prompt. MOMO compares asset-on versus asset-off separately from agent reuse. Promote it into a distributed cybersecurity asset only after useful evidence and a deliberate distribution decision; otherwise keep or discard the pilot without growing the catalog.
+
+## Phase GR: Grimoire and Asset Effectiveness
+
+Priority accepted 2026-10-16: Grimoire first; category ROI and native-mechanism research in parallel; Synapse lower priority. Computer use is DEFERRED by the operator, who handles Antigravity/manual blockers. Existing AS-AR preparation is not repeated; the separate security-application A/B owner keeps that campaign.
+
+Inputs: [concept](context/concept-zero.md#grimoire-effectiveness-amendment), [architecture](architecture.md#grimoire-effectiveness-experiment), [evaluation contract](contracts/grimoire-evaluation.md), [evidence view](diagrams/evidence.md). No new benchmark platform or unconditional production rewrite.
+
+### GR0: Baseline and Failure Diagnosis
+
+State: COMPLETE for the bounded retrieval experiment, not task acceptance. Owner: agent-surface experiment coordinator. Source `e44121f`, 1,137 real indexed skills, 30 existing reviewed queries, actual MCP calls and two qualified provider models. All 60 model cells completed; provider qualification failures and target-ID misses retained. Post-hoc lexical diagnosis is separate from the original scores. Covers `G-GR-01`, with the limitations in the contract.
+
+### GR1: Relevance and One Retrieval Candidate
+
+State: COMPLETE 2026-10-16; the candidate shipped and then held on a held-out set. Owner: agent-surface experiment/implementation peer. Depends on GR0. Any-word BM25 matching replaced the conjunctive query: on the 30 diagnostic cases hit@1 19/30 to 23/30, hit@5 0.800 to 0.967, MRR 0.711 to 0.836, with seven sentence-shaped queries recovered and the floors raised above the behavior they replaced. Caller-side concise-query or retry guidance was not selected for this fix; its comparative benefit is untested. Twelve out-of-corpus controls showed the accepted cost: eleven now return a nearest match where all returned nothing, and no score threshold separates them. The [held-out confirmation](contracts/grimoire-evaluation.md#held-out-relevance) then used 52 new multi-pack requests in six domains, blind-pooled candidates and two blind grading sessions (533 judgments, 91.6% exact, kappa 0.86): useful in top five 11/42 to 40/42, nDCG@5 0.180 to 0.650, and the real compiled reader reproduced the scored arm on all 52. Two caller models abstained on 10/10 uncovered requests, so the accepted cost is observed rather than assumed. Grades are model-authored and the requests were written in-project; the operator accepted that review standard for this phase. Exit met: a reviewed held-out relevance result, with no embeddings or catalog expansion required. The hybrid trigger stays unarmed; paraphrase collision on long requests is the remaining miss class.
+
+### GR2: Native Task and Category ROI
+
+State: NEXT; no benchmark run. Owner: agent-surface evaluation peer, reusing the existing benchmark runner/owner. GR1 is complete, so this is the active Grimoire question. First validate an official domain-matched task environment/oracle and one native tool round trip through the approved provider. Then freeze raw/general/general-plus-category arms with equal tools and total allowance. Separately compare direct-skill/current-Grimoire/candidate retrieval on task outcomes. Use official SkillsBench or the already supported official benchmark route; do not replace its verifier. Security, modding and private operations require their own appropriate populations. Exit: paired outcomes, available usage, contamination/use evidence and a reviewed ROI decision. Only a measured result activates category redesign through the same concept/architecture/contract/diagram workflow.
+
+### GR3: Native Mechanisms and Memory Follow-Up
+
+State: SOURCE SURVEY COMPLETE; native pilots and Synapse measurement NOT RUN. Owner: agent-surface research peer. Prototype one useful hook/mode feature in a project-local native configuration, measuring event/failure semantics and value before adding a shared source primitive. Preserve version distinctions and existing adapter evidence. Synapse follows with disposable real memory tests for update/abstention, scope and tagged recall; source hypotheses are not defects until reproduced. Neither track blocks GR1/GR2.
