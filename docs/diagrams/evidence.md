@@ -24,7 +24,7 @@ The SVG is the editable source and browser-renderable artifact. Its text equival
 | R | Evidence: hits and selected ID | OBSERVED | [Baseline contract](../contracts/grimoire-evaluation.md#observed-baseline); target-ID metrics only. Full skill task execution not measured. |
 | C | Candidate: any-term matching with BM25 ranking | IMPLEMENTED, CONFIRMED | [Shipped change](../contracts/grimoire-evaluation.md#shipped-change) measured against two rejected alternatives on the 30 diagnostic cases, then held on the 52-request held-out set; the real compiled reader at `aab5020` reproduced the scored arm on all 52. |
 | A | Evidence: caller choice on real results, including no-skill controls | OBSERVED | [Held-out relevance](../contracts/grimoire-evaluation.md#held-out-relevance); two models, 10/10 abstentions on uncovered requests. Replayed results in one decision, not a live tool loop. |
-| V | Evaluation: native task outcome under an official verifier | PROPOSED | [Decision contract](../contracts/grimoire-evaluation.md#comparison-and-decision), [Phase GR](../roadmap.md#phase-gr-grimoire-and-asset-effectiveness). One official task environment and its verifier are qualified (reference 1.0, untouched 0.0, wrong but well-formed 0.5 and 0.0), measured 2026-10-18 on SkillsBench `b63b7b2`, later than this view's source revision; no native task outcome has been measured. |
+| V | Evaluation: native task outcome under an official verifier | OBSERVED for installed profiles | [Decision contract](../contracts/grimoire-evaluation.md#comparison-and-decision), [Phase GR](../roadmap.md#phase-gr-grimoire-and-asset-effectiveness). Measured 2026-10-18 on six SkillsBench `b63b7b2` tasks, later than this view's source revision: 36 attempts across raw, general and general-plus-development Droid profiles; no comparison met the practical-effect criterion and production is unchanged. Native Grimoire delivery is not measured; MCP was off in every arm. |
 
 ## Text Alternative and Boundaries
 
@@ -34,4 +34,4 @@ Baseline target hit@5 under the conjunctive reader: literal 24/30; one model's q
 
 Confirmed: 52 held-out requests across five packs and six domains, their pooled candidates graded blind, give useful-in-top-five 11/42 to 40/42 and nDCG@5 0.180 to 0.650 against the conjunctive reader, with 10 no-skill controls both caller models declined. Grades are model-authored and the requests were written in-project, so this is graded retrieval quality, not task benefit.
 
-Proposed: a native-harness task with its official environment and verifier. No new search service, cache, store, default profile or universal harness framework is selected. Computer use is outside this work.
+Proposed: native Grimoire delivery on tasks its corpus covers, under the same harness and official verifiers. No new search service, cache, store, default profile or universal harness framework is selected. Computer use is outside this work.
