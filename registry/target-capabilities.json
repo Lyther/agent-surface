@@ -1889,7 +1889,7 @@
             "~/.openhands/skills/agent-surface-rules.md",
             "AGENTS.md"
           ],
-          "notes": "Project rules use root AGENTS.md. User-scope rules render as one legacy OpenHands skill because the verified SDK path loads user skills but not a user-global AGENTS.md."
+          "notes": "Project rules use root AGENTS.md. User-scope rules render as one legacy OpenHands skill because CLI 1.16.0 (SDK 1.21.0) loads user skills but no user-global AGENTS.md (~/AGENTS.md, ~/.openhands/AGENTS.md, ~/.agents/AGENTS.md and ~/.config/openhands/AGENTS.md checked, 2026-10-19)."
         },
         "mcp": {
           "support": "native",
