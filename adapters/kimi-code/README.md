@@ -26,8 +26,9 @@ Project scope:
 - always-on instructions: `.kimi-code/AGENTS.md`
 - scoped rule references: `.kimi-code/references/rules/<rule>.md`
 - custom agents: `.kimi-code/agents/<name>.md`
-- MCP: `.kimi-code/mcp.json`
-- terminal policy merge: `.kimi-code/config.toml` (Kimi documents `.kimi-code/local.toml` as the project config file, so project Auto is not claimed)
+- MCP: `.kimi-code/mcp.json`, which Kimi Code 2.1.1 reads from the launch directory rather than the git root, once the folder is trusted at its "Trust this folder?" prompt
+
+Project installs write no `config.toml`: 2.1.1 reads and validates it only from `KIMI_CODE_HOME` (`kimi doctor` ignores a project copy, and the TUI's `/status` keeps its default with one). `.kimi-code/local.toml` is not a project counterpart either; Kimi writes it itself and its schema holds only `workspace.additional_dir`. Project installs before 2026-10-19 merged `default_permission_mode` and `merge_all_available_skills` into an unread `.kimi-code/config.toml`; delete those keys, or the file if nothing else uses it.
 
 An explicit `--dest` relocates the selected scope, including conventional VS Code and Cursor settings subtrees for a user-scope install. A default user install honors `KIMI_CODE_HOME`; the extension itself has no separate setting for that environment variable.
 
@@ -39,7 +40,7 @@ Custom agent files contain Kimi's `name`, `description`, and `tools` frontmatter
 
 Kimi's TUI, web runtime, and extension share `config.toml`, `mcp.json`, authentication state, and sessions when they use the same `KIMI_CODE_HOME`. They must not operate on the same session concurrently because the shared session store has no cross-process lock.
 
-Full user installs merge `default_permission_mode = "auto"` into Kimi's `config.toml`; project Auto is not claimed. The official extension does not expose persistent Auto mode; its highest persistent setting is `kimi.yoloMode`, which maps to Kimi's YOLO permission mode. Full user installs set that property to `true` in both VS Code and Cursor settings while preserving all sibling settings. Category-only MCP installs preserve both host-wide permission settings.
+Full user installs merge `default_permission_mode = "auto"` into Kimi's `config.toml`; there is no project Auto. The official extension does not expose persistent Auto mode; its highest persistent setting is `kimi.yoloMode`, which maps to Kimi's YOLO permission mode. Full user installs set that property to `true` in both VS Code and Cursor settings while preserving all sibling settings. Category-only MCP installs preserve both host-wide permission settings.
 
 First-party secretless MCP services are non-destructively merged into `mcpServers` in the native `mcp.json` format. Kimi infers the stdio transport from `command` and `args`, so generated entries omit the unsupported cross-runtime `type` field. External or secret-bearing MCP services remain opt-in.
 

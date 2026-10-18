@@ -83,10 +83,10 @@ planHas(kimiCodeDevelopmentPlan, [
   /\.kimi-code\/agents\/boss\.md <- subagents\/boss\.md/,
 ], "kimi-code development");
 const kimiCodePlan = dryRun("kimi-code");
-planHas(kimiCodePlan, [
-  /\.kimi-code\/config\.toml default_permission_mode := "auto"/,
-  /\.kimi-code\/mcp\.json MCP \+= grimoire, synapse/,
-], "kimi-code");
+planHas(kimiCodePlan, [/\.kimi-code\/mcp\.json MCP \+= grimoire, synapse/], "kimi-code");
+// Kimi reads config.toml only from KIMI_CODE_HOME, so only a user install merges the policy.
+planLacks(kimiCodePlan, [/config\.toml default_permission_mode/], "kimi-code project");
+planHas(dryRun("kimi-code", ["--scope", "user"]), [/config\.toml default_permission_mode := "auto"/], "kimi-code user");
 
 const qoderDevelopmentPlan = dryRun("qoder", ["--category", "development"]);
 planHas(qoderDevelopmentPlan, [

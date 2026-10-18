@@ -154,10 +154,7 @@ for (const target of [
       assert.equal(openCodeConfig.share, "disabled");
     }
     if (target === "kimi-code") {
-      assert.match(
-        readFileSync(path.join(targetDest, ".kimi-code", "config.toml"), "utf8"),
-        /^default_permission_mode = "auto"$/m,
-      );
+      assert.equal(existsSync(path.join(targetDest, ".kimi-code", "config.toml")), false, "Kimi reads config.toml only from KIMI_CODE_HOME");
       const kimiMcp = JSON.parse(readFileSync(path.join(targetDest, ".kimi-code", "mcp.json"), "utf8"));
       assert.equal(Object.hasOwn(kimiMcp.mcpServers.synapse, "type"), false);
     }
