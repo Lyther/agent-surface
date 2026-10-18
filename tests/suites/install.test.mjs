@@ -1413,8 +1413,14 @@ for (const fx of [
     assert.equal(parsed.default_permissions, ":danger-full-access");
     assert.equal(parsed.profile.default.model, "keep-me");
     assert.equal(parsed.mcp_servers.synapse.command, path.join(os.homedir(), ".local", "bin", "synapse-bridge"));
+    assert.match(readFileSync(path.join(dest, ".trae", "rules", "00-precedence-and-safety.md"), "utf8"), /^alwaysApply: true$/m,
+      "Trae CLI user rules go to the ~/.trae/rules folder it loads");
+    assert.equal(existsSync(path.join(dest, ".trae", "user_rules.md")), false, "the CLI does not read the IDE's user_rules.md");
     run(args);
     assert.equal(readFileSync(configPath, "utf8"), config, "Trae user config re-merge is idempotent");
+    run([...args, "--category", "development"]);
+    assert.match(readFileSync(path.join(dest, ".trae", "rules", "10-python.md"), "utf8"), /^globs:/m, "scoped rules keep their globs");
+    assert.equal(existsSync(path.join(dest, ".trae", "references", "rules", "10-python.md")), true, "scoped references are written");
   } finally {
     rmSync(dest, { recursive: true, force: true });
   }

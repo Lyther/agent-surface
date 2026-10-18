@@ -49,6 +49,8 @@ assert.deepEqual(targetCapabilities.targets["grok-build"].surfaces.rules.paths, 
   ".grok/references/rules/<rule>.md",
 ]);
 assert.deepEqual(targetCapabilities.targets["grok-build"].surfaces.rules.scope, ["user", "project"]);
+assert.deepEqual(targetCapabilities.targets["trae-cli"].surfaces.rules.paths, ["~/.trae/rules/<name>.md", ".trae/rules/<name>.md"]);
+assert.deepEqual(targetCapabilities.targets["trae-cli"].surfaces.rules.scope, ["user", "project"]);
 
 // Every case below rewrites a tracked registry file, so it runs in a disposable checkout: neither
 // the rewrite nor an interrupted run can reach the shared one.

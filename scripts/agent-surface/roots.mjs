@@ -427,7 +427,12 @@ export function traeCnAgentRoot(context) {
 
 // Per-rule project rules every edition reads, and the CN IDE's user rules folder.
 export function traeRuleRoot(context) {
-  return context.scope === "user" ? path.join(".trae-cn", "user_rules") : path.join(".trae", "rules");
+  return context.scope === "user" ? path.join(".trae-cn", "user_rules") : traeRuleFolder();
+}
+
+// The per-rule folder every edition reads in a project; Trae CLI also reads it under the home directory.
+export function traeRuleFolder() {
+  return path.join(".trae", "rules");
 }
 
 // Each IDE edition reads user MCP servers from mcp.json beside its per-OS User settings; a project
