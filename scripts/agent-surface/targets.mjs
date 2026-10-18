@@ -1,7 +1,7 @@
 // The heart of the compiler: the per-target adapter table + the producers that turn source
 // (commands/rules/subagents/skills/mcp) into per-target outputs. Imports render/roots/merge/
 // postprocess; the install + check layers import targets/targetOutputs/producers from here.
-import { closeSync, openSync, readSync } from "node:fs";
+import { closeSync, openSync, readSync, realpathSync } from "node:fs";
 import { oneDriveDocumentsDirs, samePath } from "./documents.mjs";
 import { foldedBlockScalar } from "./format.mjs";
 import { lstat, readFile, readdir, stat } from "node:fs/promises";
@@ -106,7 +106,7 @@ export const targets = {
       // It starts trusted project servers in the session directory but user-level ones in its server's
       // work directory, so only a project install can key Synapse by cwd. A project install rooted at
       // the home directory writes the user-level file, so it keeps the fail-closed default.
-      serverEnv: (context) => (context.scope === "project" && path.resolve(context.installRoot ?? ".") !== path.resolve(os.homedir())
+      serverEnv: (context) => (context.scope === "project" && !isHomeRoot(context.installRoot)
         ? { synapse: { SYNAPSE_ROOTS: "ignore" } }
         : null),
     },
@@ -1141,15 +1141,21 @@ export async function optionalMcpOutputs(adapter, context) {
   return outputs;
 }
 
-// MCP server shapes whose renderers write a server's env; the others would drop it.
-const SERVER_ENV_FORMATS = new Set(["mcpServers", "vscode-servers", "zed-context-servers", "codex-toml"]);
+// By real path where one resolves, so a symlinked or differently cased --dest naming the home
+// directory still counts as home.
+function isHomeRoot(root) {
+  if (!root) return false;
+  const real = (candidate) => {
+    try { return realpathSync(candidate); } catch { return path.resolve(candidate); }
+  };
+  return samePath(real(root), real(os.homedir()));
+}
 
 // Env a host's MCP config sets on particular servers (serverEnv: an object or a function of the
 // install context, keyed by service id), merged over any env the service itself declares.
 export function withMcpServerEnv(entries, mcpConfig, context) {
   const serverEnv = typeof mcpConfig.serverEnv === "function" ? mcpConfig.serverEnv(context) : mcpConfig.serverEnv;
   if (!serverEnv) return entries;
-  if (!SERVER_ENV_FORMATS.has(mcpConfig.format)) fail(`the ${mcpConfig.format} MCP format does not carry server env`);
   return entries.map(([id, service]) => {
     const server = service.mcp?.server;
     if (!serverEnv[id] || !server) return [id, service];

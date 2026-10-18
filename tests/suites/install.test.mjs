@@ -1187,6 +1187,9 @@ rmSync(existingOpenHandsMcpDest, { recursive: true, force: true });
     const { serverEnv } = targets.deepagents.mcpConfig;
     assert.equal(serverEnv({ scope: "project", installRoot: os.homedir() }), null, "a home-rooted project install keeps the fail-closed default");
     assert.deepEqual(serverEnv({ scope: "project", installRoot: projectDest }), { synapse: { SYNAPSE_ROOTS: "ignore" } });
+    const homeLink = path.join(projectDest, "home-link");
+    symlinkSync(os.homedir(), homeLink);
+    assert.equal(serverEnv({ scope: "project", installRoot: homeLink }), null, "a symlink to the home directory is still home");
   } finally {
     rmSync(projectDest, { recursive: true, force: true });
     rmSync(userDest, { recursive: true, force: true });
