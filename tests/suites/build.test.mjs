@@ -90,6 +90,7 @@ const mustExist = [
   ["trae-cli", path.join(".trae", "agents", "boss.md")],
   ["trae-cli", path.join(".trae", "skills", "workflow-runtime", "SKILL.md")],
   ["trae-cli", path.join(".trae", "traecli.toml")],
+  ["trae-cli", path.join(".trae", "rules", "00-precedence-and-safety.md")],
   ["grok-build", path.join(".grok", "agents", "boss.md")],
   ["grok-build", path.join(".grok", "AGENTS.md")],
   ["openhands", path.join(".openhands", "mcp.json")],

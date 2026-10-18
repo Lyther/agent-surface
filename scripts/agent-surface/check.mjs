@@ -1141,6 +1141,7 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".trae-cn", "agents", "boss.md"), /^---\nname: boss\n/);
   } else if (target === "trae-cli") {
     requirePath(path.join(".trae", "skills", "ops-flow", "SKILL.md"));
+    requireContains(path.join(".trae", "rules", "00-precedence-and-safety.md"), /^alwaysApply: true$/m);
     requireContains(path.join(".trae", "agents", "boss.md"), /^---\nname: boss\n/);
     requireContains(path.join(".trae", "traecli.toml"), /^approval_policy = "never"$/m);
     requireContains(path.join(".trae", "traecli.toml"), /^default_permissions = ":danger-full-access"$/m);

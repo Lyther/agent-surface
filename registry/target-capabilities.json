@@ -2501,7 +2501,7 @@
       }
     },
     "trae-cli": {
-      "summary": "Trae CLI 2.0 (traecli, TRAE Enterprise), which reads ~/.trae (TRAE_HOME is not followed) and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, subagents, project rules and the traecli.toml config with first-party MCP servers. Trae CLI 1.0 is not targeted. traecli 0.207.1-tob reads the generated MCP servers, project skills and project rules; agents and the user roots are not runtime-tested.",
+      "summary": "Trae CLI 2.0 (traecli, TRAE Enterprise), which reads ~/.trae (TRAE_HOME is not followed) and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, subagents, rules and the traecli.toml config with first-party MCP servers. Trae CLI 1.0 is not targeted. traecli 0.207.1 and 0.209.1 read the generated MCP servers, the user and project skills and rules, and the user agents; project agents are not runtime-tested.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -2524,12 +2524,14 @@
           "support": "native",
           "generation": "generated",
           "scope": [
+            "user",
             "project"
           ],
           "paths": [
+            "~/.trae/rules/<name>.md",
             ".trae/rules/<name>.md"
           ],
-          "notes": "The CLI reads AGENTS.md files and project rules and documents no user-level instruction folder, so user installs write no rules; where it reads a global AGENTS.md is unverified."
+          "notes": "traecli 0.207.1 and 0.209.1 load ~/.trae/rules as they load a project's .trae/rules, inlining always-apply rules and listing glob-scoped ones on demand (offline prompt render, 2026-10-19). They also read ~/.trae/AGENTS.md, which agent-surface leaves to the user, and neither IDE's user_rules route."
         },
         "mcp": {
           "support": "native",
@@ -2564,7 +2566,7 @@
             "~/.trae/agents/<name>.md",
             ".trae/agents/<name>.md"
           ],
-          "notes": "The paths come from the installed traecli 0.201.6 binary; project agents load only in trusted projects. Not runtime-tested."
+          "notes": "The paths come from the installed traecli 0.201.6 binary; project agents load only in trusted projects. traecli 0.207.1 and 0.209.1 list the user agents (offline prompt render, 2026-10-19); project agents are not runtime-tested."
         },
         "skills": {
           "support": "native",
@@ -2577,7 +2579,7 @@
             "~/.trae/skills/<name>/SKILL.md",
             ".trae/skills/<name>/SKILL.md"
           ],
-          "notes": "The user root is $TRAE_HOME/skills at its default (from the installed traecli 0.201.6 binary), shared with trae; traecli 0.207.1-tob reads the project skills folder (offline prompt render, 2026-09-30)."
+          "notes": "The user root is $TRAE_HOME/skills at its default (from the installed traecli 0.201.6 binary), shared with trae; traecli 0.207.1-tob reads the project skills folder (offline prompt render, 2026-09-30), and 0.207.1 and 0.209.1 list the user skills except the explicit-only ones (2026-10-19)."
         },
         "external": {
           "support": "native",
