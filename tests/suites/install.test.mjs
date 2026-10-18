@@ -1183,6 +1183,10 @@ rmSync(existingOpenHandsMcpDest, { recursive: true, force: true });
     assert.deepEqual(project.synapse.env, { SYNAPSE_ROOTS: "ignore" });
     assert.equal(Object.hasOwn(project.grimoire, "env"), false);
     assert.equal(Object.hasOwn(user.synapse, "env"), false, "a user install keeps Synapse's fail-closed roots routing");
+    // A project install rooted at the home directory lands on the user-level file.
+    const { serverEnv } = targets.deepagents.mcpConfig;
+    assert.equal(serverEnv({ scope: "project", installRoot: os.homedir() }), null, "a home-rooted project install keeps the fail-closed default");
+    assert.deepEqual(serverEnv({ scope: "project", installRoot: projectDest }), { synapse: { SYNAPSE_ROOTS: "ignore" } });
   } finally {
     rmSync(projectDest, { recursive: true, force: true });
     rmSync(userDest, { recursive: true, force: true });

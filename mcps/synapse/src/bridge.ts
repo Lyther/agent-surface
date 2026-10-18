@@ -34,7 +34,6 @@ export interface BridgeOptions {
   token: string;
   agentId?: string;
   projectKeyValue?: string;
-  rootsMode?: string;
   downstream?: Transport;
   negotiationTimeoutMs?: number;
 }
@@ -49,9 +48,11 @@ export interface BridgeOptions {
  *   4. cwd git-root (the default physical-isolation path)
  * An initialized host that advertises no roots, or returns an explicit empty list,
  * falls back to cwd. Failed or timed-out roots negotiation fails bridge startup,
- * unless `SYNAPSE_ROOTS=ignore` / opts.rootsMode skips roots for this host.
+ * unless `SYNAPSE_ROOTS=ignore` skips roots for this host.
  */
-async function resolveProjectKey(server: Server, fallbackCwd: string, timeoutMs: number, override?: string, rootsMode?: string): Promise<string> {
+async function resolveProjectKey(server: Server, fallbackCwd: string, timeoutMs: number, override?: string): Promise<string> {
+  // Validated first, so a bad value fails startup even when an explicit project wins below.
+  const skipRoots = ignoresRoots(process.env["SYNAPSE_ROOTS"]);
   const explicit = override ?? process.env["SYNAPSE_PROJECT"];
   // An explicit bridge override wins outright and is resolved/hashed by projectKey (which
   // also honours SYNAPSE_NAMESPACE when no explicit override is supplied). Single-sourcing
@@ -60,7 +61,7 @@ async function resolveProjectKey(server: Server, fallbackCwd: string, timeoutMs:
   // FastMCP's multi-server proxy advertises roots but answers roots/list with an error
   // outside a request, so its hosts can never negotiate roots. The installer opts out only
   // for hosts verified to start this bridge in the workspace, where cwd is the project.
-  if (ignoresRoots(rootsMode ?? process.env["SYNAPSE_ROOTS"])) return projectKey(fallbackCwd);
+  if (skipRoots) return projectKey(fallbackCwd);
   // Ask the host for its first root only when initialize advertised roots support. Some
   // clients treat an unsupported roots/list request as a protocol warning even when the
   // bridge catches the response, so capability-gating is part of correct MCP behavior.
@@ -159,7 +160,7 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
     // initialize exchange arrives. Project isolation cannot be selected until the
     // negotiated roots capability is known.
     await withTimeout(downstreamInitialized, negotiationTimeoutMs, "downstream initialize");
-    projectKeyValue = await resolveProjectKey(server, process.cwd(), negotiationTimeoutMs, opts.projectKeyValue, opts.rootsMode);
+    projectKeyValue = await resolveProjectKey(server, process.cwd(), negotiationTimeoutMs, opts.projectKeyValue);
   } catch (err) {
     settleUpstream(err);
     await server.close().catch(() => { });

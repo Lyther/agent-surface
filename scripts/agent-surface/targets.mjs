@@ -104,8 +104,11 @@ export const targets = {
       defaultEnabled: true,
       // dcode mounts every server through FastMCP's proxy, which advertises MCP roots it cannot serve.
       // It starts trusted project servers in the session directory but user-level ones in its server's
-      // work directory, so only a project install can key Synapse by cwd.
-      serverEnv: (context) => (context.scope === "project" ? { synapse: { SYNAPSE_ROOTS: "ignore" } } : null),
+      // work directory, so only a project install can key Synapse by cwd. A project install rooted at
+      // the home directory writes the user-level file, so it keeps the fail-closed default.
+      serverEnv: (context) => (context.scope === "project" && path.resolve(context.installRoot ?? ".") !== path.resolve(os.homedir())
+        ? { synapse: { SYNAPSE_ROOTS: "ignore" } }
+        : null),
     },
   },
   goose: {
@@ -1138,11 +1141,15 @@ export async function optionalMcpOutputs(adapter, context) {
   return outputs;
 }
 
+// MCP server shapes whose renderers write a server's env; the others would drop it.
+const SERVER_ENV_FORMATS = new Set(["mcpServers", "vscode-servers", "zed-context-servers", "codex-toml"]);
+
 // Env a host's MCP config sets on particular servers (serverEnv: an object or a function of the
 // install context, keyed by service id), merged over any env the service itself declares.
 export function withMcpServerEnv(entries, mcpConfig, context) {
   const serverEnv = typeof mcpConfig.serverEnv === "function" ? mcpConfig.serverEnv(context) : mcpConfig.serverEnv;
   if (!serverEnv) return entries;
+  if (!SERVER_ENV_FORMATS.has(mcpConfig.format)) fail(`the ${mcpConfig.format} MCP format does not carry server env`);
   return entries.map(([id, service]) => {
     const server = service.mcp?.server;
     if (!serverEnv[id] || !server) return [id, service];

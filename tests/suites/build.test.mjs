@@ -325,7 +325,7 @@ for (const [file, rootKey] of jsonMcpHosts) {
   assert.equal(servers.grimoire.command, mcpAbs.grimoire, file);
   assert.equal(Object.hasOwn(servers, "agentmemory"), false, file);
   // Only a host whose MCP client advertises roots it cannot serve opts Synapse out of roots routing.
-  const rootsOptOut = file.includes(`${path.sep}openhands${path.sep}`) ? { SYNAPSE_ROOTS: "ignore" } : undefined;
+  const rootsOptOut = path.relative(path.join(root, "dist"), file).split(path.sep)[0] === "openhands" ? { SYNAPSE_ROOTS: "ignore" } : undefined;
   assert.deepEqual(servers.synapse.env, rootsOptOut, file);
   assert.equal(Object.hasOwn(servers.grimoire, "env"), false, file);
 }

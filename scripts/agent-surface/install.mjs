@@ -1845,7 +1845,7 @@ async function assertInstallPath(safetyRoot, candidate, label) {
 async function mcpConfigMerge(mcpConfig, installRoot, scope, context) {
   const entries = mcpConfig.includeServices === false
     ? []
-    : withMcpServerEnv(await selectedMcpServiceEntries(mcpConfig.defaultEnabled, context), mcpConfig, { ...context, scope });
+    : withMcpServerEnv(await selectedMcpServiceEntries(mcpConfig.defaultEnabled, context), mcpConfig, { ...context, scope, installRoot });
   const relativeOutput = outputRootFor(mcpConfig.relativeOutput, { ...context, scope });
   const absoluteOutput = path.isAbsolute(relativeOutput);
   const safetyRoot = configRouteSafetyRoot(relativeOutput, mcpConfig.allowAbsoluteOutput === true, installRoot);

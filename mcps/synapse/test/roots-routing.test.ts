@@ -201,13 +201,25 @@ test("P4.3: a roots error reply fails closed by default", async () => {
   }
 });
 
-test("P4.3: rootsMode ignore binds cwd without asking a roots-capable host", async () => {
+/** Run `fn` with SYNAPSE_ROOTS set as an installed host config sets it, then restore it. */
+async function withRootsEnv<T>(value: string, fn: () => Promise<T>): Promise<T> {
+  const previous = process.env["SYNAPSE_ROOTS"];
+  process.env["SYNAPSE_ROOTS"] = value;
+  try {
+    return await fn();
+  } finally {
+    if (previous === undefined) delete process.env["SYNAPSE_ROOTS"];
+    else process.env["SYNAPSE_ROOTS"] = previous;
+  }
+}
+
+test("P4.3: SYNAPSE_ROOTS=ignore binds cwd without asking a roots-capable host", async () => {
   const dir = mkdtempSync(join(tmpdir(), "synapse-roots-ignore-"));
   const sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
   try {
     const { client: host, serverTransport, ready, rootsRequests } = hostWithFailingRoots();
     const expectedDb = join(dir, `${hashKey(projectKey(process.cwd()))}.sqlite`);
-    const { close } = await startBridge({ url: sc.url, token: TOKEN, downstream: serverTransport, rootsMode: "ignore" });
+    const { close } = await withRootsEnv("ignore", () => startBridge({ url: sc.url, token: TOKEN, downstream: serverTransport }));
     await ready;
     try {
       parse<RememberOut>(await host.callTool({ name: "memory_remember", arguments: { content: "roots ignored" } }));
@@ -217,13 +229,36 @@ test("P4.3: rootsMode ignore binds cwd without asking a roots-capable host", asy
   } finally { await sc.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("P4.3: an unknown rootsMode fails startup", async () => {
+test("P4.3: SYNAPSE_PROJECT still wins over SYNAPSE_ROOTS=ignore", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "synapse-roots-ignore-ov-"));
+  const sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
+  try {
+    const override = "/tmp/explicit-override-with-ignore";
+    const expectedDb = join(dir, `${hashKey(projectKey(override, override))}.sqlite`);
+    const { client: host, serverTransport, ready } = hostWithFailingRoots();
+    const { close } = await withRootsEnv("ignore", () =>
+      startBridge({ url: sc.url, token: TOKEN, downstream: serverTransport, projectKeyValue: override }));
+    await ready;
+    try {
+      parse<RememberOut>(await host.callTool({ name: "memory_remember", arguments: { content: "override with ignore" } }));
+      assert.ok(fileExists(expectedDb), "the explicit project key is used, not cwd");
+    } finally { await close(); await host.close(); }
+  } finally { await sc.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("P4.3: an unknown SYNAPSE_ROOTS fails startup even beside SYNAPSE_PROJECT", async () => {
   const { client: host, serverTransport, ready } = hostWithFailingRoots();
   try {
-    await assert.rejects(
-      startBridge({ url: "http://127.0.0.1:1/mcp", token: TOKEN, downstream: serverTransport, rootsMode: "cwd", negotiationTimeoutMs: 2000 }),
+    await withRootsEnv("ignroe", () => assert.rejects(
+      startBridge({
+        url: "http://127.0.0.1:1/mcp",
+        token: TOKEN,
+        downstream: serverTransport,
+        projectKeyValue: "/tmp/explicit-override-bad-roots",
+        negotiationTimeoutMs: 2000,
+      }),
       /SYNAPSE_ROOTS must be "ignore" when set/,
-    );
+    ));
     await ready;
   } finally {
     await host.close();
