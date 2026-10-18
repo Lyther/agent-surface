@@ -6,7 +6,7 @@ Generates native Agent Skills for safe reusable procedures. Available high-impac
 
 - `~/.agents/skills/<name>/SKILL.md` or `.agents/skills/<name>/SKILL.md`
 - reviewed external packs under the same native skill root
-- `recipes/<command>.yaml` for project-local manual recipe loading or a configured `GOOSE_RECIPE_PATH`.
+- `.goose/recipes/<command>.yaml` in a project, where Goose finds a recipe by name. Goose 1.34.1 and 1.55.0 list and validate them there; neither looks in the bare `recipes/` directory that earlier installs wrote, which a development or full reinstall prunes.
 
 ## Notes
 

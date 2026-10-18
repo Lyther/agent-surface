@@ -111,7 +111,9 @@ export const targets = {
     skillOutputRoot: gooseSkillRoot,
     skillOutputName: codexSkillOutputName,
     renderSkill: renderVanillaSkill,
-    commandOutputRoot: (context) => context.scope === "user" ? gooseSkillRoot(context) : "recipes",
+    // Goose looks up a project recipe by name in the working directory, .agents/recipes and
+    // .goose/recipes, never under a bare recipes/ directory.
+    commandOutputRoot: (context) => context.scope === "user" ? gooseSkillRoot(context) : path.join(".goose", "recipes"),
     commandOutputName: (source, context) => context.scope === "user" ? codexSkillOutputName(source) : gooseRecipeOutputName(source),
     renderCommand: (source, context) => context.scope === "user" ? renderManualPortableSkill(source, context) : renderGooseRecipe(source),
     installRoot: installRootUserOrProject,

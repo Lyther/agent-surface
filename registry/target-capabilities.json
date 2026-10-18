@@ -295,7 +295,7 @@
             "project"
           ],
           "paths": [
-            "recipes/<command>.yaml"
+            ".goose/recipes/<command>.yaml"
           ],
           "notes": "Available high-impact commands render as project-oriented recipes; user-scope distribution uses explicit-invocation compatibility skills instead of writing recipes into HOME."
         },

@@ -231,6 +231,7 @@ for (const [target, patterns] of [
   ["openhands", [/\.agents\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/]],
   ["antigravity-cli", [/antigravity-cli\/plugins\/agent-surface\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/]],
   ["copilot", [/\.github\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/, /\.github\/agents\/boss\.agent\.md <- subagents\/boss\.md/]],
+  ["goose", [/\.goose\/recipes\/ship-commit\.yaml <- commands\/ship-commit\.md/]],
 ]) {
   planHas(dryRun(target, ["--category", "development"]), patterns, `${target} development`);
 }
