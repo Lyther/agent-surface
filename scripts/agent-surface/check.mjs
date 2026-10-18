@@ -1085,7 +1085,7 @@ export function validateGeneratedTarget(target, outputs) {
     requirePath(path.join(".cursor", "rules", "00-precedence-and-safety.mdc"));
     requireContains(".cursorignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "droid") {
-    requirePath(path.join(".factory", "skills", "ops-flow", "SKILL.md"));
+    requirePath(path.join(".agents", "skills", "ops-flow", "SKILL.md"));
     requirePath(path.join(".factory", "commands", "ops-nuke.md"));
     requireContains(path.join(".factory", "droids", "boss.md"), /^---\nname: boss\n/);
     requireContains(path.join(".factory", "AGENTS.md"), /agent-surface Droid rules/);

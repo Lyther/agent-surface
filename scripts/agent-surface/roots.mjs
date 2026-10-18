@@ -390,10 +390,6 @@ export function cursorSkillRoot() {
   return path.join(".cursor", "skills");
 }
 
-export function droidSkillRoot() {
-  return path.join(".factory", "skills");
-}
-
 // Trae splits by root set: the international IDE and Trae CLI 2.0 read ~/.trae, the CN IDE reads
 // ~/.trae-cn, and every edition reads the project's .trae directory.
 export function traeSkillRoot() {
