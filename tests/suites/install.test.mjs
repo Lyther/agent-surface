@@ -1165,8 +1165,29 @@ run(["install", "--target", "openhands", "--scope", "user", "--dest", existingOp
 const mergedOpenHandsMcp = JSON.parse(readFileSync(path.join(existingOpenHandsMcpDest, ".openhands", "mcp.json"), "utf8"));
 assert.equal(mergedOpenHandsMcp.mcpServers.existing.command, "local-existing");
 assert.equal(mergedOpenHandsMcp.mcpServers.synapse.command, path.join(os.homedir(), ".local", "bin", "synapse-bridge"));
+assert.deepEqual(mergedOpenHandsMcp.mcpServers.synapse.env, { SYNAPSE_ROOTS: "ignore" });
+assert.equal(Object.hasOwn(mergedOpenHandsMcp.mcpServers.existing, "env"), false);
 assert.equal(Object.hasOwn(mergedOpenHandsMcp.mcpServers, "agentmemory"), false);
 rmSync(existingOpenHandsMcpDest, { recursive: true, force: true });
+
+{
+  // Deep Agents Code starts trusted project servers in the session directory and user-level ones in
+  // its server's work directory, so only the project config opts Synapse out of roots routing.
+  const projectDest = mkdtempSync("/tmp/agent-surface-deepagents-project-mcp-");
+  const userDest = mkdtempSync("/tmp/agent-surface-deepagents-user-mcp-");
+  try {
+    run(["install", "--target", "deepagents", "--scope", "project", "--dest", projectDest]);
+    run(["install", "--target", "deepagents", "--scope", "user", "--dest", userDest]);
+    const project = JSON.parse(readFileSync(path.join(projectDest, ".deepagents", ".mcp.json"), "utf8")).mcpServers;
+    const user = JSON.parse(readFileSync(path.join(userDest, ".deepagents", ".mcp.json"), "utf8")).mcpServers;
+    assert.deepEqual(project.synapse.env, { SYNAPSE_ROOTS: "ignore" });
+    assert.equal(Object.hasOwn(project.grimoire, "env"), false);
+    assert.equal(Object.hasOwn(user.synapse, "env"), false, "a user install keeps Synapse's fail-closed roots routing");
+  } finally {
+    rmSync(projectDest, { recursive: true, force: true });
+    rmSync(userDest, { recursive: true, force: true });
+  }
+}
 
 const existingCodexMcpDest = "/tmp/agent-surface-codex-existing-mcp";
 rmSync(existingCodexMcpDest, { recursive: true, force: true });

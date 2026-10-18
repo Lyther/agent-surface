@@ -108,6 +108,10 @@ function optionalServiceMcpServer(service, format = "mcpServers") {
   if (!server || typeof server !== "object" || Array.isArray(server)) {
     fail(`optional service ${service.path} is missing an MCP server contract`);
   }
+  const env = isPlainObject(server.env) && Object.keys(server.env).length > 0 ? server.env : null;
+  if (env && (format === "local-command-map" || format === "kimi-mcp")) {
+    fail(`optional service ${service.path}: the ${format} MCP format does not carry server env`);
+  }
   if (format === "local-command-map") {
     return {
       type: "local",
@@ -125,6 +129,7 @@ function optionalServiceMcpServer(service, format = "mcpServers") {
     type: server.type,
     command: server.command,
     args: server.args ?? [],
+    ...(env ? { env } : {}),
   };
 }
 

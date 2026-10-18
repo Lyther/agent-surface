@@ -32,11 +32,11 @@ Point any MCP host at the **bridge** (stdio). It needs no token, URL, or env —
 { "mcpServers": { "synapse": { "command": "~/.local/bin/synapse-bridge" } } }
 ```
 
-Optional env overrides: `SYNAPSE_AGENT_ID` (provenance label), `SYNAPSE_PROJECT` (pin a repo root), `SYNAPSE_URL`/`SYNAPSE_TOKEN`/`SYNAPSE_PORT`/`SYNAPSE_DB_DIR`.
+Optional env overrides: `SYNAPSE_AGENT_ID` (provenance label), `SYNAPSE_PROJECT` (pin a repo root), `SYNAPSE_ROOTS=ignore` (skip MCP roots; see below), `SYNAPSE_URL`/`SYNAPSE_TOKEN`/`SYNAPSE_PORT`/`SYNAPSE_DB_DIR`.
 
 ### Project routing
 
-The namespace resolves as: **`SYNAPSE_PROJECT`** (a path) → else the **git root of the bridge's working directory** → else `default`. Hosts spawn the stdio bridge with the open workspace as cwd, so the git-root default isolates projects automatically; set `SYNAPSE_PROJECT` only for hosts that launch outside the repo or to force a specific root. A direct HTTP session (no bridge) that omits the `x-synapse-project` header falls into the shared `default` namespace — always send it.
+The namespace resolves as: **`SYNAPSE_PROJECT`** (a path) → else the **git root of the bridge's working directory** → else `default`. Hosts spawn the stdio bridge with the open workspace as cwd, so the git-root default isolates projects automatically; set `SYNAPSE_PROJECT` only for hosts that launch outside the repo or to force a specific root. A host that advertises MCP roots routes by its first root instead, and a failed or timed-out `roots/list` stops the bridge rather than guess from cwd. FastMCP's multi-server proxy advertises roots it cannot serve outside a request, so the installer sets `SYNAPSE_ROOTS=ignore` only on hosts verified to start the bridge in the workspace: OpenHands, and Deep Agents Code project installs. A direct HTTP session (no bridge) that omits the `x-synapse-project` header falls into the shared `default` namespace — always send it.
 
 ## Distribution
 

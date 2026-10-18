@@ -102,6 +102,10 @@ export const targets = {
       relativeOutput: deepagentsMcpPath,
       format: "mcpServers",
       defaultEnabled: true,
+      // dcode mounts every server through FastMCP's proxy, which advertises MCP roots it cannot serve.
+      // It starts trusted project servers in the session directory but user-level ones in its server's
+      // work directory, so only a project install can key Synapse by cwd.
+      serverEnv: (context) => (context.scope === "project" ? { synapse: { SYNAPSE_ROOTS: "ignore" } } : null),
     },
   },
   goose: {
@@ -659,6 +663,10 @@ export const targets = {
       format: "mcpServers",
       defaultEnabled: true,
       scopes: ["user"],
+      // With two or more servers, OpenHands' FastMCP client proxies them through a client that
+      // advertises MCP roots it cannot serve. It starts stdio servers in its launch directory, which
+      // is the workspace unless OPENHANDS_WORK_DIR names another one.
+      serverEnv: { synapse: { SYNAPSE_ROOTS: "ignore" } },
     },
   },
   // Trae splits by root set (contract Target and Runtime Identity): the international IDE, the CN IDE
@@ -1114,7 +1122,7 @@ export async function optionalMcpOutputs(adapter, context) {
 
     const entries = mcpConfig.includeServices === false
       ? []
-      : await selectedMcpServiceEntries(mcpConfig.defaultEnabled, context);
+      : withMcpServerEnv(await selectedMcpServiceEntries(mcpConfig.defaultEnabled, context), mcpConfig, context);
     const rootProperties = mcpConfigRootProperties(mcpConfig, context);
     if (entries.length === 0 && Object.keys(rootProperties).length === 0) continue;
     const entryCategories = [...new Set(entries.map(([id]) => assetCategoryFor(categories, "services", id)).filter(Boolean))];
@@ -1128,6 +1136,18 @@ export async function optionalMcpOutputs(adapter, context) {
     });
   }
   return outputs;
+}
+
+// Env a host's MCP config sets on particular servers (serverEnv: an object or a function of the
+// install context, keyed by service id), merged over any env the service itself declares.
+export function withMcpServerEnv(entries, mcpConfig, context) {
+  const serverEnv = typeof mcpConfig.serverEnv === "function" ? mcpConfig.serverEnv(context) : mcpConfig.serverEnv;
+  if (!serverEnv) return entries;
+  return entries.map(([id, service]) => {
+    const server = service.mcp?.server;
+    if (!serverEnv[id] || !server) return [id, service];
+    return [id, { ...service, mcp: { ...service.mcp, server: { ...server, env: { ...server.env, ...serverEnv[id] } } } }];
+  });
 }
 
 export async function selectedMcpServiceEntries(defaultEnabled, context) {

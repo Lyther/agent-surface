@@ -25,7 +25,7 @@ import { assertJsonPropertyType, isMcpLauncherCommand, MCP_ENV_LAUNCHER, mcpLaun
 import { formatNotice, localDate, planNotices } from "./notices.mjs";
 import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { readRules } from "./rules.mjs";
-import { adapterMcpConfigs, kiloRuleInstructionPaths, kiloRuleInstructionRoot, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets } from "./targets.mjs";
+import { adapterMcpConfigs, kiloRuleInstructionPaths, kiloRuleInstructionRoot, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets, withMcpServerEnv } from "./targets.mjs";
 import { argValue, argValues, fail, isPathInside, isSafeRelativePath, isSafeTargetName, splitArgValues, uniqueStrings } from "./util.mjs";
 
 export async function build(args) {
@@ -1845,7 +1845,7 @@ async function assertInstallPath(safetyRoot, candidate, label) {
 async function mcpConfigMerge(mcpConfig, installRoot, scope, context) {
   const entries = mcpConfig.includeServices === false
     ? []
-    : await selectedMcpServiceEntries(mcpConfig.defaultEnabled, context);
+    : withMcpServerEnv(await selectedMcpServiceEntries(mcpConfig.defaultEnabled, context), mcpConfig, { ...context, scope });
   const relativeOutput = outputRootFor(mcpConfig.relativeOutput, { ...context, scope });
   const absoluteOutput = path.isAbsolute(relativeOutput);
   const safetyRoot = configRouteSafetyRoot(relativeOutput, mcpConfig.allowAbsoluteOutput === true, installRoot);

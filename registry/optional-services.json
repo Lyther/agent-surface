@@ -16,7 +16,7 @@
       "local_wiring": [
         "Claude Code MCP: ~/.claude.json mcpServers.synapse (auto-generated/merged)",
         "Codex MCP: ~/.codex/config.toml mcp_servers.synapse (auto-generated/merged)",
-        "Deep Agents MCP: ~/.deepagents/.mcp.json mcpServers.synapse (auto-generated/merged)",
+        "Deep Agents MCP: ~/.deepagents/.mcp.json mcpServers.synapse (auto-generated/merged; does not connect: FastMCP proxy roots); project .deepagents/.mcp.json sets SYNAPSE_ROOTS=ignore",
         "Cursor MCP: ~/.cursor/mcp.json mcpServers.synapse (auto-generated/merged)",
         "Droid MCP: ~/.factory/mcp.json mcpServers.synapse (auto-generated/merged)",
         "Cline MCP: ~/.cline/data/settings/cline_mcp_settings.json mcpServers.synapse (auto-generated/merged, user-scope)",
@@ -27,7 +27,7 @@
         "Kiro MCP: ~/.kiro/settings/mcp.json mcpServers.synapse (auto-generated/merged)",
         "GitHub Copilot CLI MCP: ~/.copilot/mcp-config.json mcpServers.synapse (auto-generated/merged)",
         "OpenCode MCP: ~/.config/opencode/opencode.json mcp.synapse (auto-generated/merged)",
-        "OpenHands MCP: ~/.openhands/mcp.json mcpServers.synapse (auto-generated/merged, user-scope)",
+        "OpenHands MCP: ~/.openhands/mcp.json mcpServers.synapse (auto-generated/merged, user-scope, SYNAPSE_ROOTS=ignore)",
         "VS Code MCP: mcp.json servers.synapse in the VS Code user data root (auto-generated/merged)",
         "Trae and Trae CN MCP: mcp.json beside each IDE's per-OS User settings mcpServers.synapse, once the IDE has run (auto-generated/merged)",
         "TraeCode CLI MCP: ~/.trae/traecli.toml mcp_servers.synapse (auto-generated/merged, user-scope)",
