@@ -1036,6 +1036,7 @@ export function validateGeneratedTarget(target, outputs) {
   } else if (target === "qoder") {
     requireContains(path.join(".qoder", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".qoder", "commands", "ops-nuke.md"), /^---\nname: ops-nuke\n/);
+    requireContains(path.join(".qoder", "commands", "ops-nuke.md"), /^disable-model-invocation: true$/m);
     requireContains(path.join(".qoder", "AGENTS.md"), /agent-surface Qoder rules/);
     requireContains(path.join(".qoder", "agents", "boss.md"), /^---\nname: boss\n/);
     const settings = requireJson(path.join(".qoder", "settings.json"));
@@ -1048,6 +1049,7 @@ export function validateGeneratedTarget(target, outputs) {
   } else if (target === "qwen-code") {
     requireContains(path.join(".qwen", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".qwen", "commands", "ops-nuke.md"), /^---\ndescription: "/);
+    requireContains(path.join(".qwen", "commands", "ops-nuke.md"), /^disable-model-invocation: true$/m);
     requireContains(path.join(".qwen", "QWEN.md"), /agent-surface Qwen Code rules/);
     requireContains(path.join(".qwen", "agents", "boss.md"), /^---\nname: boss\n/);
     const settings = requireJson(path.join(".qwen", "settings.json"));

@@ -292,12 +292,15 @@ export async function renderOpenCodeCommand(source) {
   return source.body;
 }
 
+// Qoder and Qwen Code let the model start a custom command, as they do a skill, unless its frontmatter
+// sets disable-model-invocation. Every command source is a manual workflow, so both renderers set it.
 export async function renderNativeMarkdownCommand(source) {
   const description = quotedScalar(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
   return [
     "---",
     `name: ${source.name}`,
     `description: "${description}"`,
+    "disable-model-invocation: true",
     "---",
     "",
     source.body,
@@ -309,6 +312,7 @@ export async function renderQwenCodeCommand(source) {
   return [
     "---",
     `description: "${description}"`,
+    "disable-model-invocation: true",
     "---",
     "",
     source.body,
