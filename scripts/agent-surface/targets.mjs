@@ -347,6 +347,8 @@ export const targets = {
         format: "codex-toml",
         defaultEnabled: false,
         includeServices: false,
+        // Kimi Code 2.1.1 reads config.toml only from KIMI_CODE_HOME; a project copy is never loaded.
+        scopes: ["user"],
         rootProperties: {
           default_permission_mode: "auto",
           merge_all_available_skills: true,

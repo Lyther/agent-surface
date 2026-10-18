@@ -1115,7 +1115,7 @@
             "$KIMI_CODE_HOME/mcp.json",
             ".kimi-code/mcp.json"
           ],
-          "notes": "First-party secretless MCP services are merged as native command-plus-args stdio entries. External or secret-bearing services remain opt-in."
+          "notes": "First-party secretless MCP services are merged as native command-plus-args stdio entries. External or secret-bearing services remain opt-in. Kimi Code 2.1.1 connected both first-party servers at user scope and, once the folder was trusted, at project scope; it reads the project .kimi-code/mcp.json from the launch directory, not the git root (2026-10-19)."
         },
         "settings": {
           "support": "native",
@@ -1125,11 +1125,10 @@
           ],
           "paths": [
             "$KIMI_CODE_HOME/config.toml",
-            ".kimi-code/config.toml",
             "<VS Code user data>/User/settings.json",
             "<Cursor user data>/User/settings.json"
           ],
-          "notes": "Full installs set terminal default_permission_mode to auto and editor kimi.yoloMode to true without replacing sibling settings. The extension exposes YOLO, not persistent Auto; category-only MCP installs preserve host-wide policy. Project .kimi-code/config.toml is not a documented Kimi config file (the project file is .kimi-code/local.toml), so project Auto and merge_all_available_skills are not claimed."
+          "notes": "Full installs set terminal default_permission_mode to auto and editor kimi.yoloMode to true without replacing sibling settings. The extension exposes YOLO, not persistent Auto; category-only MCP installs preserve host-wide policy. Kimi Code 2.1.1 reads config.toml only from KIMI_CODE_HOME (kimi doctor ignores a project copy and the TUI keeps its default), so project installs write none; .kimi-code/local.toml holds only workspace.additional_dir, which Kimi writes itself."
         },
         "runtime-subagents": {
           "support": "native",
@@ -1171,8 +1170,7 @@
             "user"
           ],
           "paths": [
-            "$KIMI_CODE_HOME/config.toml",
-            ".kimi-code/config.toml"
+            "$KIMI_CODE_HOME/config.toml"
           ],
           "notes": "Executable hooks have no matching agent-surface source primitive and are not synthesized."
         },

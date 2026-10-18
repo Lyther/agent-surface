@@ -83,10 +83,24 @@ planHas(kimiCodeDevelopmentPlan, [
   /\.kimi-code\/agents\/boss\.md <- subagents\/boss\.md/,
 ], "kimi-code development");
 const kimiCodePlan = dryRun("kimi-code");
-planHas(kimiCodePlan, [
-  /\.kimi-code\/config\.toml default_permission_mode := "auto"/,
-  /\.kimi-code\/mcp\.json MCP \+= grimoire, synapse/,
-], "kimi-code");
+planHas(kimiCodePlan, [/\.kimi-code\/mcp\.json MCP \+= grimoire, synapse/], "kimi-code");
+// Kimi reads config.toml only from KIMI_CODE_HOME, so only a user install merges the policy.
+planLacks(kimiCodePlan, [/\.kimi-code\/config\.toml/], "kimi-code project");
+planHas(dryRun("kimi-code", ["--scope", "user"]), [/config\.toml default_permission_mode := "auto"/], "kimi-code user");
+{
+  // An earlier project install left a .kimi-code/config.toml; a new one neither rewrites nor removes it.
+  const dest = mkdtempSync("/tmp/agent-surface-kimi-project-config-");
+  try {
+    const legacy = path.join(dest, ".kimi-code", "config.toml");
+    mkdirSync(path.dirname(legacy), { recursive: true });
+    const bytes = 'default_permission_mode = "auto"\nmerge_all_available_skills = true\n\n[user]\nkept = true\n';
+    writeFileSync(legacy, bytes);
+    run(["install", "--target", "kimi-code", "--scope", "project", "--dest", dest]);
+    assert.equal(readFileSync(legacy, "utf8"), bytes, "an earlier project config.toml is left byte-identical");
+  } finally {
+    rmSync(dest, { recursive: true, force: true });
+  }
+}
 
 const qoderDevelopmentPlan = dryRun("qoder", ["--category", "development"]);
 planHas(qoderDevelopmentPlan, [
