@@ -60,7 +60,7 @@ In workflow mode, helper command output is evidence, not the final format. Keep 
       f. If red → apply the blocker discipline below before stopping. If still blocked, mark **blocked** with a structured blocker and stop the round.
     - **Stop conditions** (priority order): blocker → context_pressure (`batch_policy.context_pressure_threshold_pct`, default 70) → queue_empty → drift_check (every `batch_policy.drift_check_every` completed tasks) → max_tasks_cap. Respect `batch_policy.max_tasks_per_round` if set; default 3, with 5 only when BOSS marks the queue low/medium-risk, coherent, and cheap to verify.
 4. **Write Worker Artifact (v3 batched)**:
-    - Persist the canonical worker artifact under `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and compatibility copy `.agent-surface/workflows/<run_id>/worker.json`, using the same v3 shape as `dev-feature`.
+    - Persist the canonical worker artifact under `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and compatibility copy `.agent-surface/workflows/<run_id>/worker.json`, using the v3 shape in `dev-feature`'s `references/worker-artifact.md`.
     - Each task entry must include regression proof (failing → passing test) or a recorded infeasibility exception with equivalent verification.
     - Set `workflow.next_command = 'workflow-reviewer'`.
     - Do not repeat the JSON body in chat — summarize: `Round done: M/N fixes shipped; stop_reason=<reason>`.
@@ -116,7 +116,7 @@ Do not emit a blocker until you have attempted the safe discovery or repair avai
 ### Phase 5: Handoff / Commit
 
 - **Workflow mode ON**:
-  - Record the per-task fix results in `.agent-surface/workflows/<run_id>/worker.json` (v3 shape — see `dev-feature` Phase 0).
+  - Record the per-task fix results in `.agent-surface/workflows/<run_id>/worker.json` (v3 shape in `dev-feature`'s `references/worker-artifact.md`).
   - Each task entry must carry its regression proof (failing → passing test) under `evidence_refs`.
   - Set the next recommended command to `workflow-reviewer`.
   - Preserve `boss.workflow.run_id` in `worker.json.workflow.run_id`.

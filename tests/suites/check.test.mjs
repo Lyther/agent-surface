@@ -15,6 +15,8 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { checkSkillMetadata } from "../../scripts/agent-surface/check.mjs";
+import { parseSkill } from "../../scripts/agent-surface/skills.mjs";
 import { targets } from "../../scripts/agent-surface/targets.mjs";
 import {
   expectedCommandCount,
@@ -36,6 +38,29 @@ rmSync(path.join(root, "dist"), { recursive: true, force: true, maxRetries: 10, 
 assert.equal(run(["check"]).trim(), "check: ok");
 assert.match(run(["check", "commands"]), /commands check: ok/);
 assert.match(run(["check", "skills"]), /skills check: ok/);
+
+// Antigravity CLI loads only the first 24,000 bytes of a skill body, so a canonical skill past it fails
+// the check. The limit counts UTF-8 bytes: 12,001 two-byte characters are over it.
+// SUBSTITUTE_JUSTIFICATION
+// - substitute: an in-memory skill text parsed by the real skill parser
+// - replaces: an oversized SKILL.md in the checkout, which the check itself forbids
+// - necessity: boundary sizes need exact bodies that no canonical skill can hold
+// - real-option: the real parseSkill and checkSkillMetadata run unchanged; only the input is constructed
+// - proof-limit: proves the check's arithmetic, not how much Antigravity CLI loads
+// - real-proof: Antigravity CLI 1.4.2 `plugin validate --json`, recorded in adapters/antigravity-cli/README.md
+{
+  const bodyErrors = (body) => {
+    const errors = [];
+    const skill = parseSkill(path.join(root, "skills", "big", "SKILL.md"), `---\nname: big\ndescription: "Big."\n---\n${body}`);
+    checkSkillMetadata([skill], errors);
+    return errors;
+  };
+  assert.deepEqual(bodyErrors("a".repeat(24000)), [], "a body exactly at the limit passes");
+  assert.deepEqual(bodyErrors("a".repeat(24001)), [
+    `${path.join("skills", "big", "SKILL.md")}: body is 24001 bytes; Antigravity CLI loads only the first 24000, so move detail into references/`,
+  ]);
+  assert.match(bodyErrors("\u00e9".repeat(12001)).join("\n"), /body is 24002 bytes/);
+}
 const targetCapabilities = JSON.parse(readFileSync(path.join(root, "registry", "target-capabilities.json"), "utf8"));
 const clineCapabilities = targetCapabilities.targets.cline;
 assert.ok(clineCapabilities.generated_render_tokens.includes("subagents"));

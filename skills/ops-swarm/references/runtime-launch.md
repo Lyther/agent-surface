@@ -1,8 +1,9 @@
 # ops-swarm runtime launch shapes
 
-Companion reference for `ops-swarm`. Read it once a packet has a runtime and a model. The rule that a
-packet must name its runtime before launch is in `SKILL.md`; this file records how each host runs one
-packet, how far it may write, and how it fans out.
+Companion reference for `ops-swarm`. Read it once a packet has a runtime and a model, and while probing
+providers, whose records use the shape at the end. The rule that a packet must name its runtime before
+launch is in `SKILL.md`; this file records how each host runs one packet, how far it may write, and how
+it fans out.
 
 These shapes track host CLIs and change with them; re-read the host's help before use. The
 full-autonomy commands that qualify a runtime are in `workflow-runtime`. A swarm packet takes the least
@@ -89,3 +90,23 @@ Others:
 - Claude Code: use the Agent tool or agent teams for small fan-out, and dynamic workflows only for large repeatable fan-out where script-managed orchestration is worth the overhead.
 - Codex: ask the parent session to spawn one subagent per independent point, wait for all results, and summarize. Use `codex exec` for a single-role session unless the current surface confirms subagent visibility.
 - Antigravity CLI: validate the staged plugin under `~/.gemini/antigravity-cli/plugins/agent-surface`, register it with `agy plugin install`, then use its agents.
+
+## Provider adapter record
+
+One record per probed provider, whether or not the swarm selects it. A failed or skipped probe stays in
+the ledger as evidence instead of being dropped.
+
+```json
+{
+  "provider": "name",
+  "model": "name-or-id",
+  "role": "worker|critic|judge|synthesizer",
+  "capabilities": ["tools", "web", "long-context"],
+  "privacy": "local|private|external",
+  "launch_shape": "native_subagent|native_agent_manager|headless_cli|ollama_launch|ollama_api|other",
+  "observed_latency": "fast|medium|slow|unknown",
+  "probe_command": "redacted command or null",
+  "probe_result": "ok|failed|skipped",
+  "failure_notes": []
+}
+```
