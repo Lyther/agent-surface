@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
   <title id="title">Grimoire: retrieval evidence before architecture</title>
-  <desc id="desc">Measured task to model to MCP to SQLite retrieval, followed by model selection. Requiring every query term excluded relevant skills, so any term now makes a skill a candidate and weighted BM25 orders them. A held-out graded comparison confirmed that change; a native task verifier still precedes any task-benefit claim.</desc>
+  <desc id="desc">Measured task to model to MCP to SQLite retrieval, followed by model selection. Requiring every query term excluded relevant skills, so any term now makes a skill a candidate and weighted BM25 orders them. A held-out graded comparison confirmed that change. A native task cohort then found that the Droid agent never discovered Grimoire, so no task benefit is claimed.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#4b5563"/></marker>
     <style>
@@ -13,7 +13,7 @@
   </defs>
   <rect width="1200" height="760" fill="#fff"/>
   <text x="40" y="46" class="title">Grimoire: retrieval evidence before architecture</text>
-  <text x="40" y="75" class="body">The problem was candidate exclusion, not slow search. Held-out relevance now holds; task benefit is still untested.</text>
+  <text x="40" y="75" class="body">The problem was candidate exclusion, not slow search. Held-out relevance now holds; on Droid it was never discovered, so task benefit is unproven.</text>
   <rect x="28" y="98" width="1144" height="334" rx="6" fill="#f3f6f8"/>
   <text x="48" y="129" class="section">OBSERVED | Controlled retrieval probe, 2026-10-16</text>
   <text x="48" y="152" class="small">Literal arm bypasses the provider query step; all arms use the real stdio MCP server and the same frozen index.</text>
@@ -48,7 +48,7 @@
   <rect x="48" y="346" width="1102" height="64" rx="5" fill="#e6f0eb"/>
   <text x="64" y="371" class="label">R / Same model selects a returned ID or NONE</text>
   <text x="64" y="395" class="body">Baseline hit@5: literal 24/30; model queries 22/30 and 26/30. Literal now 29/30. Warm search p50 / p95: 1.63 / 2.56 ms.</text>
-  <text x="48" y="461" class="section">SHIPPED AND CONFIRMED, THEN PROPOSED | Held-out relevance measured; task proof still owed</text>
+  <text x="48" y="461" class="section">SHIPPED, CONFIRMED, THEN TASK-MEASURED | Delivery gap on Droid; task benefit unproven</text>
   <rect x="48" y="486" width="326" height="112" rx="5" class="node"/>
   <text x="64" y="514" class="label">C / Shipped reader change</text>
   <text x="64" y="540" class="body">Any term eligible, BM25 ranks</text>
@@ -58,11 +58,11 @@
   <text x="442" y="514" class="label">H / Held-out relevance</text>
   <text x="442" y="540" class="body">Useful top five 11/42 to 40/42</text>
   <text x="442" y="564" class="body">Callers declined 10/10 no-skill</text>
-  <path d="M752 542 H802" class="edge" stroke-dasharray="6 4"/>
-  <rect x="804" y="486" width="346" height="112" rx="5" class="proposed"/>
+  <path d="M752 542 H802" class="edge"/>
+  <rect x="804" y="486" width="346" height="112" rx="5" class="node"/>
   <text x="820" y="514" class="label">V / Native task outcome</text>
-  <text x="820" y="540" class="body">Matched tools and total allowance</text>
-  <text x="820" y="564" class="body">Official environment and verifier</text>
+  <text x="820" y="540" class="body">Droid never discovered Grimoire</text>
+  <text x="820" y="564" class="body">No skill 0/5, text 1/5, Grimoire 1/5</text>
   <text x="48" y="635" class="body">Existing MCP tools, schema and provenance unchanged. No new service, embedding store or default-profile change.</text>
   <line x1="48" y1="662" x2="1150" y2="662" stroke="#d2d7dc"/>
   <rect x="48" y="681" width="24" height="16" class="node"/>
@@ -71,5 +71,5 @@
   <text x="317" y="695" class="small">Dashed: proposed, not implemented</text>
   <a href="evidence.md"><text x="660" y="695" class="small" text-decoration="underline">Source and evidence ledger</text></a>
   <a href="../contracts/grimoire-evaluation.md"><text x="916" y="695" class="small" text-decoration="underline">Evaluation contract</text></a>
-  <text x="48" y="730" class="small">Scope: engineering evaluation / graded retrieval on 30 diagnostic and 52 held-out requests, grades model-authored; no task-success claim.</text>
+  <text x="48" y="730" class="small">Scope: engineering evaluation / graded retrieval on 30 diagnostic and 52 held-out requests, grades model-authored; two covered tasks on Droid, no task-success claim.</text>
 </svg>
