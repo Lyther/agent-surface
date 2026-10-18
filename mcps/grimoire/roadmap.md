@@ -26,11 +26,11 @@ Small build. Phases are checkpoints, not ceremony; each box names its acceptance
 
 MCP-host coverage is **honest, not blanket**. Three groups (see `registry/target-capabilities.json` `surfaces.mcp`):
 
-- **Generated (22)** — auto-rendered + non-destructively merged across JSON/TOML/YAML config families; the authoritative host list is `registry/target-capabilities.json` and `docs/reference/targets.md`.
+- **Generated (23)** — auto-rendered + non-destructively merged across JSON/TOML/YAML config families; the authoritative host list is `registry/target-capabilities.json` and `docs/reference/targets.md`.
 - **No modeled MCP surface** — Antigravity desktop (use Antigravity CLI) and DSH (developer-preview skills only).
 
 - [x] Registry: `grimoire` `first_party kind:"mcp"` + `served_by:["grimoire"]` on the `anthropic-cybersecurity-skills` source-pack (+ schema allows `served_by`) → `npm run check` green.
-- [x] `scripts/agent-surface.mjs`: grimoire in the first-party MCP set → renders/merges across **all 22 generated MCP hosts**; repo tests cover each active config family.
+- [x] `scripts/agent-surface.mjs`: grimoire in the first-party MCP set → renders/merges across **all 23 generated MCP hosts**; repo tests cover each active config family.
 - [x] `check` rule (`checkServedBy`): `served_by`-grimoire ⇒ `source-pack`, no `skill_roots`, not present in any native catalog; proven by negative tests.
 - [x] Smoke: real-stdio `search→get→file_get` against the server binary; grimoire confirmed in every config family (Claude/Droid/Deepagents/Cursor JSON, Codex TOML, Kilo/OpenCode local-map, VS Code servers, Zed context_servers).
 
@@ -41,7 +41,7 @@ The honest blockers before an unqualified "production-ready" claim. Items marked
 - [x] `P4.1` **(shared)** Ship the distribution work — the original PR #14 wiring and later runtime refresh maintain one authoritative capability matrix plus per-format merge tests.
 - [~] `P4.2` Per-host live launch smoke — run native headless probes where a host exposes one and record GUI-only evidence separately. Spawned-process stdio (`test/packaging.test.ts`) and config-merge presence are automated; host execution remains a distinct proof boundary.
 - [x] `P4.3` **(shared)** CI gate — `.github/workflows/ci.yml` `mcp` job (Node 22) runs the grimoire suite incl. the real-pack eval gate + `npm audit` on every PR.
-- [x] `P4.4` **(shared)** Goose + Poolside MCP — **done**: a safe non-destructive YAML block-merge (`mergeYamlMcpConfig`) was added. Merge preserves keys/comments/sibling servers, is idempotent, and refuses unsupported structures rather than corrupting them; the current matrix has 22 generated hosts.
+- [x] `P4.4` **(shared)** Goose + Poolside MCP — **done**: a safe non-destructive YAML block-merge (`mergeYamlMcpConfig`) was added. Merge preserves keys/comments/sibling servers, is idempotent, and refuses unsupported structures rather than corrupting them; the current matrix has 23 generated hosts.
 - [x] `P4.5` `agent-surface doctor` index-freshness — `doctor` compares the installed `~/.grimoire/manifest.json` pin against the repo registry pin and reports linked/wired state (`grimoire-index: ok (<commit>)`).
 - [x] `P4.6` **(shared)** Release — `CHANGELOG.md` landed and the `grimoire-v0.1.0` tag is cut.
 
