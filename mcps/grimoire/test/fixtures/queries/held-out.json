@@ -1,0 +1,547 @@
+[
+ {
+  "id": "sec-01",
+  "query": "suspicious powershell encoded command triage",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:deobfuscating-powershell-obfuscated-malware": 2,
+   "anthropic-cybersecurity-skills:detecting-fileless-malware-techniques": 1,
+   "anthropic-cybersecurity-skills:detecting-suspicious-powershell-execution": 2,
+   "anthropic-cybersecurity-skills:hunting-for-anomalous-powershell-execution": 2,
+   "anthropic-cybersecurity-skills:triaging-security-incident": 1
+  }
+ },
+ {
+  "id": "sec-02",
+  "query": "aws iam privilege escalation detection rules",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:conducting-cloud-incident-response": 1,
+   "anthropic-cybersecurity-skills:conducting-cloud-penetration-testing": 1,
+   "anthropic-cybersecurity-skills:detecting-aws-cloudtrail-anomalies": 2,
+   "anthropic-cybersecurity-skills:detecting-aws-iam-privilege-escalation": 2,
+   "anthropic-cybersecurity-skills:enumerating-cloud-with-cloudfox": 1,
+   "anthropic-cybersecurity-skills:exploiting-aws-with-pacu": 1,
+   "anthropic-cybersecurity-skills:implementing-cloud-trail-log-analysis": 2,
+   "anthropic-cybersecurity-skills:performing-aws-privilege-escalation-assessment": 1,
+   "anthropic-cybersecurity-skills:performing-cloud-forensics-with-aws-cloudtrail": 1,
+   "anthropic-cybersecurity-skills:performing-cloud-penetration-testing-with-pacu": 1,
+   "anthropic-cybersecurity-skills:securing-aws-iam-permissions": 1
+  }
+ },
+ {
+  "id": "sec-03",
+  "query": "ransomware ioc extraction from memory dump",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:analyzing-linux-elf-malware": 1,
+   "anthropic-cybersecurity-skills:analyzing-ransomware-encryption-mechanisms": 1,
+   "anthropic-cybersecurity-skills:conducting-malware-incident-response": 1,
+   "anthropic-cybersecurity-skills:conducting-memory-forensics-with-volatility": 2,
+   "anthropic-cybersecurity-skills:extracting-iocs-from-malware-samples": 1,
+   "anthropic-cybersecurity-skills:investigating-ransomware-attack-artifacts": 2,
+   "anthropic-cybersecurity-skills:performing-memory-forensics-with-volatility3": 2
+  }
+ },
+ {
+  "id": "sec-04",
+  "query": "windows 4625 brute force logon hunting",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:analyzing-security-logs-with-splunk": 1,
+   "anthropic-cybersecurity-skills:analyzing-windows-event-logs-in-splunk": 1,
+   "anthropic-cybersecurity-skills:building-detection-rule-with-splunk-spl": 1,
+   "anthropic-cybersecurity-skills:detecting-rdp-brute-force-attacks": 2
+  }
+ },
+ {
+  "id": "sec-05",
+  "query": "Help me write a Sigma rule to detect lateral movement via pass-the-hash.",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:building-attack-pattern-library-from-cti-reports": 1,
+   "anthropic-cybersecurity-skills:detecting-lateral-movement-in-network": 1,
+   "anthropic-cybersecurity-skills:detecting-pass-the-hash-attacks": 2,
+   "anthropic-cybersecurity-skills:extracting-windows-event-logs-artifacts": 1,
+   "anthropic-cybersecurity-skills:implementing-siem-correlation-rules-for-apt": 2,
+   "anthropic-cybersecurity-skills:performing-lateral-movement-detection": 2,
+   "hack-skills:windows-lateral-movement": 1
+  }
+ },
+ {
+  "id": "sec-06",
+  "query": "Can you help me harden our Okta tenant against MFA fatigue attacks?",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:configuring-multi-factor-authentication-with-duo": 1,
+   "anthropic-cybersecurity-skills:hunting-saas-sso-token-abuse": 1,
+   "anthropic-cybersecurity-skills:managing-cloud-identity-with-okta": 2
+  }
+ },
+ {
+  "id": "sec-07",
+  "query": "Can you help me map our logging gaps against the SOC 2 control requirements?",
+  "class": "uncovered",
+  "useful": {}
+ },
+ {
+  "id": "sec-08",
+  "query": "Help me draft rules of engagement and a reporting plan for an upcoming internal red team exercise.",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:executing-red-team-engagement-planning": 2,
+   "anthropic-cybersecurity-skills:executing-red-team-exercise": 1
+  }
+ },
+ {
+  "id": "sec-09",
+  "query": "We just got paged because our cloud bill spiked overnight and we suspect a leaked AWS key is mining crypto, can you help me scope the incident and figure out what to rotate first?",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:conducting-cloud-incident-response": 2,
+   "anthropic-cybersecurity-skills:detecting-cryptomining-in-cloud": 2
+  }
+ },
+ {
+  "id": "sec-10",
+  "query": "Our threat intel feed flagged a domain several endpoints are beaconing to every six hours, and I need help pulling the pcap apart to confirm it's C2 traffic before we isolate the hosts.",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:analyzing-network-traffic-for-incidents": 2,
+   "anthropic-cybersecurity-skills:containing-active-breach": 1,
+   "anthropic-cybersecurity-skills:detecting-network-anomalies-with-zeek": 1,
+   "anthropic-cybersecurity-skills:detecting-ransomware-precursors-in-network": 1,
+   "anthropic-cybersecurity-skills:hunting-for-command-and-control-beaconing": 2,
+   "anthropic-cybersecurity-skills:hunting-for-unusual-network-connections": 2,
+   "anthropic-cybersecurity-skills:performing-network-traffic-analysis-with-zeek": 1
+  }
+ },
+ {
+  "id": "sec-11",
+  "query": "A disk image from a compromised laptop just landed on my desk and legal wants a forensic timeline of file access before they decide on next steps, can you help me get started with the triage?",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:acquiring-disk-image-with-dd-and-dcfldd": 1,
+   "anthropic-cybersecurity-skills:analyzing-disk-image-with-autopsy": 2,
+   "anthropic-cybersecurity-skills:collecting-volatile-evidence-from-compromised-host": 1,
+   "anthropic-cybersecurity-skills:performing-disk-forensics-investigation": 2,
+   "anthropic-cybersecurity-skills:performing-endpoint-forensics-investigation": 2
+  }
+ },
+ {
+  "id": "sec-12",
+  "query": "We're prepping for a PCI audit next month and we keep finding undocumented service accounts with standing admin access, can you help me build a remediation plan the auditors will accept?",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:performing-access-review-and-certification": 2,
+   "anthropic-cybersecurity-skills:performing-oauth-scope-minimization-review": 1
+  }
+ },
+ {
+  "id": "rev-01",
+  "query": "identify custom encryption in stripped arm firmware blob",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:performing-firmware-extraction-with-binwalk": 1,
+   "anthropic-cybersecurity-skills:performing-firmware-malware-analysis": 1,
+   "anthropic-cybersecurity-skills:performing-iot-security-assessment": 1,
+   "hack-skills:code-obfuscation-deobfuscation": 1,
+   "rev-skills:re-arm": 2,
+   "rev-skills:re-crypto-id": 2
+  }
+ },
+ {
+  "id": "rev-02",
+  "query": "ghidra decompile obfuscated android native lib",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:reverse-engineering-android-malware-with-jadx": 1,
+   "rev-skills:re-android-native": 2,
+   "rev-skills:re-mobile": 1
+  }
+ },
+ {
+  "id": "rev-03",
+  "query": "reverse proprietary binary network protocol handshake",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:analyzing-command-and-control-communication": 2,
+   "anthropic-cybersecurity-skills:analyzing-network-traffic-of-malware": 1,
+   "anthropic-cybersecurity-skills:performing-network-packet-capture-analysis": 1,
+   "anthropic-cybersecurity-skills:reverse-engineering-ios-app-with-frida": 1,
+   "anthropic-cybersecurity-skills:reverse-engineering-malware-with-ghidra": 2,
+   "hack-skills:traffic-analysis-pcap": 1
+  }
+ },
+ {
+  "id": "rev-04",
+  "query": "Can you help me figure out which crypto library this stripped ELF binary links against by looking at its constant tables?",
+  "class": "partial",
+  "useful": {
+   "anthropic-cybersecurity-skills:analyzing-linux-elf-malware": 1,
+   "anthropic-cybersecurity-skills:reverse-engineering-malware-with-ghidra": 1
+  }
+ },
+ {
+  "id": "rev-05",
+  "query": "I need help identifying the packer used on this Windows executable before I try to unpack it in a debugger.",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:analyzing-packed-malware-with-upx-unpacker": 1,
+   "anthropic-cybersecurity-skills:performing-static-malware-analysis-with-pe-studio": 2,
+   "anthropic-cybersecurity-skills:reverse-engineering-malware-with-ghidra": 1,
+   "rev-skills:re-anti-analysis": 2,
+   "rev-skills:re-malware": 1,
+   "rev-skills:re-packer-id": 2
+  }
+ },
+ {
+  "id": "rev-06",
+  "query": "Help me trace how this mobile game client validates in-app purchase receipts offline.",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:analyzing-ios-app-security-with-objection": 1,
+   "anthropic-cybersecurity-skills:performing-ios-app-security-assessment": 1,
+   "hack-skills:android-pentesting-tricks": 1,
+   "hack-skills:ios-pentesting-tricks": 1,
+   "rev-skills:re-binary-core": 1,
+   "rev-skills:re-game": 2
+  }
+ },
+ {
+  "id": "rev-07",
+  "query": "We pulled firmware off a decommissioned router for a security assessment and I need help mapping the bootloader stages before we try to find where the update signature check happens.",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:performing-firmware-extraction-with-binwalk": 2,
+   "anthropic-cybersecurity-skills:performing-firmware-malware-analysis": 2,
+   "anthropic-cybersecurity-skills:validating-tpm-measured-boot-attestation": 1
+  }
+ },
+ {
+  "id": "rev-08",
+  "query": "I'm staring at a disassembly of an old game client's netcode and need help working out the custom serialization format it uses for matchmaking packets, purely for interoperability research.",
+  "class": "partial",
+  "useful": {
+   "anthropic-cybersecurity-skills:reverse-engineering-malware-with-ghidra": 1,
+   "hack-skills:symbolic-execution-tools": 1
+  }
+ },
+ {
+  "id": "hack-01",
+  "query": "jwt alg none bypass",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:conducting-api-security-testing": 1,
+   "anthropic-cybersecurity-skills:exploiting-jwt-algorithm-confusion-attack": 2,
+   "anthropic-cybersecurity-skills:implementing-jwt-signing-and-verification": 1,
+   "anthropic-cybersecurity-skills:performing-jwt-none-algorithm-attack": 2,
+   "anthropic-cybersecurity-skills:testing-api-authentication-weaknesses": 1,
+   "anthropic-cybersecurity-skills:testing-for-json-web-token-vulnerabilities": 2,
+   "anthropic-cybersecurity-skills:testing-jwt-token-security": 2,
+   "anthropic-cybersecurity-skills:testing-mobile-api-authentication": 1,
+   "hack-skills:api-auth-and-jwt-abuse": 1,
+   "hack-skills:jwt-oauth-token-attacks": 2
+  }
+ },
+ {
+  "id": "hack-02",
+  "query": "ssrf to cloud metadata endpoint, authorized pentest",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:conducting-cloud-penetration-testing": 2,
+   "anthropic-cybersecurity-skills:exploiting-api-injection-vulnerabilities": 1,
+   "anthropic-cybersecurity-skills:exploiting-server-side-request-forgery": 2,
+   "anthropic-cybersecurity-skills:performing-blind-ssrf-exploitation": 1,
+   "anthropic-cybersecurity-skills:performing-ssrf-vulnerability-exploitation": 2,
+   "anthropic-cybersecurity-skills:performing-web-application-penetration-test": 1,
+   "hack-skills:dns-rebinding-attacks": 1,
+   "hack-skills:kubernetes-pentesting": 1,
+   "hack-skills:ssrf-server-side-request-forgery": 2
+  }
+ },
+ {
+  "id": "hack-03",
+  "query": "ysoserial gadget chain for a ctf box",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:exploiting-insecure-deserialization": 2,
+   "hack-skills:deserialization-insecure": 2,
+   "hack-skills:jndi-injection": 1
+  }
+ },
+ {
+  "id": "hack-04",
+  "query": "glibc tcache poisoning heap pwn ctf",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:performing-binary-exploitation-analysis": 1,
+   "hack-skills:arbitrary-write-to-rce": 1,
+   "hack-skills:binary-protection-bypass": 1,
+   "hack-skills:heap-exploitation": 2,
+   "rev-skills:re-ctf": 1,
+   "rev-skills:re-exploit": 2,
+   "rev-skills:re-pwn": 1
+  }
+ },
+ {
+  "id": "hack-05",
+  "query": "Can you help me chain an HTTP request smuggling bug with cache poisoning on this CTF target?",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:exploiting-http-request-smuggling": 2,
+   "anthropic-cybersecurity-skills:performing-web-cache-deception-attack": 1,
+   "anthropic-cybersecurity-skills:testing-for-host-header-injection": 1,
+   "hack-skills:ghost-bits-cast-attack": 1,
+   "hack-skills:http-host-header-attacks": 1,
+   "hack-skills:http2-specific-attacks": 1,
+   "hack-skills:request-smuggling": 2
+  }
+ },
+ {
+  "id": "hack-06",
+  "query": "I need help building a ROP chain to bypass ASLR and NX on this pwn challenge binary.",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:implementing-memory-protection-with-dep-aslr": 1,
+   "anthropic-cybersecurity-skills:performing-binary-exploitation-analysis": 2,
+   "hack-skills:binary-protection-bypass": 2,
+   "hack-skills:format-string-exploitation": 1,
+   "hack-skills:heap-exploitation": 1,
+   "hack-skills:kernel-exploitation": 1,
+   "hack-skills:stack-overflow-and-rop": 2,
+   "rev-skills:re-exploit": 2,
+   "rev-skills:re-pwn": 2
+  }
+ },
+ {
+  "id": "hack-07",
+  "query": "We're running an authorized pentest against a mobile banking app, and I need help testing whether its certificate pinning can actually be bypassed before we write that up as a finding.",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:conducting-mobile-app-penetration-test": 1,
+   "anthropic-cybersecurity-skills:intercepting-mobile-traffic-with-burpsuite": 1,
+   "anthropic-cybersecurity-skills:performing-ios-app-security-assessment": 1,
+   "anthropic-cybersecurity-skills:performing-mobile-app-certificate-pinning-bypass": 2,
+   "anthropic-cybersecurity-skills:performing-ssl-stripping-attack": 1,
+   "hack-skills:android-pentesting-tricks": 2,
+   "hack-skills:ios-pentesting-tricks": 1,
+   "hack-skills:mobile-ssl-pinning-bypass": 2
+  }
+ },
+ {
+  "id": "hack-08",
+  "query": "In this CTF, the login endpoint accepts a JWT signed with a key we found in a leaked config, can you help me forge an admin token without triggering the signature check?",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:exploiting-jwt-algorithm-confusion-attack": 1,
+   "anthropic-cybersecurity-skills:performing-jwt-none-algorithm-attack": 1,
+   "anthropic-cybersecurity-skills:testing-api-authentication-weaknesses": 1,
+   "anthropic-cybersecurity-skills:testing-for-json-web-token-vulnerabilities": 2,
+   "anthropic-cybersecurity-skills:testing-jwt-token-security": 1,
+   "hack-skills:authbypass-authentication-flaws": 1,
+   "hack-skills:jwt-oauth-token-attacks": 2
+  }
+ },
+ {
+  "id": "hack-09",
+  "query": "For an authorized web app engagement, the password reset flow leaks whether an email exists, and I want help chaining that into a full account takeover for the report.",
+  "class": "direct",
+  "useful": {
+   "hack-skills:authbypass-authentication-flaws": 2,
+   "hack-skills:business-logic-vulnerabilities": 1,
+   "hack-skills:hack": 1
+  }
+ },
+ {
+  "id": "hack-10",
+  "query": "We're doing a sanctioned pentest and the internal API trusts a signed URL parameter that looks replayable, can you help me confirm it's vulnerable to request forgery before we write it up?",
+  "class": "partial",
+  "useful": {
+   "anthropic-cybersecurity-skills:performing-web-application-penetration-test": 1,
+   "hack-skills:business-logic-vulnerabilities": 1,
+   "hack-skills:hack": 1
+  }
+ },
+ {
+  "id": "lead-01",
+  "query": "pricing tiers for a usage-based ai api product",
+  "class": "direct",
+  "useful": {
+   "tech-leads-club:ai-pricing": 2
+  }
+ },
+ {
+  "id": "lead-02",
+  "query": "staff engineer promotion packet outline",
+  "class": "uncovered",
+  "useful": {}
+ },
+ {
+  "id": "lead-03",
+  "query": "build vs buy decision for internal feature flag system",
+  "class": "direct",
+  "useful": {
+   "tech-leads-club:create-rfc": 2,
+   "tech-leads-club:technical-design-doc-creator": 1,
+   "tech-leads-club:the-jury": 1
+  }
+ },
+ {
+  "id": "lead-04",
+  "query": "Help me write a hiring rubric for a senior backend engineer role that filters for system design skills.",
+  "class": "uncovered",
+  "useful": {}
+ },
+ {
+  "id": "lead-05",
+  "query": "I need help structuring a 30-60-90 day plan for a new engineering manager joining my team.",
+  "class": "uncovered",
+  "useful": {}
+ },
+ {
+  "id": "lead-06",
+  "query": "Can you help me put together a go-to-market plan for moving our product from seat-based to usage-based pricing?",
+  "class": "direct",
+  "useful": {
+   "tech-leads-club:ai-pricing": 2,
+   "tech-leads-club:expansion-retention": 1,
+   "tech-leads-club:gtm-metrics": 1,
+   "tech-leads-club:positioning-icp": 1
+  }
+ },
+ {
+  "id": "lead-07",
+  "query": "My team has grown from four to eleven engineers in a year and the weekly standups have turned into status theater, can you help me redesign how we run planning and reviews?",
+  "class": "partial",
+  "useful": {
+   "tech-leads-club:tlc-discover": 1
+  }
+ },
+ {
+  "id": "lead-08",
+  "query": "We're choosing between a monolith refactor and splitting into services before our Series B, and I need help laying out the tradeoffs for a board deck that non-technical investors will read.",
+  "class": "partial",
+  "useful": {
+   "tech-leads-club:component-identification-sizing": 1,
+   "tech-leads-club:decomposition-planning-roadmap": 1,
+   "tech-leads-club:legacy-migration-planner": 1,
+   "tech-leads-club:modular-decomposition": 1,
+   "tech-leads-club:modular-design-principles": 1,
+   "tech-leads-club:the-fool": 1
+  }
+ },
+ {
+  "id": "sast-01",
+  "query": "custom semgrep rule for hardcoded secrets in python",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:building-devsecops-pipeline-with-gitlab-ci": 1,
+   "anthropic-cybersecurity-skills:implementing-devsecops-security-scanning": 1,
+   "anthropic-cybersecurity-skills:implementing-secret-scanning-with-gitleaks": 1,
+   "anthropic-cybersecurity-skills:implementing-semgrep-for-custom-sast-rules": 2,
+   "anthropic-cybersecurity-skills:integrating-sast-into-github-actions-pipeline": 1,
+   "trailofbits-static-analysis:semgrep": 1
+  }
+ },
+ {
+  "id": "sast-02",
+  "query": "Can you help me write a CodeQL query that flags unsanitized input reaching a SQL sink?",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:implementing-semgrep-for-custom-sast-rules": 1,
+   "anthropic-cybersecurity-skills:integrating-sast-into-github-actions-pipeline": 1,
+   "trailofbits-static-analysis:codeql": 2
+  }
+ },
+ {
+  "id": "sast-03",
+  "query": "I need help triaging a SARIF file with a few hundred findings down to the ones worth fixing first.",
+  "class": "direct",
+  "useful": {
+   "trailofbits-static-analysis:sarif-parsing": 2
+  }
+ },
+ {
+  "id": "sast-04",
+  "query": "Our CI started failing after we turned on a new CodeQL pack and I need help figuring out which of these new alerts are real taint-flow issues versus noise from test fixtures.",
+  "class": "direct",
+  "useful": {
+   "anthropic-cybersecurity-skills:implementing-github-advanced-security-for-code-scanning": 1,
+   "anthropic-cybersecurity-skills:integrating-sast-into-github-actions-pipeline": 2,
+   "trailofbits-static-analysis:codeql": 1,
+   "trailofbits-static-analysis:sarif-parsing": 2
+  }
+ },
+ {
+  "id": "near-01",
+  "query": "postgres index tuning for slow join query",
+  "class": "uncovered",
+  "useful": {}
+ },
+ {
+  "id": "near-02",
+  "query": "react state management for a multi-step form",
+  "class": "partial",
+  "useful": {
+   "tech-leads-club:react-composition-patterns": 1
+  }
+ },
+ {
+  "id": "near-03",
+  "query": "pandas dataframe memory optimization tips",
+  "class": "uncovered",
+  "useful": {}
+ },
+ {
+  "id": "near-04",
+  "query": "Can you help me set up a blue-green deployment pipeline for our Kubernetes cluster?",
+  "class": "uncovered",
+  "useful": {}
+ },
+ {
+  "id": "near-05",
+  "query": "I need help writing API documentation for our new webhook endpoints.",
+  "class": "uncovered",
+  "useful": {}
+ },
+ {
+  "id": "near-06",
+  "query": "Help me design a database schema for a multi-tenant SaaS billing system.",
+  "class": "partial",
+  "useful": {
+   "anthropic-cybersecurity-skills:testing-for-broken-access-control": 1,
+   "tech-leads-club:rails-dev": 1,
+   "tech-leads-club:technical-design-doc-creator": 1
+  }
+ },
+ {
+  "id": "near-07",
+  "query": "Can you help me debug why our GraphQL resolver is making N+1 queries?",
+  "class": "uncovered",
+  "useful": {}
+ },
+ {
+  "id": "near-08",
+  "query": "Our nightly ETL job keeps timing out when it hits the new customer events table, and I need help figuring out whether to add partitioning or just rewrite the batch logic.",
+  "class": "partial",
+  "useful": {
+   "tech-leads-club:create-adr": 1,
+   "tech-leads-club:tlc-discover": 1
+  }
+ },
+ {
+  "id": "near-09",
+  "query": "We're migrating our frontend from class components to hooks and I keep breaking the shared context provider, can you help me untangle the re-render loop it's causing?",
+  "class": "partial",
+  "useful": {
+   "tech-leads-club:legacy-migration-planner": 1
+  }
+ },
+ {
+  "id": "near-10",
+  "query": "I'm training a small forecasting model on our sales data and the validation loss keeps diverging after a few epochs, can you help me figure out if it's a learning rate or data leakage problem?",
+  "class": "uncovered",
+  "useful": {}
+ }
+]

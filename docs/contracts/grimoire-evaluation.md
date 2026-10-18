@@ -51,7 +51,7 @@ The accepted cost was then measured on the caller side rather than assumed. Each
 
 Limits. Grades are model-authored: the two rater roles were independent blind sessions of the same model, so agreement measures one grader's consistency under blinding, not human or cross-family agreement; the operator accepted dual blind model grading as this phase's review standard. Graders judged name and description only, while retrieval also matches the body. The requests were authored in-project before the labels and never tuned against results, but they are not an independent population. The caller arm replayed real results into one decision: no model issued its own search, retried, or loaded a skill. Coverage classes describe the pooled candidates, so "uncovered" means no useful candidate was pooled, not absent from the corpus. One repetition per cell. Private receipts, scripts and the reproduction commands are under `.agent-surface/research/2026-10-16-grimoire-gr1/`.
 
-This satisfies the held-out relevance condition in the decision rules below. It permits the native task comparison; it does not predict its outcome.
+This satisfies the held-out relevance condition in the decision rules below. It permits the native task comparison; it does not predict its outcome. The labeled set is now a regression gate in `mcps/grimoire/test/fixtures/queries/held-out.json`, held at useful-in-top-five 0.85 and direct-in-top-five 0.80 over all served packs, which the conjunctive reader fails at 11/42. A later retrieval change tuned against it can no longer cite it as held-out evidence and must freeze a fresh set first.
 
 ## Data and State
 
