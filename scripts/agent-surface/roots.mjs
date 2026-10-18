@@ -29,6 +29,12 @@ export const installRootAntigravity = homeOnlyInstallRoot("antigravity install s
 export const installRootAntigravityCli = homeOnlyInstallRoot("antigravity-cli install supports --scope user only unless --dest is supplied", ".gemini");
 export const installRootVsCode = homeOnlyInstallRoot("vscode install supports --scope user only unless --dest is supplied");
 
+// Codex reads CODEX_HOME/AGENTS.md and a project's AGENTS.md files from the repository root down,
+// never a project's .codex/AGENTS.md.
+export function codexInstructionPath(context) {
+  return context.scope === "user" ? path.join(".codex", "AGENTS.md") : "AGENTS.md";
+}
+
 export function droidInstructionPath(context) {
   return context.scope === "user" ? path.join(".factory", "AGENTS.md") : "AGENTS.md";
 }

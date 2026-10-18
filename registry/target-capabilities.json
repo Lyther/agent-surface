@@ -141,13 +141,14 @@
           "support": "native",
           "generation": "generated",
           "scope": [
-            "user"
+            "user",
+            "project"
           ],
           "paths": [
             "~/.codex/AGENTS.md",
-            ".codex/AGENTS.md"
+            "AGENTS.md"
           ],
-          "notes": "Always-on rules bundle into ~/.codex/AGENTS.md. A --dest project install also writes .codex/AGENTS.md there, which Codex does not discover."
+          "notes": "Always-on rules bundle into ~/.codex/AGENTS.md, or into the project's root AGENTS.md, which Codex reads from the repository root down and other hosts share. Earlier project installs wrote .codex/AGENTS.md, which Codex never reads; an install that writes the root AGENTS.md retires it, and a narrower selection than the one that wrote it stops instead. Project paths only via --dest."
         },
         "mcp": {
           "support": "native",

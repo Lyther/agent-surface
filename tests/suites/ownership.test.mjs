@@ -368,6 +368,55 @@ try {
     assert.ok(!existsSync(path.join(general, legacy)), "the old route is retired with its replacement");
   }
 
+  // The same move for a Codex project: earlier installs wrote .codex/AGENTS.md, which Codex never
+  // reads, and the project's root AGENTS.md now replaces it.
+  // SUBSTITUTE_JUSTIFICATION
+  // - substitute: a hand-written codex manifest and .codex/AGENTS.md in the shape earlier releases wrote
+  // - replaces: a project installed before the move
+  // - necessity: this checkout no longer renders the old route
+  // - real-option: the real CLI, planner and apply run against a real root
+  // - proof-limit: proves the transition, not what Codex loads
+  // - real-proof: Codex 0.163.0's debug prompt-input loads the new root AGENTS.md and no .codex/AGENTS.md
+  {
+    const legacy = path.join(".codex", "AGENTS.md");
+    const oldCodex = (name, category) => {
+      const dest = path.join(scratch, name);
+      mkdirSync(path.join(dest, ".codex"), { recursive: true });
+      mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
+      writeFileSync(path.join(dest, legacy), "rules from an earlier install\n");
+      writeFileSync(path.join(dest, ".agent-surface", "codex-manifest.json"), `${JSON.stringify({
+        target: "codex",
+        scope: "project",
+        managed: [{ target: "codex", source: "rules/*.mdc", output: legacy, ...(category ? { asset_category: category } : {}) }],
+      })}\n`);
+      return dest;
+    };
+
+    const development = oldCodex("codex-development", "development");
+    const before = snapshot(development);
+    const narrower = project(development, "codex", ["--category", "rules"]);
+    assert.equal(narrower.code, 1, narrower.out);
+    assert.match(narrower.out, /AGENTS\.md replaces \.codex\/AGENTS\.md, which carries the development category's contribution/);
+    assert.deepEqual(snapshot(development), before, "a narrower selection does not drop the old document's contribution");
+
+    const general = oldCodex("codex-general");
+    const replaced = project(general, "codex", ["--category", "rules"]);
+    assert.equal(replaced.code, 0, replaced.out);
+    assert.match(read(general, "AGENTS.md"), /^# AGENTS\.md - agent-surface rules$/m);
+    assert.ok(!existsSync(path.join(general, legacy)) && !claims(general, "codex", legacy), "the old route is retired with its replacement");
+
+    // When another host already owns an identical root AGENTS.md, the new route is a skip, but
+    // retiring the old one would still drop its development contribution, so the selection stops.
+    const shared = oldCodex("codex-shared-development", "development");
+    const droid = project(shared, "droid", ["--category", "rules"]);
+    assert.equal(droid.code, 0, droid.out);
+    const sharedBefore = snapshot(shared);
+    const sharedNarrower = project(shared, "codex", ["--category", "rules"]);
+    assert.equal(sharedNarrower.code, 1, sharedNarrower.out);
+    assert.match(sharedNarrower.out, /AGENTS\.md replaces \.codex\/AGENTS\.md, which carries the development category's contribution/);
+    assert.deepEqual(snapshot(shared), sharedBefore, "a matching shared document does not retire the old one's contribution");
+  }
+
   // The same identity for a document Cline's OS Documents folder relocates after a real development
   // install: the relocated rules document keeps the old route's category, so a rules-only refresh is
   // refused, and a development refresh rewrites it and retires the old route. Linux only, through the

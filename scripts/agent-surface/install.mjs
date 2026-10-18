@@ -905,9 +905,11 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       movedFrom.set(route.to, route.from);
     }
     for (const item of writes) {
-      // Only a real content change can lose anything: an unchanged file is a skip either way.
-      if (item.action !== "write") continue;
+      // Only a real content change can lose anything: an unchanged file is a skip either way. A moved
+      // route is the exception: its old document is retired even when the new one already matches,
+      // as it does when another host owns an identical shared AGENTS.md.
       const key = claimKey(item.relativeOutput);
+      if (item.action !== "write" && !(item.action === "skip" && movedFrom.has(key))) continue;
       const owner = previousOwner.get(key);
       if (owner === undefined || selectedCategories.has(owner)) continue;
       const document = movedFrom.has(key) ? `${item.relativeOutput} replaces ${movedFrom.get(key)}, which` : item.relativeOutput;

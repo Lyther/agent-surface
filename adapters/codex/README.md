@@ -9,7 +9,7 @@ Implemented target paths:
 - explicit-only skills: `~/.agents/skills/<name>/SKILL.md`
 - explicit-only policy: `~/.agents/skills/<name>/agents/openai.yaml`
 - user (project via `--dest`): `.codex/agents/<name>.toml`
-- user: `~/.codex/AGENTS.md` for always-on rules (a `--dest` project install also writes `.codex/AGENTS.md` there, which Codex does not discover; Codex reads a project's `AGENTS.md` files from the repository root down)
+- user: `~/.codex/AGENTS.md` for always-on rules; a `--dest` project install writes the project's root `AGENTS.md` instead, which Codex reads from the repository root down, under the target-neutral header the other hosts sharing it use
 - user: `~/.codex/references/rules/<rule>.md` for scoped language references
 - user (project via `--dest`) merge: `.codex/config.toml` `[mcp_servers.{synapse,grimoire}]`, plus `approval_policy = "never"` and `sandbox_mode = "danger-full-access"`
 

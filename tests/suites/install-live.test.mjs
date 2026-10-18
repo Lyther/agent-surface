@@ -93,8 +93,10 @@ for (const target of [
       ]);
     }
     if (target === "codex") {
-      const instructionPath = path.join(targetDest, ".codex", "AGENTS.md");
+      // A project install writes the root AGENTS.md Codex reads, not the .codex/AGENTS.md it never does.
+      const instructionPath = path.join(targetDest, "AGENTS.md");
       assert.match(readFileSync(instructionPath, "utf8"), /^## 00-precedence-and-safety\.mdc$/m);
+      assert.equal(existsSync(path.join(targetDest, ".codex", "AGENTS.md")), false);
       run([...installArgs, "--category", "development"]);
       const developmentInstructions = readFileSync(instructionPath, "utf8");
       assert.match(developmentInstructions, /^## 00-precedence-and-safety\.mdc$/m);
