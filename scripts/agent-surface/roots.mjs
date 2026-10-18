@@ -427,11 +427,11 @@ export function traeCnAgentRoot(context) {
 
 // Per-rule project rules every edition reads, and the CN IDE's user rules folder.
 export function traeRuleRoot(context) {
-  return context.scope === "user" ? path.join(".trae-cn", "user_rules") : traeCliRuleRoot();
+  return context.scope === "user" ? path.join(".trae-cn", "user_rules") : traeRuleFolder();
 }
 
-// Trae CLI reads the same per-rule folder under the home directory as under a project.
-export function traeCliRuleRoot() {
+// The per-rule folder every edition reads in a project; Trae CLI also reads it under the home directory.
+export function traeRuleFolder() {
   return path.join(".trae", "rules");
 }
 

@@ -2315,7 +2315,7 @@
       }
     },
     "trae": {
-      "summary": "Trae international IDE (TraeCode), which reads ~/.trae, the documented ~/.trae-cn/agents and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, the user_rules.md rules file, subagents and MCP. The CN IDE (trae-cn) and Trae CLI 2.0 (trae-cli) read other roots and are separate targets; ~/.trae/skills is co-owned with trae-cli and ~/.trae-cn/agents with trae-cn.",
+      "summary": "Trae international IDE (TraeCode), which reads ~/.trae, the documented ~/.trae-cn/agents and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, the user_rules.md rules file, subagents and MCP. The CN IDE (trae-cn) and Trae CLI 2.0 (trae-cli) read other roots and are separate targets; ~/.trae/skills and ~/.trae/references/rules are co-owned with trae-cli and ~/.trae-cn/agents with trae-cn.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -2542,7 +2542,7 @@
           "paths": [
             "~/.trae/traecli.toml"
           ],
-          "notes": "First-party secretless MCP services are merged into mcp_servers; external or secret-bearing MCPs remain opt-in. traecli 0.207.1-tob lists them as enabled (traecli mcp list, 2026-09-30)."
+          "notes": "First-party secretless MCP services are merged into mcp_servers; external or secret-bearing MCPs remain opt-in. traecli 0.207.1-tob lists them as enabled (traecli mcp list, 2026-09-30), as do 0.207.1 and 0.209.1 (2026-10-19)."
         },
         "settings": {
           "support": "native",

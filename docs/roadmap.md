@@ -139,7 +139,7 @@ Exit: in a clean profile, the actual selected product discovers and invokes the 
 
 ### RT2.4 Remaining Platform/Edition Paths
 
-State: IMPLEMENTED (the Zed and Goose per-OS routes, the Cline per-IDE presence guard and the Trae split); native qualification is partial: Windows loading, the international IDE's user rules file, agents root and user MCP route, and the Trae CN IDE are untested; Trae CLI 2.0 passes discovery only for its MCP config, project skills and rules (see `RT4.1`); and the Windows CI job plans the per-OS routes. Gaps found along the way are listed in `RT5.3`. Depends on: `RT1.2`, `RT2.0`. Covers: `G-RT-02`, `G-RT-05`, `Q-RT-02`, `Q-RT-04`.
+State: IMPLEMENTED (the Zed and Goose per-OS routes, the Cline per-IDE presence guard and the Trae split); native qualification is partial: Windows loading, the international IDE's user rules file, agents root and user MCP route, and the Trae CN IDE are untested; Trae CLI 2.0 passes offline discovery for its MCP config, user and project skills and rules, and user agents, with project agents untested (see `RT4.1`); and the Windows CI job plans the per-OS routes. Gaps found along the way are listed in `RT5.3`. Depends on: `RT1.2`, `RT2.0`. Covers: `G-RT-02`, `G-RT-05`, `Q-RT-02`, `Q-RT-04`.
 
 Separate small changes, one change each. Each starts with the actual versioned path contract and one real reproducer; no universal config-home layer or writes to every candidate root.
 

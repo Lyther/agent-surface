@@ -1418,6 +1418,9 @@ for (const fx of [
     assert.equal(existsSync(path.join(dest, ".trae", "user_rules.md")), false, "the CLI does not read the IDE's user_rules.md");
     run(args);
     assert.equal(readFileSync(configPath, "utf8"), config, "Trae user config re-merge is idempotent");
+    run([...args, "--category", "development"]);
+    assert.match(readFileSync(path.join(dest, ".trae", "rules", "10-python.md"), "utf8"), /^globs:/m, "scoped rules keep their globs");
+    assert.equal(existsSync(path.join(dest, ".trae", "references", "rules", "10-python.md")), true, "scoped references are written");
   } finally {
     rmSync(dest, { recursive: true, force: true });
   }
