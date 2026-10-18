@@ -226,7 +226,7 @@ assert.match(`${geminiPlan.stdout}${geminiPlan.stderr}`, /unsupported install ta
 for (const [target, patterns] of [
   ["claude-code", [/\.claude\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/, /\.claude\/agents\/boss\.md <- subagents\/boss\.md/]],
   ["cursor", [/\.cursor\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/, /\.cursor\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/, /\.cursor\/agents\/boss\.md <- subagents\/boss\.md/]],
-  ["droid", [/\.factory\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/, /\.factory\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/]],
+  ["droid", [/\.agents\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/, /\.factory\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/]],
   ["codex", [/\.agents\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/]],
   ["openhands", [/\.agents\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/]],
   ["antigravity-cli", [/antigravity-cli\/plugins\/agent-surface\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/]],
@@ -342,20 +342,57 @@ writeFileSync(
 const syncPlan = run(["install", "--target", "droid", "--dest", syncDest, "--dry-run"]);
 assert.match(syncPlan, /planned stale managed removals:/);
 assert.match(syncPlan, /\.factory\/skills\/ghost-descoped-skill\/SKILL\.md/);
-assert.doesNotMatch(syncPlan, /\.factory\/skills\/karpathy-guidelines\/SKILL\.md/);
-assert.doesNotMatch(syncPlan, /\.factory\/skills\/ctf-ai-ml\/SKILL\.md/);
+assert.doesNotMatch(syncPlan, /\.agents\/skills\/karpathy-guidelines\/SKILL\.md/);
+assert.doesNotMatch(syncPlan, /\.agents\/skills\/ctf-ai-ml\/SKILL\.md/);
 const externalSyncPlan = run(["install", "--target", "droid", "--dest", syncDest, "--category", "external", "--dry-run"]);
 assert.match(externalSyncPlan, /\.factory\/skills\/ghost-descoped-skill\/SKILL\.md/);
 assert.doesNotMatch(externalSyncPlan, /\.factory\/skills\/retained-canonical-skill\/SKILL\.md/);
 run(["install", "--target", "droid", "--dest", syncDest, "--category", "external"]);
 assert.equal(existsSync(ghostPath), false);
 assert.equal(existsSync(path.join(syncDest, retainedCanonicalRel)), true);
-assert.equal(existsSync(path.join(syncDest, ".factory", "skills", "book-study", "SKILL.md")), true);
+assert.equal(existsSync(path.join(syncDest, ".agents", "skills", "book-study", "SKILL.md")), true);
 assert.doesNotMatch(
   run(["install", "--target", "droid", "--dest", syncDest, "--category", "external", "--dry-run"]),
   /\.factory\/skills\/ghost-descoped-skill\/SKILL\.md/,
 );
 rmSync(syncDest, { recursive: true, force: true });
+
+// SUBSTITUTE_JUSTIFICATION
+// - substitute: a manifest and files left by an install made before Droid's skills moved roots
+// - replaces: a real earlier agent-surface release writing Droid skills under .factory/skills
+// - necessity: the current source can no longer produce the old layout, so its owned state is seeded
+// - real-option: the real installer, manifest and filesystem run unchanged
+// - proof-limit: does not show Droid itself loading one copy; `droid doctor` reporting no duplicates does
+// - real-proof: install for droid and a .agents/skills host into one HOME, then run `droid doctor`
+// Droid reads .agents/skills beside .factory/skills, so a skill an earlier install wrote under
+// .factory/skills must move to the shared root and leave no second copy, while a skill the user put
+// there is not agent-surface's to touch. The old entries carry no category, as manifests did before
+// categories existed, and the install is category-filtered: ordinary stale pruning would keep them,
+// so only the relocation retires the copy Droid would otherwise load twice.
+const relocateDest = mkdtempSync(path.join(os.tmpdir(), "agent-surface-droid-relocate-"));
+const oldSkillRel = path.join(".factory", "skills", "workflow-boss", "SKILL.md");
+const oldReferenceRel = path.join(".factory", "skills", "workflow-boss", "references", "stale-companion.md");
+const userSkillRel = path.join(".factory", "skills", "my-own-skill", "SKILL.md");
+for (const [rel, body] of [[oldSkillRel, "old copy\n"], [oldReferenceRel, "old companion\n"], [userSkillRel, "---\nname: my-own-skill\ndescription: mine\n---\nbody\n"]]) {
+  mkdirSync(path.dirname(path.join(relocateDest, rel)), { recursive: true });
+  writeFileSync(path.join(relocateDest, rel), body);
+}
+mkdirSync(path.join(relocateDest, ".agent-surface"), { recursive: true });
+writeFileSync(path.join(relocateDest, ".agent-surface", "droid-manifest.json"), `${JSON.stringify({
+  target: "droid",
+  managed: [
+    { target: "droid", source: "skills/workflow-boss/SKILL.md", output: oldSkillRel, version: "test" },
+    { target: "droid", source: "skills/workflow-boss/references/stale-companion.md", output: oldReferenceRel, version: "test" },
+  ],
+}, null, 2)}\n`);
+run(["install", "--target", "droid", "--dest", relocateDest, "--category", "development"]);
+assert.equal(existsSync(path.join(relocateDest, ".agents", "skills", "workflow-boss", "SKILL.md")), true, "the skill is written under the shared root");
+assert.equal(existsSync(path.join(relocateDest, oldSkillRel)), false, "the owned .factory/skills copy is retired, so Droid loads one");
+assert.equal(existsSync(path.join(relocateDest, oldReferenceRel)), true, "an uncategorized companion with no successor is outside a category-filtered sync, as before");
+assert.equal(readFileSync(path.join(relocateDest, userSkillRel), "utf8").includes("name: my-own-skill"), true, "a skill the user placed is left alone");
+const relocatedManifest = JSON.parse(readFileSync(path.join(relocateDest, ".agent-surface", "droid-manifest.json"), "utf8"));
+assert.equal(relocatedManifest.managed.some((item) => item.output === oldSkillRel), false, "the manifest no longer claims the relocated copy");
+rmSync(relocateDest, { recursive: true, force: true });
 
 /*
 SUBSTITUTE_JUSTIFICATION

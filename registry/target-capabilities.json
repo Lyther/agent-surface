@@ -2195,9 +2195,9 @@
             "project"
           ],
           "paths": [
-            ".factory/skills/<skill>/..."
+            ".agents/skills/<skill>/..."
           ],
-          "notes": "External packs are optional and render only when the corresponding submodule checkout exists and the service declares skill_roots."
+          "notes": "External packs are optional and render only when the corresponding submodule checkout exists and the service declares skill_roots. They share the .agents/skills root with canonical skills."
         },
         "skills": {
           "support": "native",
@@ -2207,10 +2207,10 @@
             "project"
           ],
           "paths": [
-            "~/.factory/skills/<name>/SKILL.md",
-            ".factory/skills/<name>/SKILL.md"
+            "~/.agents/skills/<name>/SKILL.md",
+            ".agents/skills/<name>/SKILL.md"
           ],
-          "notes": "Canonical skills are emitted unchanged for Droid automatic skill discovery. Available high-impact commands remain native commands."
+          "notes": "Canonical skills are emitted unchanged for Droid automatic skill discovery. Droid also reads .agents/skills at the same level as .factory/skills and ignores one copy of a name found in both, so skills use the shared root that other .agents/skills hosts write; a copy an earlier install wrote under .factory/skills is relocated and retired. Available high-impact commands remain native commands."
         }
       }
     },
