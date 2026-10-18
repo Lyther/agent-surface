@@ -4,6 +4,9 @@ dist/
 *.log
 commands/ops-server.md
 .agent-surface/
+# Host state an editor or agent session keeps inside the checkout, such as session worktrees.
+.claude/
+.cursor/
 # MCP credential files — never commit or publish secrets.
 .env
 .env.*
