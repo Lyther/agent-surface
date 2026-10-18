@@ -106,6 +106,12 @@ const antigravityPlugin = JSON.parse(readFileSync(
   "utf8",
 ));
 assert.deepEqual(Object.keys(antigravityPlugin).sort(), ["description", "name"]);
+const antigravityRules = path.join(root, "dist", "antigravity-cli", "antigravity-cli", "plugins", "agent-surface", "rules");
+const antigravityRuleFiles = readdirSync(antigravityRules);
+assert.ok(antigravityRuleFiles.length > 0, "antigravity-cli plugin has rules");
+for (const file of antigravityRuleFiles) {
+  assert.match(readFileSync(path.join(antigravityRules, file), "utf8"), /^---\ntrigger: always_on\n---\n/, `antigravity-cli rule trigger: ${file}`);
+}
 assert.equal(generated.some((file) => file.includes(`${path.sep}gemini-cli${path.sep}`)), false);
 assert.equal(generated.some((file) => file.includes(`${path.sep}vscodium${path.sep}`)), false);
 assert.equal(generated.some((file) => file.includes(`${path.sep}qa-sec${path.sep}`) || file.endsWith(`${path.sep}qa-sec.md`)), false);
