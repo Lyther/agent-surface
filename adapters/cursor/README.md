@@ -2,7 +2,7 @@
 
 The target covers the Cursor desktop editor. [Cursor CLI](https://cursor.com/docs/cli/using) documents only project `.cursor/rules` and `mcp.json`, so for the CLI only MCP and, through `--dest`, project rules are documented; the home-directory surfaces below are unverified there. Cloud Agents are not targeted.
 
-Cursor CLI `2026.10.16-e3cb207`, `mcp list` without a model call (2026-10-19): servers from `~/.cursor/mcp.json` load without approval in a workspace other than the home directory; servers from a project `.cursor/mcp.json`, and from the user file when the workspace is the home directory itself, show `not loaded (needs approval)` until `mcp enable <name>`. Read from its bundle, not runtime-tested: it loads `.cursor/rules/**/*.mdc` from the workspace and every ancestor directory, so `~/.cursor/rules` applies only to workspaces under the home directory, it looks for agents only under the workspace, and it has no `.cursor/commands` loader.
+Cursor CLI `2026.10.16-e3cb207` on macOS arm64, `mcp list` without a model call (2026-10-19): servers from `~/.cursor/mcp.json` load without approval in a workspace other than the home directory; servers from a project `.cursor/mcp.json`, and from the user file when the workspace is the home directory itself, show `not loaded (needs approval)` until `mcp enable <name>`. Read from its bundle, not runtime-tested: it loads `.cursor/rules/**/*.mdc` from the workspace and every ancestor directory, so `~/.cursor/rules` applies only to workspaces under the home directory, it looks for agents only under the workspace, and it has no `.cursor/commands` loader.
 
 Native surfaces:
 

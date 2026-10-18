@@ -2,7 +2,7 @@
 
 The adapter maps agent-surface sources onto Kimi Code's native skills, instruction files, custom agents, and MCP configuration. It supports the Kimi Code CLI (TUI, print and web) and the official Kimi Code for VS Code extension (in VS Code and Cursor) as one target because they share Kimi's data home when `KIMI_CODE_HOME` is the same. Kimi Code Desktop is not targeted.
 
-Last local inventory: Kimi Code CLI `2.1.1` on 2026-10-19, where `kimi doctor` accepted the generated user `config.toml`, both first-party MCP servers connected at user scope and in a trusted project, and the six generated agents parsed (no model call); earlier, CLI `0.29.1` and Moonshot's Cursor extension `0.6.4` on 2026-07-27. `kimi doctor` accepted the installed `config.toml` and `tui.toml`. In a disposable project install, the live TUI connected both first-party MCP servers and activated the generated `/skill:ops-flow`; a model-backed print-mode run called `mcp__synapse__lock_list` through the generated project `mcp.json`. No extension-originated task or MCP call was run.
+Last local inventory: Kimi Code CLI `2.1.1` on macOS arm64, 2026-10-19, where `kimi doctor` accepted the generated user `config.toml`, both first-party MCP servers connected at user scope and in a trusted project, and the six generated agents parsed (no model call); earlier, CLI `0.29.1` and Moonshot's Cursor extension `0.6.4` on 2026-07-27. `kimi doctor` accepted the installed `config.toml` and `tui.toml`. In a disposable project install, the live TUI connected both first-party MCP servers and activated the generated `/skill:ops-flow`; a model-backed print-mode run called `mcp__synapse__lock_list` through the generated project `mcp.json`. No extension-originated task or MCP call was run.
 
 ## Generated paths
 
@@ -28,7 +28,7 @@ Project scope:
 - custom agents: `.kimi-code/agents/<name>.md`
 - MCP: `.kimi-code/mcp.json`, which Kimi Code 2.1.1 reads from the launch directory rather than the git root, once the folder is trusted at its "Trust this folder?" prompt
 
-Project installs write no `config.toml`: 2.1.1 reads and validates it only from `KIMI_CODE_HOME` (`kimi doctor` ignores a project copy, and the TUI's `/status` keeps its default with one). `.kimi-code/local.toml` is not a project counterpart either; Kimi writes it itself and its schema holds only `workspace.additional_dir`. Project installs before 2026-10-19 merged `default_permission_mode` and `merge_all_available_skills` into an unread `.kimi-code/config.toml`; delete those keys, or the file if nothing else uses it.
+Project installs write no `config.toml`: 2.1.1 on macOS arm64 reads and validates it only from `KIMI_CODE_HOME` (`kimi doctor` ignores a project copy, and the TUI's `/status` keeps its default with one). `.kimi-code/local.toml` is not a project counterpart either; Kimi writes it itself and its schema holds only `workspace.additional_dir`. Project installs before 2026-10-19 merged `default_permission_mode` and `merge_all_available_skills` into an unread `.kimi-code/config.toml`; delete those keys, or the file if nothing else uses it.
 
 An explicit `--dest` relocates the selected scope, including conventional VS Code and Cursor settings subtrees for a user-scope install. A default user install honors `KIMI_CODE_HOME`; the extension itself has no separate setting for that environment variable.
 
