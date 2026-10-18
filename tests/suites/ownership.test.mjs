@@ -404,6 +404,17 @@ try {
     assert.equal(replaced.code, 0, replaced.out);
     assert.match(read(general, "AGENTS.md"), /^# AGENTS\.md - agent-surface rules$/m);
     assert.ok(!existsSync(path.join(general, legacy)) && !claims(general, "codex", legacy), "the old route is retired with its replacement");
+
+    // When another host already owns an identical root AGENTS.md, the new route is a skip, but
+    // retiring the old one would still drop its development contribution, so the selection stops.
+    const shared = oldCodex("codex-shared-development", "development");
+    const droid = project(shared, "droid", ["--category", "rules"]);
+    assert.equal(droid.code, 0, droid.out);
+    const sharedBefore = snapshot(shared);
+    const sharedNarrower = project(shared, "codex", ["--category", "rules"]);
+    assert.equal(sharedNarrower.code, 1, sharedNarrower.out);
+    assert.match(sharedNarrower.out, /AGENTS\.md replaces \.codex\/AGENTS\.md, which carries the development category's contribution/);
+    assert.deepEqual(snapshot(shared), sharedBefore, "a matching shared document does not retire the old one's contribution");
   }
 
   // The same identity for a document Cline's OS Documents folder relocates after a real development
