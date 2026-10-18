@@ -24,7 +24,7 @@ The SVG is the editable source and browser-renderable artifact. Its text equival
 | R | Evidence: hits and selected ID | OBSERVED | [Baseline contract](../contracts/grimoire-evaluation.md#observed-baseline); target-ID metrics only. Full skill task execution not measured. |
 | C | Candidate: any-term matching with BM25 ranking | IMPLEMENTED, CONFIRMED | [Shipped change](../contracts/grimoire-evaluation.md#shipped-change) measured against two rejected alternatives on the 30 diagnostic cases, then held on the 52-request held-out set; the real compiled reader at `aab5020` reproduced the scored arm on all 52. |
 | A | Evidence: caller choice on real results, including no-skill controls | OBSERVED | [Held-out relevance](../contracts/grimoire-evaluation.md#held-out-relevance); two models, 10/10 abstentions on uncovered requests. Replayed results in one decision, not a live tool loop. |
-| V | Evaluation: native task outcome under an official verifier | PROPOSED | [Decision contract](../contracts/grimoire-evaluation.md#comparison-and-decision), [Phase GR](../roadmap.md#phase-gr-grimoire-and-asset-effectiveness). Official verifier/environment qualification still pending. |
+| V | Evaluation: native task outcome under an official verifier | PROPOSED | [Decision contract](../contracts/grimoire-evaluation.md#comparison-and-decision), [Phase GR](../roadmap.md#phase-gr-grimoire-and-asset-effectiveness). One official task environment and its verifier are qualified (reference 1.0, untouched 0.0, wrong but well-formed 0.5 and 0.0); no native task outcome has been measured. |
 
 ## Text Alternative and Boundaries
 
