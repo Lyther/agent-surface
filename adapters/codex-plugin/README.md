@@ -4,11 +4,14 @@ An **export format**, not a host to install into. `build` renders a portable plu
 
 ```bash
 node scripts/agent-surface.mjs build --target codex-plugin
-codex plugin marketplace add dist/codex-plugin
+codex plugin marketplace add ./dist/codex-plugin
 codex plugin add agent-surface@agent-surface
 codex plugin list
 codex plugin remove agent-surface@agent-surface
+codex plugin marketplace remove agent-surface
 ```
+
+Keep the leading `./`: `codex-cli` 0.159.2 reads a bare `dist/codex-plugin` as the GitHub repository `dist/codex-plugin` and tries to clone it, so it would register whatever that repository holds. On 0.159.2 the sequence above adds the marketplace, installs and lists the plugin as enabled, and removes it and the marketplace, `debug prompt-input` lists `agent-surface:ops-swarm` until removal, and a copy of the package whose manifest omits `$schema` is still rejected with `missing plugin.json` (2026-10-19).
 
 Generated layout, relative to the marketplace root you pass to `plugin marketplace add`:
 
