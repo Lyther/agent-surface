@@ -1,13 +1,13 @@
 # Grimoire Evaluation View
 
 Date: 2026-10-16. Source: `e44121f8a0f5796bc59c616b813ff3c79d1d5295`.
-Scope: retrieval experiment and the proposed task-outcome comparison, not a whole-project atlas.
+Scope: retrieval experiment and the task-outcome comparison, not a whole-project atlas.
 
 ## View Plan
 
 | View | Audience | Question | State | Why retain it |
 |---|---|---|---|---|
-| [Grimoire evaluation](grimoire-evaluation.svg) | Maintainer and experiment peer | Where was the retrieval failure, and what proof is still missing? | Measured retrieval and held-out confirmation above; proposed task comparison below | Prevents fast MCP calls or a graded retrieval score being confused with native task benefit. |
+| [Grimoire evaluation](grimoire-evaluation.svg) | Maintainer and experiment peer | Where was the retrieval failure, and what proof is still missing? | Measured retrieval and held-out confirmation above; measured task delivery below | Prevents fast MCP calls or a graded retrieval score being confused with native task benefit. |
 
 The SVG is the editable source and browser-renderable artifact. Its text equivalent is below. No hosted renderer or private architecture upload is needed.
 
@@ -24,7 +24,7 @@ The SVG is the editable source and browser-renderable artifact. Its text equival
 | R | Evidence: hits and selected ID | OBSERVED | [Baseline contract](../contracts/grimoire-evaluation.md#observed-baseline); target-ID metrics only. Full skill task execution not measured. |
 | C | Candidate: any-term matching with BM25 ranking | IMPLEMENTED, CONFIRMED | [Shipped change](../contracts/grimoire-evaluation.md#shipped-change) measured against two rejected alternatives on the 30 diagnostic cases, then held on the 52-request held-out set; the real compiled reader at `aab5020` reproduced the scored arm on all 52. |
 | A | Evidence: caller choice on real results, including no-skill controls | OBSERVED | [Held-out relevance](../contracts/grimoire-evaluation.md#held-out-relevance); two models, 10/10 abstentions on uncovered requests. Replayed results in one decision, not a live tool loop. |
-| V | Evaluation: native task outcome under an official verifier | PROPOSED | [Decision contract](../contracts/grimoire-evaluation.md#comparison-and-decision), [Phase GR](../roadmap.md#phase-gr-grimoire-and-asset-effectiveness). Not measured for Grimoire. A separate installed-profile cohort on six SkillsBench `b63b7b2` tasks, measured 2026-10-18 after this view's source revision, ran with MCP off in every arm: no profile met the practical-effect criterion and production is unchanged, which says nothing about Grimoire delivery. |
+| V | Evaluation: native task outcome under an official verifier | OBSERVED | [Decision contract](../contracts/grimoire-evaluation.md#comparison-and-decision), [GR2](../roadmap.md#gr2-native-task-and-category-roi). Droid 0.244.0, two covered SkillsBench `b63b7b2` tasks, five paired groups, measured 2026-10-18 after this view's source revision. The agent never loaded, searched or fetched through Grimoire, whose tools Droid lists only by name. Successes: 0/5 without a skill, 1/5 with the covering skill's text supplied, 1/5 with Grimoire wired. This is a delivery gap, not a retrieval or task-benefit result. The separate installed-profile cohort ran with MCP off. |
 
 ## Text Alternative and Boundaries
 
@@ -34,4 +34,4 @@ Baseline target hit@5 under the conjunctive reader: literal 24/30; one model's q
 
 Confirmed: 52 held-out requests across five packs and six domains, their pooled candidates graded blind, give useful-in-top-five 11/42 to 40/42 and nDCG@5 0.180 to 0.650 against the conjunctive reader, with 10 no-skill controls both caller models declined. Grades are model-authored and the requests were written in-project, so this is graded retrieval quality, not task benefit.
 
-Proposed: native Grimoire delivery on tasks its corpus covers, under the same harness and official verifiers. No new search service, cache, store, default profile or universal harness framework is selected. Computer use is outside this work.
+Measured: native Grimoire delivery on two tasks its corpus covers, under the same harness and official verifiers. On Droid the agent never discovered Grimoire, so no task benefit was measured; discovery on a host that defers its tools is the open failure. No new search service, cache, store, default profile or universal harness framework is selected. Computer use is outside this work.
