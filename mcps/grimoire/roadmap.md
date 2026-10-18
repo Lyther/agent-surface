@@ -27,7 +27,7 @@ Small build. Phases are checkpoints, not ceremony; each box names its acceptance
 MCP-host coverage is **honest, not blanket**. Three groups (see `registry/target-capabilities.json` `surfaces.mcp`):
 
 - **Generated (22)** — auto-rendered + non-destructively merged across JSON/TOML/YAML config families; the authoritative host list is `registry/target-capabilities.json` and `docs/reference/targets.md`.
-- **No modeled MCP surface** — Antigravity desktop (use Antigravity CLI), DSH (developer-preview skills only), and Pi (no stdio MCP config verified).
+- **No modeled MCP surface** — Antigravity desktop (use Antigravity CLI) and DSH (developer-preview skills only).
 
 - [x] Registry: `grimoire` `first_party kind:"mcp"` + `served_by:["grimoire"]` on the `anthropic-cybersecurity-skills` source-pack (+ schema allows `served_by`) → `npm run check` green.
 - [x] `scripts/agent-surface.mjs`: grimoire in the first-party MCP set → renders/merges across **all 22 generated MCP hosts**; repo tests cover each active config family.

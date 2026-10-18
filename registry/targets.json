@@ -74,7 +74,8 @@
       "renders": [
         "skills",
         "rules",
-        "external"
+        "external",
+        "mcps"
       ]
     },
     "pool": {

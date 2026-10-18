@@ -490,11 +490,12 @@
       ]
     },
     "pi": {
-      "summary": "Pi coding agent CLI (npm @earendil-works/pi-coding-agent; the @mariozechner package is deprecated): agent-surface generates skills, explicit-only compatibility skills, AGENTS.md instructions and external skill packs in the default ~/.pi/agent (PI_CODING_AGENT_DIR is not followed) or project roots.",
+      "summary": "Pi coding agent CLI (npm @earendil-works/pi-coding-agent; the @mariozechner package is deprecated): agent-surface generates skills, explicit-only compatibility skills, AGENTS.md instructions, external skill packs and first-party MCP wiring in the default ~/.pi/agent (PI_CODING_AGENT_DIR is not followed) or project roots.",
       "generated_render_tokens": [
         "skills",
         "rules",
-        "external"
+        "external",
+        "mcps"
       ],
       "evidence": [
         {
@@ -508,6 +509,10 @@
         {
           "label": "Pi settings",
           "url": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/docs/settings.md"
+        },
+        {
+          "label": "Pi MCP",
+          "url": "https://raw.githubusercontent.com/earendil-works/pi/v1.3.0/packages/coding-agent/docs/mcp.md"
         },
         {
           "label": "Pi configuration",
@@ -559,13 +564,17 @@
           "notes": "External Agent Skills mirror into Pi skill roots."
         },
         "mcp": {
-          "support": "unknown",
-          "generation": "not-generated",
+          "support": "native",
+          "generation": "generated",
           "scope": [
-            "user"
+            "user",
+            "project"
           ],
-          "paths": [],
-          "notes": "No stdio MCP configuration format verified for Pi; first-party MCP is not generated."
+          "paths": [
+            "~/.pi/agent/mcp.json",
+            ".pi/mcp.json"
+          ],
+          "notes": "First-party secretless MCP services merge into mcpServers as stdio entries; Pi reads .pi/mcp.json only in trusted projects. Pi's default codemode exposure is kept: the tools are callable from codemode scripts and are not declared to the model. Pi 1.3.0 connected both generated user entries and listed their tools; task use is untested."
         }
       }
     },

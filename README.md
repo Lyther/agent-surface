@@ -29,7 +29,7 @@ The `install` step wires each host's MCP *config* to point at `~/.local/bin/syna
 
 - **Compiles source primitives** — `skills/`, manual-only `commands/`, `rules/`, `subagents/`, external packs, and `ignores/` become per-target outputs via explicit producers.
 - **Speaks each host natively** — each target gets the surfaces it understands: commands, workflows, skills, instructions, plugins, rules, subagents, MCP config, or ignore files.
-- **Wires first-party MCP** - Synapse (shared memory) and Grimoire (just-in-time skill retrieval) auto-merge, secretlessly and non-destructively, into all 24 MCP-capable hosts (JSON, TOML, and YAML config families).
+- **Wires first-party MCP** - Synapse (shared memory) and Grimoire (just-in-time skill retrieval) auto-merge, secretlessly and non-destructively, into all 25 MCP-capable hosts (JSON, TOML, and YAML config families).
 - **Installs deterministically** — dry-run previews, project-scope gating, manifest tracking, generated-file strict-sync, and non-destructive config merges that preserve unknown sibling entries.
 
 ## Supported targets
@@ -88,7 +88,7 @@ For all assets with only the two primary MCPs, run the general full sync, then `
 
 ## First-party MCP services
 
-Built from `mcps/`, installed once, then auto-wired (non-destructive merge) into all 24 MCP-capable hosts across JSON/TOML/YAML config families - see [docs/reference/targets.md](docs/reference/targets.md):
+Built from `mcps/`, installed once, then auto-wired (non-destructive merge) into all 25 MCP-capable hosts across JSON/TOML/YAML config families - see [docs/reference/targets.md](docs/reference/targets.md):
 
 - **Synapse** — shared multi-agent memory + file-lock coordination.
 - **Grimoire** — read-only, just-in-time retrieval over large Agent-Skill packs (`anthropic-cybersecurity-skills`, `rev-skills`, and `hack-skills`) so the model searches instead of loading those catalogs at startup.

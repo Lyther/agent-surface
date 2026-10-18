@@ -49,7 +49,7 @@ The namespace resolves as: **`SYNAPSE_PROJECT`** (a path) → else the **git roo
 
 ### Coverage boundary
 
-Antigravity desktop, DSH, and Pi intentionally have no generated Synapse route. Use the Antigravity CLI plugin target for that family; DSH remains skills-only while its developer-preview profile contract changes; Pi has no verified declarative stdio MCP configuration. All other implemented targets are represented in the generated matrix.
+Antigravity desktop and DSH intentionally have no generated Synapse route. Use the Antigravity CLI plugin target for that family; DSH remains skills-only while its developer-preview profile contract changes. All other implemented targets are represented in the generated matrix.
 
 ## Security / threat model
 

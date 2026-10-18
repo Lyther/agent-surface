@@ -15,7 +15,7 @@ Last updated: 2026-08-31
 ## Status Snapshot
 
 - **Done**: Phase 0 (spike + contract + model + namespace), Phase 1 (sidecar/bridge/store/identity/memory/locks/realtime/instructions), Phase 2 (autostart + launchd, security pass, threat-model README, first-party distribution, **concurrency + crash recovery**), Phase 3 (**non-destructive MCP merge engine**; external MCP opt-in policy reconciled), Phase 4 (**dirty-bit coalescing**, **bridge MCP-roots routing**, SSE-resume + idle-shutdown claims truth-stated). Proof: synapse `npm test` 40/40; repo gates are rerun with each distribution change.
-- **Phase 5 (production-readiness) — mostly done** (PR #14 and later portfolio refreshes): shipped distribution, CI, `doctor` sidecar health, Linux lazy-start + reference systemd unit, YAML config support, and CHANGELOG. **Open by nature**: per-host live transport smoke and the `synapse-v0.4.0` git tag. The current matrix has 22 generated MCP hosts; Antigravity desktop, DSH, and Pi have no modeled MCP.
+- **Phase 5 (production-readiness) — mostly done** (PR #14 and later portfolio refreshes): shipped distribution, CI, `doctor` sidecar health, Linux lazy-start + reference systemd unit, YAML config support, and CHANGELOG. **Open by nature**: per-host live transport smoke and the `synapse-v0.4.0` git tag. The current matrix has 23 generated MCP hosts; Antigravity desktop and DSH have no modeled MCP.
 
 ## Phase 0–1: Core (DONE)
 

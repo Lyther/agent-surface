@@ -268,8 +268,13 @@ try {
   });
   assert.match(mcpsAllPlan, /MCP \+= grimoire, synapse/);
 }
-const piDshStatus = status(["install", "--target", "pi,dsh", "--scope", "user", "--allow-scope-root", "--category", "mcps", "--dry-run"]);
-assert.notEqual(piDshStatus.status, 0);
+// A category no selected target can apply fails: DSH wires no MCP. Pi does.
+const dshStatus = status(["install", "--target", "dsh", "--scope", "user", "--allow-scope-root", "--category", "mcps", "--dry-run"]);
+assert.notEqual(dshStatus.status, 0);
+const piMcpPlan = run(["install", "--target", "pi", "--scope", "user", "--allow-scope-root", "--category", "mcps", "--dry-run"], {
+  env: { ...process.env, HOME: "/tmp/agent-surface-mcps-all-home" },
+});
+assert.match(piMcpPlan, /\.pi\/agent\/mcp\.json MCP \+= grimoire, synapse/);
 
 // Codex keeps manual workflows non-implicit in the shared Agent Skills root.
 // Other targets may own the same compatibility file, but Codex must not create
