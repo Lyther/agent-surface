@@ -1,14 +1,16 @@
 # Grok Build adapter
 
-Generates native skills, custom agents, project `AGENTS.md` instructions, external Agent Skills, and current TOML configuration.
+Generates native skills, custom agents, `AGENTS.md` instructions, external Agent Skills, and current TOML configuration.
 
 Outputs:
 
 - `.grok/skills/<name>/SKILL.md`
 - `.grok/skills/<external-skill>/...`
 - `.grok/agents/<name>.md` for the six subagents, with `--category development`
-- `AGENTS.md` and `.grok/references/rules/<rule>.md` for project instructions
+- `~/.grok/AGENTS.md` at user scope, which Grok loads as global instructions, or the project's root `AGENTS.md`, plus `.grok/references/rules/<rule>.md`
 - `.grok/config.toml` with `mcp_servers`; user-scope installs also set `ui.permission_mode = "always-approve"`
+
+Grok loads a project's `AGENTS.md`, skills, MCP servers and hooks only after the folder is trusted (`grok --trust`, `/hooks-trust`, or `~/.grok/trusted_folders.toml`). On grok 1.0.46 and 1.0.62, `grok inspect --json` in an untrusted project-only install listed no project instructions and no skills until the folder was trusted, while a user install's `~/.grok/AGENTS.md` is listed with `scope: global` either way.
 
 The installer merges owned TOML fields and MCP tables while preserving unrelated top-level values, table siblings, and user-owned MCP servers. Project installs do not write the user-scoped UI permission default. The obsolete `.grok/settings.json` route is no longer generated.
 

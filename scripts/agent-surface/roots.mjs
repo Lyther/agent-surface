@@ -109,6 +109,12 @@ export function grokBuildAgentRoot() {
   return path.join(".grok", "agents");
 }
 
+// Grok reads ~/.grok/AGENTS.md as global instructions, outside project trust, and a project's AGENTS.md
+// files from the session directory up to the repository root.
+export function grokBuildInstructionPath(context) {
+  return context.scope === "user" ? path.join(".grok", "AGENTS.md") : "AGENTS.md";
+}
+
 export function dshSkillRoot() {
   return path.join(".dsh", "skills");
 }
