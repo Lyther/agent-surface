@@ -340,7 +340,7 @@
       }
     },
     "grok-build": {
-      "summary": "Grok Build supports Agent Skills, project AGENTS.md instructions, custom agents, TOML configuration, and MCP; agent-surface generates skills, instructions, native agents, first-party MCP wiring, and always-approve execution policy.",
+      "summary": "Grok Build supports Agent Skills, global and project AGENTS.md instructions, custom agents, TOML configuration, and MCP; agent-surface generates skills, instructions, native agents, first-party MCP wiring, and always-approve execution policy.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -388,13 +388,15 @@
           "support": "native",
           "generation": "generated",
           "scope": [
+            "user",
             "project"
           ],
           "paths": [
+            "~/.grok/AGENTS.md",
             "AGENTS.md",
             ".grok/references/rules/<rule>.md"
           ],
-          "notes": "Project instructions use the AGENTS.md compatibility family; scoped policies remain separate references."
+          "notes": "User installs write ~/.grok/AGENTS.md, which Grok loads as global instructions outside folder trust; project installs use the shared root AGENTS.md, loaded once the folder is trusted. Scoped policies remain separate references."
         },
         "subagents": {
           "support": "native",

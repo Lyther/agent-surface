@@ -974,6 +974,7 @@ export function validateGeneratedTarget(target, outputs) {
   } else if (target === "grok-build") {
     requireContains(path.join(".grok", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".grok", "skills", "redteam-boundary-policy", "SKILL.md"), skillFrontmatter);
+    requireContains(path.join(".grok", "AGENTS.md"), /agent-surface Grok Build rules/);
     requireContains(path.join(".grok", "config.toml"), /^\[ui\]$/m);
     requireContains(path.join(".grok", "config.toml"), /^permission_mode = "always-approve"$/m);
     requireContains(path.join(".grok", "config.toml"), /^\[mcp_servers\.synapse\]$/m);

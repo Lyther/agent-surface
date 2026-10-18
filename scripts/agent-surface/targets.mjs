@@ -12,7 +12,7 @@ import { MCP_ENV_LAUNCHER, mcpLauncherInvocation, optionalServiceMcpServers, ren
 import { normalizeExternalSkillFile } from "./postprocess.mjs";
 import { assetCategoryAllowed, assetCategoryFor, packageVersion, readAssetCategories, readOptionalServices, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityCliSubagent, renderAntigravityWorkflow, renderClaudeSubagent, renderClineSubagent, renderClineWorkflow, renderCodexSubagent, renderCopilotSubagent, renderCursorCommand, renderCursorSubagent, renderDeepAgentsSubagent, renderDroidCommand, renderDroidSubagent, renderGooseRecipe, renderGrokBuildSubagent, renderInstructionDocument, renderKiloRuleDocument, renderKiloSubagent, renderKiloWorkflow, renderKimiCodeSubagent, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderQwenCodeSubagent, renderScopedRuleReferenceDocument, renderTraeSubagent, renderVanillaSkill, renderVsCodeInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
-import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, clineAgentRoot, clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexInstructionPath, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildAgentRoot, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piMcpPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
+import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, clineAgentRoot, clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexInstructionPath, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildAgentRoot, grokBuildInstructionPath, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piMcpPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
 import { readRulesForContext } from "./rules.mjs";
 import { ignoreOutputs, subagentOutputs } from "./source-primitives.mjs";
 import { exists, fail, isPathInside, isSafeRelativePath } from "./util.mjs";
@@ -133,7 +133,7 @@ export const targets = {
     }],
   },
   "grok-build": {
-    label: "Grok Build skills, agents and project instructions",
+    label: "Grok Build skills, agents and instructions",
     commandRenders: ["skills"],
     staticRenders: ["rules"],
     skillRenders: ["skills"],
@@ -1578,8 +1578,7 @@ export async function antigravityCliStaticOutputs(catalog, context) {
 // a host's own config root (Kimi Code's) is not shared and keeps its host header.
 const SHARED_AGENTS_DOCUMENT = { title: "AGENTS.md - agent-surface rules", label: "Project instructions" };
 
-async function rulesDocumentOutputs(context, { title, label, relativeOutput, referencesRoot, renderKind = "rules", projectOnly = false }) {
-  if (projectOnly && context.scope === "user") return [];
+async function rulesDocumentOutputs(context, { title, label, relativeOutput, referencesRoot, renderKind = "rules" }) {
   const shared = context.scope === "project" && relativeOutput === "AGENTS.md";
   const header = shared ? SHARED_AGENTS_DOCUMENT : { title, label };
   const document = { source: "rules/*.mdc", relativeOutput, content: await renderInstructionDocument(header.title, header.label, context) };
@@ -1726,10 +1725,9 @@ export async function droidStaticOutputs(_commands, context) {
 export async function grokBuildStaticOutputs(_commands, context) {
   return rulesDocumentOutputs(context, {
     title: "AGENTS.md - agent-surface Grok Build rules",
-    label: "Grok Build project instructions",
-    relativeOutput: "AGENTS.md",
+    label: "Grok Build instructions",
+    relativeOutput: grokBuildInstructionPath(context),
     referencesRoot: path.join(".grok", "references", "rules"),
-    projectOnly: true,
   });
 }
 

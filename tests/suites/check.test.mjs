@@ -44,9 +44,11 @@ assert.match(clineCapabilities.surfaces.subagents.notes, /subagents\/\*\.md sour
 assert.equal(clineCapabilities.surfaces["runtime-subagents"].generation, "not-applicable");
 assert.match(clineCapabilities.surfaces["runtime-subagents"].notes, /separate from Configured Agents/);
 assert.deepEqual(targetCapabilities.targets["grok-build"].surfaces.rules.paths, [
+  "~/.grok/AGENTS.md",
   "AGENTS.md",
   ".grok/references/rules/<rule>.md",
 ]);
+assert.deepEqual(targetCapabilities.targets["grok-build"].surfaces.rules.scope, ["user", "project"]);
 
 // Every case below rewrites a tracked registry file, so it runs in a disposable checkout: neither
 // the rewrite nor an interrupted run can reach the shared one.
