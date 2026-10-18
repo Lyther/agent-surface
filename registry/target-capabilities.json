@@ -2820,7 +2820,7 @@
             "plugins/agent-surface/plugin.json",
             ".agents/plugins/marketplace.json"
           ],
-          "notes": "One portable plugin manifest in the location the format specifies, plus the local marketplace manifest. The manifest declares the schema identifier the published manifest schema requires as a const; verified against codex-cli 0.153.2, where a manifest omitting it is rejected on install with `missing plugin.json` while the valid manifest installs, caches its companions, reaches model-visible discovery, and is removed cleanly. An earlier .codex-plugin overlay was compensating for that invalid manifest and has been removed. Paths are relative to the marketplace root passed to the host's `plugin marketplace add`."
+          "notes": "One portable plugin manifest in the location the format specifies, plus the local marketplace manifest. The manifest declares the schema identifier the published manifest schema requires as a const; verified against codex-cli 0.153.2 and again on 0.159.2 (2026-10-19), where a manifest omitting it is rejected on install with `missing plugin.json` while the valid manifest installs, caches its companions, reaches model-visible discovery, and is removed cleanly. An earlier .codex-plugin overlay was compensating for that invalid manifest and has been removed. Paths are relative to the marketplace root passed to the host's `plugin marketplace add`."
         },
         "skills": {
           "support": "native",
