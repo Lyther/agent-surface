@@ -365,6 +365,11 @@ export function checkCommandMetadata(commands, errors) {
   }
 }
 
+// Antigravity CLI loads only the first 24,000 bytes of a skill body (its `plugin validate` warns past it),
+// and what it drops is the end, where skills keep their closing rules. Detail that does not fit belongs in
+// the skill's references/, which ships beside it.
+const SKILL_BODY_BYTE_LIMIT = 24000;
+
 export function checkSkillMetadata(skills, errors) {
   const names = new Set();
   for (const skill of skills) {
@@ -384,6 +389,11 @@ export function checkSkillMetadata(skills, errors) {
       errors.push(`${skill.relativePath}: description must be a non-empty string`);
     } else if (skill.metadata.description.length > 1024) {
       errors.push(`${skill.relativePath}: description exceeds 1024 characters`);
+    }
+    // trimEnd: the validator does not count the trailing newline, so the figures match its warning.
+    const bodyBytes = Buffer.byteLength(skill.body.trimEnd(), "utf8");
+    if (bodyBytes > SKILL_BODY_BYTE_LIMIT) {
+      errors.push(`${skill.relativePath}: body is ${bodyBytes} bytes; Antigravity CLI loads only the first ${SKILL_BODY_BYTE_LIMIT}, so move detail into references/`);
     }
   }
 }
