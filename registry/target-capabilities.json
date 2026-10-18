@@ -1876,7 +1876,7 @@
             "~/.agents/skills/<name>/SKILL.md",
             ".agents/skills/<name>/SKILL.md"
           ],
-          "notes": "Canonical skills are emitted unchanged. Available high-impact commands are emitted as explicit-invocation compatibility skills with disable-model-invocation: true; host enforcement remains unproven."
+          "notes": "Canonical skills are emitted unchanged. Available high-impact commands are emitted as explicit-invocation compatibility skills with disable-model-invocation: true, which OpenHands CLI 1.16.0 (SDK 1.21.0) does not enforce: the SDK lists them among the skills the model may load and its invoke_skill tool loads any listed skill (2026-10-19)."
         },
         "rules": {
           "support": "native",
@@ -1937,6 +1937,15 @@
           "action": "Existing CLI users can keep this target; evaluate a maintained OpenHands component separately before adopting it for new work.",
           "source_url": "https://github.com/OpenHands/OpenHands-CLI#project-status",
           "checked_at": "2026-09-28"
+        },
+        {
+          "code": "OPENHANDS_MANUAL_SKILLS_MODEL_INVOCABLE",
+          "kind": "compatibility",
+          "surface": "skills",
+          "message": "OpenHands CLI 1.16.0 (SDK 1.21.0) ignores disable-model-invocation. The explicit-only skills agent-surface writes for its high-impact workflows are listed among the skills the model may load, and the invoke_skill tool OpenHands attaches can load them without the user selecting them. Each skill body still says the workflow must be selected explicitly.",
+          "action": "Where a workflow must not load without explicit invocation, leave out the asset categories that carry high-impact commands: development, and private when its local commands/ops-server.md overlay exists. OpenHands reads user skills from the shared ~/.agents/skills root, and a skill another target there (for example codex, vscode or zed) still claims is kept when only OpenHands drops it, so every target installed into that root must leave the categories out. To remove skills an earlier install wrote, rerun the general install of each of those targets, or delete only the explicit-only skill directories (boot-facade, ops-nuke, ship-commit, ship-deploy, ship-release, and ops-server when the private overlay was installed) once no other target needs them.",
+          "source_url": "https://docs.openhands.dev/overview/skills",
+          "checked_at": "2026-10-19"
         }
       ]
     },

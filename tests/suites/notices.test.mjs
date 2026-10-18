@@ -49,6 +49,7 @@ try {
   // Stored notices stay with their target: one run, two plans.
   const combined = planSections(run(["install", "--target", "openhands,cursor", "--scope", "project", "--dest", path.join(scratch, "combined"), "--dry-run"]));
   assert.match(combined.openhands, /^ {2}OPENHANDS_CLI_LEGACY \(maintenance; target\)$/m);
+  assert.match(combined.openhands, /^ {2}OPENHANDS_MANUAL_SKILLS_MODEL_INVOCABLE \(compatibility; skills\)$/m);
   assert.doesNotMatch(combined.cursor, /^notices:$/m);
 
   // The shared-root notice follows the resolved root, not --scope: a user-scope --dest workspace gets
