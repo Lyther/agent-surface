@@ -1231,7 +1231,7 @@
             "~/.qoder/commands/<name>.md",
             ".qoder/commands/<name>.md"
           ],
-          "notes": "High-impact workflows remain explicit slash commands in Qoder's Markdown command format."
+          "notes": "High-impact workflows remain explicit slash commands in Qoder's Markdown command format, with disable-model-invocation: true so the model cannot start them through the Skill tool."
         },
         "rules": {
           "support": "native",
@@ -1336,7 +1336,7 @@
             "~/.qwen/commands/<name>.md",
             ".qwen/commands/<name>.md"
           ],
-          "notes": "High-impact workflows use the current Markdown command format, not deprecated TOML commands."
+          "notes": "High-impact workflows use the current Markdown command format, not deprecated TOML commands, with disable-model-invocation: true so they stay out of the model's invocable list."
         },
         "rules": {
           "support": "native",
