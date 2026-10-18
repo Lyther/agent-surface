@@ -211,7 +211,7 @@ Exit for any admission: current exact component, package/license/security review
 
 ### RT5.2 Task-Shaped Distribution Comparison
 
-State: ACTIVE EXPERIMENT, 2026-10-16, through [Phase GR](#phase-gr-grimoire-and-asset-effectiveness). The Grimoire retrieval baseline is measured; native task/category ROI is still unrun. Depends on: `RT4.1`. Compare direct files, native plugins and on-demand retrieval only on matched tasks and actual outcomes, including child costs when exposed. Keep failures and contaminated runs visible. Do not infer quality/cost from body size or tool-list bytes. No code change or efficiency claim is required just to close this design.
+State: ACTIVE EXPERIMENT, 2026-10-16, through [Phase GR](#phase-gr-grimoire-and-asset-effectiveness). The Grimoire retrieval baseline is measured, and GR2's installed-profile cohort measured category ROI on six software-engineering tasks without a practical effect; native Grimoire task delivery is still unrun. Depends on: `RT4.1`. Compare direct files, native plugins and on-demand retrieval only on matched tasks and actual outcomes, including child costs when exposed. Keep failures and contaminated runs visible. Do not infer quality/cost from body size or tool-list bytes. No code change or efficiency claim is required just to close this design.
 
 ### RT5.3 Gaps Found During RT2.4
 
