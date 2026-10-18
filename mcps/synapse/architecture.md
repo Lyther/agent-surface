@@ -57,7 +57,7 @@ Trust boundary: the local machine (single user, cooperative concurrent agents). 
 | Component | Responsibility |
 |---|---|
 | `sidecar` | Long-lived process; **sole** `node:sqlite` owner (WAL); Streamable HTTP on 127.0.0.1; N sessions; `commit_hook` → notifier; the realtime hub |
-| `bridge` | Tiny stdio MCP server per client; autostarts + health-checks the sidecar; proxies JSON-RPC to sidecar HTTP; forwards `resources/updated` to host stdout. Resolves the project key from `SYNAPSE_PROJECT` → host's first MCP root (`file://`) → cwd git-root (P4.3), so out-of-workspace launches still isolate. Universal-compat entry. |
+| `bridge` | Tiny stdio MCP server per client; autostarts + health-checks the sidecar; proxies JSON-RPC to sidecar HTTP; forwards `resources/updated` to host stdout. Resolves the project key from `SYNAPSE_PROJECT` → host's first MCP root (`file://`) → cwd git-root (P4.3); `SYNAPSE_ROOTS=ignore` skips the roots step for hosts whose MCP proxy advertises roots it cannot serve, so out-of-workspace launches still isolate. Universal-compat entry. |
 | `identity` | Per-session `agent_id`: `SYNAPSE_AGENT_ID` → MCP `clientInfo` → stable session id. Never throws; provenance only. |
 | `namespace` | Project DB = hash(`git rev-parse --show-toplevel` realpath) → realpath cwd → `SYNAPSE_NAMESPACE`. Global DB fixed. |
 | `store` | `memory`+FTS5, `locks`; monotonic cursor; atomic lock txn; redaction on ingest |
@@ -80,7 +80,7 @@ mcps/synapse/
     store.ts      - SOLE node:sqlite owner: per-project + global DBs (WAL), FTS5/bm25 recall, byte budget, atomic lock reap+claim, ingest redaction, onCommit(channel). Must not know HTTP/MCP. Verified by test/store.test.ts.
     tools.ts      - Transport-agnostic tool specs (tools/list) + validated dispatcher (tools/call); results are JSON-in-text (data, not instructions); lock denials carry hints.
     sidecar.ts    - ONE process: low-level MCP Server per session over Streamable HTTP (127.0.0.1 + bearer + DNS-rebind), resources/subscribe handling, onCommit → coalesced resources/updated fan-out (P4.2), 2 MB body cap. Verified by test/sidecar.test.ts + test/coalescing.test.ts + test/recovery.test.ts.
-    bridge.ts     - Per-host stdio Server <-> upstream HTTP Client; proxies tools/resources; forwards resources/updated + list_changed downstream; autostarts the sidecar; resolves project key roots → SYNAPSE_PROJECT → cwd git-root (P4.3). Verified by test/bridge.test.ts + test/roots-routing.test.ts.
+    bridge.ts     - Per-host stdio Server <-> upstream HTTP Client; proxies tools/resources; forwards resources/updated + list_changed downstream; autostarts the sidecar; resolves project key SYNAPSE_PROJECT → roots (skipped under SYNAPSE_ROOTS=ignore) → cwd git-root (P4.3). Verified by test/bridge.test.ts + test/roots-routing.test.ts.
     bootstrap.ts  - Zero-config: discovery file + persistent token (mode 600) + lock-elected sidecar spawn + /health poll. Owns ~/.synapse file lifecycle.
     namespace.ts  - Canonical project key = git-root realpath hash (override -> git root -> cwd); fixed global path. Owns physical isolation routing.
     identity.ts   - Derive agent_id (env -> clientInfo -> session) for provenance; never throws.
@@ -140,7 +140,7 @@ Distribution lives in the parent repo, not here: `registry/optional-services.jso
 ## Operations
 
 - **Lifecycle**: the first client's bridge lock-elects and autostarts the sidecar (discovery + bearer token in `~/.synapse`, mode 0600); it stays resident (no idle-shutdown). `npm run install:synapse` additionally deploys the `local.synapse` launchd service (RunAtLoad + KeepAlive) and restarts it on every redistribute via bootout→bootstrap; the token + DBs persist.
-- Config: `SYNAPSE_DB_DIR` (default `~/.synapse`), `SYNAPSE_PORT` (default 4319), `SYNAPSE_TOKEN`/`SYNAPSE_URL` (auto if unset); per-session `SYNAPSE_AGENT_ID`/`SYNAPSE_PROJECT`/`SYNAPSE_NAMESPACE`. `SYNAPSE_SKIP_SERVICE=1` installs bins only.
+- Config: `SYNAPSE_DB_DIR` (default `~/.synapse`), `SYNAPSE_PORT` (default 4319), `SYNAPSE_TOKEN`/`SYNAPSE_URL` (auto if unset); per-session `SYNAPSE_AGENT_ID`/`SYNAPSE_PROJECT`/`SYNAPSE_NAMESPACE`/`SYNAPSE_ROOTS`. `SYNAPSE_SKIP_SERVICE=1` installs bins only.
 - Observability: sidecar stderr (launchd → `/tmp/local.synapse.{out,err}`); audit = read `.sqlite`. Backup = copy files. Cost: one small process + thin bridges.
 
 ## Risks, Debt, and Revisit Triggers

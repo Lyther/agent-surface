@@ -47,14 +47,21 @@ export interface BridgeOptions {
  *      outside the workspace still isolates to the right project (P4.3)
  *   4. cwd git-root (the default physical-isolation path)
  * An initialized host that advertises no roots, or returns an explicit empty list,
- * falls back to cwd. Failed or timed-out roots negotiation fails bridge startup.
+ * falls back to cwd. Failed or timed-out roots negotiation fails bridge startup,
+ * unless `SYNAPSE_ROOTS=ignore` skips roots for this host.
  */
 async function resolveProjectKey(server: Server, fallbackCwd: string, timeoutMs: number, override?: string): Promise<string> {
+  // Validated first, so a bad value fails startup even when an explicit project wins below.
+  const skipRoots = ignoresRoots(process.env["SYNAPSE_ROOTS"]);
   const explicit = override ?? process.env["SYNAPSE_PROJECT"];
   // An explicit bridge override wins outright and is resolved/hashed by projectKey (which
   // also honours SYNAPSE_NAMESPACE when no explicit override is supplied). Single-sourcing
   // here keeps the override contract consistent across bridge and namespace callers.
   if (explicit && explicit.trim()) return projectKey(explicit, explicit);
+  // FastMCP's multi-server proxy advertises roots but answers roots/list with an error
+  // outside a request, so its hosts can never negotiate roots. The installer opts out only
+  // for hosts verified to start this bridge in the workspace, where cwd is the project.
+  if (skipRoots) return projectKey(fallbackCwd);
   // Ask the host for its first root only when initialize advertised roots support. Some
   // clients treat an unsupported roots/list request as a protocol warning even when the
   // bridge catches the response, so capability-gating is part of correct MCP behavior.
@@ -68,6 +75,13 @@ async function resolveProjectKey(server: Server, fallbackCwd: string, timeoutMs:
     return projectKey(local);
   }
   return projectKey(fallbackCwd);
+}
+
+// An unknown value fails startup rather than silently keeping or dropping roots routing.
+function ignoresRoots(mode: string | undefined): boolean {
+  if (mode === undefined || mode === "") return false;
+  if (mode === "ignore") return true;
+  throw new Error(`SYNAPSE_ROOTS must be "ignore" when set, got ${JSON.stringify(mode)}`);
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number, operation: string): Promise<T> {
