@@ -2,7 +2,7 @@
 
 The adapter maps agent-surface sources onto Kimi Code's native skills, instruction files, custom agents, and MCP configuration. It supports the Kimi Code CLI (TUI, print and web) and the official Kimi Code for VS Code extension (in VS Code and Cursor) as one target because they share Kimi's data home when `KIMI_CODE_HOME` is the same. Kimi Code Desktop is not targeted.
 
-Last local inventory: Kimi Code CLI `0.29.1` and Moonshot's Cursor extension `0.6.4` on 2026-07-27. `kimi doctor` accepted the installed `config.toml` and `tui.toml`. In a disposable project install, the live TUI connected both first-party MCP servers and activated the generated `/skill:ops-flow`; a model-backed print-mode run called `mcp__synapse__lock_list` through the generated project `mcp.json`. No extension-originated task or MCP call was run.
+Last local inventory: Kimi Code CLI `2.1.1` on 2026-10-19, where `kimi doctor` accepted the generated user `config.toml`, both first-party MCP servers connected at user scope and in a trusted project, and the six generated agents parsed (no model call); earlier, CLI `0.29.1` and Moonshot's Cursor extension `0.6.4` on 2026-07-27. `kimi doctor` accepted the installed `config.toml` and `tui.toml`. In a disposable project install, the live TUI connected both first-party MCP servers and activated the generated `/skill:ops-flow`; a model-backed print-mode run called `mcp__synapse__lock_list` through the generated project `mcp.json`. No extension-originated task or MCP call was run.
 
 ## Generated paths
 
@@ -34,7 +34,7 @@ An explicit `--dest` relocates the selected scope, including conventional VS Cod
 
 ## Runtime contracts
 
-Kimi Code discovers directory-form skills from the Kimi-specific user and project roots. Canonical skills are emitted unchanged and remain model-invocable. Available high-impact commands declare `type: flow` and `disableModelInvocation: true`, so they require explicit `/skill:<name>` invocation. Full user installs also set `merge_all_available_skills = true`; the project `.kimi-code/config.toml` is not a documented Kimi file, so the setting is not claimed at project scope.
+Kimi Code discovers directory-form skills from the Kimi-specific user and project roots. Canonical skills are emitted unchanged and remain model-invocable. Available high-impact commands declare `type: flow` and `disableModelInvocation: true`, so they require explicit `/skill:<name>` invocation. Full user installs also set `merge_all_available_skills = true`; Kimi reads `config.toml` only from `KIMI_CODE_HOME`, so project installs write no copy of it.
 
 Custom agent files contain Kimi's `name`, `description`, and `tools` frontmatter plus the source prompt. Read-only roles allow Kimi's inspection, search, web, todo, question, and skill tools; read-write roles add file editing; shell workers allow the full tool surface. The files are intended for Kimi's native sub-agent delegation. `--agent` or `--agent-file` can also select one as the main agent in print mode or the TUI; agent-surface does not configure that.
 
