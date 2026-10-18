@@ -32,7 +32,7 @@ Last updated: 2026-06-30
 | Coding agent (the model) | Find + load the *right* security/forensics/red-team procedure mid-task | Can only attend over a few choices; calls tools by description | Reaches the right skill via search→get, not from stale prior knowledge |
 | Developer/operator | Access 750+ expert skills without bloating every session | Many runtimes; some non-lazy | Skills available on demand; zero startup degradation |
 | agent-surface maintainer | One pack-agnostic mechanism, distributed via existing rails | "Less is more"; no per-runtime catalog hacks | One MCP entry replaces 754 native-skill emissions everywhere |
-| Excluded | Current targets without a generated MCP surface (Antigravity desktop, DSH, Pi) | — | Use Antigravity CLI for the desktop family; DSH is skills-only; Pi has no verified stdio config route. |
+| Excluded | Current targets without a generated MCP surface (Antigravity desktop, DSH) | — | Use Antigravity CLI for the desktop family; DSH is skills-only. |
 
 ## Goals, Non-Goals, and Constraints
 

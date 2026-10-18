@@ -988,6 +988,10 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".pi", "agent", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".pi", "agent", "AGENTS.md"), /agent-surface Pi rules/);
     requireContains(path.join(".pi", "agent", "skills", "ctf-web", "SKILL.md"), skillFrontmatter);
+    const mcp = requireJson(path.join(".pi", "agent", "mcp.json"));
+    if (mcp?.mcpServers?.synapse?.command !== "~/.local/bin/synapse-bridge" || mcp?.mcpServers?.grimoire?.command !== "~/.local/bin/grimoire-server") {
+      errors.push("Pi MCP must use the first-party local synapse bridge and grimoire server binaries");
+    }
   } else if (target === "pool") {
     requireContains(path.join(".config", "poolside", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".config", "poolside", "AGENTS.md"), /agent-surface Poolside rules/);

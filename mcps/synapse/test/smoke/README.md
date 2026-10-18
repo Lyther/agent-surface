@@ -37,6 +37,7 @@ Config merge is proven by the repo-root `tests/suites/install.test.mjs`; current
 | Kiro | | | | config-verified |
 | OpenCode | | | | config-verified |
 | OpenHands | | | | config-verified |
+| Pi | ✓ | | | config-verified; Pi 1.3.0 `pi mcp list` listed the 7 tools |
 | Poolside | | | | config-verified |
 | Qoder | | | | config-verified |
 | Qwen Code | | | | config-verified |
@@ -53,4 +54,4 @@ Hosts that launch stdio servers outside the workspace (e.g. some IDEs spawn MCP 
 
 ## Coverage boundary
 
-Antigravity desktop, DSH, and Pi intentionally have no generated Synapse route. Use the Antigravity CLI target for that family; DSH remains skills-only; Pi has no verified declarative stdio MCP config. Add a row only when the canonical capability matrix gains a generated route.
+Antigravity desktop and DSH intentionally have no generated Synapse route. Use the Antigravity CLI target for that family; DSH remains skills-only. Add a row only when the canonical capability matrix gains a generated route.

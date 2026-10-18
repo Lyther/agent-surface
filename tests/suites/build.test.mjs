@@ -313,6 +313,7 @@ const jsonMcpHosts = [
   [path.join(root, "dist", "copilot", ".copilot", "mcp-config.json"), "mcpServers"],
   [path.join(root, "dist", "cursor", ".cursor", "mcp.json"), "mcpServers"],
   [path.join(root, "dist", "openhands", ".openhands", "mcp.json"), "mcpServers"],
+  [path.join(root, "dist", "pi", ".pi", "agent", "mcp.json"), "mcpServers"],
   [path.join(root, "dist", "vscode", vsCodeUserRoot("Code", { scope: "user" }), "mcp.json"), "servers"],
   [path.join(root, "dist", "zed", ".config", "zed", "settings.json"), "context_servers"],
 ];

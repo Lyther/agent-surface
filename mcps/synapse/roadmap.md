@@ -15,7 +15,7 @@ Last updated: 2026-08-31
 ## Status Snapshot
 
 - **Done**: Phase 0 (spike + contract + model + namespace), Phase 1 (sidecar/bridge/store/identity/memory/locks/realtime/instructions), Phase 2 (autostart + launchd, security pass, threat-model README, first-party distribution, **concurrency + crash recovery**), Phase 3 (**non-destructive MCP merge engine**; external MCP opt-in policy reconciled), Phase 4 (**dirty-bit coalescing**, **bridge MCP-roots routing**, SSE-resume + idle-shutdown claims truth-stated). Proof: synapse `npm test` 40/40; repo gates are rerun with each distribution change.
-- **Phase 5 (production-readiness) — mostly done** (PR #14 and later portfolio refreshes): shipped distribution, CI, `doctor` sidecar health, Linux lazy-start + reference systemd unit, YAML config support, and CHANGELOG. **Open by nature**: per-host live transport smoke and the `synapse-v0.4.0` git tag. The current matrix has 22 generated MCP hosts; Antigravity desktop, DSH, and Pi have no modeled MCP.
+- **Phase 5 (production-readiness) — mostly done** (PR #14 and later portfolio refreshes): shipped distribution, CI, `doctor` sidecar health, Linux lazy-start + reference systemd unit, YAML config support, and CHANGELOG. **Open by nature**: per-host live transport smoke and the `synapse-v0.4.0` git tag. The current matrix has 23 generated MCP hosts; Antigravity desktop and DSH have no modeled MCP.
 
 ## Phase 0–1: Core (DONE)
 
@@ -71,7 +71,7 @@ Goal: deliver synapse to the hosts the user listed in `README.md` Distribution s
   - Dependencies: none.
 - [x] `P3.4` Pending-target research/wiring
   - Scope: research each previously-unwired host's MCP surface and either wire it (generated-merge) or record an evidence-backed reason it stays out.
-  - Outcome: the maintained matrix now covers 22 generated hosts across JSON/JSONC/TOML/YAML, including current Copilot, Grok Build, Antigravity CLI, Qoder, Qwen Code, and Kiro routes. Antigravity desktop, DSH, and Pi remain intentionally unwired.
+  - Outcome: the maintained matrix now covers 23 generated hosts across JSON/JSONC/TOML/YAML, including current Copilot, Grok Build, Antigravity CLI, Qoder, Qwen Code, and Kiro routes. Pi was added once its 1.3.0 release read MCP natively; Antigravity desktop and DSH remain intentionally unwired.
   - Acceptance evidence: `registry/target-capabilities.json` records the path/format boundary; `check generated` plus matrix-driven build/install tests cover every generated target.
   - Dependencies: P3.1.
 
@@ -88,7 +88,7 @@ The honest blockers before an unqualified "production-ready" claim. Items marked
 
 - [x] `P5.1` **(shared)** Ship the distribution work — the original PR #14 wiring and later portfolio refreshes maintain one capability matrix and per-format merge gates.
 - [~] `P5.2` Per-host live transport smoke — run native headless probes where available and record GUI-only launches separately. Config merge and in-process bridge transport are automated; host execution remains a distinct proof boundary.
-- [x] `P5.3` **(shared)** Goose + Poolside MCP — safe non-destructive YAML block merge is implemented; the current generated matrix totals 22 hosts.
+- [x] `P5.3` **(shared)** Goose + Poolside MCP — safe non-destructive YAML block merge is implemented; the current generated matrix totals 23 hosts.
 - [x] `P5.4` **(shared)** CI gate — `.github/workflows/ci.yml` `mcp` job (Node 22) runs the synapse suite (45 tests) + `npm audit` on every PR.
 - [x] `P5.5` `agent-surface doctor` sidecar health — `doctor` reports `synapse-bridge`/`synapse-sidecar` linked state and `~/.synapse/sidecar.json` presence, plus grimoire/host wiring.
 - [x] `P5.6` Linux always-on service — **lazy-start** documented as the supported Linux mode (the bridge autostarts the lock-elected sidecar; no service required), plus an optional reference systemd *user* unit at `deploy/systemd/synapse-sidecar.service`.
@@ -111,4 +111,4 @@ The honest blockers before an unqualified "production-ready" claim. Items marked
 - [x] No-secret-in-store — redaction suite.
 - [x] SDK security floor `>=1.24.0 <2` — `package.json` pin.
 - [x] Merge never clobbers — matrix-driven install tests exercise the active JSON/JSONC/TOML/YAML merge families (P3.1 done).
-- [~] Per-target smoke — config merge is proven for all 22 generated hosts plus in-process bridge transport; live host execution is recorded separately and is not inferred from generated output.
+- [~] Per-target smoke — config merge is proven for all 23 generated hosts plus in-process bridge transport; live host execution is recorded separately and is not inferred from generated output.

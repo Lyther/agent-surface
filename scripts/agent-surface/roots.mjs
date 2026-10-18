@@ -197,6 +197,11 @@ export function piConfigRoot(context) {
   return context.scope === "user" ? path.join(".pi", "agent") : ".pi";
 }
 
+// Pi reads a project's .pi/mcp.json only after the project is trusted.
+export function piMcpPath(context) {
+  return path.join(piConfigRoot(context), "mcp.json");
+}
+
 export function poolSkillRoot(context) {
   return context.scope === "user" ? path.join(".config", "poolside", "skills") : path.join(".poolside", "skills");
 }
