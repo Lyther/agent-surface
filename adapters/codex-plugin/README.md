@@ -10,7 +10,7 @@ codex plugin list
 codex plugin remove agent-surface@agent-surface
 ```
 
-Keep the leading `./`: `codex-cli` 0.159.2 reads a bare `dist/codex-plugin` as the GitHub repository `dist/codex-plugin` and tries to clone it, so it would register whatever that repository holds. On 0.159.2 the sequence above adds the marketplace, installs and lists the plugin as enabled, and removes it, and `debug prompt-input` lists `agent-surface:ops-swarm` until removal (2026-10-19).
+Keep the leading `./`: `codex-cli` 0.159.2 reads a bare `dist/codex-plugin` as the GitHub repository `dist/codex-plugin` and tries to clone it, so it would register whatever that repository holds. On 0.159.2 the sequence above adds the marketplace, installs and lists the plugin as enabled, and removes it, `debug prompt-input` lists `agent-surface:ops-swarm` until removal, and a copy of the package whose manifest omits `$schema` is still rejected with `missing plugin.json` (2026-10-19).
 
 Generated layout, relative to the marketplace root you pass to `plugin marketplace add`:
 
