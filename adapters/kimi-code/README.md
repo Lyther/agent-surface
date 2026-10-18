@@ -23,10 +23,12 @@ Project scope:
 - canonical skills: `.kimi-code/skills/<name>/SKILL.md`
 - manual commands: explicit-only flow skills in `.kimi-code/skills/<command>/SKILL.md`
 - external Agent Skills: `.kimi-code/skills/<skill>/...`
-- always-on instructions: `.kimi-code/AGENTS.md`
+- always-on instructions: the root `AGENTS.md`, shared with the other hosts that read it
 - scoped rule references: `.kimi-code/references/rules/<rule>.md`
 - custom agents: `.kimi-code/agents/<name>.md`
 - MCP: `.kimi-code/mcp.json`, which Kimi Code 2.1.1 reads from the launch directory rather than the git root, once the folder is trusted at its "Trust this folder?" prompt
+
+Kimi Code reads `.kimi-code/AGENTS.md` and `AGENTS.md` in every directory from the git root down to the launch directory, so a project's rules live in the shared root `AGENTS.md` alone. Kimi Code 2.2.0 on macOS arm64, 2026-10-19, first TUI screen without sign-in, in a project installed for Codex, Qwen Code and Kimi Code with `--category development`: with the earlier `.kimi-code/AGENTS.md` beside the root file it warned "AGENTS.md total 60.3 KB exceeds the recommended 32 KB"; with the shared file alone it shows no warning. The development document is 30,814 bytes, so a user plus project install of that profile still loads two copies and warns. A project install retires an earlier `.kimi-code/AGENTS.md`. When the root `AGENTS.md` is the project's own rather than agent-surface's, as one created by Kimi Code's `/init` is, the whole project install now stops with `UNOWNED_DESTINATION` before writing anything, where earlier releases installed beside it: move the file aside and rerun, or install only `--category skills`. Use the same `--category` as the other hosts sharing the file, since a narrower selection rewrites it with a `SHARED_CONTRIBUTION_REPLACED` warning.
 
 Project installs write no `config.toml`: 2.1.1 on macOS arm64 reads and validates it only from `KIMI_CODE_HOME` (`kimi doctor` ignores a project copy, and the TUI's `/status` keeps its default with one). `.kimi-code/local.toml` is not a project counterpart either; Kimi writes it itself and its schema holds only `workspace.additional_dir`. Project installs before 2026-10-19 merged `default_permission_mode` and `merge_all_available_skills` into an unread `.kimi-code/config.toml`; delete those keys, or the file if nothing else uses it.
 

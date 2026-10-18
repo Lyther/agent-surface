@@ -341,6 +341,8 @@ export const targets = {
     renderSubagent: renderKimiCodeSubagent,
     installRoot: installRootKimiCode,
     staticOutputs: kimiCodeStaticOutputs,
+    // Earlier project installs wrote .kimi-code/AGENTS.md beside the root AGENTS.md Kimi Code also reads.
+    movedRoutes: [{ from: (context) => (context.scope === "project" ? path.join(".kimi-code", "AGENTS.md") : null), to: kimiCodeInstructionPath }],
     mcpConfigs: [
       {
         relativeOutput: kimiCodeConfigPath,
@@ -431,6 +433,8 @@ export const targets = {
     renderSubagent: renderQwenCodeSubagent,
     installRoot: installRootUserOrProject,
     staticOutputs: qwenCodeStaticOutputs,
+    // Earlier project installs wrote a root QWEN.md beside the shared AGENTS.md Qwen Code also reads.
+    movedRoutes: [{ from: (context) => (context.scope === "project" ? "QWEN.md" : null), to: qwenCodeInstructionPath }],
     mcpConfig: {
       relativeOutput: qwenCodeSettingsPath,
       format: "kimi-mcp",

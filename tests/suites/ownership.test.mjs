@@ -417,6 +417,52 @@ try {
     assert.deepEqual(snapshot(shared), sharedBefore, "a matching shared document does not retire the old one's contribution");
   }
 
+  // Qwen Code and Kimi Code read a project's root AGENTS.md beside their own QWEN.md or
+  // .kimi-code/AGENTS.md, so earlier project installs loaded the rules twice; the shared root file now
+  // replaces their copy. The co-installed case is the one that doubled the rules: another host
+  // already owns the root AGENTS.md, and retiring the old copy leaves both owners claiming it.
+  // SUBSTITUTE_JUSTIFICATION
+  // - substitute: a hand-written manifest and old instruction file in the shape earlier releases wrote
+  // - replaces: a project installed before the move
+  // - necessity: this checkout no longer renders the old routes
+  // - real-option: the real CLI, planner and apply run against a real root
+  // - proof-limit: proves the transition, not what either host loads
+  // - real-proof: on the first TUI screen, Kimi Code 2.2.0's 60.3 KB AGENTS.md warning and Qwen Code 0.25.2's
+  //   19,720-token count drop to no warning and 12,000 tokens (adapter READMEs)
+  for (const [target, legacy, pattern] of [
+    ["qwen-code", "QWEN.md", "QWEN\\.md"],
+    ["kimi-code", path.join(".kimi-code", "AGENTS.md"), "\\.kimi-code\\/AGENTS\\.md"],
+  ]) {
+    const oldInstall = (name, category) => {
+      const dest = path.join(scratch, name);
+      mkdirSync(path.join(dest, path.dirname(legacy)), { recursive: true });
+      mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
+      writeFileSync(path.join(dest, legacy), "rules from an earlier install\n");
+      writeFileSync(path.join(dest, ".agent-surface", `${target}-manifest.json`), `${JSON.stringify({
+        target,
+        scope: "project",
+        managed: [{ target, source: "rules/*.mdc", output: legacy, ...(category ? { asset_category: category } : {}) }],
+      })}\n`);
+      return dest;
+    };
+
+    const development = oldInstall(`${target}-development`, "development");
+    const before = snapshot(development);
+    const narrower = project(development, target, ["--category", "rules"]);
+    assert.equal(narrower.code, 1, narrower.out);
+    assert.match(narrower.out, new RegExp(`AGENTS\\.md replaces ${pattern}, which carries the development category's contribution`));
+    assert.deepEqual(snapshot(development), before, `${target}: a narrower selection does not drop the old document's contribution`);
+
+    const shared = oldInstall(`${target}-shared`);
+    const codex = project(shared, "codex", ["--category", "rules"]);
+    assert.equal(codex.code, 0, codex.out);
+    const replaced = project(shared, target, ["--category", "rules"]);
+    assert.equal(replaced.code, 0, replaced.out);
+    assert.match(read(shared, "AGENTS.md"), /^# AGENTS\.md - agent-surface rules$/m);
+    assert.ok(!existsSync(path.join(shared, legacy)) && !claims(shared, target, legacy), `${target}: the old copy is retired`);
+    assert.ok(claims(shared, target, "AGENTS.md") && claims(shared, "codex", "AGENTS.md"), `${target}: both owners claim the one root AGENTS.md`);
+  }
+
   // The same identity for a document Cline's OS Documents folder relocates after a real development
   // install: the relocated rules document keeps the old route's category, so a rules-only refresh is
   // refused, and a development refresh rewrites it and retires the old route. Linux only, through the
