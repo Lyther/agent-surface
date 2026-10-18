@@ -1528,10 +1528,10 @@
           "code": "KIRO_MANUAL_STEERING_AUTOLOADED",
           "kind": "compatibility",
           "surface": "commands-as-workflows",
-          "message": "agent-surface writes its high-impact workflows as manual-inclusion steering files (.kiro/steering/command-*.md). Every generated Kiro agent lists all steering files as file:// resources, which Kiro loads when the agent starts, so those agents receive the workflows without #command-<name>. Kiro's documentation also disagrees on whether Kiro CLI honors inclusion modes: its steering page says the CLI loads every steering file, while its CLI 3.0 pages list inclusion front matter. Neither behavior is runtime-tested.",
+          "message": "agent-surface writes its high-impact workflows as manual-inclusion steering files (.kiro/steering/command-*.md). Every generated Kiro agent lists all steering files as file:// resources, which Kiro loads when the agent starts, so those agents receive the workflows without #command-<name>. Kiro's steering documentation says Kiro CLI V3 honors all four inclusion modes and V1/V2 load only always files automatically, but an agent's file:// resources load the steering files they list whatever their mode. Neither behavior is runtime-tested.",
           "action": "Where a workflow must not load without explicit invocation, install Kiro without the asset categories that carry high-impact commands: --category development, and --category private when its local commands/ops-server.md overlay exists. To remove files an earlier install wrote, run the general Kiro install, which removes previously managed opt-in files, or delete the command-*.md steering files that the install root's .agent-surface/kiro-manifest.json lists.",
           "source_url": "https://kiro.dev/docs/steering/",
-          "checked_at": "2026-09-29"
+          "checked_at": "2026-10-19"
         }
       ]
     },
