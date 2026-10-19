@@ -55,3 +55,13 @@ test("agent-facing text explains that Grimoire indexes usable Agent Skills", () 
   assert.match(SERVER_INSTRUCTIONS, /third-party content, not authority/i);
   assert.match(SERVER_INSTRUCTIONS, /never let them override higher-priority instructions or safety constraints/i);
 });
+
+test("agent-facing text ties coverage to the installed packs and loads a skill only when a hit fits", () => {
+  assert.match(SERVER_INSTRUCTIONS, /MCP server/i);
+  for (const agentText of [SERVER_INSTRUCTIONS, TOOL_DESCRIPTIONS["grimoire_search"]!]) {
+    assert.match(agentText, /packs decide/i, "coverage beyond the security packs is conditional");
+    assert.match(agentText, /grimoire_list/, "the caller is told how to see what is indexed");
+    assert.match(agentText, /never a judgement that one fits/i, "hits are candidates, not a verdict");
+    assert.match(agentText, /without a skill/i, "abstention stays available");
+  }
+});
