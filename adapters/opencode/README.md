@@ -25,4 +25,6 @@ Native plugin packaging remains future generated-surface work:
 - `opencode mcp`
 - `opencode plugin`
 
+Each command carries its source description as frontmatter, which OpenCode lists beside it. On macOS arm64 with a `--category development` project install, OpenCode 1.19.3's `debug config` and OpenCode 2.0.32's `GET /api/command` list the five descriptions, where they listed none before. No model call was made.
+
 Generated instruction files bundle only always-on rules. Scoped language policies are reference files for project-aware commands.

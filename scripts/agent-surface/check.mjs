@@ -1135,7 +1135,8 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(".cursorignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "droid") {
     requirePath(path.join(".agents", "skills", "ops-flow", "SKILL.md"));
-    requirePath(path.join(".factory", "commands", "ops-nuke.md"));
+    // Without a frontmatter description Droid lists the body's first line, "## OBJECTIVE".
+    requireContains(path.join(".factory", "commands", "ops-nuke.md"), /^---\ndescription: "[^"]+"\n---\n\n## OBJECTIVE\n/);
     requireContains(path.join(".factory", "droids", "boss.md"), /^---\nname: boss\n/);
     requireContains(path.join(".factory", "AGENTS.md"), /agent-surface Droid rules/);
     const mcp = requireJson(path.join(".factory", "mcp.json"));
@@ -1175,7 +1176,8 @@ export function validateGeneratedTarget(target, outputs) {
   } else if (target === "opencode") {
     requireContains(path.join(".config", "opencode", "AGENTS.md"), /agent-surface global OpenCode rules/);
     requirePath(path.join(".config", "opencode", "skills", "ops-flow", "SKILL.md"));
-    requirePath(path.join(".config", "opencode", "commands", "ops-nuke.md"));
+    // OpenCode lists a command with its frontmatter description, and with none when it is missing.
+    requireContains(path.join(".config", "opencode", "commands", "ops-nuke.md"), /^---\ndescription: "[^"]+"\n---\n\n## OBJECTIVE\n/);
     requireContains(path.join(".config", "opencode", "agents", "boss.md"), /^---\ndescription: "/);
   } else if (target === "trae") {
     requireContains(path.join(".trae", "user_rules.md"), /agent-surface Trae user rules/);

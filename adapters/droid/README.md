@@ -15,6 +15,8 @@ Droid support targets Factory's current `.factory/` project/user surfaces.
 
 Canonical skills use Droid's automatic skill discovery. Available high-impact workflows stay commands.
 
+Each command carries its source description as frontmatter, which Droid shows in its slash suggestions; without it Droid shows the body's first line. On Droid 0.244.0 (macOS arm64, user scope, `--category development`), `droid.list_commands` over `droid exec --input-format stream-jsonrpc` lists the five commands with their descriptions, where it listed each as `## OBJECTIVE` before. No message was sent to a model.
+
 ## External Packs
 
 The Droid adapter wires selected optional upstream projects instead of leaving their submodules inert:

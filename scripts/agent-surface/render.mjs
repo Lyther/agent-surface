@@ -284,18 +284,25 @@ export async function renderCursorCommand(source) {
   return source.body;
 }
 
+// The description a host lists beside a command: the source's own, else its first heading.
+function commandDescription(source) {
+  return quotedScalar(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
+}
+
+// Droid and OpenCode list a command with its frontmatter description. Without one, OpenCode lists none
+// and Droid shows the body's first line, which is "## OBJECTIVE" for every command source.
 export async function renderDroidCommand(source) {
-  return source.body;
+  return ["---", `description: "${commandDescription(source)}"`, "---", "", source.body].join("\n");
 }
 
 export async function renderOpenCodeCommand(source) {
-  return source.body;
+  return ["---", `description: "${commandDescription(source)}"`, "---", "", source.body].join("\n");
 }
 
 // Qoder and Qwen Code let the model start a custom command, as they do a skill, unless its frontmatter
 // sets disable-model-invocation. Every command source is a manual workflow, so both renderers set it.
 export async function renderNativeMarkdownCommand(source) {
-  const description = quotedScalar(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
+  const description = commandDescription(source);
   return [
     "---",
     `name: ${source.name}`,
@@ -308,7 +315,7 @@ export async function renderNativeMarkdownCommand(source) {
 }
 
 export async function renderQwenCodeCommand(source) {
-  const description = quotedScalar(source.metadata.description ?? firstHeading(source.body) ?? `Run ${source.name.replaceAll("-", " ")}.`);
+  const description = commandDescription(source);
   return [
     "---",
     `description: "${description}"`,
