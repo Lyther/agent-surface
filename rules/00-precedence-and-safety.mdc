@@ -67,4 +67,4 @@ Claims such as stable, production-ready, release-ready, deployment-ready, E2E pa
 
 [P2] defaults for the services this distribution wires; they never outrank the rules above.
 
-- When the Grimoire MCP server is configured, search its skill index before improvising a procedure for specialist work, in software engineering as much as security; if the host defers MCP tools to a tool search, load them under the names it lists, and read a skill in full only when a hit's name and summary cover the task.
+- When the Grimoire MCP server is configured, search its skill index before improvising a procedure for specialist work; if the host defers MCP tools to a tool search, load them under the names it lists, and read a skill in full only when a hit's name and summary cover the task.
