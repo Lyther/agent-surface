@@ -20,6 +20,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import os from "node:os";
 import path from "node:path";
 
+import { vsCodeUserRoot } from "../../scripts/agent-surface/roots.mjs";
 import { status } from "../lib/helpers.mjs";
 
 if (process.platform === "win32") {
@@ -215,9 +216,10 @@ try {
     assert.doesNotMatch(broken.out, /UNOWNED_DESTINATION/, "an incomplete claim set reports no unowned files");
   }
 
-  // Claim sources: outputs recorded inside a legacy-listed nested manifest (Copilot's pre-146d8e8
-  // user root) belong to that target, rebased to the nested manifest's root, so an upgrade finds
-  // them owned; cleaning up the nested manifest never removes what it recorded.
+  // Claim sources: a legacy-listed nested manifest (Copilot's pre-146d8e8 user root) records what
+  // that release wrote, rebased to the nested manifest's root, and cleaning the nested manifest up
+  // never removes what it recorded. The moved document's old path goes only because
+  // registry/legacy-owned.json lists it; the path nothing else claims survives.
   // SUBSTITUTE_JUSTIFICATION
   // - substitute: a hand-written nested manifest in the pre-146d8e8 layout and the files it records
   // - replaces: a profile last installed by an agent-surface release older than 146d8e8
@@ -229,26 +231,38 @@ try {
     const dest = path.join(scratch, "copilot-legacy");
     const plan = install(["--target", "copilot", "--scope", "user", "--dest", dest, "--dry-run"]);
     const planned = plan.out.split("\n").map((line) => line.trim())
-      .find((line) => line.endsWith(`instructions${path.sep}agent-surface-copilot.instructions.md <- rules/*.mdc`))
+      .find((line) => line.endsWith(`prompts${path.sep}agent-surface.instructions.md <- rules/*.mdc`))
       ?.split(" <- ")[0];
     assert.ok(planned, plan.out);
     const nestedRoot = path.dirname(path.dirname(planned));
     const nestedManifest = path.join(nestedRoot, ".agent-surface", "copilot-manifest.json");
+    // The paths that release actually wrote: its instruction document under Code/User/instructions,
+    // and one more that only its nested manifest records.
+    const historicalRecord = path.join("instructions", "agent-surface-copilot.instructions.md");
+    const historicalReference = path.join("instructions", "references", "rules", "10-python.md");
     const retiredRecord = path.join("instructions", "retired-copilot.instructions.md");
+    mkdirSync(path.join(dest, nestedRoot, path.dirname(historicalReference)), { recursive: true });
     mkdirSync(path.join(dest, path.dirname(nestedManifest)), { recursive: true });
     writeFileSync(path.join(dest, nestedManifest), `${JSON.stringify({
       target: "copilot",
       managed: [
-        { target: "copilot", source: "rules/*.mdc", output: path.join("instructions", "agent-surface-copilot.instructions.md") },
+        { target: "copilot", source: "rules/*.mdc", output: historicalRecord },
+        { target: "copilot", source: "rules/10-python.mdc", output: historicalReference },
         { target: "copilot", source: "rules/*.mdc", output: retiredRecord },
       ],
     })}\n`);
-    mkdirSync(path.join(dest, path.dirname(planned)), { recursive: true });
-    writeFileSync(path.join(dest, planned), "instructions from an older copilot install\n");
+    writeFileSync(path.join(dest, nestedRoot, historicalRecord), "instructions from an older copilot install\n");
+    writeFileSync(path.join(dest, nestedRoot, historicalReference), "a scoped reference from an older copilot install\n");
     writeFileSync(path.join(dest, nestedRoot, retiredRecord), "retired by an older copilot install\n");
     const live = install(["--target", "copilot", "--scope", "user", "--dest", dest]);
     assert.equal(live.code, 0, live.out);
-    assert.notEqual(read(dest, planned), "instructions from an older copilot install\n");
+    assert.match(read(dest, planned), /^applyTo: "\*\*"$/m, "the upgrade writes the document in the folder VS Code reads");
+    for (const [record, label] of [[historicalRecord, "document"], [historicalReference, "scoped reference"]]) {
+      assert.ok(
+        !existsSync(path.join(dest, nestedRoot, record)),
+        `the old instruction ${label} is listed in legacy ownership, so the upgrade removes it`,
+      );
+    }
     assert.ok(!existsSync(path.join(dest, nestedManifest)), "the legacy nested manifest itself is cleaned up");
     assert.equal(read(dest, path.join(nestedRoot, retiredRecord)), "retired by an older copilot install\n", "a nested claim never authorizes a removal");
   }
@@ -415,6 +429,49 @@ try {
     assert.equal(sharedNarrower.code, 1, sharedNarrower.out);
     assert.match(sharedNarrower.out, /AGENTS\.md replaces \.codex\/AGENTS\.md, which carries the development category's contribution/);
     assert.deepEqual(snapshot(shared), sharedBefore, "a matching shared document does not retire the old one's contribution");
+  }
+
+  // The same move for the VS Code profile: earlier installs wrote Code/User/instructions, which VS
+  // Code does not scan, and the prompts folder it discovers now carries that document.
+  // SUBSTITUTE_JUSTIFICATION
+  // - substitute: a hand-written vscode manifest and instructions/agent-surface.instructions.md in the shape earlier releases wrote
+  // - replaces: a profile installed before the move
+  // - necessity: this checkout no longer renders the old route
+  // - real-option: the real CLI, planner and apply run against a real root
+  // - proof-limit: proves the transition, not what a VS Code session loads
+  // - real-proof: installing a scratch root from main and then from this checkout retires the six old files
+  {
+    const userRoot = vsCodeUserRoot("Code", { scope: "user" });
+    const legacy = path.join(userRoot, "instructions", "agent-surface.instructions.md");
+    const oldVsCode = (name, category) => {
+      const dest = path.join(scratch, name);
+      mkdirSync(path.join(dest, userRoot, "instructions"), { recursive: true });
+      mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
+      writeFileSync(path.join(dest, legacy), "instructions from an earlier install\n");
+      writeFileSync(path.join(dest, ".agent-surface", "vscode-manifest.json"), `${JSON.stringify({
+        target: "vscode",
+        scope: "user",
+        managed: [{ target: "vscode", source: "rules/*.mdc", output: legacy, ...(category ? { asset_category: category } : {}) }],
+      })}\n`);
+      return dest;
+    };
+    const rulesOnly = (dest) => install(["--target", "vscode", "--scope", "user", "--dest", dest, "--category", "rules"]);
+
+    const development = oldVsCode("vscode-development", "development");
+    const before = snapshot(development);
+    const narrower = rulesOnly(development);
+    assert.equal(narrower.code, 1, narrower.out);
+    assert.match(
+      narrower.out,
+      /prompts.agent-surface\.instructions\.md replaces .*instructions.agent-surface\.instructions\.md, which carries the development category's contribution/,
+    );
+    assert.deepEqual(snapshot(development), before, "a narrower selection does not drop the old document's contribution");
+
+    const general = oldVsCode("vscode-general");
+    const replaced = rulesOnly(general);
+    assert.equal(replaced.code, 0, replaced.out);
+    assert.ok(existsSync(path.join(general, userRoot, "prompts", "agent-surface.instructions.md")), replaced.out);
+    assert.ok(!existsSync(path.join(general, legacy)), "the old route is retired with its replacement");
   }
 
   // Qwen Code and Kimi Code read a project's root AGENTS.md beside their own QWEN.md or

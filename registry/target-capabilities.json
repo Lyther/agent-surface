@@ -1981,9 +1981,10 @@
             "user"
           ],
           "paths": [
-            "instructions/agent-surface.instructions.md"
+            "prompts/agent-surface.instructions.md",
+            "prompts/agent-surface-<scoped-rule>.instructions.md"
           ],
-          "notes": "Local agent only; relative to stable VS Code's default-profile Code/User directory. Agent Host sessions read their harness folders (~/.copilot/instructions, ~/.copilot/copilot-instructions.md, ~/.claude/rules) instead, and a co-installed copilot target can mask a missing file."
+          "notes": "Local agent only; relative to stable VS Code's default-profile Code/User directory. The instruction folder read there is `prompts` (the profile's promptsHome, appended next to the `chat.instructionsFilesLocations` defaults `.github/instructions`, `.claude/rules`, `~/.claude/rules` and `~/.copilot/instructions`); `Code/User/instructions`, written until 1.116 was read, is not a discovery location. Scoped language rules are instruction files of their own, attached when one of their `applyTo` globs matches a file in the request. Agent Host sessions read their harness folders (~/.copilot/instructions, ~/.copilot/copilot-instructions.md, ~/.claude/rules) instead, and a co-installed copilot target writes the same shared documents."
         },
         "mcp": {
           "support": "native",
@@ -2234,7 +2235,7 @@
       }
     },
     "copilot": {
-      "summary": "GitHub Copilot CLI (default ~/.copilot; COPILOT_HOME is not followed): agent-surface generates skills, custom agents, instructions and MCP at user and project scope; user installs also write one VS Code profile instruction file that only VS Code's Local agent reads.",
+      "summary": "GitHub Copilot CLI (default ~/.copilot; COPILOT_HOME is not followed): agent-surface generates skills, custom agents, instructions and MCP at user and project scope; user installs also write the shared VS Code profile instruction files that only VS Code's Local agent reads.",
       "generated_render_tokens": [
         "skills",
         "instructions",
@@ -2263,9 +2264,10 @@
           "paths": [
             "~/.copilot/copilot-instructions.md",
             ".github/copilot-instructions.md",
-            "instructions/agent-surface-copilot.instructions.md"
+            "prompts/agent-surface.instructions.md",
+            "prompts/agent-surface-<scoped-rule>.instructions.md"
           ],
-          "notes": "CLI-native instructions are generated at user/project scope; user installs also write a VS Code profile file that only VS Code's Local agent reads. The Copilot Agent Host reads ~/.copilot/copilot-instructions.md, which is not qualified here."
+          "notes": "CLI-native instructions are generated at user/project scope; user installs also write the VS Code profile documents, shared with the vscode target, that only VS Code's Local agent reads. Those land in `Code/User/prompts`, the folder VS Code discovers, and the scoped rules there are instruction files VS Code attaches by their `applyTo` globs. The Copilot Agent Host reads ~/.copilot/copilot-instructions.md, which is not qualified here."
         },
         "mcp": {
           "support": "native",

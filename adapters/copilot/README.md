@@ -1,6 +1,6 @@
 # GitHub Copilot adapter
 
-This target covers current Copilot CLI customization in the default `~/.copilot` (`COPILOT_HOME` is not followed). User installs also write one VS Code profile instruction file, which only VS Code's Local agent reads; the Copilot Agent Host reads `~/.copilot/copilot-instructions.md` instead, which is not qualified here.
+This target covers current Copilot CLI customization in the default `~/.copilot` (`COPILOT_HOME` is not followed). User installs also write the VS Code profile instruction files, shared with the `vscode` target, which only VS Code's Local agent reads; the Copilot Agent Host reads `~/.copilot/copilot-instructions.md` instead, which is not qualified here.
 
 User scope:
 
@@ -8,7 +8,7 @@ User scope:
 - `~/.copilot/agents/<name>.agent.md`
 - `~/.copilot/copilot-instructions.md`
 - `~/.copilot/mcp-config.json`
-- the VS Code user `instructions/agent-surface-copilot.instructions.md`
+- the VS Code user `prompts/agent-surface.instructions.md` plus `prompts/agent-surface-<scoped-rule>.instructions.md`, the folder VS Code discovers and the `applyTo` globs it attaches them by
 
 Project scope uses `.github/skills`, `.github/agents`, `.github/copilot-instructions.md`, and `.mcp.json`. Copilot CLI loads a project's `.mcp.json` only once the folder is trusted: on 1.0.98, `copilot mcp list` printed `No MCP servers configured.` for a generated project until the folder was listed in `trustedFolders` in `~/.copilot/config.json`. Canonical and reviewed external skills use the same native skill roots. High-impact workflows remain explicit-invocation skills.
 
