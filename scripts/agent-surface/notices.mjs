@@ -52,11 +52,16 @@ export async function planNotices(target, writes = [], installRoot = null, confi
 }
 
 // The written route is the config home under the install root, so a XDG_CONFIG_HOME that resolves
-// there is the same file and needs no notice.
+// there is the same file and needs no notice. Only a merge that carries extensions counts: a
+// Windows user reinstall prunes this same legacy path while its own config lives under AppData,
+// which XDG_CONFIG_HOME has no part in.
 export function gooseXdgConfigNotice(target, configMerges, installRoot, env = process.env) {
   if (target !== "goose") return null;
   const route = path.join(".config", "goose", "config.yaml");
-  if (!configMerges.some((item) => item.relativeOutput === route)) return null;
+  const mergesExtensions = configMerges.some(
+    (item) => item.relativeOutput === route && (item.entries?.length ?? 0) > 0,
+  );
+  if (!mergesExtensions) return null;
   const configured = (env.XDG_CONFIG_HOME ?? "").trim();
   if (!configured) return null;
   return path.resolve(configured) === path.resolve(installRoot, ".config") ? null : GOOSE_XDG_CONFIG_NOTICE;

@@ -44,7 +44,12 @@ assert.equal(
 
 // Goose resolves its config home from XDG_CONFIG_HOME when that is set, so only a route it would
 // not read earns the notice.
-const gooseConfigMerge = { relativeOutput: path.join(".config", "goose", "config.yaml") };
+const gooseConfigMerge = {
+  relativeOutput: path.join(".config", "goose", "config.yaml"),
+  entries: [["synapse", { type: "stdio" }], ["grimoire", { type: "stdio" }]],
+};
+// What a Windows user reinstall leaves at this path: entries are pruned, none are written.
+const gooseCleanupMerge = { relativeOutput: gooseConfigMerge.relativeOutput, entries: [], removeMcpServers: ["synapse", "grimoire"] };
 const gooseRoot = path.join(os.tmpdir(), "agent-surface-notice-goose");
 const elsewhere = path.join(os.tmpdir(), "agent-surface-notice-xdg");
 assert.equal(gooseXdgConfigNotice("goose", [gooseConfigMerge], gooseRoot, { XDG_CONFIG_HOME: elsewhere })?.code, "GOOSE_XDG_CONFIG_HOME_SET");
@@ -56,6 +61,11 @@ assert.equal(
   "the same directory is the same file",
 );
 assert.equal(gooseXdgConfigNotice("goose", [], gooseRoot, { XDG_CONFIG_HOME: elsewhere }), null, "a plan without the Goose route is outside the notice");
+assert.equal(
+  gooseXdgConfigNotice("goose", [gooseCleanupMerge], gooseRoot, { XDG_CONFIG_HOME: elsewhere }),
+  null,
+  "pruning the legacy route writes no extensions to read",
+);
 assert.equal(gooseXdgConfigNotice("zed", [gooseConfigMerge], gooseRoot, { XDG_CONFIG_HOME: elsewhere }), null, "only Goose's loader is qualified");
 
 const scratch = mkdtempSync(path.join(os.tmpdir(), "agent-surface-notices-"));
