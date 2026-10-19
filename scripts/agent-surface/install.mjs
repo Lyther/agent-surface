@@ -1106,7 +1106,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     blocked,
     notApplicableCategories,
     nonApplicable: nonApplicable.sort((left, right) => left.localeCompare(right)),
-    notices: await planNotices(target, writes, installRoot),
+    notices: await planNotices(target, writes, installRoot, configMerges),
     warnings,
     skippedConfigRoutes,
     manifest,

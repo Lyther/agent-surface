@@ -17,6 +17,19 @@ const SHARED_SKILL_ROOT_NOTICE = {
   checked_at: "2026-09-28",
 };
 
+// Goose resolves its config home from XDG_CONFIG_HOME when that is set (goose 1.34.1 reports the
+// resolved config.yaml in `goose info`), while an install writes the default config home: the
+// client's environment is not known at install time, as for the other XDG-aware targets.
+const GOOSE_XDG_CONFIG_NOTICE = {
+  code: "GOOSE_XDG_CONFIG_HOME_SET",
+  kind: "compatibility",
+  surface: "mcp",
+  message: "XDG_CONFIG_HOME names a directory other than the config home this plan writes, and Goose resolves config.yaml under XDG_CONFIG_HOME when it is set. A Goose launched with this environment will not read the merged MCP entries.",
+  action: "Copy the merged `extensions` entries into $XDG_CONFIG_HOME/goose/config.yaml; a later install writes the default config home again. For an install into the profile home, launching Goose without XDG_CONFIG_HOME also reads the written file.",
+  source_url: "https://goose-docs.ai/docs/guides/config-files",
+  checked_at: "2026-10-19",
+};
+
 export async function storedNotices(target) {
   const capabilities = await readTargetCapabilities();
   return capabilities.targets?.[target]?.notices ?? [];
@@ -30,9 +43,28 @@ export async function allStoredNotices() {
 }
 
 // Every stored notice is shown for its target; an install also gets the notices its writes derive.
-export async function planNotices(target, writes = [], installRoot = null) {
-  const derived = installRoot === null ? null : sharedSkillRootNotice(writes, installRoot);
-  return [...await storedNotices(target), ...(derived ? [derived] : [])];
+export async function planNotices(target, writes = [], installRoot = null, configMerges = []) {
+  const derived = installRoot === null ? [] : [
+    sharedSkillRootNotice(writes, installRoot),
+    gooseXdgConfigNotice(target, configMerges, installRoot),
+  ].filter(Boolean);
+  return [...await storedNotices(target), ...derived];
+}
+
+// The written route is the config home under the install root, so a XDG_CONFIG_HOME that resolves
+// there is the same file and needs no notice. Only a merge that carries extensions counts: a
+// Windows user reinstall prunes this same legacy path while its own config lives under AppData,
+// which XDG_CONFIG_HOME has no part in.
+export function gooseXdgConfigNotice(target, configMerges, installRoot, env = process.env) {
+  if (target !== "goose") return null;
+  const route = path.join(".config", "goose", "config.yaml");
+  const mergesExtensions = configMerges.some(
+    (item) => item.relativeOutput === route && (item.entries?.length ?? 0) > 0,
+  );
+  if (!mergesExtensions) return null;
+  const configured = (env.XDG_CONFIG_HOME ?? "").trim();
+  if (!configured) return null;
+  return path.resolve(configured) === path.resolve(installRoot, ".config") ? null : GOOSE_XDG_CONFIG_NOTICE;
 }
 
 // The home root is excluded: its .agents/skills is a workspace root only when the home directory
