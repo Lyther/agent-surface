@@ -12,8 +12,33 @@ import { root } from "./agent-surface/registry.mjs";
 import { readSkills } from "./agent-surface/skills.mjs";
 import { checkIgnores, checkSubagents } from "./agent-surface/source-primitives.mjs";
 import { commandRelativeOutput, skillRelativeOutput, targets } from "./agent-surface/targets.mjs";
-import { argValue, fail } from "./agent-surface/util.mjs";
+import { argValue, fail, helpRequested, rejectUnknownFlags } from "./agent-surface/util.mjs";
 import { workflow } from "./agent-surface/workflow.mjs";
+
+// Every option each command reads. An unread option is a typo or a stale invocation, and running on
+// without it can do something else entirely: `install --categroy development` was a general install.
+// `check` and `workflow` subcommands read their own; any other `check` subcommand takes none.
+const COMMAND_FLAGS = {
+  inventory: {},
+  commands: { values: ["--phase"], switches: ["--json"] },
+  skills: { values: ["--phase"], switches: ["--json"] },
+  check: {},
+  "check rules": { values: ["--scenario"] },
+  "check generated": { values: ["--target"] },
+  build: { values: ["--target"], switches: ["--dry-run"] },
+  install: {
+    values: ["--target", "--runtime", "--category", "--categories", "--service", "--scope", "--dest", "--agent", "--credentials-file"],
+    switches: ["--allow-scope-root", "--dry-run", "-y"],
+  },
+  run: { values: ["--task", "--class", "--timeout", "--out"], rest: true },
+  workflow: {},
+  "workflow doctor": { values: ["--run"] },
+  "workflow apply": { values: ["--role", "--run", "--artifact"] },
+  "workflow patch begin": { values: ["--run", "--round", "--task", "--file"] },
+  "workflow patch end": { values: ["--run", "--round", "--task"] },
+  "workflow patch verify": { values: ["--run", "--round", "--task"] },
+  doctor: {},
+};
 
 async function main() {
   const [command, ...args] = process.argv.slice(2);
@@ -21,6 +46,17 @@ async function main() {
   if (!command || command === "help" || command === "--help" || command === "-h") {
     printHelp();
     return;
+  }
+
+  if (Object.hasOwn(COMMAND_FLAGS, command)) {
+    const key = [3, 2, 1].map((words) => [command, ...args.slice(0, words - 1)].join(" ")).find((name) => Object.hasOwn(COMMAND_FLAGS, name));
+    if (helpRequested(args, COMMAND_FLAGS[key])) {
+      printHelp();
+      return;
+    }
+    // An unknown workflow subcommand and a run without its `--` fail below with their own message.
+    const ownError = (key === "workflow" && args.length > 0) || (command === "run" && !args.includes("--"));
+    if (!ownError) rejectUnknownFlags(key, args, COMMAND_FLAGS[key]);
   }
 
   if (command === "inventory") {

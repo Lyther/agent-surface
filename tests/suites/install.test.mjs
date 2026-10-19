@@ -2,7 +2,7 @@
 import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -36,6 +36,38 @@ function planLacks(plan, patterns, label) {
   for (const pattern of patterns) {
     assert.doesNotMatch(plan, pattern, `${label}: !${pattern}`);
   }
+}
+
+// An option the command does not read stops it before anything happens. Without the check, a typo
+// such as --categroy, or a shell passing "--category development" as one word, ran a general install.
+{
+  const dest = mkdtempSync(path.join(os.tmpdir(), "agent-surface-flags-"));
+  const project = ["install", "--target", "codex", "--scope", "project", "--dest", dest];
+  const typo = status([...project, "--categroy", "development"]);
+  assert.equal(typo.status, 1, typo.stderr);
+  assert.match(typo.stderr, /^ERROR: unknown option for install: --categroy; it accepts --target, --runtime, --category, /m);
+  const joined = status([...project, "--category development"]);
+  assert.equal(joined.status, 1, joined.stderr);
+  assert.match(joined.stderr, /unknown option for install: --category development;/);
+  // `--` ends the options only for run; elsewhere it would hide a typo from this check.
+  const hidden = status([...project, "--", "--categroy", "development"]);
+  assert.equal(hidden.status, 1, hidden.stderr);
+  assert.match(hidden.stderr, /unknown option for install: --;/);
+  assert.deepEqual(readdirSync(dest), [], "a rejected install writes nothing");
+  assert.match(status(["build", "--target", "codex", "--bogus"]).stderr, /unknown option for build: --bogus; it accepts --target, --dry-run/);
+  assert.match(status(["check", "skills", "--json"]).stderr, /unknown option for check: --json; it takes no options/);
+  assert.match(status(["workflow", "patch", "verify", "--run", "r1", "--file", "a"]).stderr, /unknown option for workflow patch verify: --file;/);
+  assert.match(status(["workflow", "doctr", "--run", "r1"]).stderr, /workflow requires doctor, apply, or patch/);
+  assert.match(status(["bogus", "--flag"]).stderr, /unknown command: bogus/);
+  assert.match(run(["install", "--help"]), /^Usage:$/m);
+  // A value that looks like an option, `--help` included, is still a value, and everything after `--`
+  // belongs to the command `run` wraps.
+  assert.match(run(["install", "--target", "codex", "--scope", "project", "--dest", "-odd", "--dry-run"]), /^root: .*[\\/]-odd$/m);
+  assert.match(run(["install", "--target", "codex", "--scope", "project", "--dest", "--help", "--dry-run"]), /^root: .*[\\/]--help$/m);
+  assert.match(status(["commands", "--phase", "--help"]).stderr, /unsupported command phase: --help/);
+  const evidence = status(["run", "--task", "t1", "--class", "read_only", "--timeout", "10000", "--out", path.join(dest, "evidence"), "--", process.execPath, "--version"]);
+  assert.equal(evidence.status, 0, evidence.stderr);
+  rmSync(dest, { recursive: true, force: true });
 }
 
 // Representative dry-run contracts (not a per-path laundry list for every host).

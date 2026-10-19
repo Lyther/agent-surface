@@ -29,6 +29,33 @@ export async function exists(file) {
   }
 }
 
+// The options a command was given, without their values. A value follows its flag even when it starts
+// with `-`; `--` ends the options only for a command that hands the rest on (`rest`, as `run` does)
+// and is an option elsewhere.
+function givenOptions(args, { values = [], rest = false }) {
+  const options = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--" && rest) break;
+    if (values.includes(arg)) index += 1;
+    else if (arg.startsWith("-")) options.push(arg);
+  }
+  return options;
+}
+
+export function helpRequested(args, spec = {}) {
+  return givenOptions(args, spec).some((arg) => arg === "--help" || arg === "-h");
+}
+
+// Rejects an option the command does not read.
+export function rejectUnknownFlags(command, args, spec = {}) {
+  const { values = [], switches = [] } = spec;
+  const unknown = givenOptions(args, spec).find((arg) => !switches.includes(arg));
+  if (unknown === undefined) return;
+  const known = [...values, ...switches];
+  fail(`unknown option for ${command}: ${unknown}; ${known.length > 0 ? `it accepts ${known.join(", ")}` : "it takes no options"}`);
+}
+
 export function argValue(args, name) {
   const index = args.indexOf(name);
   if (index === -1) return null;
