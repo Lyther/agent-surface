@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { localDate, noticeTiming, sharedSkillRootNotice } from "../../scripts/agent-surface/notices.mjs";
+import { gooseXdgConfigNotice, localDate, noticeTiming, sharedSkillRootNotice } from "../../scripts/agent-surface/notices.mjs";
 import { files, run } from "../lib/helpers.mjs";
 
 // Split an install plan printout into one section per target.
@@ -42,6 +42,22 @@ assert.equal(
   "model-invocable skills do not trigger the notice",
 );
 
+// Goose resolves its config home from XDG_CONFIG_HOME when that is set, so only a route it would
+// not read earns the notice.
+const gooseConfigMerge = { relativeOutput: path.join(".config", "goose", "config.yaml") };
+const gooseRoot = path.join(os.tmpdir(), "agent-surface-notice-goose");
+const elsewhere = path.join(os.tmpdir(), "agent-surface-notice-xdg");
+assert.equal(gooseXdgConfigNotice("goose", [gooseConfigMerge], gooseRoot, { XDG_CONFIG_HOME: elsewhere })?.code, "GOOSE_XDG_CONFIG_HOME_SET");
+assert.equal(gooseXdgConfigNotice("goose", [gooseConfigMerge], gooseRoot, {}), null, "an unset XDG_CONFIG_HOME reads the written file");
+assert.equal(gooseXdgConfigNotice("goose", [gooseConfigMerge], gooseRoot, { XDG_CONFIG_HOME: "  " }), null, "a blank value is no override");
+assert.equal(
+  gooseXdgConfigNotice("goose", [gooseConfigMerge], gooseRoot, { XDG_CONFIG_HOME: path.join(gooseRoot, ".config") }),
+  null,
+  "the same directory is the same file",
+);
+assert.equal(gooseXdgConfigNotice("goose", [], gooseRoot, { XDG_CONFIG_HOME: elsewhere }), null, "a plan without the Goose route is outside the notice");
+assert.equal(gooseXdgConfigNotice("zed", [gooseConfigMerge], gooseRoot, { XDG_CONFIG_HOME: elsewhere }), null, "only Goose's loader is qualified");
+
 const scratch = mkdtempSync(path.join(os.tmpdir(), "agent-surface-notices-"));
 try {
   const home = path.join(scratch, "home");
@@ -70,6 +86,22 @@ try {
   assert.ok(live.indexOf("DSH_REQUALIFY_AFTER_SECURITY_UPDATE") < live.indexOf("installed:"), "notices print before the apply phase");
   for (const file of files(liveRoot)) {
     assert.doesNotMatch(readFileSync(file, "utf8"), /ANTIGRAVITY_WORKFLOW_RETIREMENT|DSH_REQUALIFY_AFTER_SECURITY_UPDATE/, file);
+  }
+
+  // The Goose notice follows the environment the install runs in, not the scope. POSIX only: the
+  // Windows config route is under AppData, where XDG_CONFIG_HOME plays no part.
+  if (process.platform !== "win32") {
+    const gooseDest = path.join(scratch, "goose");
+    const gooseEnv = { ...process.env, HOME: home };
+    delete gooseEnv.XDG_CONFIG_HOME;
+    const gooseWritten = run(["install", "--target", "goose", "--scope", "user", "--dest", gooseDest, "--dry-run"], {
+      env: { ...gooseEnv, XDG_CONFIG_HOME: path.join(gooseDest, ".config") },
+    });
+    assert.doesNotMatch(gooseWritten, /GOOSE_XDG_CONFIG_HOME_SET/, "the written config home needs no notice");
+    const gooseElsewhere = run(["install", "--target", "goose", "--scope", "user", "--dest", gooseDest, "--dry-run"], {
+      env: { ...gooseEnv, XDG_CONFIG_HOME: path.join(scratch, "xdg") },
+    });
+    assert.match(gooseElsewhere, /^ {2}GOOSE_XDG_CONFIG_HOME_SET \(compatibility; mcp\)$/m);
   }
 
   // Build prints each target's notices before any write; doctor lists every stored notice.

@@ -262,8 +262,10 @@ function windowsRoamingPath(...segments) {
   return path.win32.join("AppData", "Roaming", ...segments);
 }
 
-// Goose keeps config.yaml in ~/.config/goose on macOS and Linux (XDG_CONFIG_HOME is not followed)
-// and in the roaming AppData directory on Windows.
+// Goose keeps config.yaml in the config home on macOS and Linux and in the roaming AppData
+// directory on Windows. Goose resolves that config home from XDG_CONFIG_HOME when it is set, which
+// agent-surface does not follow: the client's environment is not known at install time. A plan whose
+// written route such a Goose would not read carries the GOOSE_XDG_CONFIG_HOME_SET notice.
 export function gooseMcpPath(context) {
   return (context.platform ?? process.platform) === "win32"
     ? windowsRoamingPath("Block", "goose", "config", "config.yaml")

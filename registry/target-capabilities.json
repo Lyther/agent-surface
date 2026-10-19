@@ -309,7 +309,7 @@
             "~/.config/goose/config.yaml",
             "%APPDATA%\\Block\\goose\\config\\config.yaml"
           ],
-          "notes": "First-party secretless MCP services are non-destructively merged into Goose YAML `extensions` (type: stdio); user-scope only (config.yaml is user-global). The file is ~/.config/goose/config.yaml on macOS and Linux (XDG_CONFIG_HOME is not followed) and Block\\goose\\config\\config.yaml in the roaming AppData directory on Windows (%APPDATA% by default), resolved from the profile home, so a redirected %APPDATA% is not followed; the Windows route is not natively qualified. Windows installs made before the per-OS route merged into ~/.config/goose/config.yaml, which Windows Goose never reads; the next full install prunes those entries."
+          "notes": "First-party secretless MCP services are non-destructively merged into Goose YAML `extensions` (type: stdio); user-scope only (config.yaml is user-global). The file is ~/.config/goose/config.yaml on macOS and Linux and Block\\goose\\config\\config.yaml in the roaming AppData directory on Windows (%APPDATA% by default), resolved from the profile home, so a redirected %APPDATA% is not followed; the Windows route is not natively qualified. Goose resolves its config home from XDG_CONFIG_HOME when that is set (goose 1.34.1 `goose info`), which agent-surface does not follow because the client's environment is not known at install time; a plan whose written route such a Goose would not read carries the GOOSE_XDG_CONFIG_HOME_SET notice. Windows installs made before the per-OS route merged into ~/.config/goose/config.yaml, which Windows Goose never reads; the next full install prunes those entries."
         },
         "skills": {
           "support": "native",
@@ -2716,7 +2716,7 @@
       ]
     },
     "zed": {
-      "summary": "Zed supports AGENTS.md instructions, Agent Skills, external agents, and MCP context servers; agent-surface generates skills, instructions, external skill packs, and first-party MCP wiring (Synapse + Grimoire) in Zed's per-OS config directory: ~/.config/zed on macOS and Linux (XDG_CONFIG_HOME is not followed) and the roaming AppData directory on Windows (%APPDATA%\\Zed by default), resolved from the profile home; a redirected %APPDATA% is not followed.",
+      "summary": "Zed supports AGENTS.md instructions, Agent Skills, external agents, and MCP context servers; agent-surface generates skills, instructions, external skill packs, and first-party MCP wiring (Synapse + Grimoire) in Zed's per-OS config directory: ~/.config/zed on macOS and Linux (Linux Zed also honors XDG_CONFIG_HOME, which agent-surface does not follow) and the roaming AppData directory on Windows (%APPDATA%\\Zed by default), resolved from the profile home; a redirected %APPDATA% is not followed.",
       "generated_render_tokens": [
         "skills",
         "rules",
