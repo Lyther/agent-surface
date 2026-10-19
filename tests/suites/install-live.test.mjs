@@ -155,6 +155,8 @@ for (const target of [
     }
     if (target === "kimi-code") {
       assert.equal(existsSync(path.join(targetDest, ".kimi-code", "config.toml")), false, "Kimi reads config.toml only from KIMI_CODE_HOME");
+      assert.match(readFileSync(path.join(targetDest, "AGENTS.md"), "utf8"), /^## 00-precedence-and-safety\.mdc$/m);
+      assert.equal(existsSync(path.join(targetDest, ".kimi-code", "AGENTS.md")), false, "the rules load once, from the shared root AGENTS.md");
       const kimiMcp = JSON.parse(readFileSync(path.join(targetDest, ".kimi-code", "mcp.json"), "utf8"));
       assert.equal(Object.hasOwn(kimiMcp.mcpServers.synapse, "type"), false);
     }
@@ -167,6 +169,8 @@ for (const target of [
     if (target === "qwen-code") {
       const settings = JSON.parse(readFileSync(path.join(targetDest, ".qwen", "settings.json"), "utf8"));
       assert.equal(settings.tools.approvalMode, "yolo");
+      assert.match(readFileSync(path.join(targetDest, "AGENTS.md"), "utf8"), /^## 00-precedence-and-safety\.mdc$/m);
+      assert.equal(existsSync(path.join(targetDest, "QWEN.md")), false, "the rules load once, from the shared root AGENTS.md");
       assert.equal(Object.hasOwn(settings.mcpServers.synapse, "type"), false);
     }
     if (target === "kiro") {

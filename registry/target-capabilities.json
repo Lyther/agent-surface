@@ -1086,10 +1086,10 @@
           "paths": [
             "$KIMI_CODE_HOME/AGENTS.md",
             "$KIMI_CODE_HOME/references/rules/<rule>.md",
-            ".kimi-code/AGENTS.md",
+            "AGENTS.md",
             ".kimi-code/references/rules/<rule>.md"
           ],
-          "notes": "Always-on rules render into Kimi's instruction file; scoped language rules remain reference files until a matching workflow attaches them."
+          "notes": "Always-on rules render into Kimi's instruction file; scoped language rules remain reference files until a matching workflow attaches them. Kimi reads both .kimi-code/AGENTS.md and AGENTS.md in each project directory, so project installs share the root AGENTS.md with the other AGENTS.md hosts rather than load the rules twice."
         },
         "subagents": {
           "support": "native",
@@ -1356,9 +1356,9 @@
           ],
           "paths": [
             "~/.qwen/QWEN.md",
-            "QWEN.md"
+            "AGENTS.md"
           ],
-          "notes": "Always-on rules use Qwen Code's native context files; scoped rules remain references."
+          "notes": "Always-on rules use Qwen Code's native context files; scoped rules remain references. Qwen reads both QWEN.md and AGENTS.md, so project installs share the root AGENTS.md with the other AGENTS.md hosts rather than add a QWEN.md that loads the rules twice."
         },
         "subagents": {
           "support": "native",

@@ -159,8 +159,11 @@ export function qwenCodeAgentRoot() {
   return path.join(qwenCodeConfigRoot(), "agents");
 }
 
+// Qwen Code loads both QWEN.md and AGENTS.md, from ~/.qwen and from every directory between the working
+// directory and the project root, so a project's shared AGENTS.md already reaches it. A root QWEN.md
+// beside it loaded the same rules twice.
 export function qwenCodeInstructionPath(context) {
-  return context.scope === "user" ? path.join(qwenCodeConfigRoot(), "QWEN.md") : "QWEN.md";
+  return context.scope === "user" ? path.join(qwenCodeConfigRoot(), "QWEN.md") : "AGENTS.md";
 }
 
 export function qwenCodeSettingsPath() {
@@ -305,8 +308,11 @@ export function kimiCodeAgentRoot(context) {
   return path.join(kimiCodeConfigRoot(context), "agents");
 }
 
-export function kimiCodeInstructionPath(context) {
-  return path.join(kimiCodeConfigRoot(context), "AGENTS.md");
+// Kimi Code loads <KIMI_CODE_HOME>/AGENTS.md, then .kimi-code/AGENTS.md and AGENTS.md in each directory
+// from the git root down, so a project install shares the root AGENTS.md; a .kimi-code/AGENTS.md
+// beside it loaded the same rules twice.
+export function kimiCodeInstructionPath() {
+  return "AGENTS.md";
 }
 
 export function kimiCodeConfigPath(context) {
