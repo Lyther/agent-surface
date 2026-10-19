@@ -239,25 +239,30 @@ try {
     // The paths that release actually wrote: its instruction document under Code/User/instructions,
     // and one more that only its nested manifest records.
     const historicalRecord = path.join("instructions", "agent-surface-copilot.instructions.md");
+    const historicalReference = path.join("instructions", "references", "rules", "10-python.md");
     const retiredRecord = path.join("instructions", "retired-copilot.instructions.md");
-    mkdirSync(path.join(dest, nestedRoot, "instructions"), { recursive: true });
+    mkdirSync(path.join(dest, nestedRoot, path.dirname(historicalReference)), { recursive: true });
     mkdirSync(path.join(dest, path.dirname(nestedManifest)), { recursive: true });
     writeFileSync(path.join(dest, nestedManifest), `${JSON.stringify({
       target: "copilot",
       managed: [
         { target: "copilot", source: "rules/*.mdc", output: historicalRecord },
+        { target: "copilot", source: "rules/10-python.mdc", output: historicalReference },
         { target: "copilot", source: "rules/*.mdc", output: retiredRecord },
       ],
     })}\n`);
     writeFileSync(path.join(dest, nestedRoot, historicalRecord), "instructions from an older copilot install\n");
+    writeFileSync(path.join(dest, nestedRoot, historicalReference), "a scoped reference from an older copilot install\n");
     writeFileSync(path.join(dest, nestedRoot, retiredRecord), "retired by an older copilot install\n");
     const live = install(["--target", "copilot", "--scope", "user", "--dest", dest]);
     assert.equal(live.code, 0, live.out);
     assert.match(read(dest, planned), /^applyTo: "\*\*"$/m, "the upgrade writes the document in the folder VS Code reads");
-    assert.ok(
-      !existsSync(path.join(dest, nestedRoot, historicalRecord)),
-      "the old instruction route is listed in legacy ownership, so the upgrade removes it",
-    );
+    for (const [record, label] of [[historicalRecord, "document"], [historicalReference, "scoped reference"]]) {
+      assert.ok(
+        !existsSync(path.join(dest, nestedRoot, record)),
+        `the old instruction ${label} is listed in legacy ownership, so the upgrade removes it`,
+      );
+    }
     assert.ok(!existsSync(path.join(dest, nestedManifest)), "the legacy nested manifest itself is cleaned up");
     assert.equal(read(dest, path.join(nestedRoot, retiredRecord)), "retired by an older copilot install\n", "a nested claim never authorizes a removal");
   }

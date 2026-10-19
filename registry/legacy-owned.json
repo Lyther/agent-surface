@@ -20,6 +20,78 @@
     },
     {
       "target": "vscode",
+      "output": "Library/Application Support/Code/User/instructions/references/rules/04-cybersecurity.md"
+    },
+    {
+      "target": "vscode",
+      "output": "Library/Application Support/Code/User/instructions/references/rules/10-python.md"
+    },
+    {
+      "target": "vscode",
+      "output": "Library/Application Support/Code/User/instructions/references/rules/11-rust.md"
+    },
+    {
+      "target": "vscode",
+      "output": "Library/Application Support/Code/User/instructions/references/rules/12-go.md"
+    },
+    {
+      "target": "vscode",
+      "output": "Library/Application Support/Code/User/instructions/references/rules/13-typescript.md"
+    },
+    {
+      "target": "vscode",
+      "output": "Library/Application Support/Code/User/instructions/references/rules/14-shell.md"
+    },
+    {
+      "target": "vscode",
+      "output": ".config/Code/User/instructions/references/rules/04-cybersecurity.md"
+    },
+    {
+      "target": "vscode",
+      "output": ".config/Code/User/instructions/references/rules/10-python.md"
+    },
+    {
+      "target": "vscode",
+      "output": ".config/Code/User/instructions/references/rules/11-rust.md"
+    },
+    {
+      "target": "vscode",
+      "output": ".config/Code/User/instructions/references/rules/12-go.md"
+    },
+    {
+      "target": "vscode",
+      "output": ".config/Code/User/instructions/references/rules/13-typescript.md"
+    },
+    {
+      "target": "vscode",
+      "output": ".config/Code/User/instructions/references/rules/14-shell.md"
+    },
+    {
+      "target": "vscode",
+      "output": "AppData/Roaming/Code/User/instructions/references/rules/04-cybersecurity.md"
+    },
+    {
+      "target": "vscode",
+      "output": "AppData/Roaming/Code/User/instructions/references/rules/10-python.md"
+    },
+    {
+      "target": "vscode",
+      "output": "AppData/Roaming/Code/User/instructions/references/rules/11-rust.md"
+    },
+    {
+      "target": "vscode",
+      "output": "AppData/Roaming/Code/User/instructions/references/rules/12-go.md"
+    },
+    {
+      "target": "vscode",
+      "output": "AppData/Roaming/Code/User/instructions/references/rules/13-typescript.md"
+    },
+    {
+      "target": "vscode",
+      "output": "AppData/Roaming/Code/User/instructions/references/rules/14-shell.md"
+    },
+    {
+      "target": "vscode",
       "output": "Library/Application Support/Code/User/.agent-surface/vscode-manifest.json"
     },
     {
@@ -73,6 +145,78 @@
     {
       "target": "copilot",
       "output": "AppData/Roaming/Code/User/instructions/agent-surface-copilot.instructions.md"
+    },
+    {
+      "target": "copilot",
+      "output": "Library/Application Support/Code/User/instructions/references/rules/04-cybersecurity.md"
+    },
+    {
+      "target": "copilot",
+      "output": "Library/Application Support/Code/User/instructions/references/rules/10-python.md"
+    },
+    {
+      "target": "copilot",
+      "output": "Library/Application Support/Code/User/instructions/references/rules/11-rust.md"
+    },
+    {
+      "target": "copilot",
+      "output": "Library/Application Support/Code/User/instructions/references/rules/12-go.md"
+    },
+    {
+      "target": "copilot",
+      "output": "Library/Application Support/Code/User/instructions/references/rules/13-typescript.md"
+    },
+    {
+      "target": "copilot",
+      "output": "Library/Application Support/Code/User/instructions/references/rules/14-shell.md"
+    },
+    {
+      "target": "copilot",
+      "output": ".config/Code/User/instructions/references/rules/04-cybersecurity.md"
+    },
+    {
+      "target": "copilot",
+      "output": ".config/Code/User/instructions/references/rules/10-python.md"
+    },
+    {
+      "target": "copilot",
+      "output": ".config/Code/User/instructions/references/rules/11-rust.md"
+    },
+    {
+      "target": "copilot",
+      "output": ".config/Code/User/instructions/references/rules/12-go.md"
+    },
+    {
+      "target": "copilot",
+      "output": ".config/Code/User/instructions/references/rules/13-typescript.md"
+    },
+    {
+      "target": "copilot",
+      "output": ".config/Code/User/instructions/references/rules/14-shell.md"
+    },
+    {
+      "target": "copilot",
+      "output": "AppData/Roaming/Code/User/instructions/references/rules/04-cybersecurity.md"
+    },
+    {
+      "target": "copilot",
+      "output": "AppData/Roaming/Code/User/instructions/references/rules/10-python.md"
+    },
+    {
+      "target": "copilot",
+      "output": "AppData/Roaming/Code/User/instructions/references/rules/11-rust.md"
+    },
+    {
+      "target": "copilot",
+      "output": "AppData/Roaming/Code/User/instructions/references/rules/12-go.md"
+    },
+    {
+      "target": "copilot",
+      "output": "AppData/Roaming/Code/User/instructions/references/rules/13-typescript.md"
+    },
+    {
+      "target": "copilot",
+      "output": "AppData/Roaming/Code/User/instructions/references/rules/14-shell.md"
     },
     {
       "target": "copilot",
