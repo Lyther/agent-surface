@@ -507,13 +507,16 @@ export async function checkGenerated(args) {
     const sourceKindErrors = validateGeneratedSourceKinds(item, outputs, sourceKindsConfig);
     const fidelityErrors = await validateSkillResourceFidelity(outputs);
     const referenceErrors = validateScopedRuleReferences(outputs, rules);
-    const failed = targetErrors.length + countErrors.length + sourceKindErrors.length + fidelityErrors.length + referenceErrors.length > 0;
+    const scopedInstructionErrors = validateScopedRuleInstructions(outputs, rules);
+    const failed = targetErrors.length + countErrors.length + sourceKindErrors.length + fidelityErrors.length
+      + referenceErrors.length + scopedInstructionErrors.length > 0;
     console.log(`${item}: generated outputs ${outputs.length} ${failed ? "failed" : "ok"}`);
     errors.push(...targetErrors.map((error) => `${item}: ${error}`));
     errors.push(...countErrors.map((error) => `${item}: ${error}`));
     errors.push(...sourceKindErrors);
     errors.push(...fidelityErrors.map((error) => `${item}: ${error}`));
     errors.push(...referenceErrors.map((error) => `${item}: ${error}`));
+    errors.push(...scopedInstructionErrors.map((error) => `${item}: ${error}`));
   }
   errors.push(...validateSharedSkillRootAgreement(outputsByTarget));
 
@@ -863,6 +866,35 @@ export function validateScopedRuleReferences(outputs, rules) {
   return errors;
 }
 
+// Where a host attaches a scoped rule by glob itself, the globs are the mechanism rather than advice:
+// a dropped one silently stops applying the rule, and a catch-all makes the host attach it to every
+// request, which is the opposite of a scoped rule.
+export function validateScopedRuleInstructions(outputs, rules) {
+  const errors = [];
+  const catchAll = ["*", "**", "**/*"];
+  const scoped = new Map(rules.filter((rule) => rule.alwaysApply === false).map((rule) => [rule.file, rule]));
+  for (const output of outputs) {
+    const rule = scoped.get(output.source);
+    if (!rule || !output.relativeOutput.endsWith(".instructions.md")) continue;
+    const declared = /^applyTo: "(.*)"$/m.exec(output.content);
+    if (!declared) {
+      errors.push(`scoped instruction ${output.relativeOutput} declares no applyTo globs`);
+      continue;
+    }
+    const globs = declared[1].split(",").map((glob) => glob.trim());
+    for (const glob of rule.globs) {
+      if (!globs.includes(glob)) errors.push(`scoped instruction ${output.relativeOutput} drops the applicability glob ${glob}`);
+    }
+    for (const glob of globs.filter((glob) => catchAll.includes(glob))) {
+      errors.push(`scoped instruction ${output.relativeOutput} declares the catch-all glob ${glob}, which attaches it to every request`);
+    }
+    if (rule.description && !output.content.includes(rule.description)) {
+      errors.push(`scoped instruction ${output.relativeOutput} drops the rule's description`);
+    }
+  }
+  return errors;
+}
+
 // `.agents/skills/` is one directory on disk that several targets install into, and identical
 // content is what lets them coexist there — a divergence is a real install conflict, not a style
 // difference.
@@ -1124,11 +1156,15 @@ export function validateGeneratedTarget(target, outputs) {
     if (mcp?.mcpServers?.synapse?.type !== "stdio") {
       errors.push("Copilot CLI stdio MCP entries must use the standard stdio type");
     }
-    requireContains(path.join(userRoot, "instructions", "agent-surface-copilot.instructions.md"), /^---\ndescription: "agent-surface Copilot global instructions"\napplyTo: "\*\*"/);
+    requireContains(path.join(userRoot, "prompts", "agent-surface.instructions.md"), /^---\ndescription: "agent-surface VS Code instructions"\napplyTo: "\*\*"/);
+    requireContains(path.join(userRoot, "prompts", "agent-surface-10-python.instructions.md"), /^---\ndescription: "Python-specific correctness rules"\napplyTo: "\*\*\/\*\.py, pyproject\.toml/);
+    requireAbsent(path.join(userRoot, "instructions", "agent-surface-copilot.instructions.md"));
   } else if (target === "vscode") {
     const userRoot = vsCodeUserRoot("Code", { scope: "user" });
     requirePath(path.join(".agents", "skills", "ops-flow", "SKILL.md"));
-    requireContains(path.join(userRoot, "instructions", "agent-surface.instructions.md"), /^---\ndescription: "agent-surface VS Code instructions"\napplyTo: "\*\*"/);
+    requireContains(path.join(userRoot, "prompts", "agent-surface.instructions.md"), /^---\ndescription: "agent-surface VS Code instructions"\napplyTo: "\*\*"/);
+    requireContains(path.join(userRoot, "prompts", "agent-surface-14-shell.instructions.md"), /^---\ndescription: "Shell-specific correctness rules"\napplyTo: "\*\*\/\*\.sh, /);
+    requireAbsent(path.join(userRoot, "instructions", "agent-surface.instructions.md"));
     // Manual workflows reach VS Code as explicit-only Agent Skills, not prompt files: 1.116 does not
     // load prompt files in Agent Host sessions, and `disable-model-invocation` is how it is told to
     // keep a skill manual. The absent-path assertion is the point — a prompt file here would mean

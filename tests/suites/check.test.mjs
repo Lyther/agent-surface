@@ -15,7 +15,9 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { checkSkillMetadata } from "../../scripts/agent-surface/check.mjs";
+import { checkSkillMetadata, validateScopedRuleInstructions } from "../../scripts/agent-surface/check.mjs";
+import { renderVsCodeScopedInstructionDocument } from "../../scripts/agent-surface/render.mjs";
+import { readRules } from "../../scripts/agent-surface/rules.mjs";
 import { parseSkill } from "../../scripts/agent-surface/skills.mjs";
 import { targets } from "../../scripts/agent-surface/targets.mjs";
 import {
@@ -76,6 +78,31 @@ assert.deepEqual(targetCapabilities.targets["grok-build"].surfaces.rules.paths, 
 assert.deepEqual(targetCapabilities.targets["grok-build"].surfaces.rules.scope, ["user", "project"]);
 assert.deepEqual(targetCapabilities.targets["trae-cli"].surfaces.rules.paths, ["~/.trae/rules/<name>.md", ".trae/rules/<name>.md"]);
 assert.deepEqual(targetCapabilities.targets["trae-cli"].surfaces.rules.scope, ["user", "project"]);
+assert.deepEqual(targetCapabilities.targets.vscode.surfaces.instructions.paths, [
+  "prompts/agent-surface.instructions.md",
+  "prompts/agent-surface-<scoped-rule>.instructions.md",
+]);
+
+// A scoped rule reaches the VS Code profile as an instruction file the host attaches by glob, so its
+// globs are a consumed interface and not prose: one that goes missing stops applying the rule where
+// it should, and a catch-all attaches it to every request instead.
+{
+  const scopedRules = (await readRules()).filter((rule) => rule.alwaysApply === false);
+  const pythonRule = scopedRules.find((rule) => rule.file.endsWith("10-python.mdc"));
+  const rendered = {
+    source: pythonRule.file,
+    relativeOutput: path.join("prompts", "agent-surface-10-python.instructions.md"),
+    content: renderVsCodeScopedInstructionDocument(pythonRule),
+  };
+  assert.deepEqual(validateScopedRuleInstructions([rendered], scopedRules), []);
+  const dropped = { ...rendered, content: rendered.content.replace(", pyproject.toml", "") };
+  assert.match(
+    validateScopedRuleInstructions([dropped], scopedRules).join("\n"),
+    /drops the applicability glob pyproject\.toml/,
+  );
+  const widened = { ...rendered, content: rendered.content.replace(/^applyTo: ".*"$/m, 'applyTo: "**"') };
+  assert.match(validateScopedRuleInstructions([widened], scopedRules).join("\n"), /catch-all glob \*\*/);
+}
 
 // Every case below rewrites a tracked registry file, so it runs in a disposable checkout: neither
 // the rewrite nor an interrupted run can reach the shared one.

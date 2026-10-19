@@ -11,7 +11,7 @@ import { directDirectories, filesUnder } from "./fs-tree.mjs";
 import { MCP_ENV_LAUNCHER, mcpLauncherInvocation, optionalServiceMcpServers, renderMcpConfig } from "./merge.mjs";
 import { normalizeExternalSkillFile } from "./postprocess.mjs";
 import { assetCategoryAllowed, assetCategoryFor, packageVersion, readAssetCategories, readOptionalServices, relative, root, selectedAssetCategories } from "./registry.mjs";
-import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityCliSubagent, renderAntigravityWorkflow, renderClaudeSubagent, renderClineSubagent, renderClineWorkflow, renderCodexSubagent, renderCopilotSubagent, renderCursorCommand, renderCursorSubagent, renderDeepAgentsSubagent, renderDroidCommand, renderDroidSubagent, renderGooseRecipe, renderGrokBuildSubagent, renderInstructionDocument, renderKiloRuleDocument, renderKiloSubagent, renderKiloWorkflow, renderKimiCodeSubagent, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderQwenCodeSubagent, renderScopedRuleReferenceDocument, renderTraeSubagent, renderVanillaSkill, renderVsCodeInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
+import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityCliSubagent, renderAntigravityWorkflow, renderClaudeSubagent, renderClineSubagent, renderClineWorkflow, renderCodexSubagent, renderCopilotSubagent, renderCursorCommand, renderCursorSubagent, renderDeepAgentsSubagent, renderDroidCommand, renderDroidSubagent, renderGooseRecipe, renderGrokBuildSubagent, renderInstructionDocument, renderKiloRuleDocument, renderKiloSubagent, renderKiloWorkflow, renderKimiCodeSubagent, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderQwenCodeSubagent, renderScopedRuleReferenceDocument, renderTraeSubagent, renderVanillaSkill, renderVsCodeInstructionDocument, renderVsCodeScopedInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
 import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, clineAgentRoot, clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexInstructionPath, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildAgentRoot, grokBuildInstructionPath, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piMcpPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleFolder, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
 import { readRulesForContext } from "./rules.mjs";
 import { ignoreOutputs, subagentOutputs } from "./source-primitives.mjs";
@@ -1719,17 +1719,7 @@ export async function copilotStaticOutputs(_commands, context) {
     ...await scopedRuleReferenceOutputs(context, path.join(nativeRoot, "references", "rules")),
   ];
   if (context.scope !== "user") return outputs;
-  const instructionRoot = path.join(vsCodeUserRoot("Code", context), "instructions");
-  outputs.push(
-    {
-      sourceKind: "rules",
-      renderKind: "instructions",
-      source: "rules/*.mdc",
-      relativeOutput: path.join(instructionRoot, "agent-surface-copilot.instructions.md"),
-      content: await renderVsCodeInstructionDocument("agent-surface Copilot global instructions", "copilot", context),
-    },
-    ...await scopedRuleReferenceOutputs(context, path.join(instructionRoot, "references", "rules")),
-  );
+  outputs.push(...await vsCodeProfileInstructionOutputs(context));
   return outputs;
 }
 
@@ -1933,18 +1923,40 @@ async function traeRuleFileOutputs(context, ruleRoot = traeRuleRoot(context)) {
   }));
 }
 
-export async function vscodeStaticOutputs(_commands, context) {
-  const instructionRoot = path.join(vsCodeUserRoot("Code", context), "instructions");
+// VS Code discovers instruction files in the profile folder it calls promptsHome, Code/User/prompts,
+// next to the workspace and ~/.copilot locations in chat.instructionsFilesLocations. Code/User, which
+// agent-surface wrote before, is not one of them in 1.116: its default list is .github/instructions,
+// .claude/rules, ~/.claude/rules and ~/.copilot/instructions, and the profile folder appended for
+// instructions is promptsHome alone. Only *.instructions.md, copilot-instructions.md and
+// .claude/rules/*.md are read there, so a scoped rule reaches this host as its own instruction file
+// rather than as a reference nothing would load.
+//
+// Both targets that reach this surface write one shared document, as the project AGENTS.md hosts do:
+// a co-installed pair then plans identical bytes instead of attaching the same always-on rules twice.
+async function vsCodeProfileInstructionOutputs(context) {
+  const promptRoot = path.join(vsCodeUserRoot("Code", context), "prompts");
+  const scoped = (await readRulesForContext(context)).filter((rule) => rule.alwaysApply === false);
   return [
     {
       sourceKind: "rules",
       renderKind: "instructions",
       source: "rules/*.mdc",
-      relativeOutput: path.join(instructionRoot, "agent-surface.instructions.md"),
-      content: await renderVsCodeInstructionDocument("agent-surface VS Code instructions", "vscode", context),
+      relativeOutput: path.join(promptRoot, "agent-surface.instructions.md"),
+      content: await renderVsCodeInstructionDocument("agent-surface VS Code instructions", context),
     },
-    ...await scopedRuleReferenceOutputs(context, path.join(instructionRoot, "references", "rules")),
+    ...scoped.map((rule) => ({
+      sourceKind: "rules",
+      renderKind: "rules",
+      source: rule.file,
+      relativeOutput: path.join(promptRoot, `agent-surface-${path.basename(rule.file, ".mdc")}.instructions.md`),
+      content: renderVsCodeScopedInstructionDocument(rule),
+      assetCategory: rule.assetCategory,
+    })),
   ];
+}
+
+export async function vscodeStaticOutputs(_commands, context) {
+  return vsCodeProfileInstructionOutputs(context);
 }
 
 export async function windsurfStaticOutputs(_commands, context) {

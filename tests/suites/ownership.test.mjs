@@ -229,17 +229,17 @@ try {
     const dest = path.join(scratch, "copilot-legacy");
     const plan = install(["--target", "copilot", "--scope", "user", "--dest", dest, "--dry-run"]);
     const planned = plan.out.split("\n").map((line) => line.trim())
-      .find((line) => line.endsWith(`instructions${path.sep}agent-surface-copilot.instructions.md <- rules/*.mdc`))
+      .find((line) => line.endsWith(`prompts${path.sep}agent-surface.instructions.md <- rules/*.mdc`))
       ?.split(" <- ")[0];
     assert.ok(planned, plan.out);
     const nestedRoot = path.dirname(path.dirname(planned));
     const nestedManifest = path.join(nestedRoot, ".agent-surface", "copilot-manifest.json");
-    const retiredRecord = path.join("instructions", "retired-copilot.instructions.md");
+    const retiredRecord = path.join("prompts", "retired-copilot.instructions.md");
     mkdirSync(path.join(dest, path.dirname(nestedManifest)), { recursive: true });
     writeFileSync(path.join(dest, nestedManifest), `${JSON.stringify({
       target: "copilot",
       managed: [
-        { target: "copilot", source: "rules/*.mdc", output: path.join("instructions", "agent-surface-copilot.instructions.md") },
+        { target: "copilot", source: "rules/*.mdc", output: path.join("prompts", "agent-surface.instructions.md") },
         { target: "copilot", source: "rules/*.mdc", output: retiredRecord },
       ],
     })}\n`);
