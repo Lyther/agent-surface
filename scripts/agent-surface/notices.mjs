@@ -25,7 +25,7 @@ const GOOSE_XDG_CONFIG_NOTICE = {
   kind: "compatibility",
   surface: "mcp",
   message: "XDG_CONFIG_HOME names a directory other than the config home this plan writes, and Goose resolves config.yaml under XDG_CONFIG_HOME when it is set. A Goose launched with this environment will not read the merged MCP entries.",
-  action: "Copy the merged `extensions` entries into the config.yaml under XDG_CONFIG_HOME, or launch Goose without XDG_CONFIG_HOME so it reads the written file. A later install writes the default config home again.",
+  action: "Copy the merged `extensions` entries into $XDG_CONFIG_HOME/goose/config.yaml; a later install writes the default config home again. For an install into the profile home, launching Goose without XDG_CONFIG_HOME also reads the written file.",
   source_url: "https://goose-docs.ai/docs/guides/config-files",
   checked_at: "2026-10-19",
 };
