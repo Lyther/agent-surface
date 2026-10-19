@@ -591,6 +591,14 @@ export const targets = {
     staticRenders: ["instructions"],
     installRoot: installRootUserOrProject,
     staticOutputs: copilotStaticOutputs,
+    // Earlier user installs wrote the VS Code profile document to Code/User/instructions, which VS
+    // Code does not scan, under a Copilot-specific name (contract Migration step 4).
+    movedRoutes: [{
+      from: (context) => (context.scope === "user"
+        ? path.join(vsCodeUserRoot("Code", context), "instructions", "agent-surface-copilot.instructions.md")
+        : null),
+      to: (context) => path.join(vsCodeUserRoot("Code", context), "prompts", "agent-surface.instructions.md"),
+    }],
     mcpConfig: {
       relativeOutput: copilotMcpPath,
       format: "mcpServers",
@@ -620,6 +628,14 @@ export const targets = {
     staticRenders: ["instructions"],
     installRoot: installRootVsCode,
     staticOutputs: vscodeStaticOutputs,
+    // Earlier installs wrote the profile document to Code/User/instructions, which VS Code does not
+    // scan (contract Migration step 4).
+    movedRoutes: [{
+      from: (context) => (context.scope === "user"
+        ? path.join(vsCodeUserRoot("Code", context), "instructions", "agent-surface.instructions.md")
+        : null),
+      to: (context) => path.join(vsCodeUserRoot("Code", context), "prompts", "agent-surface.instructions.md"),
+    }],
     mcpConfig: {
       relativeOutput: (context) => path.join(vsCodeUserRoot("Code", context), "mcp.json"),
       format: "vscode-servers",
