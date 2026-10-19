@@ -53,9 +53,22 @@ function planLacks(plan, patterns, label) {
   const hidden = status([...project, "--", "--categroy", "development"]);
   assert.equal(hidden.status, 1, hidden.stderr);
   assert.match(hidden.stderr, /unknown option for install: --;/);
+  // An option takes one value, so a space-separated list installed its first target alone, and a
+  // repeated one-value option read its first value alone. Only a list option's hint names commas.
+  const spaced = status(["install", "--target", "codex", "cursor", "--scope", "project", "--dest", dest]);
+  assert.equal(spaced.status, 1, spaced.stderr);
+  assert.match(spaced.stderr, /^ERROR: unexpected argument for install: cursor; --target takes a comma-separated list$/m);
   assert.deepEqual(readdirSync(dest), [], "a rejected install writes nothing");
+  assert.match(status(["build", "--target", "codex", "cursor"]).stderr, /^ERROR: unexpected argument for build: cursor$/m);
+  assert.match(status(["build", "--target", "codex", "--target", "cursor"]).stderr, /^ERROR: --target is given twice; build reads one value$/m);
+  assert.match(status(["workflow", "patch", "begin", "--run", "r1", "--file", "a", "b"]).stderr, /unexpected argument for workflow patch begin: b; repeat --file for each value$/m);
   assert.match(status(["build", "--target", "codex", "--bogus"]).stderr, /unknown option for build: --bogus; it accepts --target, --dry-run/);
-  assert.match(status(["check", "skills", "--json"]).stderr, /unknown option for check: --json; it takes no options/);
+  assert.match(status(["check", "skills", "--json"]).stderr, /unknown option for check skills: --json; it takes no options/);
+  assert.match(status(["check", "bogus"]).stderr, /^ERROR: unexpected argument for check: bogus$/m);
+  // The first argument not read is the one reported, so a mistyped subcommand is named before the
+  // options that belong to the real one.
+  assert.match(status(["check", "generted", "--target", "codex"]).stderr, /^ERROR: unexpected argument for check: generted$/m);
+  assert.match(status(["workflow", "doctor", "stray", "--run", "r1"]).stderr, /unexpected argument for workflow doctor: stray$/m);
   assert.match(status(["workflow", "patch", "verify", "--run", "r1", "--file", "a"]).stderr, /unknown option for workflow patch verify: --file;/);
   assert.match(status(["workflow", "doctr", "--run", "r1"]).stderr, /workflow requires doctor, apply, or patch/);
   assert.match(status(["bogus", "--flag"]).stderr, /unknown command: bogus/);
