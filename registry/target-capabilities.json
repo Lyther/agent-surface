@@ -2759,7 +2759,7 @@
             "~/.agents/skills/<name>/SKILL.md",
             ".agents/skills/<name>/SKILL.md"
           ],
-          "notes": "Canonical skills are emitted unchanged. Available high-impact commands are emitted as explicit-invocation compatibility skills with disable-model-invocation: true; host enforcement remains unproven."
+          "notes": "Canonical skills are emitted unchanged. Available high-impact commands are emitted as explicit-invocation compatibility skills with disable-model-invocation: true, which Zed honors for model-driven loading: it leaves them out of the model's skill catalog and its skill tool refuses them, while the slash command still runs them; its file tools can still read the SKILL.md. Project skills load only once the worktree is trusted."
         },
         "rules": {
           "support": "native",
@@ -2773,7 +2773,7 @@
             "%APPDATA%\\Zed\\AGENTS.md",
             "AGENTS.md"
           ],
-          "notes": "Rules are bundled into AGENTS.md instruction files. The personal file is ~/.config/zed/AGENTS.md on macOS and Linux and %APPDATA%\\Zed\\AGENTS.md on Windows, which Zed documents as personal instructions for its native agent only. The Windows route is not natively qualified. The personal AGENTS.md that Windows installs made before the per-OS route left in ~/.config/zed, which Windows Zed never reads, is retired when an install writes the new one."
+          "notes": "Rules are bundled into AGENTS.md instruction files. At a project root Zed's native agent reads only the first regular file of .rules, .cursorrules, .windsurfrules, .clinerules, .github/copilot-instructions.md, AGENT.md, AGENTS.md, CLAUDE.md and GEMINI.md, so a file with an earlier name keeps it off the generated AGENTS.md; a .clinerules directory is skipped, and External Agents read their own files. The personal file is ~/.config/zed/AGENTS.md on macOS and Linux and %APPDATA%\\Zed\\AGENTS.md on Windows, which Zed documents as personal instructions for its native agent only. The Windows route is not natively qualified. The personal AGENTS.md that Windows installs made before the per-OS route left in ~/.config/zed, which Windows Zed never reads, is retired when an install writes the new one."
         },
         "external": {
           "support": "native",
@@ -2800,7 +2800,7 @@
             "%APPDATA%\\Zed\\settings.json",
             ".zed/settings.json"
           ],
-          "notes": "First-party secretless MCP services are generated/merged under context_servers; external or secret-bearing MCPs remain opt-in. Windows installs made before the per-OS route merged into ~/.config/zed/settings.json, which Windows Zed never reads; the next full install prunes those entries there."
+          "notes": "First-party secretless MCP services are generated/merged under context_servers; external or secret-bearing MCPs remain opt-in. A project's .zed/settings.json, and so its context_servers, applies only once the worktree is trusted; user settings are not gated. Windows installs made before the per-OS route merged into ~/.config/zed/settings.json, which Windows Zed never reads; the next full install prunes those entries there."
         }
       }
     },
