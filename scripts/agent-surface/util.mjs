@@ -29,31 +29,49 @@ export async function exists(file) {
   }
 }
 
-// The options a command was given, without their values. A value follows its flag even when it starts
-// with `-`; `--` ends the options only for a command that hands the rest on (`rest`, as `run` does)
-// and is an option elsewhere.
-function givenOptions(args, { values = [], rest = false }) {
-  const options = [];
+// What a command was given, in order: options, the values that follow their flags, and the words that
+// are neither. A value follows its flag even when it starts with `-`; `--` ends the options only for a
+// command that hands the rest on (`rest`, as `run` does) and is an option elsewhere.
+function givenArgs(args, { values = [], rest = false }) {
+  const given = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "--" && rest) break;
-    if (values.includes(arg)) index += 1;
-    else if (arg.startsWith("-")) options.push(arg);
+    if (values.includes(arg)) {
+      given.push({ kind: "option", arg }, { kind: "value", arg: args[index + 1], of: arg });
+      index += 1;
+    } else {
+      given.push({ kind: arg.startsWith("-") ? "option" : "word", arg });
+    }
   }
-  return options;
+  return given;
 }
 
 export function helpRequested(args, spec = {}) {
-  return givenOptions(args, spec).some((arg) => arg === "--help" || arg === "-h");
+  return givenArgs(args, spec).some(({ kind, arg }) => kind === "option" && (arg === "--help" || arg === "-h"));
 }
 
-// Rejects an option the command does not read.
-export function rejectUnknownFlags(command, args, spec = {}) {
-  const { values = [], switches = [] } = spec;
-  const unknown = givenOptions(args, spec).find((arg) => !switches.includes(arg));
-  if (unknown === undefined) return;
-  const known = [...values, ...switches];
-  fail(`unknown option for ${command}: ${unknown}; ${known.length > 0 ? `it accepts ${known.join(", ")}` : "it takes no options"}`);
+// Rejects the first argument the command would not read: an unknown option, a word after its
+// subcommand, or a one-value option given again. An option takes one value, so `--target a b` and
+// `--target a --target b` each read `a` alone where the option is not a list.
+export function rejectUnknownArgs(command, args, spec = {}) {
+  const { values = [], switches = [], lists = [], repeatable = [] } = spec;
+  const given = givenArgs(args, spec);
+  const seen = new Set();
+  for (const [index, { kind, arg }] of given.entries()) {
+    if (kind === "word") {
+      const flag = given[index - 1]?.kind === "value" ? given[index - 1].of : null;
+      const hint = lists.includes(flag) ? `; ${flag} takes a comma-separated list` : repeatable.includes(flag) ? `; repeat ${flag} for each value` : "";
+      fail(`unexpected argument for ${command}: ${arg}${hint}`);
+    }
+    if (kind !== "option" || switches.includes(arg)) continue;
+    if (!values.includes(arg)) {
+      const known = [...values, ...switches];
+      fail(`unknown option for ${command}: ${arg}; ${known.length > 0 ? `it accepts ${known.join(", ")}` : "it takes no options"}`);
+    }
+    if (seen.has(arg) && !lists.includes(arg) && !repeatable.includes(arg)) fail(`${arg} is given twice; ${command} reads one value`);
+    seen.add(arg);
+  }
 }
 
 export function argValue(args, name) {
