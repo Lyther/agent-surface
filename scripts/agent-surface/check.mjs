@@ -1109,7 +1109,8 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".kiro", "steering", "command-ops-nuke.md"), /^---\ninclusion: manual\n---/);
     requireContains(path.join(".kiro", "steering", "00-precedence-and-safety.md"), /^---\ninclusion: always\n---/);
     requireContains(path.join(".kiro", "agents", "boss.md"), /^---\nname: boss\n/);
-    requireContains(path.join(".kiro", "agents", "boss.md"), /file:\/\/~\/\.kiro\/steering\/\*\*\/\*\.md/);
+    // Skills only: a file:// steering resource would load every steering file, manual workflows included.
+    requireContains(path.join(".kiro", "agents", "boss.md"), /^resources:\n  - "skill:\/\/\.kiro\/skills\/\*\*\/SKILL\.md"\n  - "skill:\/\/~\/\.kiro\/skills\/\*\*\/SKILL\.md"\n---$/m);
     requireContains(path.join(".kiro", "settings", "permissions.yaml"), /^rules:\n  - capability: all\n    effect: allow\n$/);
     const mcp = requireJson(path.join(".kiro", "settings", "mcp.json"));
     if (mcp?.mcpServers?.synapse && Object.hasOwn(mcp.mcpServers.synapse, "type")) {
