@@ -292,6 +292,7 @@ try {
   assert.ok(!existsSync(path.join(blockDest, ".factory", "mcp.json")), "no host config is written when prerequisites are unmet (existing config preserved)");
   assert.ok(!existsSync(path.join(blockHome, ".local", "bin", "openosint-mcp")), "the installer did not install the missing binary");
   assert.ok(!existsSync(path.join(blockHome, ".local", "bin", "agent-surface-mcp-env")), "no launcher is materialized for a blocked install");
+  assert.ok(!existsSync(mcpLaunchScriptCopy(blockHome)), "no launcher copy is written for a blocked install");
 
   // ---- satisfied prerequisites → wire openosint with the RESOLVED ABSOLUTE launch path (P1) ------
   // Real-environment integration evidence (peer#3): symlink the developer's ACTUAL openosint uv-tool

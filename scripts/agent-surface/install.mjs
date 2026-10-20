@@ -201,9 +201,10 @@ export async function install(args) {
       return;
     }
     // Materialize the shared env wrapper BEFORE writing any config that launches through it, so a
-    // wrapped server is never switched onto a launcher that does not exist yet. Keyless-only
-    // installs skip this entirely, preserving their existing direct launch path untouched. On
-    // Windows the wrapper is the pinned node.exe itself, so only the launcher copy is written.
+    // wrapped server is never switched onto a launcher that does not exist yet. An install that
+    // wraps no server skips this entirely, preserving existing direct launch paths untouched. On
+    // Windows, where the first-party .cmd launchers are wrapped too, the wrapper is the pinned
+    // node.exe itself, so only the launcher copy is written.
     if (installUsesEnvLauncher(applyPlans)) {
       try {
         const written = await materializeMcpLauncher();
@@ -682,7 +683,7 @@ async function applyInteractiveCredentials(credentials, { scope }) {
 
 // A wrapped server's config launches through the shared env wrapper. Detect whether any wired
 // server actually uses it, so the launcher is materialized only when it is genuinely needed
-// (keyless synapse/grimoire installs never touch it).
+// (on POSIX, keyless synapse/grimoire installs never touch it).
 function installUsesEnvLauncher(plans, invocation = mcpLauncherInvocation()) {
   for (const plan of plans) {
     for (const merge of plan.configMerges ?? []) {

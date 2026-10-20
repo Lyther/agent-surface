@@ -19,7 +19,7 @@ export const YAML_MCP_FORMATS = new Set(["goose-extensions", "poolside-mcp"]);
 export const MCP_ENV_LAUNCHER = "~/.local/bin/agent-surface-mcp-env";
 
 // The shipped launcher module. An install copies it to a per-user path and every wrapped server runs
-// that copy, so deleting or moving the checkout that installed it cannot stop a host's servers: on
+// that copy, so deleting or moving the checkout that ran the install leaves the launcher in place: on
 // POSIX the ~/.local/bin stub execs the copy; on Windows the generated config invokes it directly.
 export const MCP_ENV_LAUNCH_SCRIPT = fileURLToPath(new URL("./mcp-env-launch.mjs", import.meta.url));
 
