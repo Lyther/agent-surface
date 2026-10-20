@@ -38,8 +38,8 @@ const OPENCODE_XDG_CONFIG_NOTICE = {
   code: "OPENCODE_XDG_CONFIG_HOME_SET",
   kind: "compatibility",
   surface: "target",
-  message: "XDG_CONFIG_HOME names a directory other than the config home this plan writes, and OpenCode reads its user config from $XDG_CONFIG_HOME/opencode when it is set. An OpenCode launched with this environment will not read this install's user files.",
-  action: "Launch OpenCode without XDG_CONFIG_HOME, or copy the written .config/opencode files into $XDG_CONFIG_HOME/opencode; a later install writes the default config home again.",
+  message: "XDG_CONFIG_HOME names a directory other than the config home this plan writes, and OpenCode reads its user config root, AGENTS.md rules included, from $XDG_CONFIG_HOME/opencode when it is set. An OpenCode launched with this environment misses this install's user files unless OPENCODE_CONFIG_DIR names the written root, and OpenCode 1 misses its AGENTS.md rules even then.",
+  action: "Merge the written opencode.json `mcp` entries and AGENTS.md into their counterparts under $XDG_CONFIG_HOME/opencode and copy the generated skills, commands and agents beside them; a later install writes the default config home again. For an install into the profile home, launching OpenCode without XDG_CONFIG_HOME also reads the written files.",
   source_url: "https://opencode.ai/docs/config/",
   checked_at: "2026-10-20",
 };
@@ -49,7 +49,7 @@ const OPENCODE_CONFIG_DIR_NOTICE = {
   kind: "compatibility",
   surface: "target",
   message: "OPENCODE_CONFIG_DIR names a directory other than the OpenCode user root this plan writes. OpenCode 2 reads that directory in place of the user root, so it will not read this install's user files; OpenCode 1 loads it after them, and its definitions override the generated ones.",
-  action: "Unset OPENCODE_CONFIG_DIR for OpenCode 2, or point it at the written root; a later install writes the default root again.",
+  action: "Point OPENCODE_CONFIG_DIR at the written root or, for an install into the profile home, unset it; a later install writes the default root again.",
   source_url: "https://opencode.ai/docs/config/",
   checked_at: "2026-10-20",
 };

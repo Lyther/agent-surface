@@ -85,6 +85,13 @@ assert.deepEqual(
 );
 assert.deepEqual(opencodeCodes("opencode", [opencodeProjectWrite], { XDG_CONFIG_HOME: elsewhere, OPENCODE_CONFIG_DIR: elsewhere }), [], "a project install is outside both notices");
 assert.deepEqual(opencodeCodes("kilo", [opencodeUserWrite], { XDG_CONFIG_HOME: elsewhere }), [], "only OpenCode's loader is qualified");
+// An MCP-only plan writes no file of its own, only the opencode.json merge.
+const opencodeMcpMerge = { relativeOutput: path.join(".config", "opencode", "opencode.json"), entries: [["synapse", { type: "local" }]] };
+assert.deepEqual(
+  opencodeConfigRootNotices("opencode", [], [opencodeMcpMerge], opencodeRoot, { XDG_CONFIG_HOME: elsewhere }).map((notice) => notice.code),
+  ["OPENCODE_XDG_CONFIG_HOME_SET"],
+  "a user-root config merge alone earns the notice",
+);
 
 const scratch = mkdtempSync(path.join(os.tmpdir(), "agent-surface-notices-"));
 try {
