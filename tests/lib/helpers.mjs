@@ -162,8 +162,8 @@ export function disposableCheckout({ linkSubmodules = false } = {}) {
     }
   }
   const sandboxCli = path.join(dir, "scripts", "agent-surface.mjs");
-  // For check and build only: an install here would write the MCP launcher into HOME, naming this
-  // sandbox.
+  // For check and build only: an install here would rewrite the MCP launcher in HOME with this
+  // sandbox's copy.
   return {
     root: dir,
     run: (args, options = {}) => execFileSync(process.execPath, [sandboxCli, ...args], { cwd: dir, encoding: "utf8", maxBuffer: MAX_CAPTURE_BYTES, ...options }),
@@ -172,8 +172,8 @@ export function disposableCheckout({ linkSubmodules = false } = {}) {
   };
 }
 
-// An install that wires a credentialed MCP server writes the shared env launcher into
-// $HOME/.local/bin, naming the checkout it ran from. A suite that runs such installs calls this
+// An install that wires a wrapped MCP server writes the shared env launcher into $HOME/.local/bin
+// and its launcher module into $HOME/.local/share/agent-surface. A suite that runs such installs calls this
 // first: HOME points at a disposable home with the operator's provisioned binaries and uv tool
 // environments linked in, so prerequisite detection finds the real tools while the launcher lands
 // in the disposable home and the operator's is never rewritten.

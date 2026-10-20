@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { provisioningStatus } from "../../scripts/agent-surface/provision.mjs";
+import { mcpLaunchScriptCopy } from "../../scripts/agent-surface/merge.mjs";
 import { selectedMcpServiceEntries } from "../../scripts/agent-surface/targets.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -90,6 +91,12 @@ try {
     assert.match(wrapperText, /^#!\/bin\/sh/, "wrapper is a shell script");
     assert.ok(wrapperText.includes(process.execPath), "wrapper pins the install Node by absolute path");
     assert.ok(statSync(entry.command).mode & 0o100, "wrapper is executable");
+    // The wrapper execs a per-user copy of the launcher, never the installing checkout's own, so
+    // deleting or moving that checkout leaves the launcher in place.
+    const launcherCopy = path.join(home, ".local", "share", "agent-surface", "mcp-env-launch.mjs");
+    assert.ok(wrapperText.includes(`exec "$node_bin" '${launcherCopy}' "$@"`), "the wrapper execs the per-user launcher copy");
+    assert.ok(!wrapperText.includes(root), "the wrapper names nothing inside the installing checkout");
+    assert.equal(readFileSync(launcherCopy, "utf8"), readFileSync(path.join(root, "scripts", "agent-surface", "mcp-env-launch.mjs"), "utf8"), "the copy is the shipped launcher");
     // A Node upgrade can remove the pinned executable (Homebrew's versioned Cellar path, for one).
     // The wrapper then falls back to PATH's node, as the first-party shims do, instead of failing.
     const staleWrapper = path.join(dir, "stale-node-wrapper");
@@ -164,6 +171,8 @@ try {
       "keyless synapse keeps its direct launch command",
     );
     assert.ok(!existsSync(path.join(keylessHome, ".local", "bin", "agent-surface-mcp-env")), "a keyless install never materializes the wrapper");
+    // Windows wraps the first-party .cmd launchers as well, so only POSIX leaves the copy unwritten.
+    if (process.platform !== "win32") assert.ok(!existsSync(mcpLaunchScriptCopy(keylessHome)), "a keyless install writes no launcher copy");
   }
 } finally {
   rmSync(dir, { recursive: true, force: true });

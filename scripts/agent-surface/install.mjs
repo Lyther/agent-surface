@@ -8,7 +8,6 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { createInterface } from "node:readline";
-import { fileURLToPath } from "node:url";
 
 import { exportableCatalog, outputSourceKindError, requireKnownSourceKind } from "./check.mjs";
 import {
@@ -21,7 +20,7 @@ import { readFileIfExists, readJsonIfExists, removeTree } from "./io.mjs";
 import { mergeKiloInstructionJsonc, parseJsoncResult, setJsoncRootProperty } from "./jsonc.mjs";
 import { provisioningDecision, runProvisioning } from "./provision-exec.mjs";
 import { formatProvisioningPlan, launchNameOf, PLATFORM, provisioningActions, provisioningStatus, unrecipedRequired } from "./provision.mjs";
-import { assertJsonPropertyType, isMcpLauncherCommand, MCP_ENV_LAUNCHER, mcpLauncherInvocation, mergeCodexMcpToml, mergeJsonMcpConfig, mergeKiroPermissions, mergeYamlMcpConfig, optionalServiceMcpServers, renderMcpConfig, YAML_MCP_FORMATS } from "./merge.mjs";
+import { assertJsonPropertyType, isMcpLauncherCommand, MCP_ENV_LAUNCH_SCRIPT, mcpLauncherInvocation, mcpLaunchScriptCopy, mergeCodexMcpToml, mergeJsonMcpConfig, mergeKiroPermissions, mergeYamlMcpConfig, optionalServiceMcpServers, renderMcpConfig, YAML_MCP_FORMATS } from "./merge.mjs";
 import { formatNotice, localDate, planNotices } from "./notices.mjs";
 import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { readRules } from "./rules.mjs";
@@ -202,13 +201,14 @@ export async function install(args) {
       return;
     }
     // Materialize the shared env wrapper BEFORE writing any config that launches through it, so a
-    // wrapped server is never switched onto a launcher that does not exist yet. Keyless-only
-    // installs skip this entirely, preserving their existing direct launch path untouched — as does
-    // Windows, where the wrapper is the pinned node.exe itself and there is no stub to write.
+    // wrapped server is never switched onto a launcher that does not exist yet. An install that
+    // wraps no server skips this entirely, preserving existing direct launch paths untouched. On
+    // Windows, where the first-party .cmd launchers are wrapped too, the wrapper is the pinned
+    // node.exe itself, so only the launcher copy is written.
     if (installUsesEnvLauncher(applyPlans)) {
       try {
-        const launcher = await materializeMcpLauncher();
-        console.log(`mcp launcher: materialized ${launcher} (install Node pinned)`);
+        const written = await materializeMcpLauncher();
+        console.log(`mcp launcher: materialized ${written.join(" and ")} (install Node pinned)`);
       } catch (error) {
         console.log(`install blocked: could not materialize the MCP env launcher (${error.message}); existing config left unchanged`);
         process.exitCode = 1;
@@ -682,11 +682,9 @@ async function applyInteractiveCredentials(credentials, { scope }) {
 }
 
 // A wrapped server's config launches through the shared env wrapper. Detect whether any wired
-// server actually uses it, so the POSIX launcher stub is materialized only when it is genuinely
-// needed (keyless synapse/grimoire installs never touch it). On Windows the wrapper is the pinned
-// node.exe already on disk, so nothing is materialized and this reports false.
+// server actually uses it, so the launcher is materialized only when it is genuinely needed
+// (on POSIX, keyless synapse/grimoire installs never touch it).
 function installUsesEnvLauncher(plans, invocation = mcpLauncherInvocation()) {
-  if (invocation.command !== MCP_ENV_LAUNCHER) return false;
   for (const plan of plans) {
     for (const merge of plan.configMerges ?? []) {
       const entries = merge.kind === "kilo" ? merge.mcpEntries : merge.entries;
@@ -704,21 +702,23 @@ const shQuote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
 // quote characters so it embeds in a single-quoted sh argument, as in mcp-shims.mjs.
 const LAUNCHER_FLOOR_CHECK = "const v=process.versions.node.split(/\\./).map(Number);process.exit(v[0]>20||(v[0]===20&&v[1]>=12)?0:1)";
 
-// POSIX only (see mcpLauncherInvocation): materialize the shared env-loader wrapper into
-// ~/.local/bin as a tiny shell script that PINS the
+// Materialize the shared env-loader wrapper. Every platform gets the per-user copy of the
+// self-contained launcher .mjs that wrapped servers run (see mcpLaunchScriptCopy). POSIX also gets
+// ~/.local/bin/agent-surface-mcp-env (see mcpLauncherInvocation), a tiny shell script that PINS the
 // Node executable validated at install time (process.execPath). An IDE launches MCP servers with a
 // minimal PATH, so a `#!/usr/bin/env node` wrapper would fail to find Node (exit 127); the pinned
 // absolute path avoids that. A Node upgrade can remove that path (Homebrew's versioned Cellar
 // directory, for one), so the wrapper then falls back to PATH's node once that node passes the
-// floor, as the first-party shims in mcp-shims.mjs re-check theirs. The wrapper execs the shipped,
-// self-contained launcher .mjs.
-// Regenerated every install so a moved package or upgraded Node is picked up. The destination
-// tracks os.homedir() — the same $HOME the generated config's "~" resolves against — so the wrapper
-// always lands exactly where the config points (tests isolate via a disposable HOME, not an override).
+// floor, as the first-party shims in mcp-shims.mjs re-check theirs.
+// Regenerated every install so a newer launcher or upgraded Node is picked up, and each file is
+// replaced whole so a server starting meanwhile never reads a torn one. The destination tracks
+// os.homedir() — the same $HOME the generated config's "~" resolves against — so the wrapper always
+// lands exactly where the config points (tests isolate via a disposable HOME, not an override).
 async function materializeMcpLauncher() {
-  const binDir = path.join(os.homedir(), ".local", "bin");
-  const target = path.join(binDir, "agent-surface-mcp-env");
-  const launcherJs = path.join(path.dirname(fileURLToPath(import.meta.url)), "mcp-env-launch.mjs");
+  const copy = mcpLaunchScriptCopy();
+  await replaceLauncherFile(copy, await readFile(MCP_ENV_LAUNCH_SCRIPT), 0o644);
+  if (process.platform === "win32") return [copy];
+  const target = path.join(os.homedir(), ".local", "bin", "agent-surface-mcp-env");
   const content = [
     "#!/bin/sh",
     "# agent-surface MCP env-loader wrapper — pins the Node validated at install so an IDE-launched",
@@ -733,13 +733,23 @@ async function materializeMcpLauncher() {
     '  echo "agent-surface-mcp-env: $node_bin is gone; using node from PATH (rerun agent-surface install)" >&2',
     "  node_bin=node",
     "fi",
-    `exec "$node_bin" ${shQuote(launcherJs)} "$@"`,
+    `exec "$node_bin" ${shQuote(copy)} "$@"`,
     "",
   ].join("\n");
-  await mkdir(binDir, { recursive: true });
-  await writeFile(target, content, { mode: 0o755 });
-  await chmod(target, 0o755).catch(() => { /* best effort on platforms without POSIX modes */ });
-  return target;
+  await replaceLauncherFile(target, content, 0o755);
+  return [target, copy];
+}
+
+async function replaceLauncherFile(target, content, mode) {
+  await mkdir(path.dirname(target), { recursive: true });
+  const temporary = `${target}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, content, { flag: "wx", mode });
+    await chmod(temporary, mode).catch(() => { /* best effort on platforms without POSIX modes */ });
+    await rename(temporary, target);
+  } finally {
+    await rm(temporary, { force: true });
+  }
 }
 
 // Windows has no POSIX mode bits to set, and a failure to set one must not abort an install that
