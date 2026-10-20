@@ -84,6 +84,22 @@ assert.equal(pinnedNodePath(windowsSpec.nodeBin), windowsSpec.nodeBin, "a Window
 // upgrade, while the formula's opt link moves to the new version. A disposable prefix laid out the
 // same way stands in for Homebrew: plain files where only identity matters, links to this Node where
 // the shim has to launch.
+// SUBSTITUTE_JUSTIFICATION
+// - substitute: the `as-brew-` prefix below. Its empty-file kegs and `opt/<formula>` links serve the
+//   no-link, matching-link, other-version and versioned-formula assertions; its kegs that link this
+//   Node serve the upgrade case, which launches the test's own `entry.mjs` with an empty PATH
+// - replaces: a Homebrew prefix, its opt-link states, and the `brew upgrade` plus `brew cleanup` that
+//   deletes a Node keg
+// - necessity: Homebrew installs only a formula's current version, so no upgrade can be produced on
+//   demand, and repointing or deleting kegs in a real prefix breaks every Node it serves
+// - real-option: the operator's Homebrew prefix cannot pass through these states without breaking its
+//   Node, and a disposable Homebrew prefix would still hold only the current Node
+// - proof-limit: proves pinnedNodePath's substitution rules and that a shim naming an opt link
+//   outlives the keg it resolved to; not Homebrew's own link handling, launchd's environment, a real
+//   upgrade, or a real server starting
+// - real-proof: BLOCKED for the upgrade: after the next `brew upgrade node` and `brew cleanup`, restart
+//   local.synapse and launch agent-surface-mcp-env and grimoire-server with an empty PATH. A server
+//   starting through an installed shim is covered by live-first-party.test.mjs
 if (process.platform === "win32") {
   console.log("mcp-shims: the Homebrew pin case runs on POSIX — Homebrew does not install Node on Windows");
 } else {
