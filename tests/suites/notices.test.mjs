@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { gooseXdgConfigNotice, localDate, noticeTiming, sharedSkillRootNotice } from "../../scripts/agent-surface/notices.mjs";
+import { gooseXdgConfigNotice, localDate, noticeTiming, opencodeConfigRootNotices, sharedSkillRootNotice } from "../../scripts/agent-surface/notices.mjs";
 import { files, run } from "../lib/helpers.mjs";
 
 // Split an install plan printout into one section per target.
@@ -68,6 +68,24 @@ assert.equal(
 );
 assert.equal(gooseXdgConfigNotice("zed", [gooseConfigMerge], gooseRoot, { XDG_CONFIG_HOME: elsewhere }), null, "only Goose's loader is qualified");
 
+// OpenCode reads its user root under XDG_CONFIG_HOME, and OpenCode 2 reads OPENCODE_CONFIG_DIR in its
+// place, so only a user root the client would not read earns a notice.
+const opencodeUserWrite = { relativeOutput: path.join(".config", "opencode", "AGENTS.md") };
+const opencodeProjectWrite = { relativeOutput: path.join(".opencode", "agents", "boss.md") };
+const opencodeRoot = path.join(os.tmpdir(), "agent-surface-notice-opencode");
+const opencodeCodes = (target, writes, env) => opencodeConfigRootNotices(target, writes, [], opencodeRoot, env).map((notice) => notice.code);
+assert.deepEqual(opencodeCodes("opencode", [opencodeUserWrite], { XDG_CONFIG_HOME: elsewhere }), ["OPENCODE_XDG_CONFIG_HOME_SET"]);
+assert.deepEqual(opencodeCodes("opencode", [opencodeUserWrite], { OPENCODE_CONFIG_DIR: elsewhere }), ["OPENCODE_CONFIG_DIR_SET"]);
+assert.deepEqual(opencodeCodes("opencode", [opencodeUserWrite], {}), [], "unset variables read the written root");
+assert.deepEqual(opencodeCodes("opencode", [opencodeUserWrite], { XDG_CONFIG_HOME: " ", OPENCODE_CONFIG_DIR: " " }), [], "blank values are no override");
+assert.deepEqual(
+  opencodeCodes("opencode", [opencodeUserWrite], { XDG_CONFIG_HOME: path.join(opencodeRoot, ".config"), OPENCODE_CONFIG_DIR: path.join(opencodeRoot, ".config", "opencode") }),
+  [],
+  "variables naming the written root name the same files",
+);
+assert.deepEqual(opencodeCodes("opencode", [opencodeProjectWrite], { XDG_CONFIG_HOME: elsewhere, OPENCODE_CONFIG_DIR: elsewhere }), [], "a project install is outside both notices");
+assert.deepEqual(opencodeCodes("kilo", [opencodeUserWrite], { XDG_CONFIG_HOME: elsewhere }), [], "only OpenCode's loader is qualified");
+
 const scratch = mkdtempSync(path.join(os.tmpdir(), "agent-surface-notices-"));
 try {
   const home = path.join(scratch, "home");
@@ -113,6 +131,20 @@ try {
     });
     assert.match(gooseElsewhere, /^ {2}GOOSE_XDG_CONFIG_HOME_SET \(compatibility; mcp\)$/m);
   }
+
+  // The OpenCode notices follow the environment too, and only for the user root.
+  const opencodeEnv = { ...process.env, HOME: home };
+  delete opencodeEnv.XDG_CONFIG_HOME;
+  delete opencodeEnv.OPENCODE_CONFIG_DIR;
+  const opencodeUser = run(["install", "--target", "opencode", "--scope", "user", "--dest", path.join(scratch, "opencode"), "--dry-run"], {
+    env: { ...opencodeEnv, XDG_CONFIG_HOME: path.join(scratch, "xdg"), OPENCODE_CONFIG_DIR: path.join(scratch, "opencode-dir") },
+  });
+  assert.match(opencodeUser, /^ {2}OPENCODE_XDG_CONFIG_HOME_SET \(compatibility; target\)$/m);
+  assert.match(opencodeUser, /^ {2}OPENCODE_CONFIG_DIR_SET \(compatibility; target\)$/m);
+  const opencodeProject = run(["install", "--target", "opencode", "--scope", "project", "--dest", path.join(scratch, "opencode-project"), "--dry-run"], {
+    env: { ...opencodeEnv, XDG_CONFIG_HOME: path.join(scratch, "xdg"), OPENCODE_CONFIG_DIR: path.join(scratch, "opencode-dir") },
+  });
+  assert.doesNotMatch(opencodeProject, /OPENCODE_XDG_CONFIG_HOME_SET|OPENCODE_CONFIG_DIR_SET/, "a project install is outside both notices");
 
   // Build prints each target's notices before any write; doctor lists every stored notice.
   const windsurfPlan = run(["install", "--target", "windsurf", "--scope", "project", "--dest", path.join(scratch, "windsurf"), "--dry-run"], {

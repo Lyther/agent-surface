@@ -30,6 +30,30 @@ const GOOSE_XDG_CONFIG_NOTICE = {
   checked_at: "2026-10-19",
 };
 
+// OpenCode 1 and 2 read their user config root as $XDG_CONFIG_HOME/opencode when that is set (both
+// report it in `debug paths`), and OpenCode 2 reads OPENCODE_CONFIG_DIR in place of that root, while a
+// user install writes the default ~/.config/opencode: the client's environment is not known at install
+// time, as for Goose.
+const OPENCODE_XDG_CONFIG_NOTICE = {
+  code: "OPENCODE_XDG_CONFIG_HOME_SET",
+  kind: "compatibility",
+  surface: "target",
+  message: "XDG_CONFIG_HOME names a directory other than the config home this plan writes, and OpenCode reads its user config from $XDG_CONFIG_HOME/opencode when it is set. An OpenCode launched with this environment will not read this install's user files.",
+  action: "Launch OpenCode without XDG_CONFIG_HOME, or copy the written .config/opencode files into $XDG_CONFIG_HOME/opencode; a later install writes the default config home again.",
+  source_url: "https://opencode.ai/docs/config/",
+  checked_at: "2026-10-20",
+};
+
+const OPENCODE_CONFIG_DIR_NOTICE = {
+  code: "OPENCODE_CONFIG_DIR_SET",
+  kind: "compatibility",
+  surface: "target",
+  message: "OPENCODE_CONFIG_DIR names a directory other than the OpenCode user root this plan writes. OpenCode 2 reads that directory in place of the user root, so it will not read this install's user files; OpenCode 1 loads it after them, and its definitions override the generated ones.",
+  action: "Unset OPENCODE_CONFIG_DIR for OpenCode 2, or point it at the written root; a later install writes the default root again.",
+  source_url: "https://opencode.ai/docs/config/",
+  checked_at: "2026-10-20",
+};
+
 export async function storedNotices(target) {
   const capabilities = await readTargetCapabilities();
   return capabilities.targets?.[target]?.notices ?? [];
@@ -47,6 +71,7 @@ export async function planNotices(target, writes = [], installRoot = null, confi
   const derived = installRoot === null ? [] : [
     sharedSkillRootNotice(writes, installRoot),
     gooseXdgConfigNotice(target, configMerges, installRoot),
+    ...opencodeConfigRootNotices(target, writes, configMerges, installRoot),
   ].filter(Boolean);
   return [...await storedNotices(target), ...derived];
 }
@@ -65,6 +90,22 @@ export function gooseXdgConfigNotice(target, configMerges, installRoot, env = pr
   const configured = (env.XDG_CONFIG_HOME ?? "").trim();
   if (!configured) return null;
   return path.resolve(configured) === path.resolve(installRoot, ".config") ? null : GOOSE_XDG_CONFIG_NOTICE;
+}
+
+// Only a plan that writes the user root counts: a project install writes .opencode and AGENTS.md in
+// the project, which neither variable moves. A variable that resolves to the written root names the
+// same files and needs no notice.
+export function opencodeConfigRootNotices(target, writes, configMerges, installRoot, env = process.env) {
+  if (target !== "opencode") return [];
+  const userRoot = path.join(".config", "opencode");
+  const writesUserRoot = [...writes, ...configMerges].some((item) => item.relativeOutput?.startsWith(userRoot + path.sep));
+  if (!writesUserRoot) return [];
+  const notices = [];
+  const configHome = (env.XDG_CONFIG_HOME ?? "").trim();
+  if (configHome && path.resolve(configHome) !== path.resolve(installRoot, ".config")) notices.push(OPENCODE_XDG_CONFIG_NOTICE);
+  const configDir = (env.OPENCODE_CONFIG_DIR ?? "").trim();
+  if (configDir && path.resolve(configDir) !== path.resolve(installRoot, userRoot)) notices.push(OPENCODE_CONFIG_DIR_NOTICE);
+  return notices;
 }
 
 // The home root is excluded: its .agents/skills is a workspace root only when the home directory
