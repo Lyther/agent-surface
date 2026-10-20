@@ -1706,7 +1706,7 @@
       }
     },
     "opencode": {
-      "summary": "OpenCode (npm opencode-ai), documented as a terminal interface, desktop app and IDE extension (the desktop app and extension are not runtime-tested here): agent-surface generates rules, commands, agents, canonical and external skills, first-party MCP wiring (Synapse + Grimoire), full-access execution and disabled sharing in the default ~/.config/opencode or project roots. It does not write into OPENCODE_CONFIG_DIR, an extra directory OpenCode loads after those roots and lets override them, and plugins are not generated. OpenCode 2 (npm @opencode/cli), which uses the same opencode command and roots, is not targeted or tested.",
+      "summary": "OpenCode (npm opencode-ai), documented as a terminal interface, desktop app and IDE extension (the desktop app and extension are not runtime-tested here): agent-surface generates rules, commands, agents, canonical and external skills, first-party MCP wiring (Synapse + Grimoire), full-access execution and disabled sharing in the default ~/.config/opencode or project roots. It does not write into OPENCODE_CONFIG_DIR, which OpenCode 1 loads after those roots and lets override them and OpenCode 2 reads instead of ~/.config/opencode, and plugins are not generated. OpenCode 2 (npm @opencode/cli) runs as the same opencode command, reads the same roots and accepts the generated files, normalizing the version 1 permission and mcp keys.",
       "generated_render_tokens": [
         "skills",
         "commands",
@@ -1809,7 +1809,7 @@
             "~/.config/opencode/opencode.json",
             ".opencode/opencode.json"
           ],
-          "notes": "First-party secretless MCP services are generated/merged under mcp; external or secret-bearing MCPs remain opt-in. Full installs apply the declared full-access/share-disabled host policy, while category-only MCP installs preserve existing host-wide policy."
+          "notes": "First-party secretless MCP services are generated/merged under mcp; external or secret-bearing MCPs remain opt-in. Full installs apply the declared full-access/share-disabled host policy, while category-only MCP installs preserve existing host-wide policy. Only the version 1 permission key is owned: an OpenCode 2 permissions list is preserved and its narrower rules still apply there, and OpenCode 1 rejects a file that carries one."
         },
         "plugins": {
           "support": "native",

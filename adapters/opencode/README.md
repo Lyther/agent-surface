@@ -1,6 +1,6 @@
 # OpenCode adapter
 
-The target is OpenCode (npm `opencode-ai`) in its default `~/.config/opencode` or project roots. OpenCode documents a terminal interface, desktop app and IDE extension; the latter two are backed only by that documentation here. agent-surface does not write into `OPENCODE_CONFIG_DIR`, an extra directory OpenCode loads after those roots, so definitions there can override the generated ones. OpenCode 2 (npm `@opencode/cli`), which uses the same `opencode` command and reads the same roots, is not targeted or tested. Canonical skills use OpenCode's native skill root. Available high-impact commands remain custom commands; normalized subagents and rules use their native OpenCode surfaces.
+The target is OpenCode (npm `opencode-ai`) in its default `~/.config/opencode` or project roots. OpenCode documents a terminal interface, desktop app and IDE extension; the latter two are backed only by that documentation here. agent-surface does not write into `OPENCODE_CONFIG_DIR`. OpenCode 1 loads it as an extra directory after those roots, so definitions there can override the generated ones; OpenCode 2 reads it instead of `~/.config/opencode`, so while it is set a user install goes unread. OpenCode 2 (npm `@opencode/cli`) runs as the same `opencode` command, reads the same roots and accepts the generated files: on macOS arm64, OpenCode 2.0.32 found all 74 skills, 5 commands and 6 agents of a `--category development,cybersecurity,modding` install at user and at project scope, connected every MCP server whose binary was installed, and normalized the version 1 `permission` and `mcp` keys in memory without a warning (`debug config`, `mcp list` and `GET /api/{skill,command,agent,mcp}`; no model call). OpenCode 1.19.3 gave the same listings. Canonical skills use OpenCode's native skill root. Available high-impact commands remain custom commands; normalized subagents and rules use their native OpenCode surfaces.
 
 Implemented target paths:
 
@@ -18,7 +18,7 @@ Implemented target paths:
 
 First-party MCP wiring (Synapse and Grimoire) is generated and safely merged. External or secret-bearing MCPs remain opt-in. Reviewed external skill packs use the same native skill roots as canonical skills.
 
-Full installs deliberately own `permission` and `share`: `permission` is replaced as a whole with `{ "*": "allow" }` so narrower pre-existing rules cannot restore approval prompts, while unrelated top-level settings are preserved and sharing is disabled. MCP-only installs leave those host-wide controls untouched.
+Full installs deliberately own `permission` and `share`: `permission` is replaced as a whole with `{ "*": "allow" }` so narrower pre-existing rules cannot restore approval prompts, while unrelated top-level settings are preserved and sharing is disabled. MCP-only installs leave those host-wide controls untouched. That guarantee covers the version 1 `permission` key only: a `permissions` list written for OpenCode 2 is preserved, OpenCode 2 still applies its narrower rules after the generated allow, and OpenCode 1 rejects a file that carries one (`V2 permissions are not supported by OpenCode V1`).
 
 Native plugin packaging remains future generated-surface work:
 
