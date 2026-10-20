@@ -27,7 +27,7 @@ installAndBuild(here);
 const binDir = path.join(os.homedir(), ".local", "bin");
 for (const written of writeShims({
   binDir,
-  nodeBin: pinnedNodePath(), // the Node this installer validated, not whatever PATH resolves later
+  nodeBin: pinnedNodePath(), // this installer's Node (its opt link under Homebrew), not whatever PATH resolves later
   entries: binEntries(here, manifest),
   override: "GRIMOIRE_NODE",
 })) console.log(`installed ${written}`);

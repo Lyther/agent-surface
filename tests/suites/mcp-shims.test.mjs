@@ -79,6 +79,7 @@ try {
 }
 
 // ---- the pinned Node path -------------------------------------------------------
+assert.equal(pinnedNodePath(windowsSpec.nodeBin), windowsSpec.nodeBin, "a Windows Node is pinned as is");
 // Homebrew's process.execPath is a versioned Cellar binary that `brew cleanup` deletes after an
 // upgrade, while the formula's opt link moves to the new version. A disposable prefix laid out the
 // same way stands in for Homebrew: plain files where only identity matters, links to this Node where

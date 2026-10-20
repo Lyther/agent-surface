@@ -17,7 +17,7 @@ import path from "node:path";
 // `brew cleanup` deletes once an upgrade replaces it, and the PATH fallback that follows can find an
 // older Node (under launchd it found one below the floor). When the formula's opt link resolves to the
 // binary this installer validated, the launcher names that link instead: it moves with each upgrade,
-// and the launch-time floor check still guards whatever Node it reaches.
+// and the shims below re-check the floor of whatever Node it reaches at launch.
 export function pinnedNodePath(execPath = process.execPath) {
   const keg = /^(.+)\/Cellar\/([^/]+)\/[^/]+\/bin\/node$/.exec(execPath);
   if (!keg) return execPath;
