@@ -14,7 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertNodeFloor, binEntries, installAndBuild } from "../../scripts/agent-surface/mcp-build.mjs";
-import { writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
+import { pinnedNodePath, writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const manifest = JSON.parse(readFileSync(path.join(here, "package.json"), "utf8"));
@@ -58,7 +58,7 @@ installAndBuild(here);
 const binDir = path.join(os.homedir(), ".local", "bin");
 for (const written of writeShims({
   binDir,
-  nodeBin: process.execPath, // the Node this installer validated, not whatever PATH resolves later
+  nodeBin: pinnedNodePath(), // the Node this installer validated, not whatever PATH resolves later
   entries: binEntries(here, manifest),
   override: "SYNAPSE_NODE",
 })) console.log(`installed ${written}`);
