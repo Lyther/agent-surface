@@ -1402,7 +1402,7 @@
       }
     },
     "kiro": {
-      "summary": "Kiro IDE 1.x and Kiro CLI package 2.x on its V3 agent engine ('CLI 3.0', selected with --v3 or --agent-engine v3), which share ~/.kiro and .kiro files: agent-surface generates one V3-format target for both. The CLI's V1 and V2 engines and Kiro Web and Mobile are not targeted. Kiro documents that Kiro CLI V3 honors steering inclusion modes; not runtime-tested.",
+      "summary": "Kiro IDE 1.x and Kiro CLI package 2.x on its V3 agent engine ('CLI 3.0', selected with --v3 or --agent-engine v3), which share ~/.kiro and .kiro files: agent-surface generates one V3-format target for both. The CLI's V1 and V2 engines and Kiro Web and Mobile are not targeted. Kiro documents that Kiro CLI V3 honors steering inclusion modes; Kiro CLI 2.32.0's V3 engine lists every generated surface with each steering file's mode as written, and which steering a turn loads is not runtime-tested.",
       "generated_render_tokens": [
         "skills",
         "commands-as-workflows",
@@ -1466,7 +1466,7 @@
             "~/.kiro/steering/command-<name>.md",
             ".kiro/steering/command-<name>.md"
           ],
-          "notes": "Manual-inclusion steering, invoked as #command-<name> or from / completion. Every generated agent lists all steering files as file:// resources, which Kiro loads when the agent starts, so those agents receive these files too. Kiro's steering page documents manual inclusion for the IDE and Kiro CLI V3, while the CLI's V1/V2 engines load only always files automatically: documented, not runtime-tested."
+          "notes": "Manual-inclusion steering, invoked as #command-<name> or from / completion. Every generated agent lists all steering files as file:// resources, which Kiro loads when the agent starts, so those agents receive these files too. Kiro's steering page documents manual inclusion for the IDE and Kiro CLI V3, while the CLI's V1/V2 engines load only always files automatically: documented, not runtime-tested. Kiro CLI 2.32.0's V3 engine offers each manual file as a /command-<name> slash command."
         },
         "rules": {
           "support": "native",
@@ -1492,7 +1492,7 @@
             "~/.kiro/agents/<name>.md",
             ".kiro/agents/<name>.md"
           ],
-          "notes": "V3-format Markdown agents use tool tags, skill and steering resources, and capability permissions; their file:// steering glob loads every steering file at agent start, manual workflow files included (documented, not runtime-tested)."
+          "notes": "V3-format Markdown agents use tool tags, skill and steering resources, and capability permissions; their file:// steering glob loads every steering file at agent start, manual workflow files included (documented, not runtime-tested). Kiro CLI 2.32.0's V3 engine lists them as modes and delegate commands."
         },
         "mcp": {
           "support": "native",
