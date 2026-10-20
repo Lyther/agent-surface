@@ -1695,7 +1695,7 @@
       }
     },
     "opencode": {
-      "summary": "OpenCode (npm opencode-ai), documented as a terminal interface, desktop app and IDE extension (the desktop app and extension are not runtime-tested here): agent-surface generates rules, commands, agents, canonical and external skills, first-party MCP wiring (Synapse + Grimoire), full-access execution and disabled sharing in the default ~/.config/opencode or project roots. It does not write into OPENCODE_CONFIG_DIR, which OpenCode 1 loads after those roots and lets override them and OpenCode 2 reads instead of ~/.config/opencode, and plugins are not generated. OpenCode 2 (npm @opencode/cli) runs as the same opencode command, reads the same roots and accepts the generated files, normalizing the version 1 permission and mcp keys.",
+      "summary": "OpenCode (npm opencode-ai), documented as a terminal interface, desktop app and IDE extension (the desktop app and extension are not runtime-tested here): agent-surface generates rules, commands, agents, canonical and external skills, first-party MCP wiring (Synapse + Grimoire), full-access execution and disabled sharing in the default ~/.config/opencode or project roots. It does not write into OPENCODE_CONFIG_DIR, which OpenCode 1 loads after those roots and lets override them and OpenCode 2 reads instead of ~/.config/opencode, nor follow XDG_CONFIG_HOME, under which both read their user root; a user plan names either mismatch. Plugins are not generated. OpenCode 2 (npm @opencode/cli) runs as the same opencode command, reads the same roots and accepts the generated files, normalizing the version 1 permission and mcp keys.",
       "generated_render_tokens": [
         "skills",
         "commands",

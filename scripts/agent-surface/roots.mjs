@@ -355,6 +355,8 @@ export function opencodeInstructionPath(context) {
   return context.scope === "user" ? path.join(".config", "opencode", "AGENTS.md") : "AGENTS.md";
 }
 
+// OpenCode reads its user root under XDG_CONFIG_HOME when that is set; an install does not follow the
+// installing shell's environment, and a user plan says so instead (notices.mjs).
 export function opencodeConfigRoot(context) {
   return context.scope === "user" ? path.join(".config", "opencode") : ".opencode";
 }
