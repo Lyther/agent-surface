@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { MCP_ENV_LAUNCH_SCRIPT, MCP_ENV_LAUNCHER } from "../../scripts/agent-surface/merge.mjs";
+import { MCP_ENV_LAUNCHER, mcpLaunchScriptCopy } from "../../scripts/agent-surface/merge.mjs";
 import { dedupeActions } from "../../scripts/agent-surface/provision-exec.mjs";
 import { provisioningStatus, selectRecipe } from "../../scripts/agent-surface/provision.mjs";
 import { selectedMcpServiceEntries } from "../../scripts/agent-surface/targets.mjs";
@@ -224,7 +224,7 @@ try {
   });
   const [, winSvc] = winWired.find(([id]) => id === "chrome-devtools");
   assert.equal(winSvc.mcp.server.command, process.execPath, "on Windows the wrapper is the install-pinned node.exe — a real executable every host can spawn");
-  assert.equal(winSvc.mcp.server.args[0], MCP_ENV_LAUNCH_SCRIPT, "the launcher module is node's first argument");
+  assert.equal(winSvc.mcp.server.args[0], mcpLaunchScriptCopy(), "the per-user launcher copy, not the checkout's module, is node's first argument");
   assert.ok(!winSvc.mcp.server.args.includes("--as-env-file"), "a keyless server still receives no credential env-file on Windows");
   assert.equal(winSvc.mcp.server.args[winSvc.mcp.server.args.indexOf("--") + 1], winCmd, "the real .cmd shim follows the -- terminator (the launcher runs it through cmd.exe)");
   assert.deepEqual(winSvc.mcp.server.args.slice(-2), ["--executablePath", winChrome], "the provisioned Windows browser path is wired exactly once");

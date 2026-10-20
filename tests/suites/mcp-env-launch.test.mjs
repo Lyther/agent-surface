@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -145,6 +145,16 @@ try {
   const noCommand = spawnSync(process.execPath, [launcher, "--as-env-file", envPath], { encoding: "utf8" });
   assert.equal(noCommand.status, 2, "a launch with no command fails with a usage error");
   assert.doesNotMatch(`${noCommand.stdout}${noCommand.stderr}`, /file-value|two words/, "the launcher never prints credential values");
+
+  // ---- started through a symlinked directory ----------------------------
+  // Node runs a main module from its real path, so a launcher reached through a link (macOS /tmp, a
+  // home behind one) must still launch rather than exit as though it had been imported.
+  if (process.platform !== "win32") {
+    const linked = path.join(dir, "linked");
+    symlinkSync(path.dirname(launcher), linked, "dir");
+    const viaLink = spawnSync(process.execPath, [path.join(linked, path.basename(launcher)), "--", process.execPath, "-e", "process.stdout.write('linked-ok')"], { encoding: "utf8" });
+    assert.equal(viaLink.stdout, "linked-ok", `a launcher started through a symlinked directory still launches: ${viaLink.stderr}`);
+  }
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

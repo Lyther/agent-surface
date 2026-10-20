@@ -18,20 +18,25 @@ export const YAML_MCP_FORMATS = new Set(["goose-extensions", "poolside-mcp"]);
 // so the renderers below just serialize the already-wrapped command/args per host format.
 export const MCP_ENV_LAUNCHER = "~/.local/bin/agent-surface-mcp-env";
 
-// The launcher module the wrapper runs. On POSIX the ~/.local/bin stub execs it; on Windows the
-// generated config invokes it directly (see below), so the path is needed in both places.
+// The shipped launcher module. An install copies it to a per-user path and every wrapped server runs
+// that copy, so deleting or moving the checkout that installed it cannot stop a host's servers: on
+// POSIX the ~/.local/bin stub execs the copy; on Windows the generated config invokes it directly.
 export const MCP_ENV_LAUNCH_SCRIPT = fileURLToPath(new URL("./mcp-env-launch.mjs", import.meta.url));
+
+export function mcpLaunchScriptCopy(home = os.homedir()) {
+  return path.join(home, ".local", "share", "agent-surface", "mcp-env-launch.mjs");
+}
 
 // How a wrapped server is actually invoked on a given platform.
 //   POSIX  — the materialized ~/.local/bin stub (a `#!/bin/sh` script that execs the pinned Node).
 //   win32  — there is no shebang, and a `.cmd`/`.bat` stub is worse than useless: Node-based hosts
 //            (which is nearly all of them) refuse to spawn one without a shell and fail EINVAL. So
 //            the config invokes the install-pinned `node.exe` — a real executable every host can
-//            spawn — with the launcher module as its first argument. No stub file, no PATHEXT
+//            spawn — with the launcher copy as its first argument. No stub file, no PATHEXT
 //            question, no PATH dependency.
 // Only used at INSTALL time; build/dist keeps the machine-agnostic POSIX constant so generated
 // output never embeds a host's Node path (or its platform).
-export function mcpLauncherInvocation({ platform = process.platform, execPath = process.execPath, launchScript = MCP_ENV_LAUNCH_SCRIPT } = {}) {
+export function mcpLauncherInvocation({ platform = process.platform, execPath = process.execPath, launchScript = mcpLaunchScriptCopy() } = {}) {
   if (platform !== "win32") return { command: MCP_ENV_LAUNCHER, argsPrefix: [] };
   return { command: execPath, argsPrefix: [launchScript] };
 }

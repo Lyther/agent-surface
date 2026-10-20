@@ -90,6 +90,12 @@ try {
     assert.match(wrapperText, /^#!\/bin\/sh/, "wrapper is a shell script");
     assert.ok(wrapperText.includes(process.execPath), "wrapper pins the install Node by absolute path");
     assert.ok(statSync(entry.command).mode & 0o100, "wrapper is executable");
+    // The wrapper execs a per-user copy of the launcher, never the installing checkout's own, so
+    // deleting or moving that checkout leaves the host's servers launching.
+    const launcherCopy = path.join(home, ".local", "share", "agent-surface", "mcp-env-launch.mjs");
+    assert.ok(wrapperText.includes(`exec "$node_bin" '${launcherCopy}' "$@"`), "the wrapper execs the per-user launcher copy");
+    assert.ok(!wrapperText.includes(root), "the wrapper names nothing inside the installing checkout");
+    assert.equal(readFileSync(launcherCopy, "utf8"), readFileSync(path.join(root, "scripts", "agent-surface", "mcp-env-launch.mjs"), "utf8"), "the copy is the shipped launcher");
     // A Node upgrade can remove the pinned executable (Homebrew's versioned Cellar path, for one).
     // The wrapper then falls back to PATH's node, as the first-party shims do, instead of failing.
     const staleWrapper = path.join(dir, "stale-node-wrapper");

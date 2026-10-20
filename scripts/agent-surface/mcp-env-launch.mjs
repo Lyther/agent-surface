@@ -2,7 +2,8 @@
 // MCP launch wrapper: load a credential env-file, then exec the real MCP server command with its
 // stdio protocol and working directory preserved. Secrets live only in the env-file (0600); they
 // never appear in host config, which references solely this launcher, the file PATH, and the real
-// command + args. Self-contained (node builtins only) so it stays portable in ~/.local/bin.
+// command + args. Self-contained (node builtins only): an install copies it to a per-user path and
+// launches that copy, so it must run with no checkout beside it.
 //
 // Invocation: agent-surface-mcp-env --as-env-file <path> -- <command> [args...]
 //   - `--as-env-file <path>` names the ONLY env-file loaded — the installer bakes the absolute path
@@ -12,7 +13,7 @@
 //     namespaced (not Node's native `--env-file`) so Node does not intercept it during bootstrap.
 //   - Everything after `--` is the real command line, launched verbatim.
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -151,6 +152,21 @@ export function runLaunch(argv, { env = process.env, spawnFn = spawn, onExit = (
   return child;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+// Node runs a main module from its real path, so comparing the path it was started by would make a
+// launcher reached through a symlinked directory (macOS /tmp, for one) take itself for an import and
+// exit without starting anything.
+function startedAsMain() {
+  const started = process.argv[1];
+  if (!started) return false;
+  const self = fileURLToPath(import.meta.url);
+  if (started === self) return true;
+  try {
+    return realpathSync(started) === self;
+  } catch {
+    return false;
+  }
+}
+
+if (startedAsMain()) {
   runLaunch(process.argv.slice(2));
 }
