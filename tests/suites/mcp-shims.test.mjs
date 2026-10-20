@@ -84,6 +84,20 @@ assert.equal(pinnedNodePath(windowsSpec.nodeBin), windowsSpec.nodeBin, "a Window
 // upgrade, while the formula's opt link moves to the new version. A disposable prefix laid out the
 // same way stands in for Homebrew: plain files where only identity matters, links to this Node where
 // the shim has to launch.
+// SUBSTITUTE_JUSTIFICATION
+// - substitute: the `as-brew-` prefix below, with its `Cellar/<formula>/<version>/bin/node` kegs and
+//   `opt/<formula>` links, used by every assertion in this block
+// - replaces: a Homebrew prefix, and the `brew upgrade` plus `brew cleanup` that deletes a Node keg
+// - necessity: Homebrew installs only a formula's current version, so no upgrade can be produced on
+//   demand, and running one deletes the operator's Node
+// - real-option: the operator's real Homebrew prefix, which this test cannot downgrade and upgrade
+//   deterministically, and which is not on the Linux or Windows CI runners
+// - proof-limit: proves pinnedNodePath's substitution rules and that a shim naming an opt link
+//   outlives the keg it resolved to; not Homebrew's own link handling, launchd's environment or a
+//   real upgrade. The installed launchers starting through the real opt link is evidence for the pin
+//   at one Node version only.
+// - real-proof: BLOCKED: needs a real `brew upgrade node` and `brew cleanup`; after the next one,
+//   restart local.synapse and launch agent-surface-mcp-env and grimoire-server with an empty PATH
 if (process.platform === "win32") {
   console.log("mcp-shims: the Homebrew pin case runs on POSIX — Homebrew does not install Node on Windows");
 } else {
