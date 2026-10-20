@@ -21,6 +21,7 @@ import { mergeKiloInstructionJsonc, parseJsoncResult, setJsoncRootProperty } fro
 import { provisioningDecision, runProvisioning } from "./provision-exec.mjs";
 import { formatProvisioningPlan, launchNameOf, PLATFORM, provisioningActions, provisioningStatus, unrecipedRequired } from "./provision.mjs";
 import { assertJsonPropertyType, isMcpLauncherCommand, MCP_ENV_LAUNCH_SCRIPT, mcpLauncherInvocation, mcpLaunchScriptCopy, mergeCodexMcpToml, mergeJsonMcpConfig, mergeKiroPermissions, mergeYamlMcpConfig, optionalServiceMcpServers, renderMcpConfig, YAML_MCP_FORMATS } from "./merge.mjs";
+import { pinnedNodePath } from "./mcp-shims.mjs";
 import { formatNotice, localDate, planNotices } from "./notices.mjs";
 import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { readRules } from "./rules.mjs";
@@ -705,11 +706,11 @@ const LAUNCHER_FLOOR_CHECK = "const v=process.versions.node.split(/\\./).map(Num
 // Materialize the shared env-loader wrapper. Every platform gets the per-user copy of the
 // self-contained launcher .mjs that wrapped servers run (see mcpLaunchScriptCopy). POSIX also gets
 // ~/.local/bin/agent-surface-mcp-env (see mcpLauncherInvocation), a tiny shell script that PINS the
-// Node executable validated at install time (process.execPath). An IDE launches MCP servers with a
-// minimal PATH, so a `#!/usr/bin/env node` wrapper would fail to find Node (exit 127); the pinned
-// absolute path avoids that. A Node upgrade can remove that path (Homebrew's versioned Cellar
-// directory, for one), so the wrapper then falls back to PATH's node once that node passes the
-// floor, as the first-party shims in mcp-shims.mjs re-check theirs.
+// Node executable validated at install time, through Homebrew's opt link when that resolves to it
+// (see pinnedNodePath). An IDE launches MCP servers with a minimal PATH, so a `#!/usr/bin/env node`
+// wrapper would fail to find Node (exit 127); the pinned absolute path avoids that. An uninstall or
+// a version manager can still remove that path, so the wrapper then falls back to PATH's node once
+// that node passes the floor, as the first-party shims in mcp-shims.mjs re-check theirs.
 // Regenerated every install so a newer launcher or upgraded Node is picked up, and each file is
 // replaced whole so a server starting meanwhile never reads a torn one. The destination tracks
 // os.homedir() — the same $HOME the generated config's "~" resolves against — so the wrapper always
@@ -724,7 +725,7 @@ async function materializeMcpLauncher() {
     "# agent-surface MCP env-loader wrapper — pins the Node validated at install so an IDE-launched",
     "# MCP (minimal PATH) still resolves it; PATH's node once an upgrade removes it. Regenerated on each install.",
     "# A lowercase name: npm exports NODE, and the launched server must not inherit a changed one.",
-    `node_bin=${shQuote(process.execPath)}`,
+    `node_bin=${shQuote(pinnedNodePath())}`,
     'if ! command -v "$node_bin" >/dev/null 2>&1; then',
     `  if ! node -e '${LAUNCHER_FLOOR_CHECK}' 2>/dev/null; then`,
     '    echo "agent-surface-mcp-env: $node_bin is gone and node on PATH is $(node -v 2>/dev/null || echo missing); needs Node 20.12 or newer (rerun agent-surface install)" >&2',

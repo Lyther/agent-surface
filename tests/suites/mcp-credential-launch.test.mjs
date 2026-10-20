@@ -13,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { provisioningStatus } from "../../scripts/agent-surface/provision.mjs";
 import { mcpLaunchScriptCopy } from "../../scripts/agent-surface/merge.mjs";
+import { pinnedNodePath } from "../../scripts/agent-surface/mcp-shims.mjs";
 import { selectedMcpServiceEntries } from "../../scripts/agent-surface/targets.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -89,7 +90,7 @@ try {
     // F007: the wrapper pins the install Node by absolute path (survives a minimal PATH).
     const wrapperText = readFileSync(entry.command, "utf8");
     assert.match(wrapperText, /^#!\/bin\/sh/, "wrapper is a shell script");
-    assert.ok(wrapperText.includes(process.execPath), "wrapper pins the install Node by absolute path");
+    assert.ok(wrapperText.includes(`node_bin='${pinnedNodePath()}'`), "wrapper pins the install Node by absolute path");
     assert.ok(statSync(entry.command).mode & 0o100, "wrapper is executable");
     // The wrapper execs a per-user copy of the launcher, never the installing checkout's own, so
     // deleting or moving that checkout leaves the launcher in place.
@@ -97,10 +98,10 @@ try {
     assert.ok(wrapperText.includes(`exec "$node_bin" '${launcherCopy}' "$@"`), "the wrapper execs the per-user launcher copy");
     assert.ok(!wrapperText.includes(root), "the wrapper names nothing inside the installing checkout");
     assert.equal(readFileSync(launcherCopy, "utf8"), readFileSync(path.join(root, "scripts", "agent-surface", "mcp-env-launch.mjs"), "utf8"), "the copy is the shipped launcher");
-    // A Node upgrade can remove the pinned executable (Homebrew's versioned Cellar path, for one).
+    // An uninstall or a version manager can still remove the pinned executable.
     // The wrapper then falls back to PATH's node, as the first-party shims do, instead of failing.
     const staleWrapper = path.join(dir, "stale-node-wrapper");
-    writeFileSync(staleWrapper, wrapperText.replace(process.execPath, path.join(dir, "removed-node", "node")), { mode: 0o755 });
+    writeFileSync(staleWrapper, wrapperText.replace(pinnedNodePath(), path.join(dir, "removed-node", "node")), { mode: 0o755 });
     const emptyEnv = path.join(dir, "empty.env");
     writeFileSync(emptyEnv, "", { mode: 0o600 });
     const fallback = spawnSync(staleWrapper, ["--as-env-file", emptyEnv, "--", "/bin/sh", "-c", "printf fallback-ok"], {

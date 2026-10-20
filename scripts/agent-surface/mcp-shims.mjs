@@ -10,8 +10,24 @@
 // executable under PATHEXT, and `launchNameOf` strips it, so `~/.local/bin/<name>` in the registry
 // still matches the resolved `<name>.cmd` and the launcher routes it through cmd.exe with per-token
 // quoting.
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
+
+// The Node path an installer bakes in. Homebrew runs Node from a versioned Cellar directory that
+// `brew cleanup` deletes once an upgrade replaces it, and the PATH fallback that follows can find an
+// older Node (under launchd it found one below the floor). When the formula's opt link resolves to the
+// binary this installer validated, the launcher names that link instead: it moves with each upgrade,
+// and the shims below re-check the floor of whatever Node it reaches at launch.
+export function pinnedNodePath(execPath = process.execPath) {
+  const keg = /^(.+)\/Cellar\/([^/]+)\/[^/]+\/bin\/node$/.exec(execPath);
+  if (!keg) return execPath;
+  const optLink = `${keg[1]}/opt/${keg[2]}/bin/node`;
+  try {
+    return realpathSync(optLink) === realpathSync(execPath) ? optLink : execPath;
+  } catch {
+    return execPath;
+  }
+}
 
 // The runtime floor check, written WITHOUT quote characters of either kind: the same source string
 // is embedded in a single-quoted `sh` argument and a double-quoted cmd.exe argument. The regex

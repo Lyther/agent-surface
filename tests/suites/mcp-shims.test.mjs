@@ -4,11 +4,11 @@
 // shape is asserted here, and the generated shim is additionally EXECUTED on this platform.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { launchSpec } from "../../scripts/agent-surface/mcp-env-launch.mjs";
-import { shimContent, shimFileName, writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
+import { pinnedNodePath, shimContent, shimFileName, writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
 
 const spec = { name: "synapse-bridge", nodeBin: "/opt/node/bin/node", entry: "/repo/mcps/synapse/dist/src/bridge.js", override: "SYNAPSE_NODE" };
 const windowsSpec = { ...spec, nodeBin: "C:\\Program Files\\nodejs\\node.exe", entry: "C:\\repo\\mcps\\synapse\\dist\\src\\bridge.js" };
@@ -76,6 +76,60 @@ try {
   assert.match(readFileSync(written[0], "utf8"), /probe-tool/, "the shim names the tool it launches");
 } finally {
   rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+}
+
+// ---- the pinned Node path -------------------------------------------------------
+assert.equal(pinnedNodePath(windowsSpec.nodeBin), windowsSpec.nodeBin, "a Windows Node is pinned as is");
+// Homebrew's process.execPath is a versioned Cellar binary that `brew cleanup` deletes after an
+// upgrade, while the formula's opt link moves to the new version. A disposable prefix laid out the
+// same way stands in for Homebrew: plain files where only identity matters, links to this Node where
+// the shim has to launch.
+if (process.platform === "win32") {
+  console.log("mcp-shims: the Homebrew pin case runs on POSIX — Homebrew does not install Node on Windows");
+} else {
+  const prefix = mkdtempSync(path.join(os.tmpdir(), "as-brew-"));
+  try {
+    const keg = (formula, version, runnable = false) => {
+      const bin = path.join(prefix, "Cellar", formula, version, "bin");
+      mkdirSync(bin, { recursive: true });
+      if (runnable) symlinkSync(process.execPath, path.join(bin, "node"));
+      else writeFileSync(path.join(bin, "node"), "");
+      return path.join(bin, "node");
+    };
+    const link = (formula, version) => {
+      mkdirSync(path.join(prefix, "opt"), { recursive: true });
+      rmSync(path.join(prefix, "opt", formula), { force: true });
+      symlinkSync(path.join("..", "Cellar", formula, version), path.join(prefix, "opt", formula));
+      return path.join(prefix, "opt", formula, "bin", "node");
+    };
+    const cellar = keg("node", "1.0.0");
+    assert.equal(pinnedNodePath(cellar), cellar, "a Cellar Node without an opt link is pinned as is");
+    const opt = link("node", "1.0.0");
+    assert.equal(pinnedNodePath(cellar), opt, "a Cellar Node is pinned through its formula's opt link");
+    assert.equal(pinnedNodePath(keg("node", "1.0.1")), path.join(prefix, "Cellar", "node", "1.0.1", "bin", "node"), "an opt link that resolves to another version is not substituted");
+    const versioned = keg("node@22", "22.17.0");
+    const versionedOpt = link("node@22", "22.17.0");
+    assert.equal(pinnedNodePath(versioned), versionedOpt, "a versioned formula is pinned through its own opt link");
+    assert.equal(pinnedNodePath("/usr/local/bin/node"), "/usr/local/bin/node", "a Node outside a Cellar is pinned as is");
+
+    // The upgrade itself: once cleanup deletes the old keg, a shim pinned through the opt link still
+    // launches. The PATH holds no node, so only the pin can reach one.
+    const old = keg("probe", "2.0.0", true);
+    link("probe", "2.0.0");
+    const entry = path.join(prefix, "entry.mjs");
+    writeFileSync(entry, "process.stdout.write('upgraded-ok');\n");
+    const [shim] = writeShims({ binDir: path.join(prefix, "bin"), nodeBin: pinnedNodePath(old), entries: { "probe-tool": entry }, override: "PROBE_NODE" });
+    keg("probe", "2.0.1", true);
+    link("probe", "2.0.1");
+    rmSync(path.join(prefix, "Cellar", "probe", "2.0.0"), { recursive: true, force: true });
+    const emptyPath = path.join(prefix, "empty-path");
+    mkdirSync(emptyPath);
+    const upgraded = spawnSync(shim, [], { encoding: "utf8", env: { PATH: emptyPath } });
+    assert.equal(upgraded.status, 0, upgraded.stderr);
+    assert.equal(upgraded.stdout, "upgraded-ok", "the shim reaches the upgraded keg through the opt link");
+  } finally {
+    rmSync(prefix, { recursive: true, force: true });
+  }
 }
 
 console.log("mcp-shims: ok");
