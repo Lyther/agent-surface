@@ -1402,7 +1402,7 @@
       }
     },
     "kiro": {
-      "summary": "Kiro IDE 1.x and Kiro CLI package 2.x on its V3 agent engine ('CLI 3.0', selected with --v3 or --agent-engine v3), which share ~/.kiro and .kiro files: agent-surface generates one V3-format target for both. The CLI's V1 and V2 engines and Kiro Web and Mobile are not targeted. Kiro documents that Kiro CLI V3 honors steering inclusion modes, and Kiro CLI 2.32.0's V3 engine starts a session, generated agents included, with only the always files in context.",
+      "summary": "Kiro IDE 1.x and Kiro CLI package 2.x on its V3 agent engine ('CLI 3.0', selected with --v3 or --agent-engine v3), which share ~/.kiro and .kiro files: agent-surface generates one V3-format target for both. The CLI's V1 and V2 engines and Kiro Web and Mobile are not targeted. Kiro documents that Kiro CLI V3 honors steering inclusion modes, and Kiro CLI 2.32.0's V3 engine adds steering by inclusion before each model call for every agent, generated ones included (read from its source).",
       "generated_render_tokens": [
         "skills",
         "commands-as-workflows",
@@ -1466,7 +1466,7 @@
             "~/.kiro/steering/command-<name>.md",
             ".kiro/steering/command-<name>.md"
           ],
-          "notes": "Manual-inclusion steering, invoked as #command-<name> or from / completion. Kiro's steering page documents manual inclusion for the IDE and Kiro CLI V3, while the CLI's V1/V2 engines load only always files automatically. Kiro CLI 2.32.0's V3 engine offers each manual file as a /command-<name> slash command and keeps it out of a session's context, generated agents included, since they inherit steering instead of listing it as file:// resources."
+          "notes": "Manual-inclusion steering, invoked as #command-<name> or from / completion. Kiro's steering page documents manual inclusion for the IDE and Kiro CLI V3, while the CLI's V1/V2 engines load only always files automatically. Kiro CLI 2.32.0's V3 engine offers each manual file as a /command-<name> slash command and adds it to an agent's context only once invoked, generated agents included, which no longer list steering as file:// resources."
         },
         "rules": {
           "support": "native",
@@ -1492,7 +1492,7 @@
             "~/.kiro/agents/<name>.md",
             ".kiro/agents/<name>.md"
           ],
-          "notes": "V3-format Markdown agents use tool tags, skill resources and capability permissions, and inherit steering from Kiro's default agent so each file keeps its inclusion; with chat.disableInheritingDefaultResources set they get no always rules. Kiro CLI 2.32.0's V3 engine lists them as modes and delegate commands."
+          "notes": "V3-format Markdown agents use tool tags, skill resources and capability permissions, and list no steering: Kiro's custom-agent reference says custom agents inherit the default steering, and Kiro CLI 2.32.0's V3 engine adds steering by inclusion for every agent and lists the generated ones as modes and delegate commands. Kiro's steering page still shows file:// steering resources for custom agents, and the IDE is not runtime-tested."
         },
         "mcp": {
           "support": "native",

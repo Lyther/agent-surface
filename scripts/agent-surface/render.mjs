@@ -126,9 +126,9 @@ export function renderQwenCodeSubagent(source) {
   return lines.join("\n");
 }
 
-// No file:// steering resource: Kiro's custom agents inherit the default agent's steering, skills and
-// AGENTS.md, each steering file under its own inclusion, while a file:// resource loads every file it
-// matches into context when the agent starts, manual workflows included.
+// No file:// steering resource: Kiro CLI's V3 engine adds steering by inclusion before each model call
+// for every agent, custom ones included, while a file:// resource adds every file it matches whatever
+// its inclusion, manual workflows included.
 export function renderKiroSubagent(source) {
   const mapped = kiroSubagentAccess(source.metadata.access);
   const lines = [
