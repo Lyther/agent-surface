@@ -124,7 +124,7 @@ try {
   assert.match(poolBuild, /^pool notice: POOL_AGENTS_MD_CLIENT_FLOOR \(/m);
   assert.ok(poolBuild.indexOf("pool notice:") < poolBuild.indexOf("[dry-run]"), "notices precede the planned writes");
   const doctor = run(["doctor"], { env: { ...process.env, HOME: home } });
-  assert.match(doctor, /^notice kiro: KIRO_MANUAL_STEERING_AUTOLOADED \(/m);
+  assert.match(doctor, /^notice windsurf: WINDSURF_RULE_SIZE_LIMITS \(/m);
   assert.match(doctor, /^notice pool: POOL_AGENTS_MD_CLIENT_FLOOR \(/m);
 } finally {
   rmSync(scratch, { recursive: true, force: true });

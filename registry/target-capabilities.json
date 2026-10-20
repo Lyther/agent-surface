@@ -1402,7 +1402,7 @@
       }
     },
     "kiro": {
-      "summary": "Kiro IDE 1.x and Kiro CLI package 2.x on its V3 agent engine ('CLI 3.0', selected with --v3 or --agent-engine v3), which share ~/.kiro and .kiro files: agent-surface generates one V3-format target for both. The CLI's V1 and V2 engines and Kiro Web and Mobile are not targeted. Kiro documents that Kiro CLI V3 honors steering inclusion modes; not runtime-tested.",
+      "summary": "Kiro IDE 1.x and Kiro CLI package 2.x on its V3 agent engine ('CLI 3.0', selected with --v3 or --agent-engine v3), which share ~/.kiro and .kiro files: agent-surface generates one V3-format target for both. The CLI's V1 and V2 engines and Kiro Web and Mobile are not targeted. Kiro documents that Kiro CLI V3 honors steering inclusion modes, and Kiro CLI 2.32.0's V3 engine adds steering by inclusion before each model call for every agent, generated ones included (read from its source).",
       "generated_render_tokens": [
         "skills",
         "commands-as-workflows",
@@ -1466,7 +1466,7 @@
             "~/.kiro/steering/command-<name>.md",
             ".kiro/steering/command-<name>.md"
           ],
-          "notes": "Manual-inclusion steering, invoked as #command-<name> or from / completion. Every generated agent lists all steering files as file:// resources, which Kiro loads when the agent starts, so those agents receive these files too. Kiro's steering page documents manual inclusion for the IDE and Kiro CLI V3, while the CLI's V1/V2 engines load only always files automatically: documented, not runtime-tested."
+          "notes": "Manual-inclusion steering, invoked as #command-<name> or from / completion. Kiro's steering page documents manual inclusion for the IDE and Kiro CLI V3, while the CLI's V1/V2 engines load only always files automatically. Kiro CLI 2.32.0's V3 engine offers each manual file as a /command-<name> slash command and adds it to an agent's context only once invoked, generated agents included, which no longer list steering as file:// resources."
         },
         "rules": {
           "support": "native",
@@ -1479,7 +1479,7 @@
             "~/.kiro/steering/<rule>.md",
             ".kiro/steering/<rule>.md"
           ],
-          "notes": "Always and fileMatch inclusion modes preserve the source rule scope where Kiro applies steering itself, which Kiro documents for the IDE and Kiro CLI V3; generated agents load every rule through file:// regardless (see commands-as-workflows)."
+          "notes": "Always and fileMatch inclusion modes preserve the source rule scope where Kiro applies steering itself, which Kiro documents for the IDE and Kiro CLI V3, generated agents included (see subagents)."
         },
         "subagents": {
           "support": "native",
@@ -1492,7 +1492,7 @@
             "~/.kiro/agents/<name>.md",
             ".kiro/agents/<name>.md"
           ],
-          "notes": "V3-format Markdown agents use tool tags, skill and steering resources, and capability permissions; their file:// steering glob loads every steering file at agent start, manual workflow files included (documented, not runtime-tested)."
+          "notes": "V3-format Markdown agents use tool tags, skill resources and capability permissions, and list no steering: Kiro's custom-agent reference says custom agents inherit the default steering, and Kiro CLI 2.32.0's V3 engine adds steering by inclusion for every agent and lists the generated ones as modes and delegate commands. Kiro's steering page still shows file:// steering resources for custom agents, and the IDE is not runtime-tested."
         },
         "mcp": {
           "support": "native",
@@ -1531,18 +1531,7 @@
           ],
           "notes": "Reviewed external Agent Skills use the same native roots."
         }
-      },
-      "notices": [
-        {
-          "code": "KIRO_MANUAL_STEERING_AUTOLOADED",
-          "kind": "compatibility",
-          "surface": "commands-as-workflows",
-          "message": "agent-surface writes its high-impact workflows as manual-inclusion steering files (.kiro/steering/command-*.md). Every generated Kiro agent lists all steering files as file:// resources, which Kiro loads when the agent starts, so those agents receive the workflows without #command-<name>. Kiro's steering documentation says Kiro CLI V3 honors all four inclusion modes and V1/V2 load only always files automatically, but an agent's file:// resources load the steering files they list whatever their mode. Neither behavior is runtime-tested.",
-          "action": "Where a workflow must not load without explicit invocation, install Kiro without the asset categories that carry high-impact commands: --category development, and --category private when its local commands/ops-server.md overlay exists. To remove files an earlier install wrote, run the general Kiro install, which removes previously managed opt-in files, or delete the command-*.md steering files that the install root's .agent-surface/kiro-manifest.json lists.",
-          "source_url": "https://kiro.dev/docs/steering/",
-          "checked_at": "2026-10-19"
-        }
-      ]
+      }
     },
     "antigravity": {
       "summary": "The legacy Antigravity desktop target supports workflow files; current Antigravity CLI plugin packaging is generated by antigravity-cli.",

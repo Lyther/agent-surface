@@ -126,6 +126,9 @@ export function renderQwenCodeSubagent(source) {
   return lines.join("\n");
 }
 
+// No file:// steering resource: Kiro CLI's V3 engine adds steering by inclusion before each model call
+// for every agent, custom ones included, while a file:// resource adds every file it matches whatever
+// its inclusion, manual workflows included.
 export function renderKiroSubagent(source) {
   const mapped = kiroSubagentAccess(source.metadata.access);
   const lines = [
@@ -143,8 +146,6 @@ export function renderKiroSubagent(source) {
       "      effect: allow",
     ]),
     "resources:",
-    '  - "file://.kiro/steering/**/*.md"',
-    '  - "file://~/.kiro/steering/**/*.md"',
     '  - "skill://.kiro/skills/**/SKILL.md"',
     '  - "skill://~/.kiro/skills/**/SKILL.md"',
     "---",
