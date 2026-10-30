@@ -25,7 +25,7 @@ import {
   expectedSkillCount,
   files,
   disposableCheckout,
-  hasLocalOpsServerCommand,
+  hasLocalOpsServerSkill,
   MAX_CAPTURE_BYTES,
   root,
   run, status,
@@ -238,6 +238,17 @@ assert.match(inventory, new RegExp(`^skills: ${expectedSkillCount}$`, "m"));
 
 const skillRegistry = JSON.parse(run(["skills", "--json"]));
 assert.equal(skillRegistry.count, expectedSkillCount);
+if (hasLocalOpsServerSkill) {
+  const opsServer = skillRegistry.skills.find((skill) => skill.name === "ops-server");
+  assert.equal(
+    opsServer?.model_invocation,
+    true,
+    "private ops-server must be available for automatic skill selection",
+  );
+  assert.equal(opsServer.lazy_body.path, "skills/ops-server/SKILL.md");
+  const skillSurfaceTargets = Object.entries(targets).filter(([, adapter]) => Boolean(adapter.renderSkill)).map(([id]) => id);
+  assert.deepEqual(Object.keys(opsServer.targets).sort(), skillSurfaceTargets.sort());
+}
 const readinessSkill = skillRegistry.skills.find((skill) => skill.name === "verify-readiness");
 assert.equal(readinessSkill.phase, "verify");
 const archDiagramSkill = skillRegistry.skills.find((skill) => skill.name === "arch-diagram");
@@ -276,19 +287,9 @@ assert.equal(devCoreSkill?.model_invocation, true);
 const registry = JSON.parse(run(["commands", "--json"]));
 assert.equal(registry.count, expectedCommandCount);
 const expectedCommands = ["boot-facade", "ops-nuke", "ship-commit", "ship-deploy", "ship-release"];
-if (hasLocalOpsServerCommand) expectedCommands.push("ops-server");
 assert.deepEqual(registry.commands.map((command) => command.name).sort(), expectedCommands.sort());
 assert.equal(registry.commands.every((command) => command.model_invocation === false), true);
-const opsServer = registry.commands.find((command) => command.name === "ops-server");
-assert.equal(Boolean(opsServer), hasLocalOpsServerCommand);
-if (opsServer) {
-  assert.equal(Object.hasOwn(opsServer.targets, "dsh"), false);
-  // A command reaches every target that HAS a command surface. Expressed as the set rather than as
-  // "all targets minus one": the exclusions are dsh, which is skills-only by design, and any export
-  // format, which renders no commands at all — an arithmetic offset silently absorbs a new one.
-  const commandSurfaceTargets = Object.entries(targets).filter(([, adapter]) => Boolean(adapter.renderCommand)).map(([id]) => id);
-  assert.deepEqual(Object.keys(opsServer.targets).sort(), commandSurfaceTargets.filter((id) => id !== "dsh").sort());
-}
+assert.equal(registry.commands.some((command) => command.name === "ops-server"), false);
 
 const shipCommands = JSON.parse(run(["commands", "--phase", "ship", "--json"]));
 assert.equal(shipCommands.commands.every((command) => command.phase === "ship"), true);

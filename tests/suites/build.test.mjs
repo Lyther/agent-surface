@@ -10,7 +10,7 @@ import {
   assertCodexAgentTomlParses,
   disposableCheckout,
   files,
-  hasLocalOpsServerCommand,
+  hasLocalOpsServerSkill,
   root, run, status,
 } from "../lib/helpers.mjs";
 
@@ -150,14 +150,10 @@ for (const target of [
   "zed",
 ]) {
   const targetFiles = generated.filter((file) => file.includes(`${path.sep}dist${path.sep}${target}${path.sep}`));
-  if (hasLocalOpsServerCommand && target !== "dsh") {
-    assert.equal(
-      targetFiles.some((file) => file.includes(`${path.sep}ops-server${path.sep}`)
-        || file.endsWith(`${path.sep}ops-server.md`)
-        || file.endsWith(`${path.sep}command-ops-server.md`)),
-      true,
-      `${target}: local ops-server command missing`,
-    );
+  if (hasLocalOpsServerSkill) {
+    const opsServer = targetFiles.find((file) => file.endsWith(`${path.sep}ops-server${path.sep}SKILL.md`));
+    assert.ok(opsServer, `${target}: private ops-server skill missing`);
+    assert.doesNotMatch(readFileSync(opsServer, "utf8"), /^disable-model-invocation:/m);
   }
   assert.equal(
     targetFiles.some((file) => file.includes(`${path.sep}book-study${path.sep}SKILL.md`)),
