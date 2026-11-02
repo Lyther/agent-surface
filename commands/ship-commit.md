@@ -243,7 +243,7 @@ State the detected mode in one line before proceeding (e.g., `Mode: kernel — c
 
 #### 4D. PR / MR Hygiene
 
-- Small PRs (≤ 400 LOC of meaningful change). Clear description. Link mission/spec/issue.
+- Small PRs: one concern, ideally ≤ 400 LOC of meaningful change, since reviewers find fewer defects in larger diffs. Clear description. Link mission/spec/issue.
 - Preserve the Phase 1.5 result without reopening it as a review-fix loop. Report findings directly in chat and honor only the blocking gates defined there.
 - Do not claim `stable`, `production-ready`, `release-ready`, `deployment-ready`, `E2E passed`, `100% implemented`, or `all features supported` in the commit body, PR/MR text, release notes, or reviewer handoff unless a scoped `verify-readiness` PASS artifact or explicitly equivalent real-run proof artifact exists. Otherwise use the narrower claim that was actually proven, such as `tests passed`, `local smoke passed`, or `install dry-run passed`.
 - After opening or updating a PR/MR, read back the actual title/body/comments from the hosting service or CLI output and verify no AI/vendor attribution or advertising was inserted by templates, integrations, or assistants. Fix it before handing the PR/MR to the user.

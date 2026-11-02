@@ -145,7 +145,7 @@ For every required matrix row, record:
 implemented | real proof passed | blocked | intentionally changed | missing
 ```
 
-Green unit tests do not establish parity. Compare observable behavior, data effects, packaging, configuration, and primary user journeys. Loop `rebuild -> compare` while required rows are missing or incorrect.
+Green unit tests do not establish parity. Compare observable behavior, data effects, packaging, configuration, and primary user journeys. Loop `rebuild -> compare` while required rows are missing or incorrect; when a round moves no row, stop and ask the user.
 
 ## 8. FINAL HUMAN REVIEW
 

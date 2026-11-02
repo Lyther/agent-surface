@@ -100,14 +100,14 @@ Catastrophic failure catalog:
 |-------|---------------|
 | Data loss / corruption | Can one normal or retry path destroy, duplicate, or silently corrupt user state? |
 | Auth / tenant break | Can one user, agent, plugin, or token cross an authorization or tenancy boundary? |
-| Unbounded cost / resource burn | Can a loop, retry, queue, model call, or autoscale path run without a hard budget or circuit breaker? |
+| Unbounded cost / resource burn | Can input-driven work (a loop, retry, queue, model call, or autoscale path) grow without any bound? |
 | Single point of failure | Does one dependency, config file, queue, host, key, or human action stop every supported path? |
 | Unobservable failure | Can the system be broken while health checks, logs, metrics, or user-visible status still report success? |
 | No rollback / recovery | If rollout, install, migration, or config merge fails, is there a tested path back to the previous working state? |
 | Destructive automation | Can an automated agent/tool delete, overwrite, publish, spend, deploy, or notify without the intended approval and scope controls? |
 | Irreversible external effect | Can the workflow send email, mutate production data, charge money, rotate secrets, or disclose data without replay-safe evidence and approval? |
 
-Treat any plausible `yes` on Critical/High surfaces as a candidate design finding. Prove it is mitigated, narrow the claim, or FAIL.
+Treat a `yes` you can show on a Critical/High surface (an input, a trace, or a missing control on a reachable path) as a candidate design finding. Prove it is mitigated, narrow the claim, or FAIL.
 
 Record findings with severity + confidence. Critical/High open → FAIL.
 

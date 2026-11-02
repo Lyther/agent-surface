@@ -52,7 +52,7 @@ Return a task plan with:
 - serial dependencies
 - suggested runtimes
 - verification plan
-- convergence plan
+- stop point: when the work returns to the user
 - blockers requiring human input
 
 Do not include implementation patches.

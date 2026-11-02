@@ -96,7 +96,7 @@ Helper command output is evidence for `boss.context_capsule`, task AC, risk note
 Build a list of 1 to N tasks. Each task is independently reviewable, verifiable, and revertable.
 
 - Sort tasks by dependency. Use `depends_on: [task_id, …]` when a task requires the output of an earlier one.
-- Prefer a full useful queue over a tiny handoff. If more related tasks fit the same route, FILESCOPE, and verification surface, include them instead of leaving obvious follow-up tasks for a later BOSS round.
+- Queue only tasks that implement the stated requirements; never add follow-up tasks the user did not ask for.
 - Assign as much independent work as possible in the first round when it can be isolated by filescope, test surface, or worktree. This is how the orchestrator can launch parallel workers or a worker lead can launch runtime-native subagents without re-reading the repo for each small task.
 - Prefer one concern, one testable behavior, one reversible patch per task. Estimate by filescope size, dependency count, and verify cost, not line count.
 - Split the run instead of batching when tasks require different worker routes, unrelated filescopes, incompatible risk levels, different irreversible targets, or separate human-only actions.
@@ -111,7 +111,7 @@ Keep the process deterministic: route by explicit `workflow.next_command` plus t
 
 - Every AC must be verifiable by a command output, test report, or log.
 - No vague AC ("works", "looks good").
-- Include success path, failure path, edge cases, and at least one failure-mode AC when the task changes behavior, security posture, or data mutation.
+- Include the success path, and a failure-path or edge AC wherever the requirement or an observed failure names one.
 - Give each AC a `type`: `functional`, `failure_path`, `security`, `performance`, `accessibility`, `compatibility`, `documentation`, `observability`, or `data_safety`.
 - Add documentation AC when public behavior, API, CLI, config, security posture, or operational behavior changes.
 

@@ -191,7 +191,7 @@ Do not rely on linear reading as the only strategy. For each relevant function o
 Track state with a sanitized Trace Ledger:
 
 ```text
-trace_id, depth, location, boundary_type, source, current_symbol, static_type, runtime_type, parser/deserializer, schema_validator, canonicalization_state, authn_state, authz_state, actor_state, tenant_state, resource_scope, persistence_state, sink_proximity, evidence_id
+trace_id, location, boundary_type, source, sink_proximity, the state the claim depends on (for example authz, tenant, canonicalization, persistence), evidence_id
 ```
 
 Standard states:
@@ -218,7 +218,7 @@ Use cycle detection by file + function + taint/control state. Stop on evidence s
 
 ## PHASE 6: BOUNDARY INTERROGATION
 
-At every file, service, async, serialization, persistence, or trust boundary, check:
+At each file, service, async, serialization, persistence, or trust boundary the trace crosses, check the questions below. A missing check is a finding only when an input on the trace reaches it unchecked by every earlier boundary.
 
 ```text
 Was actor_id preserved?
@@ -382,7 +382,7 @@ T1. `[d=1] path/file.ts:45`
 ### P2
 
 ## Regression Test Plan
-For every High/Critical finding, include a negative regression test. Add race/concurrency tests and monitoring/logging assertions when relevant.
+For each High/Critical finding, give the failing input a regression test should use.
 
 ## Self-Adversarial Review
 Challenge each top finding:

@@ -39,7 +39,7 @@ You are not a general reviewer and you do not rewrite the solution. Focus on cou
 4. Check whether added fields have real consumers.
 5. Check whether safeguards are useful boundaries or decorative friction.
 6. Prefer concrete reproductions and minimal failing examples over broad criticism.
-7. Classify findings by merge-blocking, must-fix, and deferred debt.
+7. Classify findings as merge-blocking or deferred.
 
 ## Output Contract
 
@@ -47,7 +47,7 @@ Return:
 
 - target claim
 - confirmed failures
-- likely failures
+- suspected failures, unconfirmed and never merge-blocking
 - non-issues
 - minimal reproduction or evidence
 - recommended fix

@@ -22,13 +22,14 @@ When reviewing a patch, diff, PR, MR, mailing-list submission, or issue fix, jud
 - The patch must not introduce a new bug, regression, data loss path, security weakness, performance cliff, flaky test, broken build mode, or undocumented contract change.
 - The patch must preserve existing API/ABI/UAPI, CLI, config, schema, storage, wire-format, and behavioral contracts unless the change explicitly scopes and documents the migration.
 - The patch must fit the surrounding code style and local architecture, and the design should be flat, simple, reviewable, and no larger than the problem requires. Flag clever abstractions, speculative frameworks, and "fix by rewriting the world" designs unless the evidence justifies them.
+- Report defects against the stated task, each shown by a failing input, a broken requirement, or a violated contract. A suggestion that adds a requirement, guard, test, or follow-up task is a non-blocking note for the user to triage, never a condition for approval.
 - One logical finding per patch. Do not mix fix + refactor, behavior + formatting, unrelated bugs, or opportunistic cleanup. A series is acceptable, but each patch must stand on its own, build, test, and remain bisectable.
 - Tests are evidence, not decoration. New or changed tests must exercise the fixed behavior or contract. Test changes made alongside implementation are suspect until proven not to weaken acceptance.
 
 ## INPUT
 
 ```text
-qa-review <target> [--round N] [--fix-after N] [--focus <domains>] [--auto-approve] [--state <path>]
+qa-review <target> [--round N] [--max-rounds N] [--focus <domains>] [--auto-approve] [--state <path>]
 ```
 
 ## PARAMETERS
@@ -37,7 +38,7 @@ qa-review <target> [--round N] [--fix-after N] [--focus <domains>] [--auto-appro
 |-----------|---------|-------------|
 | `<target>` | required | File, directory, or git diff to review |
 | `--round N` | 1 | Current review iteration |
-| `--fix-after N` | 3 | After N rejected rounds, output fix only (unified diff, no prose) |
+| `--max-rounds N` | 2 | After N rejected rounds, stop reviewing and hand the open blockers to the user |
 | `--focus <domains>` | all | Comma-separated: `security`, `logic`, `config`, `quality`, `perf`, `tests`, `docs`, `deps` |
 | `--auto-approve` | on | Compatibility flag; scope resolution never waits for a confirmation prompt |
 | `--state <path>` | none | Path to previous round's output (e.g., `.review_state.md`). Required for `--round 2+` |
@@ -198,7 +199,7 @@ Run this pass in addition to the normal domains for Linux kernel trees, kernel-l
 - [ ] Dead code, commented-out code, TODO/FIXME without issue tracking
 - [ ] Language idioms: code written in the style of the language, or fighting it?
 - [ ] API design: consistent naming, proper HTTP methods, sensible status codes, pagination
-- [ ] **Formatter/lint drift**: does the staged diff match the repo's gate? If you have tool access, run the repository-defined formatter/linter checks on the changed files (for example `ruff format --check` + `ruff check`, `gofumpt -l`, `shfmt -d`, or a checked-in lint/format script). Drift (wrong line length, reordered imports, re-indented shell from a mis-set editor) is a 🟡 MUST-FIX — flag it and point at the editor/config mismatch, not just the file.
+- [ ] **Formatter/lint drift**: does the staged diff match the repo's gate? If you have tool access, run the repository-defined formatter/linter checks on the changed files (for example `ruff format --check` + `ruff check`, `gofumpt -l`, `shfmt -d`, or a checked-in lint/format script). Drift (wrong line length, reordered imports, re-indented shell from a mis-set editor) is a 🟡 SHOULD-FIX — flag it and point at the editor/config mismatch, not just the file.
 
 #### 5. Performance
 
@@ -244,7 +245,7 @@ Run this pass in addition to the normal domains for Linux kernel trees, kernel-l
 | Level | Label | Meaning | Verdict Impact |
 |-------|-------|---------|----------------|
 | 🔴 | REJECT-BLOCKING | Security vuln, correctness bug, data loss risk, committed secrets | Any one = REJECTED |
-| 🟡 | MUST-FIX | Code smells, bad error handling, config issues, missing tests for critical paths, unsafe Dockerfile | REJECTED unless trivial in aggregate |
+| 🟡 | SHOULD-FIX | Code smells, error handling, config, or test gaps with no demonstrated failure; unsafe Dockerfile | Won't block; the author fixes it or pushes back in one line |
 | 🔵 | NIT | Style, readability, minor docs gaps | Won't block alone |
 
 ## STATE MANAGEMENT
@@ -291,30 +292,9 @@ When state IS provided:
 4. Root cause analysis if same category recurs across rounds
 5. Debugging guidance: reasoning chain, reproduction steps, mental model correction
 
-## FIX ROUND (--fix-after threshold reached)
+## STOP RULE (--max-rounds reached)
 
-When triggered:
-
-1. **No prose analysis.** No root cause essay. No debugging guidance.
-2. **Output format: unified diff only.**
-
-```diff
---- a/src/auth.rs
-+++ b/src/auth.rs
-@@ -40,3 +40,5 @@
--    let secret = "hardcoded_secret_key";
-+    let secret = std::env::var("JWT_SECRET")
-+        .expect("JWT_SECRET environment variable must be set");
-```
-
-3. **One-line postmortem per fix** (after the diff block):
-
-```text
-F001: JWT secret was hardcoded. Moved to environment variable.
-F002: Dockerfile ran as root. Added USER directive.
-```
-
-4. Nothing else. The downstream agent/user needs machine-parseable output, not a lecture.
+Do not start another round. List the open 🔴 findings with their failing inputs and ask the user to decide: accept with known issues, rework once more, or re-scope.
 
 ## OUTPUT FORMAT
 
@@ -330,7 +310,7 @@ Write each finding as one concise progression: state what is wrong, explain its 
 ### 🔴 REJECT-BLOCKING
 - **[F001]** [{file}:{line}] {defect, concrete impact, and specific remediation}
 
-### 🟡 MUST-FIX
+### 🟡 SHOULD-FIX
 - **[F002]** [{file}:{line}] {defect, concrete impact, and specific remediation}
 
 ### 🔵 NIT
@@ -412,5 +392,5 @@ qa-review .
 qa-review . --auto-approve
 qa-review src/ --focus security,config
 qa-review . --round 2 --state .review_state.md
-qa-review . --fix-after 5 --focus security,deps --auto-approve
+qa-review . --round 2 --state .review_state.md --max-rounds 2 --focus security,deps --auto-approve
 ```

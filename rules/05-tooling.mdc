@@ -17,7 +17,7 @@ alwaysApply: true
 ## Checks
 
 - Prefer repo-defined scripts: `make check`, `npm test`, `cargo test`, `go test`, `uv run`, or CI-equivalent.
-- Run narrow checks first; run broad checks before final when the change touches shared behavior, public APIs, security, data, or build tooling.
+- Run narrow checks first; run broad checks before final when the change touches shared behavior, public APIs, security, data, or build tooling. Broad checks include the repo's static security analysis, dependency audit, and secret scan where available.
 - If a tool is missing, report `not available`; never pretend it passed.
 - To find code only a retired entry point uses, remove the entry point and let the compiler's or language's dead-code analysis list the rest. Hand-written call graphs miss macro, trait, and dynamic edges.
 

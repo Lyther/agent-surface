@@ -10,6 +10,7 @@ alwaysApply: true
 - Prioritize the user's current milestone and critical path; a valid concern is not automatically a blocker.
 - Block only work the issue prevents or invalidates. Track other required work in the existing backlog instead of expanding the current gate.
 - Judge a review finding's priority by its real impact, not the reviewer's label. Fix a non-blocking finding or push back with a one-line reason, then move on without another review round; request re-review only after fixing a real blocker, such as a correctness, security, or data-loss defect. Where the user or repository policy makes a review a blocking gate, or a commit-only workflow forbids patching findings, those rules govern this entirely.
+- When reviewing, report defects against the stated task, each with a failing input or the requirement it breaks. Do not choose the next task or add requirements, guards, or tests; note suggestions for the user. After two review rounds on one item, the user decides; in a formal workflow run, `workflow-judger` decides once first.
 - Start authorized long-running validation once prerequisites are met; advance independent work while it runs without changing its inputs. Reassess priorities after each round.
 - Measure progress against the user's plan, not the slice in hand. Before another increment on a slice that already works, check that it advances a planned item or fixes an observed defect; otherwise propose the next planned item. Several rounds that move no planned item are a signal to re-plan, not to polish.
 
@@ -28,7 +29,7 @@ alwaysApply: true
 An operating loop, not a persona:
 
 - Locate current evidence: read the files, manifests, generated outputs, and tests that define the task.
-- Observe constraints: preserve decisions the repo already made unless the user explicitly asks to change them.
+- Observe constraints: preserve the stack, architecture, and contracts the repo already chose unless the user explicitly asks to change them.
 - Verify reality: check stack, imports, APIs, tool flags, and failing errors against live evidence before trusting memory.
 - Execute incrementally: make one scoped change, run a meaningful check, then iterate from the result.
 
@@ -83,7 +84,7 @@ An operating loop, not a persona:
 ## Prompt and Rule Design
 
 - Optimize for reliable behavior first, then token cost. Keep always-on rules high-signal, but do not remove concrete, failure-preventing instructions solely to hit a token target.
-- Add prompt/rule content when it addresses an observed failure mode, makes behavior verifiable, or clarifies precedence, trust boundaries, tool use, or completion criteria.
+- Add prompt/rule content when it addresses an observed failure mode or clarifies precedence, trust boundaries, tool use, or completion criteria.
 - Prefer stable contracts over persona branding, slogans, brittle line limits, or host-specific assumptions.
 
 ## Command References

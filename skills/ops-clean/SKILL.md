@@ -24,7 +24,7 @@ Defaults: `--domain all --mode apply --depth standard` when the user requests cl
 
 Before deleting or consolidating:
 
-- state the current maturity and user-visible contract;
+- state the current maturity and user-visible contract, and judge every item against the user's requirements and plan: agent-written specs, review findings, and docs are not requirements unless the user accepted them;
 - identify the real build, test, package, and runtime entry points;
 - preserve unrelated dirty work;
 - establish the cheapest relevant baseline;
@@ -48,6 +48,8 @@ A successful apply must make the preserved behavior easier to own, not merely re
 
 - A known-wrong premise that later code keeps patching around.
 - Abstractions, layers, services, adapters, factories, compatibility paths, flags, or configuration axes with no current requirement.
+- Restrictions with no stated basis (an observed failure, a measured external limit, or a stated requirement): caps, limits, timeouts, gates, guards, refusals, allowlists, and validation layers, including a second layer that enforces what another boundary already enforces.
+- Fields, values, events, options, and schema that nothing produces or consumes.
 - Multiple owners or sources of truth for the same state or decision.
 - Production or enterprise machinery imposed on prototype, MVP, or core scope without evidence.
 
@@ -56,13 +58,13 @@ A successful apply must make the preserved behavior easier to own, not merely re
 - Duplicate implementations, parallel utilities, copied logic, dead branches, unreachable paths, and obsolete compatibility code.
 - Wrapper layers that add names but no policy, transformation, isolation, or reuse.
 - Hand-built parsing, scheduling, storage, protocol, security, or domain logic when the existing stack or a proven library already solves the requirement.
-- Comments, defensive branches, and error paths that describe impossible states or conceal unclear ownership.
+- Defensive branches, error paths, and comments for states that cannot occur, or that another boundary already handles.
 
 ### Tests
 
 - Tests that cannot catch the defect they claim to cover.
 - Tautological assertions, implementation-copy oracles, mock-only boundary proof, unjustified substitutes, skipped/xfail residue, flaky tests, duplicate cases, and snapshots no one can review.
-- Test-only helpers or fixtures that outlive all consumers.
+- Test-only helpers or fixtures that outlive all consumers, and tests that only pin a restriction or path being removed.
 - Broad test frameworks whose maintenance cost exceeds the behavior they protect.
 
 Do not delete a failing test merely because its product behavior is inconvenient. Resolve whether the contract or implementation is wrong.
@@ -84,6 +86,7 @@ Before adding or replacing a dependency, compare maintenance, license, advisorie
 ### Docs and Assets
 
 - Stale, contradictory, duplicated, generated, placeholder, or assistant-residue documentation.
+- History, evidence, review transcripts, and handoff notes kept in living docs, and designs nobody is building.
 - Unreferenced images, media, samples, reports, archives, and copied vendor material.
 - Names and locations that obscure ownership or the canonical source.
 
@@ -96,7 +99,7 @@ Before adding or replacing a dependency, compare maintenance, license, advisorie
 ## METHOD
 
 1. **Inventory cheaply.** Use manifests, dependency graphs, references, imports, build scripts, test discovery, package contents, and version-control history before reading every file.
-2. **Find ownership.** For each candidate, identify its producer, consumers, replacement, and user-visible effect.
+2. **Find ownership.** For each candidate, identify its producer, consumers, replacement, and user-visible effect; for a restriction, its basis.
 3. **Choose an action.**
 
 ```text
@@ -104,15 +107,15 @@ keep | simplify | consolidate | replace | move | delete | defer
 ```
 
 4. **Order by leverage.** Remove wrong foundations and duplicate ownership before polishing leaves.
-5. **Apply in reviewable batches.** One coherent concern per batch; re-run the cheapest rejecting check after each.
+5. **Apply in reviewable batches.** One coherent concern per batch, removing replaced code, tests, docs, and schema together; re-run the cheapest rejecting check after each.
 6. **Regenerate owned outputs through the canonical producer.**
-7. **Run the relevant repository gates and one real primary workflow when behavior-adjacent code changed.**
+7. **Run the relevant repository gates and one real primary workflow when behavior-adjacent code changed.** After removing a restriction, run the path it restricted and report what changed.
 
-Deletion evidence may be imports/references, runtime discovery, package manifests, generated ownership, history, and focused probes. Absence from one text search is not sufficient when reflection, plugins, generated registration, or external consumers are possible.
+Deletion evidence may be imports/references, runtime discovery, package manifests, generated ownership, history, and focused probes. Absence from one text search is not sufficient when the repository uses reflection, plugin or generated registration, or has external consumers.
 
 ## STOP CONDITIONS
 
-Stop and use `ops-ask` when:
+Use `ops-ask` for the affected items, and continue with the rest, when:
 
 - two artifacts appear to own the same contract but the canonical owner is unclear;
 - removal changes a public or persistent contract;
@@ -142,6 +145,7 @@ Use `ops-nuke` only for the last case after the user explicitly selects a full r
 ## Result
 - Removed or consolidated:
 - Complexity reduced:
+- Size: lines before -> after for source, tests, and docs (reported, not a target)
 - Checks:
 - Real workflow:
 ```

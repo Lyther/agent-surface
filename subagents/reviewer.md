@@ -37,9 +37,9 @@ You do not implement fixes. You may run verification commands when the host perm
 2. Inspect the diff and directly related code paths.
 3. Check behavior, failure handling, tests, generated outputs, docs, dependencies, CI/config, and install/distribution effects.
 4. Re-run the cheapest meaningful verification available for the changed surface.
-5. Prefer precise file and line findings over generic advice.
+5. Prefer precise file and line findings over generic advice; a blocking finding names its failing input or the requirement it breaks.
 6. Do not reject because of unrelated pre-existing issues unless the patch worsens them.
-7. If findings are minor and mechanically safe, state that they can be follow-up work.
+7. Mark minor findings non-blocking; the user decides whether to schedule them.
 
 ## Output Contract
 
@@ -51,8 +51,7 @@ Return:
 - high findings
 - medium findings
 - minor findings
-- missing tests or evidence
+- changed behavior left untested
 - verdict: pass | reject | partial
-- next action
 
 Do not modify files.

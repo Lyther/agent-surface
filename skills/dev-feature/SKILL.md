@@ -106,7 +106,7 @@ In workflow mode, helper command output is evidence, not the final format. Keep 
 
 1. **Stack Policy**: Respect the repo's architecture policy. If none exists, follow the existing stack; do not invent a new UI/backend stack.
 2. **Contracts**: Public contracts are frozen unless mission says otherwise.
-3. **Determinism**: Inject time/IO/random providers; avoid flaky tests.
+3. **Determinism**: Inject time, randomness, or IO where a test must control them; avoid flaky tests.
 4. **Manifests**: Verify libraries in `package.json`/`Cargo.toml`/`pyproject.toml` before importing.
 
 ### Phase 2: Integrity Check
@@ -158,7 +158,7 @@ Apply this when the task touches UI, components, or async user-facing state:
     - Global state: app-wide context only when genuinely shared; do not add Redux/Zustand/MobX merely to move table filters around.
     - If the repo already uses TanStack Table, TanStack Query, route loaders, or another table/server-state pattern, follow that pattern; do not introduce a parallel table or fetch stack.
 3. **Interaction Quality**:
-    - Handle loading, error, empty, and success states
+    - Handle the loading, error, empty, and success states the journey can reach
     - Keep touch targets usable and keyboard/focus behavior intact
     - Preserve accessibility and responsiveness, not just happy-path rendering
 4. **Admin Console Recipe**:
@@ -197,7 +197,7 @@ Apply this when the task touches UI, components, or async user-facing state:
 | Rule | Bad | Good |
 |------|-----|------|
 | Real Logic | `return "token123"` | Actual computation |
-| Error Handling | Happy path only | Handle all error cases |
+| Error Handling | A failure the change can hit crashes or is swallowed | Handle the failures the change can actually produce |
 | Helpers | Inline everything | Extract & test complex helpers |
 | Logging | `console.log` noise | Structured logs or none |
 
@@ -210,7 +210,7 @@ Before outputting, verify:
 | Hardcoding | Did I return a fixed value to pass the test? |
 | Test Modification | Did I touch the spec file? |
 | Import Reality | Does every import exist in manifest? |
-| Error Coverage | Did I handle the sad paths? |
+| Error Coverage | Did I handle the failures this change can produce? |
 | Determinism | Are time/randomness injected? |
 | **Logic Integrity** | Did I just invert the `if` to make it pass? |
 
@@ -298,7 +298,7 @@ export class LoginService {
 7. **WORKFLOW MODE ONLY**: In workflow mode, merge self-audit into the per-task entry in `worker.json` instead of creating a separate self-critique stage.
 8. **LOCAL HANDOFF FIRST**: In workflow mode, write the worker artifact to `.agent-surface/workflows/<run_id>/worker.json` before asking reviewer-style commands to act.
 9. **ROLE FILE OWNERSHIP**: In workflow mode, write only `worker.json`, per-task patch manifests, runner evidence files, and this role's event; never modify another role file.
-10. **BURN THE QUEUE**: Process tasks in `boss.tasks` order. Stop on the first hard blocker (don't skip ahead — that creates partial-merge ambiguity for the reviewer). When unblocked, the reviewer or judger will requeue; don't second-guess that loop.
+10. **BURN THE QUEUE**: Process tasks in `boss.tasks` order. Stop on the first hard blocker (don't skip ahead — that creates partial-merge ambiguity for the reviewer). A task rejected twice goes to `workflow-judger` or the user, not a third round.
 11. **STOP SOONER UNDER PRESSURE**: If you've opened ≥30 distinct files, run ≥5 verify cycles, or feel context degrading, stop with `stop_reason=context_pressure` even if no blocker. The reviewer will pick up the rest.
 12. **NEVER WIDEN FILESCOPE**: A task may only narrow `boss.filescope`. If a task needs files outside the batch FILESCOPE, mark it blocked with `type: ambiguous_spec` and let `workflow-judger` decide whether to RESPEC.
 13. **CONDITIONAL PATCH ISOLATION**: A task with `patch_required=true` needs `agent-surface workflow patch begin/end/verify` output. A task with `patch_required=false` may use normal diff evidence but cannot be partially merged.

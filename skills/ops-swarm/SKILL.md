@@ -66,7 +66,7 @@ ops-swarm [issue_or_target]
 | `topology` | `hybrid` |
 | `rounds` | `2` |
 | `concurrency` | `min(agents, 4)` |
-| `critic` | `strict` |
+| `critic` | `off` |
 | `consensus` | `evidence` |
 | `verify` | `auto` |
 | `context` | `focused` |
@@ -283,7 +283,7 @@ Packet rules:
 1. One packet should answer one question.
 2. Packets should be independent unless explicitly marked `depends_on`.
 3. Do not assign multiple agents the same packet unless testing reproducibility, bias, or decision stability.
-4. For implementation mode, split planning, patching, and verification. Do not let implementation claims bypass critic or verifier roles.
+4. For implementation mode, split planning, patching, and verification. Do not let implementation claims bypass the verifier role, or the critic when one runs.
 5. If a packet returns no new evidence, do not expand that branch without a concrete reason.
 
 ## EVIDENCE MODEL
@@ -433,7 +433,7 @@ If more than `--max-agent-failures` fail, stop fan-out and report partial result
 
 ### Phase 5: Cross-Review
 
-Give critics sanitized packet outputs and the evidence ledger. Critics must attack:
+Run this phase when `--critic` is not `off` or packet claims conflict. Give critics sanitized packet outputs and the evidence ledger. Critics must attack:
 
 - unsupported claims
 - hidden assumptions

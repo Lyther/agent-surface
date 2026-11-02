@@ -71,7 +71,7 @@ Chaos-test only the resolved target named by the task or live environment select
 
 Before PASS:
 
-1. Plant or reuse one known-bad input that must be rejected.
+1. Plant or reuse one known-bad input that the contract says must be rejected.
 2. Confirm the harness or suite fails open success (detects the bad case).
 3. If the bad case is accepted or corrupts state → FAIL.
 

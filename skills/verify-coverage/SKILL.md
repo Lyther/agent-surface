@@ -89,9 +89,9 @@ Classify each gap:
 | Class | Meaning | Gate impact |
 |-------|---------|-------------|
 | `KILL` | Untested or undiscriminated path that can break production or trust | FAIL |
-| `SAD` | Missing error/timeout/auth failure handling on a supported path | FAIL for readiness-adjacent claims; must fix or defer explicitly |
+| `SAD` | A failure the supported path can hit (auth, I/O, input) is unhandled or untested | FAIL for readiness-adjacent claims; must fix or defer explicitly |
 | `EDGE` | Boundary/input class untested | Fix or hand to `verify-edge` |
-| `NOISE` | Boilerplate / unreachable / intentional dead | IGNORE with one-line reason |
+| `NOISE` | Boilerplate | IGNORE with one-line reason; report unreachable or dead code for deletion instead |
 
 ## OUTPUT FORMAT
 

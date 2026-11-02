@@ -145,12 +145,12 @@ Process each domain sequentially against the files in scope. Do not attempt all 
 
 - Multi-line strings containing instructions/prompts/schemas embedded in code?
   → Extract to external file, load via utility
-- `__init__` params referencing concrete classes instead of protocols?
+- `__init__` params referencing a concrete class that already has a second implementation?
   → Replace with protocol/interface
 - Duplicate type/class definitions across files?
   → Consolidate to one canonical definition
-- Config values hardcoded instead of read from environment/config file?
-  → Extract
+- Secrets or per-deployment values (hosts, accounts, paths) hardcoded?
+  → Read them from the environment
 - **Action if found:** Fix immediately.
 
 #### 2e. Kernel error-path quadrant (when `lint:kernel` mode applies)
@@ -235,7 +235,7 @@ If a check requires tools you don't have, skip it. Do not pretend.
 
 ## EXECUTION RULES
 
-1. **FIX, don't report.** This is not `qa-review`. You are correcting your own work.
+1. **FIX, don't report.** This is not `qa-review`. You are correcting your own work: fix what the scan shows is wrong, and add no guard, check, configuration, or test that a found defect does not call for.
 2. **Tool output overrides visual inspection.** If grep found it, it's real. Don't rationalize it away.
 3. **One domain at a time.** Don't scan for type issues while thinking about error handling.
 4. **No apologies, no narrative.** "Fixed X" not "I noticed I forgot X, sorry about that."

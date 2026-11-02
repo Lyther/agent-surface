@@ -25,8 +25,8 @@ If a material product or architecture choice remains unresolved, use `ops-ask` b
 A development spec is accepted only when:
 
 - each new test fails on the current tree for the intended behavioral reason, not only because a symbol or dependency is missing;
-- success, failure, boundary, and invariant behavior are represented where applicable;
-- expectations come from the requirement, a standard, a human-locked example, or an independent property rather than copied implementation output;
+- success behavior is represented, and failure, boundary, and invariant behavior wherever the requirement or an observed failure names it;
+- expectations come from the requirement, a standard, a human-locked example, or an independent property rather than copied implementation output, and no case adds a requirement the request does not state;
 - a constant-returning stub, weakened assertion, skipped path, or transcript-only result cannot satisfy it;
 - the test uses the real implementation and data path unless a substitute passes the repository's necessity gate;
 - the planned implementation can remain proportionate to the requested maturity.

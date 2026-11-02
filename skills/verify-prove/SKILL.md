@@ -64,7 +64,7 @@ For each journey in scope:
 | Feedback honest | Errors are actionable; no false success |
 | No dead ends | Required next step is available or clearly blocked |
 | No privileged leakage | Secrets/internal paths not shown in user-facing output |
-| Time bound | Completes within an explicit budget or fails loudly |
+| Time bound | Completes within the time the requirement states, or fails visibly instead of hanging |
 
 4. Cover the real matrix: every supported mode/engine/version/exporter claimed in this prove scope needs at least one journey.
 

@@ -70,7 +70,7 @@ If the change is a fix, prove the regression test bites: run the test against th
 ### Phase 5: Discrimination & Gap Handoff
 
 1. When the claim rests on "tests prove it," require `verify-coverage` discrimination evidence (surviving fault = FAIL), not a coverage percentage.
-2. List uncovered sad paths — error handling, rollback, timeout, authz failure — as gaps, ranked by blast radius.
+2. List untested failure paths that the requirements or an observed failure name, ranked by blast radius.
 3. Hand hostile-input harnesses to `verify-edge`, shipped-journey proof to `verify-prove`, broad readiness certification to `verify-readiness`.
 
 ## OUTPUT FORMAT
