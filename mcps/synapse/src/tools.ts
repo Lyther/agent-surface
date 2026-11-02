@@ -2,7 +2,7 @@
 // validated dispatcher (for tools/call). Results are JSON-in-text (data, not
 // instructions). Lock denials carry in-band hints. Used by the low-level sidecar
 // Server; the bridge proxies upstream instead.
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z } from "zod";
 import {
   LIMITS, SynapseInputError, SynapsePayloadError, TOOLS, TOOL_DESCRIPTIONS,
   type IStore,
@@ -21,7 +21,7 @@ export function toolSpecs(): ToolSpec[] {
   return (Object.keys(TOOLS) as (keyof typeof TOOLS)[]).map((name) => ({
     name,
     description: TOOL_DESCRIPTIONS[name]!,
-    inputSchema: zodToJsonSchema(TOOLS[name].input, { target: "jsonSchema7" }) as Record<string, unknown>,
+    inputSchema: z.toJSONSchema(TOOLS[name].input, { target: "draft-7", io: "input" }) as Record<string, unknown>,
   }));
 }
 
