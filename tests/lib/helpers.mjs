@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,10 +7,10 @@ import { fileURLToPath } from "node:url";
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 export const cli = path.join(root, "scripts", "agent-surface.mjs");
 export const stripAiAttributionHook = path.join(root, "hooks", "strip-ai-attribution.sh");
-const opsServerCommandPath = path.join(root, "commands", "ops-server.md");
-export const hasLocalOpsServerCommand = existsSync(opsServerCommandPath);
-export const expectedCommandCount = 5 + Number(hasLocalOpsServerCommand);
-export const expectedSkillCount = 62;
+const opsServerSkillPath = path.join(root, "skills", "ops-server", "SKILL.md");
+export const hasLocalOpsServerSkill = existsSync(opsServerSkillPath);
+export const expectedCommandCount = 5;
+export const expectedSkillCount = 62 + Number(hasLocalOpsServerSkill);
 
 export function clineIdeUserDataRoot(product) {
   if (process.platform === "darwin") return path.join("Library", "Application Support", product);

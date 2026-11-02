@@ -11,7 +11,7 @@ import { targets } from "../../scripts/agent-surface/targets.mjs";
 import {
   clineIdeUserDataRoot,
   clineUserMcpRoutes,
-  hasLocalOpsServerCommand,
+  hasLocalOpsServerSkill,
   installClineExtension,
   MAX_CAPTURE_BYTES,
   root,
@@ -233,9 +233,25 @@ planHas(antigravityCliModdingPlan, [
   /antigravity-cli\/plugins\/agent-surface\/skills\/stellaris-design\/SKILL\.md/,
 ], "antigravity-cli category scaffold");
 
-if (hasLocalOpsServerCommand) {
+if (hasLocalOpsServerSkill) {
   const codexPrivatePlan = dryRun("codex", ["--category", "private"]);
-  planHas(codexPrivatePlan, [/\.agents\/skills\/ops-server\/SKILL\.md <- commands\/ops-server\.md/], "codex private assets");
+  planHas(codexPrivatePlan, [/\.agents\/skills\/ops-server\/SKILL\.md <- skills\/ops-server\/SKILL\.md/], "codex private assets");
+  const dest = mkdtempSync(path.join(os.tmpdir(), "agent-surface-private-skill-"));
+  try {
+    run(["install", "--target", "codex,cursor,dsh", "--dest", dest, "--category", "private"]);
+    for (const directory of [".agents", ".cursor", ".dsh"]) {
+      const skill = readFileSync(path.join(dest, directory, "skills", "ops-server", "SKILL.md"), "utf8");
+      assert.equal(skill, readFileSync(path.join(root, "skills", "ops-server", "SKILL.md"), "utf8"));
+      assert.doesNotMatch(skill, /^disable-model-invocation:/m);
+    }
+    assert.match(
+      readFileSync(path.join(dest, ".agents", "skills", "ops-server", "agents", "openai.yaml"), "utf8"),
+      /^  allow_implicit_invocation: true$/m,
+    );
+    assert.equal(existsSync(path.join(dest, ".cursor", "commands", "ops-server.md")), false);
+  } finally {
+    rmSync(dest, { recursive: true, force: true });
+  }
 }
 
 const mixedCategory = status([
@@ -1615,10 +1631,15 @@ for (const fx of [
 }
 
 assert.match(readFileSync(path.join(root, ".gitignore"), "utf8"), /^commands\/ops-server\.md$/m);
+assert.match(readFileSync(path.join(root, ".gitignore"), "utf8"), /^skills\/ops-server\/$/m);
 assert.match(readFileSync(path.join(root, ".gitignore"), "utf8"), /^\.agent-surface\/$/m);
 assert.equal(
   execFileSync("git", ["check-ignore", "commands/ops-server.md"], { cwd: root, encoding: "utf8" }).trim(),
   "commands/ops-server.md",
+);
+assert.equal(
+  execFileSync("git", ["check-ignore", "skills/ops-server/SKILL.md"], { cwd: root, encoding: "utf8" }).trim(),
+  "skills/ops-server/SKILL.md",
 );
 assert.equal(
   execFileSync("git", ["check-ignore", ".agent-surface/readiness/example/readiness.json"], { cwd: root, encoding: "utf8" }).trim(),
@@ -1626,6 +1647,7 @@ assert.equal(
 );
 assert.doesNotMatch(readFileSync(path.join(root, ".npmignore"), "utf8"), /^external\/\*$/m);
 assert.match(readFileSync(path.join(root, ".npmignore"), "utf8"), /^commands\/ops-server\.md$/m);
+assert.match(readFileSync(path.join(root, ".npmignore"), "utf8"), /^skills\/ops-server\/$/m);
 const packed = JSON.parse(execFileSync("npm", ["pack", "--dry-run", "--json", "--loglevel=silent"], {
   cwd: root,
   encoding: "utf8",
@@ -1666,6 +1688,7 @@ assert.equal(
 );
 assert.equal(packedPaths.has("external/archify/docs/index.html"), false, "npm package includes Archify site output");
 assert.equal(packedPaths.has("commands/ops-server.md"), false, "npm package leaked private ops-server command");
+assert.equal([...packedPaths].some((file) => file.startsWith("skills/ops-server/")), false, "npm package leaked private ops-server skill");
 assert.equal([...packedPaths].some((file) => file.startsWith(".agent-surface/")), false, "npm package leaked local agent state");
 
 // A default install explicitly excludes private assets, even when the public
@@ -1676,7 +1699,7 @@ assert.equal([...packedPaths].some((file) => file.startsWith(".agent-surface/"))
   try {
     // SUBSTITUTE_JUSTIFICATION
     // - substitute: representative private skill and policy bytes in this temporary install root
-    // - replaces: the ignored commands/ops-server.md source, which is intentionally unavailable in public CI
+    // - replaces: the ignored private ops-server source, which is intentionally unavailable in public CI
     // - necessity: the de-scoping regression requires prior manifest-owned private files without publishing the secret source
     // - real-option: the production public package and installer are exercised; only the unavailable private bytes are seeded
     // - proof-limit: this setup does not prove rendering from the private source; it proves default removal
@@ -1715,6 +1738,13 @@ assert.equal([...packedPaths].some((file) => file.startsWith(".agent-surface/"))
     );
     symlinkSync(path.join(root, "node_modules"), path.join(packagedRoot, "node_modules"), "dir");
     assert.equal(existsSync(path.join(packagedRoot, "commands", "ops-server.md")), false);
+    assert.equal(existsSync(path.join(packagedRoot, "skills", "ops-server")), false);
+    const packagedSkills = JSON.parse(execFileSync(
+      process.execPath,
+      [path.join(packagedRoot, "scripts", "agent-surface.mjs"), "skills", "--json"],
+      { cwd: packagedRoot, encoding: "utf8" },
+    ));
+    assert.equal(packagedSkills.skills.some((skill) => skill.name === "ops-server"), false);
 
     execFileSync(
       process.execPath,
@@ -1764,7 +1794,7 @@ try {
     );
     const sources = manifest.managed.map((item) => item.source);
     assert.equal(
-      sources.includes("commands/ops-server.md"),
+      sources.some((source) => source === "commands/ops-server.md" || source.startsWith("skills/ops-server/")),
       false,
       `${target}: default excludes private ops-server overlay`,
     );

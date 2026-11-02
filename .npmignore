@@ -8,8 +8,9 @@ mcps/*/dist/
 .DS_Store
 *.log
 
-# Local-only command source (gitignored); keep it out of the pack payload too.
+# Private skill and retired command source; neither belongs in the package payload.
 commands/ops-server.md
+skills/ops-server/
 
 # MCP credential files must never enter the package payload.
 .env

@@ -27,9 +27,9 @@ export const commandPrefixes = new Set(["arch", "boot", "dev", "lint", "ops", "q
 
 export const commandPhases = new Set(["observe", "decide", "build", "verify", "review", "arbitrate", "ship", "improve", "bootstrap", "game", "misc"]);
 
-// This private operator command is intentionally excluded from Git and npm, but a
+// This private operator skill is intentionally excluded from Git and npm, but a
 // maintainer checkout may still distribute its local copy to generated targets.
-export const localCommandOverlays = new Set(["commands/ops-server.md"]);
+export const localSkillOverlays = new Set(["skills/ops-server/SKILL.md"]);
 
 export const workflowSchemaFiles = [
   "workflow.run.schema.json",
@@ -274,10 +274,10 @@ async function checkAssetCategories(commands, skills, errors) {
         const previous = owners.get(key);
         if (previous) errors.push(`asset ${key} belongs to both ${previous} and ${categoryName}`);
         owners.set(key, categoryName);
-        const declaredLocalCommand = categoryName === "private"
-          && kind === "commands"
-          && localCommandOverlays.has(`commands/${id}.md`);
-        if (!known.has(id) && !declaredLocalCommand) {
+        const declaredLocalSkill = categoryName === "private"
+          && kind === "skills"
+          && localSkillOverlays.has(`skills/${id}/SKILL.md`);
+        if (!known.has(id) && !declaredLocalSkill) {
           errors.push(`${categoryName} asset category references unknown ${kind.slice(0, -1)}: ${id}`);
         }
       }
@@ -323,9 +323,7 @@ export function checkBossArtifactCoherence(data, source, errors) {
 export async function exportableCommands() {
   const allCommands = await readCommands();
   const ignored = gitIgnoredPaths(allCommands.map((command) => command.relativePath));
-  const commands = allCommands.filter(
-    (command) => !ignored.has(command.relativePath) || localCommandOverlays.has(command.relativePath),
-  );
+  const commands = allCommands.filter((command) => !ignored.has(command.relativePath));
   const errors = [];
   checkCommandMetadata(commands, errors);
   if (errors.length > 0) fail(`command metadata invalid:\n${errors.join("\n")}`);

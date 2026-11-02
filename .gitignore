@@ -3,6 +3,7 @@ dist/
 .DS_Store
 *.log
 commands/ops-server.md
+skills/ops-server/
 .agent-surface/
 # Host state an editor or agent session keeps inside the checkout, such as session worktrees.
 .claude/
