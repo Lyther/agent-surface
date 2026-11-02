@@ -26,6 +26,11 @@ Simplicity is a design constraint:
 - Do not build for hypothetical scale, providers, callers, attacks, or future reuse. Record the limit and evolve when evidence crosses it.
 - When two designs satisfy the current goal, choose the one with fewer concepts, states, dependencies, and failure modes.
 - Name the current user-visible failure or explicit requirement before adding safeguards. If the case is only hypothetical, document the limit and defer it.
+- Every cap, gate, guard, or refusal states its basis where it is defined: an observed failure, a measured external limit, or a stated requirement. "Engineering bound", "policy choice", or "not yet observed" is not a basis; leave the path open and note the limit instead.
+- Enforce each safety property at one boundary. Add a second layer only after naming an input the first one passes and the second one stops.
+- Do not accept, parse, emit, model, or allowlist what nothing produces or consumes yet. Reserved values, input accepted only to be refused, fields no code sets, and events nothing reads are speculative; add them with their feature.
+- When a new path replaces an old one, delete the old path's code, tests, docs, and schema in that change or the next. Keep it only for a named current consumer; parked or frozen code still costs every build, test run, and reader.
+- When the user supplies repositories, tools, or services as building blocks, integrate them before building equivalents, and record why when you do not.
 - Prefer replacing or deleting a flawed design over stacking guards, exceptions, and compatibility branches around it. Repeated same-class fixes are a signal to stop and simplify the design.
 - Use a maintained parser, library, or protocol implementation for non-trivial domain rules instead of enumerating cases locally. Add the dependency only when it reduces total owned complexity.
 - Weigh occurrence likelihood and impact against implementation size and long-term maintenance. Decline work whose complexity cost is disproportionate to its demonstrated value.
@@ -62,3 +67,4 @@ Simplicity is a design constraint:
 - Comments explain why, not what.
 - Write code that reads like the file you are editing: match its comment density, naming, formatting, and idiom rather than imposing a different style.
 - Avoid broad refactors unless required by the request or needed to make the fix safe.
+- Living docs state the current contract and open decisions once; link instead of restating. Once a change is accepted, remove its handoff, evidence, and review history from specs and plans (version control keeps it), and do not document designs nobody is building.

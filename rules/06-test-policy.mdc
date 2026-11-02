@@ -6,6 +6,7 @@ alwaysApply: true
 # Test Policy
 
 - Test changed behavior, not implementation trivia.
+- Delete tests that are skipped on every run with no path to their prerequisite, or that only restate a constant; they cost upkeep and prove no behavior. Un-skip a RED test in the change that makes it pass.
 - Never weaken, delete, skip, or rewrite tests merely to pass a gate.
 - Add or update tests when behavior, public contracts, security posture, data mutation, or failure handling changes.
 - Use the cheapest meaningful test first; escalate to integration, contract, E2E, property, or regression tests when the risk surface warrants.
