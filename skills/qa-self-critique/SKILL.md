@@ -166,11 +166,11 @@ Skip this domain when the target is not C kernel code. When it is:
 
 #### 2f. Test Quality
 
-- Any mock, fake, fixture, stub, spy, emulator, in-memory implementation, monkeypatch, recorded/synthetic response, sandbox, test mode, or renamed non-real replacement?
+- Any mock, fake, stub, spy, emulator, in-memory service, monkeypatch, recorded service response, sandbox, test mode, or renamed replacement for a boundary the code calls? A constructed input that the real code reads is not a substitute.
   → Require a complete `SUBSTITUTE_JUSTIFICATION` for each use. If the real component or a disposable real instance can safely and deterministically serve the assertion, remove the substitute.
 - Does the necessity say only "faster", "easier", "hermetic", "offline", "CI", "flaky service", or "missing credentials"?
   → Reject it. Missing real prerequisites block that test layer; they do not authorize fake evidence.
-- Is a substitute-backed run counted as integration, E2E, acceptance, security, readiness, or completion evidence?
+- Is a substitute-backed run counted as evidence for the boundary it replaced (integration, E2E, acceptance, security, readiness)?
   → Remove it from the evidence set and mark the required real layer `BLOCKED` until it runs.
 - `# type: ignore` in tests hiding production type bugs?
   → Fix the production types, not the test

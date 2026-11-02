@@ -76,7 +76,7 @@ Absolute language (`all`, `100%`, `complete`, `production-ready`) requires an ex
 - Record working tree; identify unrelated dirty files.
 - Generated files, lockfiles, schemas, registries, docs consistent with the claim.
 - No production placeholders, `todo!()`, hard-coded success, forced pass, disabled gate, or no-op required path.
-- Inventory every mock/fake/fixture/stub/spy/emulator/in-memory/recorded/synthetic/test-mode or renamed substitute, including those inside tests. Each needs a complete `SUBSTITUTE_JUSTIFICATION`; every substitute-backed result is diagnostic only and excluded from readiness evidence.
+- Inventory every substitute for a boundary the claimed path calls (mock, fake, stub, spy, emulator, in-memory service, recorded service response, test mode, or a renamed equivalent), including those inside tests. Each needs a `SUBSTITUTE_JUSTIFICATION`, and its result is excluded from readiness evidence for the boundary it replaces. Constructed inputs that the real component reads are inputs, not substitutes.
 - Any required real dependency, data path, or external effect replaced by a substitute keeps that matrix item `BLOCKED` until the real path runs. A suite called `e2e_test`, `integration`, `real`, or equivalent does not change the classification.
 - Dependency risk evidence when deps changed.
 - Repo checks appropriate to the surface — green tests are evidence for tested gates only.
@@ -275,7 +275,7 @@ Blockers:
 1. Vague scope → BLOCKED until the matrix is explicit.
 2. Open Critical/High in scope → FAIL (cannot PASS via hygiene greens or claim narrowing that still markets the broken surface).
 3. No design/security pass → cannot PASS production-ready / stable / E2E / deployment-ready claims.
-4. Do not certify any substitute-backed run as acceptance, regardless of its label or location. Every necessary substitute requires the full justification record and remains diagnostic only.
+4. Do not certify a substitute-backed run as acceptance of the boundary it replaces, regardless of its label or location. Every necessary substitute requires the justification record.
 5. Do not certify release/install/deployment from source-tree-only runs.
 6. Do not certify `all targets` / `all features` / `100%` unless every supported item is listed and proven.
 7. Do not hide blockers in notes.

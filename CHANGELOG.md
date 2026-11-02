@@ -32,6 +32,7 @@ Notable changes to agent-surface and its first-party MCP services. Format: [Keep
 
 ### Changed
 
+- **Test substitutes are judged by the boundary they replace, and review depth follows the change** - A constructed, synthetic, malformed or recorded input that the real component reads is no longer a substitute: its test is evidence for that component. A substitute for a called dependency, service, clock or effect still needs a `SUBSTITUTE_JUSTIFICATION`, now three fields, and proves nothing about the boundary it replaces, but no longer voids the evidence for the real code it ran (`00-precedence-and-safety`, `06-test-policy`, `dev-feature`, `qa-review`, `qa-self-critique`, `verify-readiness`, `verify-test`). Without `--focus`, `qa-review` runs `logic` and `tests`, adds `security` when the change touches input parsing, auth, secrets, paths, permissions or network, and adds other domains only where the change touches their surface; `--focus all` keeps the full audit.
 - **Skills and subagents stop inviting unearned machinery and reviewer-chosen work** - The skills, rules, subagents and commands were read against the lessons of a project retrospective. Each proposed change was checked against the text before any edit, and changes that would alter a workflow schema or the operator's own policies were left out.
   - **`dev-chore`:**
     - treats a new cap, limit, timeout, guard, refusal, allowlist or validation rule as a trigger whose basis is stated where it is defined;

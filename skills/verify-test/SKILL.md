@@ -19,7 +19,7 @@ PASS requires all of:
 - The suite was not weakened to pass this change: no newly skipped/`xfail`/`only`/deleted tests, no loosened assertions, no disabled gate.
 - For fix/regression work, a test exists that **fails on the pre-fix tree** and passes after — proof it catches the bug.
 - Nondeterministic paths ran enough times to show stability, with seeds captured.
-- Every non-real substitute is inventoried and has a complete `SUBSTITUTE_JUSTIFICATION`; substitute-backed results are labeled diagnostic and excluded from PASS evidence.
+- Every substitute for a called boundary is inventoried and has a `SUBSTITUTE_JUSTIFICATION`; its results are excluded from PASS evidence for the boundary it replaces.
 
 FAIL if green was achieved by removing a gate, diluting an assertion, substituting any required path, using an unjustified substitute, calling a substitute-backed suite E2E/integration/real, or a "regression" test that also passes on the unpatched code.
 
@@ -57,7 +57,7 @@ Diff the suite against the baseline and inspect how green was achieved:
 - **Oracle honesty**: expected values trace to the spec, not pasted from current (possibly buggy) output; snapshots reviewed, not blindly regenerated in the same change that altered behavior.
 - **Substitute sweep**: search code, config, helpers, and service setup for every non-real replacement regardless of label. Include test modes and local servers that imitate a dependency.
 - **Necessity records**: each substitute has a complete `SUBSTITUTE_JUSTIFICATION`. "Fast", "easy", "hermetic", "offline", "CI", "flaky service", or "missing credentials" is not necessity. Missing records invalidate the affected test.
-- **Reality classification**: exclude every substitute-backed result from PASS evidence. A substitute may help diagnose local logic or expose a weak oracle; it never proves the replaced code, service, data path, or external effect.
+- **Reality classification**: a substitute-backed result counts only for the real code it exercised; it never proves the replaced code, service, data path, or external effect. A constructed input that the real component reads is an input, not a substitute.
 - **Gate integrity**: no disabled lint/type/coverage gate, no `continue-on-error` slipped into CI, no weakened threshold.
 
 If the change is a fix, prove the regression test bites: run the test against the pre-fix tree (revert the fix), confirm it FAILS, restore the fix, confirm it PASSES. A regression test that is green on the unpatched code is a false negative — REJECT.
@@ -108,7 +108,7 @@ PASS | FAIL | BLOCKED
 1. **Fix work needs a test that fails on the unpatched tree.** No pre-fix failure, no regression proof.
 2. **Never modify tests to go green.** Weakened assertions, new skips, deleted gates, or diluted thresholds are FAIL, not housekeeping.
 3. **Outcome over transcript** for integration paths: query the backing service; a response body or log line is not proof.
-4. **No substitute-backed proof on any path.** Labels do not matter; each necessary substitute needs a complete justification and remains diagnostic only.
+4. **No substitute-backed proof of a replaced boundary.** Labels do not matter; each necessary substitute needs a justification.
 5. **No network in unit; isolated DB/state for integration** — ephemeral or transactional, not a shared host database.
 6. **Flaky is broken.** Report FLAKY/BROKEN honestly; do not average away a nondeterministic failure.
 7. Missing real prerequisites → `BLOCKED` for that layer, never a silent substitute or downgraded claim.
