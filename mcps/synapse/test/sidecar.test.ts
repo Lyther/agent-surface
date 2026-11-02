@@ -3,6 +3,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { ResourceUpdatedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
+import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -131,4 +132,36 @@ test("F005: oversized request body returns 413 before parse", async () => {
     });
     assert.equal(res.status, 413);
   } finally { await sc.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("sidecar: a UTF-8 character split across POST chunks is stored intact", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "synapse-sc-"));
+  const sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
+  const transport = new StreamableHTTPClientTransport(new URL(sc.url), {
+    requestInit: { headers: { Authorization: `Bearer ${TOKEN}`, "x-synapse-agent": "agent-u", "x-synapse-project": "/tmp/projUtf8" } },
+  });
+  const c = new Client({ name: "agent-u", version: "0.0.1" });
+  try {
+    await c.connect(transport);
+    const sid = transport.sessionId;
+    assert.ok(sid, "session established");
+    const content = "a chunk boundary inside 中文 must not corrupt it";
+    const body = Buffer.from(JSON.stringify({ jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "memory_remember", arguments: { content } } }));
+    const split = body.indexOf(Buffer.from("中")) + 1; // inside the character's 3-byte sequence
+    const reply = await new Promise<{ status: number | undefined; text: string }>((resolve, reject) => {
+      const req = request(sc.url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${TOKEN}`, "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-session-id": sid },
+      }, (res) => { let text = ""; res.setEncoding("utf8"); res.on("data", (d: string) => { text += d; }); res.on("end", () => resolve({ status: res.statusCode, text })); });
+      req.on("error", reject);
+      // No content-length, so each write is its own HTTP chunk and the server reads the halves separately.
+      req.write(body.subarray(0, split));
+      void delay(50).then(() => req.end(body.subarray(split)));
+    });
+    assert.equal(reply.status, 200, reply.text);
+    const message = JSON.parse(reply.text.match(/^data: (.+)$/m)?.[1] ?? reply.text) as { result: unknown };
+    const { id } = parse<RememberOut>(message.result);
+    const got = parse<{ records: { content: string }[] }>(await c.callTool({ name: "memory_get", arguments: { ids: [id] } }));
+    assert.equal(got.records[0]?.content, content);
+  } finally { await c.close(); await sc.close(); rmSync(dir, { recursive: true, force: true }); }
 });

@@ -997,13 +997,10 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   );
   if (target === "kilo" && (!categoryFilter || categoryFilter.has("rules") || categoryFilter.has("mcps") || categorySelectsMcp || categorySelectsRules)) {
     const merge = await kiloConfigMerge(installRoot, scope, {
+      ...configRouteContext,
       includeInstructions: !categoryFilter || categoryFilter.has("rules") || categorySelectsRules,
       includeMcp: !categoryFilter || categoryFilter.has("mcps") || categorySelectsMcp,
       includeRootProperties: !categoryFilter,
-      categoryFilter,
-      optionalServices,
-      excludeServices,
-      launchWiring,
     });
     liveConfigRoutes.add(configEntryKey(merge.relativeOutput, merge.format));
     declaredConfigRoutes.push(merge);

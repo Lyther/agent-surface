@@ -180,6 +180,7 @@ If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surf
 ### Concurrency / hot path (gates `qa-trace`)
 
 - [ ] If the patch touches locking, IRQ context, RCU, atomics, or scheduler hooks — `qa-trace` is **mandatory** before commit (see `ship-commit` Phase 1.5).
+- [ ] **Each added cancel, disable or barrier needs a producer the caller or core does not already exclude; otherwise drop it and its race claim.**
 - [ ] Access marking follows `tools/memory-model/Documentation/access-marking.txt` — a four-way choice, not a blanket rule:
       **plain C** when the access is excluded by a held lock or seqlock, is init-before-publication or cleanup, is CPU- or task-private, or has no concurrent store (marking these *hides* real bugs from KCSAN);
       **`READ_ONCE`/`WRITE_ONCE`** when the race is intentional and the value is load-bearing for the concurrency design;

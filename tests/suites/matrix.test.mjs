@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { readCommands } from "../../scripts/agent-surface/commands.mjs";
 import { readSkills } from "../../scripts/agent-surface/skills.mjs";
 import { CODEX_PLUGIN_SKILLS, targetOutputs, targetProducers, targets } from "../../scripts/agent-surface/targets.mjs";
-import { hasLocalOpsServerCommand, root } from "../lib/helpers.mjs";
+import { hasLocalOpsServerSkill, root } from "../lib/helpers.mjs";
 
 const publishableCommandPaths = new Set(
   execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "--", "commands/*.md"], {
@@ -20,9 +20,9 @@ const publishableSkillPaths = new Set(
   }).split(/\r?\n/).filter(Boolean),
 );
 const publishableSkills = (await readSkills()).filter((skill) => publishableSkillPaths.has(skill.relativePath));
-const allCommands = await readCommands();
+const allSkills = await readSkills();
 const catalog = { commands: publishableCommands, skills: publishableSkills };
-const localCatalog = { commands: allCommands, skills: publishableSkills };
+const localCatalog = { commands: publishableCommands, skills: allSkills };
 const canonicalOpsFlow = publishableSkills.find((skill) => skill.name === "ops-flow").text;
 for (const [target, adapter] of Object.entries(targets)) {
   // Export formats package a declared subset on purpose and install nowhere, so the whole-catalog
@@ -52,7 +52,7 @@ for (const [target, adapter] of Object.entries(targets)) {
     target !== "dsh",
     `${target}: manual command distribution matches the native surface`,
   );
-  if (hasLocalOpsServerCommand && target !== "dsh") {
+  if (hasLocalOpsServerSkill) {
     const localOutputs = await targetOutputs(adapter, localCatalog, {
       target,
       scope: "user",
@@ -62,9 +62,9 @@ for (const [target, adapter] of Object.entries(targets)) {
       optionalServices: null,
     });
     assert.equal(
-      localOutputs.some((output) => output.source === "commands/ops-server.md"),
+      localOutputs.some((output) => output.source === "skills/ops-server/SKILL.md"),
       true,
-      `${target}: private local ops-server command is distributed`,
+      `${target}: private local ops-server skill is distributed`,
     );
   }
   for (const optionalPack of ["external/archify/", "external/sanyuan-skills/"]) {

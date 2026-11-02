@@ -21,10 +21,10 @@ const cli = path.join(root, "scripts", "agent-surface.mjs");
 const dir = mkdtempSync(path.join(os.tmpdir(), "as-cred-launch-"));
 
 // Install into a disposable HOME so the config's "~" and the wrapper both resolve to the same place.
-function install(home, dest, extra) {
+function install(home, dest, extra, target = "droid") {
   mkdirSync(home, { recursive: true });
   mkdirSync(dest, { recursive: true });
-  return spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", ...extra, "-y"], {
+  return spawnSync(process.execPath, [cli, "install", "--target", target, "--dest", dest, "--category", "mcps", ...extra, "-y"], {
     encoding: "utf8",
     // os.homedir() reads USERPROFILE on Windows and HOME elsewhere; set both so the disposable
     // home applies on every platform.
@@ -153,6 +153,14 @@ try {
     assert.equal(custom.status, 0, `custom install failed: ${custom.stderr || custom.stdout}`);
     const customEntry = JSON.parse(readFileSync(path.join(customDest, ".factory", "mcp.json"), "utf8")).mcpServers.openosint;
     assert.equal(customEntry.args[customEntry.args.indexOf("--as-env-file") + 1], customFile, "a custom --credentials-file path is baked in verbatim");
+
+    // Kilo builds its config through its own merge, which must receive the same credential file.
+    const kiloDest = path.join(dir, "kilo");
+    const kiloFile = path.join(kiloDest, "secrets.env");
+    const kilo = install(home, kiloDest, ["--service", "openosint", "--credentials-file", kiloFile], "kilo");
+    assert.equal(kilo.status, 0, `kilo install failed: ${kilo.stderr || kilo.stdout}`);
+    const kiloCommand = JSON.parse(readFileSync(path.join(kiloDest, "kilo.jsonc"), "utf8")).mcp.openosint.command;
+    assert.equal(kiloCommand[kiloCommand.indexOf("--as-env-file") + 1], kiloFile, "kilo bakes in the custom --credentials-file path");
   }
 
   // ---- keyless server: direct launch preserved, no wrapper materialized -------

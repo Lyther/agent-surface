@@ -141,14 +141,15 @@ export async function createSidecar(opts: SidecarOptions): Promise<SidecarHandle
 
   const MAX_BODY_BYTES = 2 * 1024 * 1024; // hard cap before JSON.parse (F005)
   const readBody = (req: IncomingMessage): Promise<unknown> => new Promise((resolve) => {
-    let raw = ""; let bytes = 0; let over = false;
+    const chunks: Buffer[] = []; let bytes = 0; let over = false;
     req.on("data", (c: Buffer) => {
       if (over) return;
       bytes += c.length;
-      if (bytes > MAX_BODY_BYTES) { over = true; raw = ""; return; } // stop buffering (bound memory), drain to end
-      raw += c;
+      if (bytes > MAX_BODY_BYTES) { over = true; chunks.length = 0; return; } // stop buffering (bound memory), drain to end
+      chunks.push(c);
     });
-    req.on("end", () => { if (over) { resolve(BODY_TOO_LARGE); return; } try { resolve(raw ? JSON.parse(raw) : undefined); } catch { resolve(undefined); } });
+    // Decode once: a chunk can end inside a multi-byte UTF-8 character.
+    req.on("end", () => { if (over) { resolve(BODY_TOO_LARGE); return; } const raw = Buffer.concat(chunks).toString("utf8"); try { resolve(raw ? JSON.parse(raw) : undefined); } catch { resolve(undefined); } });
     req.on("error", () => resolve(over ? BODY_TOO_LARGE : undefined));
   });
   const isInit = (b: unknown): boolean => typeof b === "object" && b !== null && (b as { method?: string }).method === "initialize";
