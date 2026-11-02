@@ -21,10 +21,10 @@ import { readRules } from "../../scripts/agent-surface/rules.mjs";
 import { parseSkill } from "../../scripts/agent-surface/skills.mjs";
 import { targets } from "../../scripts/agent-surface/targets.mjs";
 import {
+  disposableCheckout,
   expectedCommandCount,
   expectedSkillCount,
   files,
-  disposableCheckout,
   hasLocalOpsServerSkill,
   MAX_CAPTURE_BYTES,
   root,
