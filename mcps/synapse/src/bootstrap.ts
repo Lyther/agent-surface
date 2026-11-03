@@ -1,7 +1,7 @@
 // synapse — zero-config bootstrap: discovery file, persistent token, and lock-elected
 // sidecar autostart. A host just launches the bridge; the first bridge elects itself to
-// spawn the single shared sidecar, others wait for the discovery file. Files are mode 600, and
-// on Windows the containing directory carries an owner-only ACL instead (see fsguard).
+// spawn the single shared sidecar, others wait for the discovery file. Files are mode 600 inside
+// an owner-only directory (see fsguard).
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmodSync, closeSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -45,6 +45,14 @@ function readDiscovery(dbDir: string): Discovery | null {
   try { return JSON.parse(readFileSync(discoveryPath(dbDir), "utf8")) as Discovery; } catch { return null; }
 }
 
+// A SIGKILLed sidecar leaves its discovery file behind, and any process may then hold its port, so a
+// healthy URL alone would hand the token to a stranger: trust a discovery only while its pid lives.
+// ESRCH (gone) and EPERM (another user's process) both mean it is not our sidecar.
+function pidAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try { process.kill(pid, 0); return true; } catch { return false; }
+}
+
 async function healthy(url: string, timeoutMs = 700): Promise<boolean> {
   try {
     const base = url.replace(/\/mcp$/, "");
@@ -58,7 +66,7 @@ export async function ensureSidecar(dbDir: string, spawnPort?: number): Promise<
   mkdirSync(dbDir, { recursive: true });
   ensureOwnerOnlyDir(dbDir);
   const existing = readDiscovery(dbDir);
-  if (existing && (await healthy(existing.url))) return existing;
+  if (existing && pidAlive(existing.pid) && (await healthy(existing.url))) return existing;
 
   let won = false;
   try { closeSync(openSync(lockPath(dbDir), "wx")); won = true; }
@@ -78,7 +86,7 @@ export async function ensureSidecar(dbDir: string, spawnPort?: number): Promise<
   try {
     while (Date.now() < deadline) {
       const d = readDiscovery(dbDir);
-      if (d && (await healthy(d.url))) return d;
+      if (d && pidAlive(d.pid) && (await healthy(d.url))) return d;
       await sleep(150);
     }
     throw new Error("sidecar did not become reachable within 12s");

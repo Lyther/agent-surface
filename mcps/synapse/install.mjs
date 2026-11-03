@@ -1,15 +1,12 @@
 #!/usr/bin/env node
-// synapse — build + link the bridge/sidecar into ~/.local/bin, then deploy and (re)start the
-// always-on sidecar launchd service. Idempotent: re-running redistributes the latest build and
-// restarts the service while the token + databases under ~/.synapse persist.
-// Set SYNAPSE_SKIP_SERVICE=1 to install only the binaries (the bridge still autostarts the sidecar
-// lazily on first use).
+// synapse — build + link the bridge/sidecar into ~/.local/bin. Idempotent: re-running relinks the
+// latest build while the token + databases under ~/.synapse persist. There is no service: on every
+// platform the first bridge autostarts the lock-elected sidecar and later bridges reuse it.
 //
 // Runs under Node on every platform, which synapse already requires, so Windows is served by this
-// same script rather than a translated shell script that would drift. The always-on service is
-// macOS-only: Linux and Windows rely on the bridge's lazy autostart, which needs no service manager.
+// same script rather than a translated shell script that would drift.
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,37 +16,37 @@ import { pinnedNodePath, writeShims } from "../../scripts/agent-surface/mcp-shim
 const here = path.dirname(fileURLToPath(import.meta.url));
 const manifest = JSON.parse(readFileSync(path.join(here, "package.json"), "utf8"));
 
-function deployLaunchd() {
-  if (process.platform !== "darwin") {
-    console.log(`${process.platform}: skipping always-on service (the bridge still autostarts the sidecar on demand)`);
+// Earlier installs deployed a KeepAlive launchd agent that raced the bridge's autostart for the port.
+// The plist goes only once the job is unloaded, so a failed bootout is retried by the next install.
+function retireLaunchdAgent() {
+  const plist = path.join(os.homedir(), "Library", "LaunchAgents", "local.synapse.plist");
+  if (process.platform !== "darwin" || !existsSync(plist)) return;
+  const job = `gui/${process.getuid()}/local.synapse`;
+  spawnSync("launchctl", ["bootout", job], { stdio: "ignore" });
+  if (spawnSync("launchctl", ["print", job], { stdio: "ignore" }).status === 0) {
+    console.warn(`WARNING: ${job} is still loaded; run \`launchctl bootout ${job}\`, then rerun this install`);
     return;
   }
-  if (spawnSync("launchctl", ["version"], { stdio: "ignore" }).status !== 0) {
-    console.log("launchctl unavailable: skipping service install");
-    return;
-  }
-  const src = path.join(here, "deploy", "launchd", "local.synapse.plist");
-  if (!existsSync(src)) {
-    console.warn(`WARNING: ${src} missing; skipping service install`);
-    return;
-  }
-  const dst = path.join(os.homedir(), "Library", "LaunchAgents", "local.synapse.plist");
-  const uid = process.getuid();
-  mkdirSync(path.dirname(dst), { recursive: true });
-  copyFileSync(src, dst);
+  rmSync(plist, { force: true });
+  console.log(`retired the local.synapse launchd agent (${plist}); the bridge autostarts the sidecar`);
+}
 
-  // Stop whatever is currently serving (launchd job or a lazily autostarted sidecar from THIS build
-  // path) so the refreshed build rebinds the port and becomes the sole owner.
-  const quiet = { stdio: "ignore" };
-  spawnSync("launchctl", ["bootout", `gui/${uid}/local.synapse`], quiet);
-  spawnSync("pkill", ["-f", path.join(here, "dist", "src", "sidecar.js")], quiet);
-  rmSync(path.join(os.homedir(), ".synapse", "sidecar.json"), { force: true });
-
-  const bootstrap = spawnSync("launchctl", ["bootstrap", `gui/${uid}`, dst], { stdio: "inherit" });
-  if (bootstrap.status !== 0) throw new Error(`launchctl bootstrap failed (exit ${bootstrap.status})`);
-  spawnSync("launchctl", ["enable", `gui/${uid}/local.synapse`], quiet);
-  spawnSync("launchctl", ["kickstart", "-k", `gui/${uid}/local.synapse`], quiet);
-  console.log("service local.synapse deployed and started (RunAtLoad + KeepAlive)");
+// A running sidecar keeps serving the old build until it exits. Stop it, but only when the recorded
+// pid is alive and its address answers as synapse, so a recycled pid is never signalled; open bridges
+// then elect a sidecar from this build on their next call.
+async function stopRunningSidecar() {
+  const dbDir = process.env.SYNAPSE_DB_DIR ?? path.join(os.homedir(), ".synapse");
+  let discovery;
+  try { discovery = JSON.parse(readFileSync(path.join(dbDir, "sidecar.json"), "utf8")); } catch { return; }
+  const { pid, url } = discovery ?? {};
+  if (!Number.isInteger(pid) || pid <= 0 || typeof url !== "string") return;
+  try { process.kill(pid, 0); } catch { return; }
+  try {
+    const res = await fetch(`${url.replace(/\/mcp$/, "")}/health`, { signal: AbortSignal.timeout(1000) });
+    if (!res.ok || (await res.json())?.name !== "synapse") return;
+  } catch { return; }
+  process.kill(pid, "SIGTERM");
+  console.log(`stopped the running sidecar (pid ${pid}); the next bridge call starts one from this build`);
 }
 
 assertNodeFloor("synapse");
@@ -69,7 +66,7 @@ const onPath = process.platform === "win32"
   : pathEntries.includes(binDir);
 if (!onPath) console.log(`NOTE: add ${binDir} to your PATH`);
 
-if (process.env.SYNAPSE_SKIP_SERVICE === "1") console.log("SYNAPSE_SKIP_SERVICE=1: skipped always-on service install");
-else deployLaunchd();
+retireLaunchdAgent();
+await stopRunningSidecar();
 
 console.log("Point your MCP host at the stdio command: synapse-bridge");

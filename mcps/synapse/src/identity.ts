@@ -1,5 +1,6 @@
 // synapse — identity auto-derivation. Never throws; always returns a valid AgentId
-// (matches /^[A-Za-z0-9._:-]+$/). Identity is provenance only; it never gates a write.
+// (matches /^[A-Za-z0-9._:-]+$/). The agent id labels provenance and never gates a write;
+// locks belong to one bridge process, not to an agent id several sessions may share.
 const VALID = /[^A-Za-z0-9._:-]+/g;
 
 function sanitize(raw: string): string {

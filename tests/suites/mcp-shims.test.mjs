@@ -98,7 +98,7 @@ assert.equal(pinnedNodePath(windowsSpec.nodeBin), windowsSpec.nodeBin, "a Window
 //   outlives the keg it resolved to; not Homebrew's own link handling, launchd's environment, a real
 //   upgrade, or a real server starting
 // - real-proof: BLOCKED for the upgrade: after the next `brew upgrade node` and `brew cleanup`, restart
-//   local.synapse and launch agent-surface-mcp-env and grimoire-server with an empty PATH. A server
+//   the synapse sidecar and launch agent-surface-mcp-env and grimoire-server with an empty PATH. A server
 //   starting through an installed shim is covered by live-first-party.test.mjs
 if (process.platform === "win32") {
   console.log("mcp-shims: the Homebrew pin case runs on POSIX — Homebrew does not install Node on Windows");

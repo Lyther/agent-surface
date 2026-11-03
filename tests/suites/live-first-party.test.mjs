@@ -44,14 +44,10 @@ if (enabled) {
 
   // os.homedir() reads USERPROFILE on Windows and HOME elsewhere; both are set so the installer,
   // the launcher and the servers all agree on where the disposable home is.
-  //
-  // SYNAPSE_SKIP_SERVICE because a disposable HOME does NOT isolate launchd: on macOS the installer
-  // addresses `gui/<uid>/local.synapse`, a per-user namespace this run cannot redirect, so without
-  // the flag the acceptance would boot out and restart the operator's own always-on sidecar. The
-  // lazily started sidecar it tests instead is the same one Linux and Windows use, and it lives
-  // entirely inside the disposable home. Deploying the launchd service is therefore NOT covered
-  // here; it needs a deliberately scoped host test that may take over the real service.
-  const installEnv = { ...process.env, HOME: home, USERPROFILE: home, SYNAPSE_PORT: port, SYNAPSE_SKIP_SERVICE: "1" };
+  // The installer stops the sidecar recorded under SYNAPSE_DB_DIR, so an inherited one would stop
+  // the developer's own sidecar rather than this run's.
+  const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("SYNAPSE_")));
+  const installEnv = { ...inherited, HOME: home, USERPROFILE: home, SYNAPSE_PORT: port };
   const install = (label) => {
     const result = spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", "--service", "synapse", "--service", "grimoire", "-y"], { encoding: "utf8", env: installEnv });
     console.log(result.stdout);
