@@ -52,7 +52,8 @@ export async function workflow(args) {
 
 // Creates run.json bound to the current git HEAD, an empty event log, and a current.json
 // naming the run; the first workflow-boss apply appends the first event. One run is
-// active per checkout, so init refuses while current.json names another active run.
+// active per checkout, so init refuses while current.json names another active run. The
+// check is not atomic: like apply, lifecycle commands assume one controller at a time.
 async function workflowInit(args) {
   const runId = requiredSafeId(args, "--run");
   const runDir = workflowRunDir(runId);
@@ -217,7 +218,11 @@ async function workflowApply(args) {
   const schemas = await workflowSchemaValidators(errors);
   const runPath = path.join(runDir, "run.json");
 
-  if (!isPathInside(runDir, artifactPath)) fail("artifact must be inside the workflow run directory");
+  // Physically inside: an artifact behind a link would leave the run's history depending on a file
+  // the run does not own. A missing file keeps its lexical check and fails below as unreadable.
+  const realArtifact = await realpath(artifactPath).catch(() => artifactPath);
+  const realRunDir = await realpath(runDir).catch(() => runDir);
+  if (!isPathInside(runDir, artifactPath) || !isPathInside(realRunDir, realArtifact)) fail("artifact must be inside the workflow run directory");
 
   const runData = await readWorkflowJson(runPath, schemas.get("workflow.run.schema.json"), errors);
   const artifact = await readWorkflowJson(artifactPath, schemas.get(schemaName), errors);
@@ -733,10 +738,24 @@ async function buildWorktreeTree(filescope) {
   const indexPath = path.join(await mkdtemp(path.join(os.tmpdir(), "agent-surface-index-")), "index");
   const env = { ...process.env, GIT_INDEX_FILE: indexPath };
 
+  // A path under a linked directory is not in the worktree as git sees it: git records the link
+  // itself, and reading through it would hash a file outside the checkout.
+  const linkedDirs = new Map();
+  const underLinkedDir = async (file) => {
+    const parts = file.split("/");
+    for (let depth = 1; depth < parts.length; depth += 1) {
+      const dir = parts.slice(0, depth).join("/");
+      if (!linkedDirs.has(dir)) linkedDirs.set(dir, Boolean((await lstat(path.join(process.cwd(), dir)).catch(() => null))?.isSymbolicLink()));
+      if (linkedDirs.get(dir)) return true;
+    }
+    return false;
+  };
+
   try {
     gitOutput(["read-tree", "--empty"], env);
     for (const file of files) {
       if (!isSafeRelativePath(file)) fail(`unsafe git path: ${file}`);
+      if (await underLinkedDir(file)) continue;
       const absolute = path.join(process.cwd(), file);
       const fileStat = await lstat(absolute).catch(() => null);
       // A link is stored as git stores one: its target path, mode 120000. Hashing the
