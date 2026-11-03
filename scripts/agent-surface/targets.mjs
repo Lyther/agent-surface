@@ -12,7 +12,7 @@ import { MCP_ENV_LAUNCHER, mcpLauncherInvocation, optionalServiceMcpServers, ren
 import { normalizeExternalSkillFile } from "./postprocess.mjs";
 import { assetCategoryAllowed, assetCategoryFor, packageVersion, readAssetCategories, readOptionalServices, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityCliSubagent, renderAntigravityWorkflow, renderClaudeSubagent, renderClineSubagent, renderClineWorkflow, renderCodexSubagent, renderCopilotSubagent, renderCursorCommand, renderCursorSubagent, renderDeepAgentsSubagent, renderDroidCommand, renderDroidSubagent, renderGooseRecipe, renderGrokBuildSubagent, renderInstructionDocument, renderKiloRuleDocument, renderKiloSubagent, renderKiloWorkflow, renderKimiCodeSubagent, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderQwenCodeSubagent, renderScopedRuleReferenceDocument, renderTraeSubagent, renderVanillaSkill, renderVsCodeInstructionDocument, renderVsCodeScopedInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
-import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, clineAgentRoot, clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexInstructionPath, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildAgentRoot, grokBuildInstructionPath, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piMcpPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleFolder, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
+import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, claudeRulesDocument, clineAgentRoot, clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexInstructionPath, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildAgentRoot, grokBuildInstructionPath, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piMcpPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleFolder, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
 import { readRulesForContext } from "./rules.mjs";
 import { ignoreOutputs, subagentOutputs } from "./source-primitives.mjs";
 import { exists, fail, isPathInside, isSafeRelativePath } from "./util.mjs";
@@ -24,11 +24,13 @@ const CLINE_EXTENSION = { extensionId: "saoudrizwan.claude-dev" };
 
 export const targets = {
   "claude-code": {
-    label: "Claude Code skills and subagents",
+    label: "Claude Code skills, rules, and subagents",
     commandRenders: ["skills"],
     subagentRenders: ["subagents"],
     subagentTarget: "claude-code",
     subagentOutputRoot: ".claude/agents",
+    staticRenders: ["rules"],
+    staticOutputs: claudeCodeStaticOutputs,
     externalSkillOutputRoot: ".claude/skills",
     skillRenders: ["skills"],
     skillOutputRoot: ".claude/skills",
@@ -1714,12 +1716,16 @@ export function droidRelocatedRoutes(previousOutputs, plannedOutputs) {
 }
 
 export async function codexStaticOutputs(_commands, context) {
-  return rulesDocumentOutputs(context, {
+  const [document, ...references] = await rulesDocumentOutputs(context, {
     title: "AGENTS.md - agent-surface global Codex rules",
     label: "Codex global instructions",
     relativeOutput: codexInstructionPath(context),
     referencesRoot: path.join(".codex", "references", "rules"),
   });
+  // Codex stops reading project AGENTS.md files at project_doc_max_bytes, 32 KiB by default; it read
+  // a larger ~/.codex/AGENTS.md whole (codex-cli 0.166.0, `codex debug prompt-input`, 2026-11-03).
+  if (context.scope !== "project") return [document, ...references];
+  return [{ ...document, byteLimit: 32 * 1024 }, ...references];
 }
 
 export async function copilotStaticOutputs(_commands, context) {
@@ -1737,6 +1743,18 @@ export async function copilotStaticOutputs(_commands, context) {
   if (context.scope !== "user") return outputs;
   outputs.push(...await vsCodeProfileInstructionOutputs(context));
   return outputs;
+}
+
+// One always-on document that CLAUDE.md imports, plus scoped rules as references. Not ~/.claude/rules:
+// VS Code also reads that folder (a rule without `paths` applies to every request), so a co-installed
+// vscode target would attach the same rules twice; VS Code reads CLAUDE.md but resolves no @imports.
+export async function claudeCodeStaticOutputs(_commands, context) {
+  return rulesDocumentOutputs(context, {
+    title: "agent-surface Claude Code rules",
+    label: "Claude Code instructions",
+    relativeOutput: claudeRulesDocument,
+    referencesRoot: path.join(".claude", "agent-surface", "references", "rules"),
+  });
 }
 
 export async function cursorStaticOutputs(_commands, context) {

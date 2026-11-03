@@ -1,15 +1,19 @@
 # Claude Code adapter
 
-Canonical skills are emitted unchanged to Claude Code. Available high-impact commands use the same skill surface with `disable-model-invocation: true`; normalized subagents use Claude Code subagent files.
+Canonical skills are emitted unchanged to Claude Code. Available high-impact commands use the same skill surface with `disable-model-invocation: true`; always-on rules become one document that `CLAUDE.md` imports; normalized subagents use Claude Code subagent files.
 
 Implemented target paths:
 
 - user: `~/.claude/skills/<name>/SKILL.md`
 - project: `.claude/skills/<name>/SKILL.md`
+- user: `~/.claude/agent-surface/rules.md`, scoped rules under `~/.claude/agent-surface/references/rules/`
+- project: `.claude/agent-surface/rules.md`, scoped rules under `.claude/agent-surface/references/rules/`
 - user: `~/.claude/agents/<name>.md`
 - project: `.claude/agents/<name>.md`
 - user merge: `~/.claude.json` `mcpServers.{synapse,grimoire}`
 - project merge: `.mcp.json` `mcpServers.{synapse,grimoire}`
+
+Claude Code loads the rules document through an import: add `@agent-surface/rules.md` to `.claude/CLAUDE.md` (`~/.claude/CLAUDE.md` for a user install) once; the install plan prints `CLAUDE_RULES_IMPORT_MISSING` until it is there. `CLAUDE.md` stays yours: agent-surface never writes it. The rules stay out of `.claude/rules`, which VS Code also applies to every request, so a co-installed vscode target does not attach them twice.
 
 Claude Code connects a project's `.mcp.json` servers only after the user approves them: on 2.1.292, `claude mcp list` showed the generated project entries as `Pending approval`, and connected Synapse and Grimoire once approved, while user-scope entries connected directly.
 

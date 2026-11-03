@@ -822,11 +822,16 @@ async function applyOutputMode(target, mode) {
 // Checked on the effective selection only, so an unselected oversized document never blocks. A host
 // that states a character limit without naming the unit gets a document that fits both as Unicode
 // code points and as UTF-16 units (contract, Validation Ownership).
-export function outputLimitError({ relativeOutput, content, characterLimit }) {
+export function outputLimitError({ relativeOutput, content, characterLimit, byteLimit }) {
+  const advice = "narrow the selection until this file fits or is left out, for example with --category skills";
+  const bytes = Buffer.byteLength(content);
+  if (byteLimit !== undefined && bytes > byteLimit) {
+    return `OUTPUT_LIMIT_EXCEEDED: ${relativeOutput} is ${bytes} bytes and its host reads at most ${byteLimit} bytes; ${advice}`;
+  }
   if (characterLimit === undefined) return null;
   const codePoints = [...content].length;
   if (codePoints <= characterLimit && content.length <= characterLimit) return null;
-  return `OUTPUT_LIMIT_EXCEEDED: ${relativeOutput} is ${codePoints} code points (${content.length} UTF-16 units, ${Buffer.byteLength(content)} bytes) and its host reads at most ${characterLimit} characters; narrow the selection until this file fits or is left out, for example with --category skills`;
+  return `OUTPUT_LIMIT_EXCEEDED: ${relativeOutput} is ${codePoints} code points (${content.length} UTF-16 units, ${bytes} bytes) and its host reads at most ${characterLimit} characters; ${advice}`;
 }
 
 async function installPlan(target, adapter, installRoot, scope, rootSource, options = {}) {
@@ -886,7 +891,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       continue;
     }
 
-    writes.push({ source: item.source, output, relativeOutput, content: item.content, mode: item.mode, characterLimit: item.characterLimit });
+    writes.push({ source: item.source, output, relativeOutput, content: item.content, mode: item.mode, characterLimit: item.characterLimit, byteLimit: item.byteLimit });
     managed.push({
       target,
       source: item.source,
