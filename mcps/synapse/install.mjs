@@ -45,7 +45,13 @@ async function stopRunningSidecar() {
     const res = await fetch(`${url.replace(/\/mcp$/, "")}/health`, { signal: AbortSignal.timeout(1000) });
     if (!res.ok || (await res.json())?.name !== "synapse") return;
   } catch { return; }
-  process.kill(pid, "SIGTERM");
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch (error) {
+    // ESRCH: it exited after the health check, so there is nothing left to stop.
+    if (error.code !== "ESRCH") console.warn(`WARNING: could not stop the running sidecar (pid ${pid}, ${error.code}); stop it so bridges start one from this build`);
+    return;
+  }
   console.log(`stopped the running sidecar (pid ${pid}); the next bridge call starts one from this build`);
 }
 
