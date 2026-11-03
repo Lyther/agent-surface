@@ -5,32 +5,19 @@ alwaysApply: true
 
 # Response Style
 
-## Defaults
+[P3] These yield to safety, correctness, explicit user format requests, and the report below.
 
-- Be direct, concise, and technical. Do not omit necessary context, trade-offs, or verification details merely to save tokens.
-- Do not restate the user request.
-- Avoid introductions, apologies, generic summaries, lectures, and filler.
-- Use headings or bullets only when they improve scanability or the user asks for structure.
-- No AI attribution in commits, PRs, docs, comments, generated files, or output, except required Linux kernel patch disclosure such as an `Assisted-by:` trailer when AI materially contributed.
-- After creating or updating commit messages, PR/MR text, release notes, patch emails, docs, or generated output, read back the actual saved/submitted text when tooling permits and verify no AI/vendor attribution or advertising was inserted by the editor, host, hook, template, or assistant.
+- Be direct, concise, and technical; keep the context, trade-offs, and verification details that matter.
+- Do not restate the request; skip introductions, apologies, generic summaries, lectures, and filler.
+- Use headings or bullets only when they aid scanning or the user asks for structure.
+- In chat, put requested code first. After tool edits, cite changed files instead of dumping code. Never use placeholder fragments like `// ... rest ...`.
+- No AI attribution in commits, PRs, docs, comments, generated files, or output, except a required Linux kernel `Assisted-by:` trailer. After writing a commit message, PR/MR text, release notes, a patch email, or docs, read back the saved text and remove any attribution or vendor advertising a tool, hook, or template inserted.
 
-## Chat Code Output
+## Tool Edit Report
 
-- If writing code directly in chat, put code first.
-- Do not dump large code after tool edits; cite changed files instead.
-- Do not use placeholder fragments like `// ... rest ...` for requested code.
-
-## Tool Edit Final Report
-
-For tool edits, final response must include:
+After tool edits, end with the following, even when the user prefers code-only, no-summary, or brief replies:
 
 - Changed: modified files as full paths.
-- Checks: command or scenario -> passed / failed / not run. Use real run proof; do not treat green tests alone as acceptance, deployment, E2E, or production-readiness proof.
-- Status: COMPLETE / IMPLEMENTED BUT UNVERIFIED / BLOCKED.
-- Blockers: unresolved issues only. State whether human-in-the-loop action is required and the concrete unblock path.
-
-This overrides code-only, no-summary, and brevity preferences. Never claim a check passed unless it was run and passed.
-
-## Style Priority
-
-[P3] style rules. They yield to safety, correctness, explicit user format requests, and required final reporting.
+- Checks: `command or scenario -> passed / failed / not run`.
+- Status: COMPLETE / IMPLEMENTED BUT UNVERIFIED / BLOCKED, as defined in `02-agent-workflow`.
+- Blockers: unresolved issues only, whether a human must act, and the unblock path.

@@ -50,6 +50,10 @@ main() {
         my $text = <$fh>;
         close $fh;
 
+        # Tools that inject trailers or footers, and the bot identities they sign as.
+        my $tool = qr/(?:Claude\s+Code|Cursor(?:\s+Agent)?|GitHub\s+Copilot|Factory\s+Droid)/i;
+        my $bot = qr/(?:noreply\@anthropic\.com|cursoragent\@cursor\.com|\d+\+(?:factory-droid\[bot\]|Copilot)\@users\.noreply\.github\.com)/i;
+
         my @removed;
         my @kept;
         for my $line (split /\n/, $text, -1) {
@@ -60,7 +64,8 @@ main() {
             push @kept, $line;
         }
 
-        while (@kept > 1 && $kept[-1] eq "" && $kept[-2] eq "") {
+        # Collapse the blank lines a removed trailer leaves behind; an untouched message stays byte-identical.
+        while (@removed && @kept > 1 && $kept[-1] eq "" && $kept[-2] eq "") {
             pop @kept;
         }
 
@@ -75,9 +80,11 @@ main() {
 
         sub is_ai_ad_line {
             my ($line) = @_;
-            return 1 if $line =~ /^\s*Co-authored-by:\s*.*<\s*(?:cursoragent\@cursor\.com|noreply\@anthropic\.com)\s*>\s*$/i;
-            return 1 if $line =~ /^\s*(?:🤖\s*)?Generated(?:[ -]|\s)+(?:by|with)\s+.*(?:Claude\s+Code|Cursor(?:\s+Agent)?)/i;
-            return 1 if $line =~ /^\s*(?:Generated-by|Generated-with):\s+.*(?:Claude\s+Code|Cursor(?:\s+Agent)?)/i;
+            # Whole-line matches only, so prose such as "Generated with cursory notes" survives.
+            return 1 if $line =~ /^\s*(?:Co-authored-by|Signed-off-by):\s*.*<\s*$bot\s*>\s*$/i;
+            return 1 if $line =~ /^\s*Made-with:\s*$tool\s*$/i;
+            return 1 if $line =~ /^\s*(?:🤖\s*)?Generated\s+(?:by|with)\s+\[?$tool\]?(?:\([^)]*\))?\s*$/i;
+            return 1 if $line =~ /^\s*Generated-(?:by|with):\s*$tool\s*$/i;
             return 0;
         }
     ' "$msg_file" "$tmp_file" "$removed_file"

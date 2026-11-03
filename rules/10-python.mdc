@@ -39,7 +39,7 @@ Define a meaningful exception hierarchy per package/domain (`ServiceError` → `
 Run in order, each green before the next. Prefer repo scripts (`uv run`, `make check`); otherwise:
 
 ```bash
-ruff format .
+ruff format --check .
 ruff check .
 pyright .
 pytest -v

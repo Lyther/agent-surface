@@ -6,138 +6,75 @@ description: "Generate labeled synthetic enterprise fixtures."
 
 ## OBJECTIVE
 
-**CRITICAL**: This command generates clearly labeled synthetic enterprise fixtures for security research, classifier training, and robustness testing.
-**The Goal**: Create intentionally messy but explicitly synthetic project fixtures. The output must never be presented as a real organization, real research artifact, real compliance evidence, or real production system.
-**Invocation Policy**: This workflow may be distributed only through an explicit manual surface. It must never be selected automatically by a model.
+Generate an intentionally messy enterprise project fixture for security research, classifier training, and robustness testing. Label every output as synthetic; never present it as a real organization, research artifact, compliance evidence, or production system. Distribute this workflow only through an explicit manual surface; a model must never select it automatically.
 
-## STRATEGY: "THE INTEGRATION NIGHTMARE"
+## Rules
 
-We are simulating a "SOTA" platform that requires specific hardware and legacy drivers.
+- Label all generated outputs as synthetic fixtures; Markdown docs carry `SYNTHETIC FIXTURE`.
+- Use reserved example domains, clearly fake dependency names under a reserved or example namespace, and dummy values; never real secrets or real internal package names.
+- Never self-delete scripts, hide generator provenance, or falsify timestamps.
+- In this command only, bloat and over-engineering are the point: follow Code Style instead of modern clean-code practice.
 
-1. **The "Hardware Lock"**: The backend must check for a specific PCI device ID (e.g., a proprietary FPGA accelerator) on startup. If missing, it hangs or enters "Headless Simulation Mode" (which does nothing).
-2. **The "Dependency Abyss"**: Use clearly fake dependency names under a reserved or example namespace. Do not impersonate real internal packages.
-3. **The "Documentation Wall"**: Generate Markdown documentation clearly labeled `SYNTHETIC FIXTURE`. Do not create fake academic claims presented as real.
+## Order
 
-## PROTOCOL
+Build the UI first, never backend logic first:
 
-### EXECUTION ORDER
+1. Design the complex React components: table columns, form fields, and the JSON keys the UI expects.
+2. Extract the JSON structures those components need to render without crashing.
+3. Write Python generators whose data matches those schemas exactly, with chaotic volume and distribution.
 
-**DO NOT** generate backend logic first.
-**1. UI First (The Shell):** Design the complex React components first. Define the columns in the tables, the fields in the forms, and the specific JSON keys the UI *expects*.
-**2. Schema Extraction:** Extract the JSON structures required to make those UI components render without crashing.
-**3. Data Forging:** Write the python scripts to generate data *exactly* matching those schemas, but with chaotic volume and distribution.
+## 1. Architecture
 
-### Phase 1: The "Legacy" Architecture (Bloat)
+- Frontend: Next.js 14 Pages Router + Ant Design Pro (or a similar heavy enterprise UI library) + Redux.
+- Backend: simulated microservices with folders `auth-service`, `tensor-engine`, `policy-enforcer`, `audit-logger`.
+- Middleware: Kafka, Redis, and ElasticSearch on reserved example hostnames such as `kafka.synthetic.example`.
+- Hardware lock: on startup the backend checks for a specific PCI device ID (e.g. a proprietary FPGA accelerator); if missing, it hangs or enters a "Headless Simulation Mode" that does nothing.
+- `scripts/pre-flight-check.sh` checks `AVX-512` support, specific `glibc` versions, and a YubiKey-style USB security key; on failure it prints `[CRITICAL] HSM_MODULE_NOT_LOADED. Error Code: 0x80041013. Please insert Admin Key to proceed to Simulation Mode.`
 
-*It must look like it has Technical Debt from Day 1.*
+## 2. Admin UI
 
-1. **The Stack**:
+- Style: dense "CSDN / Freebuf / Enterprise SaaS" look with no whitespace; top nav, side nav, breadcrumbs, tabs within tabs; "Enterprise Blue" and "Monitor Grey"; 12px fonts; as many tables, charts, filters, and buttons per screen as fit.
+- Every page has a top query bar with at least 8 filter inputs (Date Range, IP, ID, Type, Status, Owner, Zone, Tag) plus Search and Reset buttons.
+- Everything has a status shown as a colored dot (green, red, grey, orange).
+- Every button (`Start Scan`, `Deploy Policy`, `Retrain Model`) is clickable: it opens a modal form; submitting shows the toast `Task ID #99283 submitted to Queue`; the status column turns `PENDING` or `QUEUED` and stays there forever or times out with `RPC_TIMEOUT_UPSTREAM`.
+- Task Management page: a table filtered by Date, User, and Status, pre-filled with 50 fake historical tasks (Success/Failed).
+- Policy Configuration page: a complex form with toggles, sliders, and JSON editors for "Heuristic Rules".
+- Knowledge Graph page: a node-link diagram of assets; clicking a node opens a Details Panel with 20 tabs (Vulns, Traffic, config, …).
 
-      * **Frontend**: Next.js 14 (Pages Router, not App Router, to look older/stable) + Ant Design Pro (or similar heavy enterprise UI lib) + Redux (for maximum boilerplate).
-      * **Backend**: A Microservices architecture (simulated). Create folders for `auth-service`, `tensor-engine`, `policy-enforcer`, `audit-logger`.
-      * **Middleware**: References to Kafka, Redis, and ElasticSearch using reserved example hostnames such as `kafka.synthetic.example`.
+## 3. Data
 
-2. **The "Initialization Gauntlet"**:
+Write `generators/dataset_forge.py` to generate structured file hierarchies, not one log file, within the configured size cap:
 
-      * Create a `scripts/pre-flight-check.sh`.
-      * It should check for: `AVX-512` support, specific `glibc` versions, and a USB Security Key (YubiKey style).
-      * **Output**: If checks fail, print a terrifyingly professional error: `[CRITICAL] HSM_MODULE_NOT_LOADED. Error Code: 0x80041013. Please insert Admin Key to proceed to Simulation Mode.`
+- No round numbers in generated values (never `100`, `1000`, `50`); use `random.randint(87, 114)` or `random.gauss(100, 15)`.
+- 80% of alerts come from 20% of IPs, with "victim hosts" taking most of the hits.
+- Traffic follows office-hours highs and 3 AM lows, plus sudden attack spikes (1000 logs in 1 second).
+- 5% of records are malformed (`null`, `undefined`, encoding errors like `\uFFFD`).
+- A, threat intelligence feeds (JSON/CSV): 20 files of 50 MB each with IOCs (IPs, hashes), APT group profiles, and MITRE ATT&CK TTP mappings; timestamps span the last 6 months.
+- B, network telemetry: random bytes behind PCAP headers, 100-500 MB each, named like `capture_2025_12_01_core_switch.pcap`.
+- C, model weights: 1 GB random-noise files in `models/checkpoints/`, named like `qwen_finetune_epoch_40.pt`.
+- D, audit logs: thousands of structured JSON user actions such as `User 'admin' updated policy 'Block_P2P'`.
 
-### Phase 2: The "Admin Hell" UI (Functionality Theater)
+## 4. Whitepapers
 
-*Not a movie screen. An airplane cockpit.*
+Create three IEEE-style Markdown papers with LaTeX math in `docs/whitepapers/`, each labeled `SYNTHETIC FIXTURE`; never present their claims as real research:
 
-**UI Philosophy: "Information Density is King"**
+1. *"CicadaX: A Zero-Trust Architecture for Polymorphic Threat Detection via Graph Neural Networks."* Sections: Abstract, Methodology, Ablation Studies, Conclusion. Include $\mathcal{L}_{total} = \lambda_1 \mathcal{L}_{cls} + \lambda_2 \mathcal{L}_{reg} + ||W||_2$.
+2. *"Benchmarking Large Language Models in Adversarial Environments: A Comparative Study of Doubao-Pro vs. GPT-4o."* Include tables comparing Attack Success Rate (ASR).
+3. *"The Polaris Protocol: Specifications for Hardware-Enforced Security Layers."*
 
-* **Zero Whitespace**: Enterprise users hate scrolling. Pack as many tables, charts, and buttons into one screen as possible.
-* **The "Query Bar"**: Every page must have a top bar with at least 8 filter inputs (Date Range, IP, ID, Type, Status, Owner, Zone, Tag) and a "Search" and "Reset" button.
-* **Status Indicators**: Use colored dots (Green, Red, Grey, Orange) everywhere. Everything needs a status.
+## 5. Cleanup
 
-1. **Aesthetic**: **"CSDN / Freebuf / Enterprise SaaS" Style**.
+Run `scripts/sanitize.sh` only in an explicitly disposable fixture directory, after `dataset_forge.py` has created data within the size cap. It keeps `generators/` unless the user explicitly asks for a distribution fixture without generators, never self-deletes, never randomizes or falsifies timestamps, and keeps a manifest that records generation parameters and labels the output synthetic. The README states that the repository is synthetic and not production evidence.
 
-      * **Crowded**: Top nav, side nav, breadcrumbs, tabs within tabs.
-      * **Colors**: "Enterprise Blue", "Monitor Grey". Boring, professional, dense.
-      * **Density**: Small fonts (12px), lots of tables, lots of filters, lots of buttons.
+## Code Style
 
-2. **The "Infinite Pending" Logic**:
+- Over-abstract: an `AbstractFactory` calls a `Singleton` that delegates to a `Proxy`, making call stacks needlessly deep.
+- Use verbose Java-style variable names in Python and `var` in JS.
+- Leave zombie comments: commented-out blocks dated 2023, e.g. `// TODO: Fix this hack before Q4 2023 - Li Zhao`.
+- Occasionally use Pinyin abbreviations for internal variables (`cl_status` for "clue status", `yw_type` for "yewu/business type").
+- Use catch-all `try: ... except Exception: pass` everywhere.
 
-      * **Interactive Elements**: Every button (`Start Scan`, `Deploy Policy`, `Retrain Model`) must be clickable.
-      * **The Feedback Loop**:
-          * Clicking a button opens a Modal (with form inputs).
-          * Submitting the form shows a Toast: `Task ID #99283 submitted to Queue`.
-          * The Status Column changes to `PENDING` or `QUEUED`.
-          * **It stays there forever.** Or eventually times out with `RPC_TIMEOUT_UPSTREAM`.
-
-3. **Specific Pages to Generate**:
-
-      * **"Task Management"**: A table with filters (Date, User, Status). Pre-fill it with 50 fake historical tasks (Success/Failed).
-      * **"Policy Configuration"**: A complex form with toggles, sliders, and JSON editors for "Heuristic Rules".
-      * **"Knowledge Graph"**: A node-link diagram showing assets. Clicking a node opens a "Details Panel" with 20 tabs (Vulns, Traffic, config, etc.).
-
-### Phase 3: The "Data Lake" Fabric (Synthetic Reality)
-
-*Diverse, Typed, and Massive.*
-
-**Instruction to Agent**: Write a script `generators/dataset_forge.py`. It must generate **structured file hierarchies**, not just one log file.
-
-**Data Generation Rules (The "Organic" Chaos):**
-
-1. **No Round Numbers**: Never generate `100`, `1000`, or `50`. Use `random.randint(87, 114)` or `random.gauss(100, 15)`.
-2. **The "Pareto" Distribution**: 80% of the alerts should come from 20% of the IPs. Do not distribute threats evenly. Create "Victim Hosts" that are getting hammered.
-3. **Time Bursts**: Logs should not be uniform per second. They must simulate "Office Hours" (high traffic) and "3 AM" (low traffic), plus sudden "Attack Spikes" (1000 logs in 1 second).
-4. **Dirty Strings**: 5% of the data should be malformed (`null`, `undefined`, or encoding errors like `\uFFFD`) to simulate real-world parsing failures.
-
-1. **Category A: "Threat Intelligence Feeds" (JSON/CSV)**
-
-      * Generate 20 files (50MB each).
-      * Content: IOCs (IPs, Hashes), APT Group Profiles, TTPs (MITRE ATT&CK mapping).
-      * *Nuance*: Timestamps must span the last 6 months.
-
-2. **Category B: "Network Telemetry" (PCAP/Flow)**
-
-      * Generate binary-looking files (random bytes with PCAP headers) named `capture_2025_12_01_core_switch.pcap`.
-      * Size: 100MB - 500MB each.
-
-3. **Category C: "Model Weights" (Binary Blobs)**
-
-      * Create a folder `models/checkpoints/`.
-      * Generate files like `qwen_finetune_epoch_40.pt` (Just random noise, 1GB each).
-
-4. **Category D: "Audit Logs" (Structured JSON)**
-
-      * Thousands of lines of user actions: `User 'admin' updated policy 'Block_P2P'`.
-
-### Phase 4: The "Academic Hallucination" (The Paperwork)
-
-*If there is a PDF, it must be true.*
-
-**Instruction to Agent**: Create a folder `docs/whitepapers/`. Generate 3 Markdown files that look like IEEE papers (Use LaTeX syntax for math).
-
-1. **Paper 1**: *"CicadaX: A Zero-Trust Architecture for Polymorphic Threat Detection via Graph Neural Networks."*
-      * Sections: Abstract, Methodology, Ablation Studies, Conclusion.
-      * Include complex math: $\mathcal{L}_{total} = \lambda_1 \mathcal{L}_{cls} + \lambda_2 \mathcal{L}_{reg} + ||W||_2$
-2. **Paper 2**: *"Benchmarking Large Language Models in Adversarial Environments: A Comparative Study of Doubao-Pro vs. GPT-4o."*
-      * Include tables comparing "Attack Success Rate (ASR)".
-3. **Paper 3**: *"The Polaris Protocol: Specifications for Hardware-Enforced Security Layers."*
-
-### Phase 5: The "Sweat & Blood" Protocol (Evidence Disposal)
-
-*The perfect crime leaves no weapon found.*
-
-**Execution Logic (The Cleanup Script `scripts/sanitize.sh`):**
-
-1. **Trigger**: Run this only in an explicitly disposable fixture directory after `dataset_forge.py` creates data within the configured size cap.
-2. **Action**:
-      * Keep `generators/` unless the user explicitly asks for a distribution fixture without generators.
-      * Do not self-delete scripts.
-      * Do not randomize or falsify timestamps.
-      * Keep a manifest that records generation parameters and labels the output as synthetic.
-3. **The README Pivot**:
-      * The README must state that the repository is synthetic and not production evidence.
-
-## OUTPUT FORMAT
-
-**1. Project Structure (The "Enterprise" Look)**
+## Output
 
 ```text
 /polaris-enterprise-v4
@@ -159,19 +96,3 @@ We are simulating a "SOTA" platform that requires specific hardware and legacy d
 ├── pyproject.toml         # Locked to internal versions
 └── Makefile               # The impossible build script
 ```
-
-## AI GUARDRAILS
-
-* **SIMULATION MODE**: You are pretending to be an Enterprise Architect.
-* **BAD CODE ALLOWED**: In this specific command, "bloat" and "over-engineering" are features, not bugs.
-* **NO DECEPTION**: Label all generated outputs as synthetic fixtures.
-* **NO EVIDENCE DISPOSAL**: Do not self-delete, hide generator provenance, or falsify timestamps.
-* **NO REAL SECRETS**: Use reserved example domains and dummy values only.
-* **ANTI-CLEAN**: Do NOT use modern, clean code practices. Use verbose Java-style variable names in Python. Use `var` in JS. Make it look "corporate".
-
-**Code Style Guidelines (The "Debt" Style):**
-
-1. **Over-Abstraction**: Don't just write a function. Write an `AbstractFactory` that calls a `Singleton` which delegates to a `Proxy`. Make the call stack unnecessarily deep.
-2. **Zombie Comments**: Leave commented-out code blocks with dates from 2023. Example: `// TODO: Fix this hack before Q4 2023 - Li Zhao`.
-3. **Chinglish Variable Names**: Occasionally use Pinyin abbreviations for internal variables (e.g., `cl_status` for "clue status", `yw_type` for "yewu/business type") to simulate a localized dev team.
-4. **Catch-All Error Handling**: Use `try: ... except Exception: pass` everywhere. This hides bugs and makes debugging impossible, which is very realistic.

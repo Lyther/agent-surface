@@ -8,12 +8,16 @@
 .env
 .env.*
 !.env.example
+.envrc
 *.pem
 *.key
 *.p12
 *.pfx
 **/credentials.json
-**/secrets.*
+**/secrets/
+**/secrets.json
+**/secrets.y*ml
+**/secrets.toml
 **/service-account*.json
 .netrc
 id_rsa

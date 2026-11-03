@@ -61,6 +61,33 @@ function assertStripAiAttributionHook() {
     assert.equal(check.status, 1);
     assert.match(check.stderr, /AI attribution or vendor advertising found/);
     assert.equal(readFileSync(messagePath, "utf8"), original);
+
+    // Trailers other hosts inject, which the user policy bans as well.
+    const otherTools = [
+      "fix: other tool trailers",
+      "",
+      "Made-with: Cursor",
+      "Signed-off-by: Claude <noreply@anthropic.com>",
+      "Co-authored-by: factory-droid[bot] <138933559+factory-droid[bot]@users.noreply.github.com>",
+      "Co-authored-by: Copilot <175728472+Copilot@users.noreply.github.com>",
+      "Generated-by: GitHub Copilot",
+      "",
+    ].join("\n");
+    writeFileSync(messagePath, otherTools);
+    const otherStrip = spawnSync(stripAiAttributionHook, [messagePath], { cwd: root, encoding: "utf8" });
+    assert.equal(otherStrip.status, 0, otherStrip.stderr);
+    assert.equal(readFileSync(messagePath, "utf8"), "fix: other tool trailers\n");
+
+    // Prose that merely mentions a tool, and a message ending in a blank line, are not attribution.
+    for (const text of [
+      "fix: keep prose\n\nGenerated with cursory notes from review.\nGenerated with Cursor rules kept in sync.\n",
+      "fix: trailing blank line\n\n",
+    ]) {
+      writeFileSync(messagePath, text);
+      const prose = spawnSync(stripAiAttributionHook, ["--check", messagePath], { cwd: root, encoding: "utf8" });
+      assert.equal(prose.status, 0, `${JSON.stringify(text)}: ${prose.stderr}`);
+      assert.equal(readFileSync(messagePath, "utf8"), text);
+    }
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
   }

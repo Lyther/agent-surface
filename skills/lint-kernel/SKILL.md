@@ -3,332 +3,200 @@ name: lint-kernel
 description: "Apply Linux kernel patch and C review discipline."
 ---
 
-## §0 META: YOU WILL BE AUDITED
+## Objective
 
-You are working on Linux kernel C code (or out-of-tree kernel modules) that will be **reviewed line-by-line by a maintainer who has rejected thousands of patches** and assumes you have not read `Documentation/process/submitting-patches.rst`.
+Lint and prepare Linux kernel C patches, in-tree or out-of-tree modules, to the standard of `Documentation/process/submitting-patches.rst`; read it. This skill is the lint gate; hand the commit and distribution steps to `ship-commit`. If a constraint below cannot be met, stop and name the blocker.
 
-The kernel community does not negotiate on style, sign-off, or scope. `checkpatch.pl` exists because reviewers refuse to spend cycles on whitespace. `sparse` and `smatch` exist because the kernel cannot afford the type bugs your IDE missed. Get it right or do not send the patch.
+## Scope
 
-**If you cannot meet these constraints, STOP IMMEDIATELY and explain what is blocking you. Do not produce garbage and hope it passes.**
+Apply when any of these hold:
 
-## SCOPE DETECTION (Heuristic)
+- Top-level `MAINTAINERS`, `Kbuild`, and `Documentation/process/submitting-patches.rst` exist.
+- `scripts/checkpatch.pl` and `scripts/get_maintainer.pl` exist.
+- The top-level `Makefile` declares `VERSION =`, `PATCHLEVEL =`, and `SUBLEVEL =`.
+- Sources include `<linux/...>` headers and use kernel idioms (`EXPORT_SYMBOL`, `module_init`, `MODULE_LICENSE`).
 
-Apply this command when **any** of the following are true:
+Otherwise say no kernel lint applies and use the repository's own C tooling.
 
-- Top-level `MAINTAINERS`, `Kbuild`, `Documentation/process/submitting-patches.rst` exist.
-- `scripts/checkpatch.pl` and `scripts/get_maintainer.pl` are present.
-- Top-level `Makefile` declares `VERSION =` / `PATCHLEVEL =` / `SUBLEVEL =`.
-- Source files include `<linux/...>` headers and use kernel idioms (`EXPORT_SYMBOL`, `module_init`, `MODULE_LICENSE`).
+## Procedure
 
-If the tree is **not** a kernel tree, fall back to `lint:c` conventions (or surface that no C-kernel lint applies).
-
-## PROCEDURE
-
-1. **Identify scope**: which `.c` / `.h` / `Kconfig` / `Makefile` files were touched. For an existing patch series, run against `outgoing/*.patch` instead of the working tree.
-
-2. **Build a check plan, then execute it honestly.** Select the checks this patch actually needs
-   — a pure documentation change does not need smatch — and record an outcome for each:
-
-   | State | Meaning |
-   |---|---|
-   | `PASS` | Executed, found nothing. |
-   | `FAIL` | Executed, found a defect. |
-   | `SKIP` | Does not apply to this patch. Say why. |
-   | `MISS` | Applies, but could not run — tool absent, no built tree, no hardware. Say why. |
-
-   A `MISS` never counts toward a pass and never aggregates into an "N/N" score. It blocks the
-   specific claim that check would have supported, not every claim: a missing sparse blocks "no
-   new type errors", it does not block "checkpatch is clean". Unresolved `MISS` entries are
-   restated in the outgoing patch below `---`, not buried in a local report.
+1. List the touched `.c`, `.h`, `Kconfig`, and `Makefile` files. For an existing series, check `outgoing/*.patch` instead of the working tree.
+2. Select the checks this patch needs (a documentation-only change needs no smatch) and record one state per check: `PASS` (ran, found nothing), `FAIL` (ran, found a defect), `SKIP` (does not apply; say why), or `MISS` (applies but could not run: tool absent, no built tree, no hardware; say why). A `MISS` never counts as a pass or toward an "N/N" score, and it blocks only the claim its check supports: missing sparse blocks "no new type errors", not "checkpatch is clean". Restate unresolved `MISS` entries in the outgoing patch below `---`.
 
    ```bash
-   # Style — primary gate. Use --strict for new code. --no-tree if running on
-   # a single .patch outside the kernel tree.
+   # Style gate: --strict for new code; add --no-tree for a lone .patch outside a kernel tree.
    scripts/checkpatch.pl --strict --codespell <file-or-patch>
-
-   # Static type checking. C=2 checks every source; C=1 only checks files that
-   # actually recompile, which on a warm tree can be nothing at all.
+   # Sparse. C=2 checks every source; C=1 checks only recompiled files, often none on a warm tree.
    make C=2 W=1 <touched-subdir>/
-
-   # Smatch — semantic checker, catches null derefs and lock imbalance. Runs
-   # without the cross-function database; that database is optional and only
-   # widens what it can see across call boundaries. C=2 so the selected files
-   # are actually processed rather than skipped as already-built.
+   # Smatch (null derefs, lock imbalance). Its cross-function database is optional and only widens cross-call reach.
    make CHECK=smatch C=2 W=1 <touched-subdir>/
-
-   # Semantic patches — coccicheck reports kernel-style anti-patterns.
+   # Coccinelle semantic patches for kernel anti-patterns.
    make coccicheck MODE=report COCCI=scripts/coccinelle/<area>/<rule>.cocci
-
-   # Doc warnings, when touching kernel-doc comments. Capture first, then filter:
-   # piping into grep would report grep's status instead of the build's.
+   # kernel-doc warnings, when kernel-doc comments change. Capture first so make's status survives the filter.
    make htmldocs > /tmp/htmldocs.log 2>&1; rc=$?
    grep -E 'warning|error' /tmp/htmldocs.log; exit $rc
    ```
 
-   Report how many files each analyzer actually processed. `sparse: PASS` over zero files is
-   `MISS`. Most of these tools exit 0 in the presence of findings — see
-   `references/tool-invocation.md` for per-tool exit semantics before trusting a status.
-
-   If repeated structural lookups across a large tree are the bottleneck, an indexed navigator is
-   optional assistance — see `references/semcode.md`. It is never a prerequisite for review, and
-   its results never replace reading the source.
-
-3. **Subject + sign-off discipline** (mandatory for every commit in the series):
+   Report how many files each analyzer processed; a pass over zero files is `MISS`. Most of these tools exit 0 with findings; read `references/tool-invocation.md` before trusting a status. An indexed navigator (`references/semcode.md`) is optional help for repeated lookups in a large tree, never a prerequisite and never a substitute for reading the source.
+3. Check every commit in the series against "Commit Message" below. Draft the message but never add `Signed-off-by:` or run the sign-off: only the human author certifies the DCO, so hand over the exact `git commit -s -m "subsystem: imperative subject" -m "Body."`.
+4. Prepare recipients locally:
 
    ```bash
-   # Subject form: "subsystem: imperative short description" (≤75 cols, no period).
-   # Body wrapped at 72 cols, explains *why* and the user-visible impact.
-   # Trailers, no blank lines between:
-   #   Fixes: <12-hex> ("subject")              # required for bug fixes
-   #   Reported-by: …                            # only with real attribution
-   #   Cc: <stable@vger.kernel.org> # 6.1.x      # version, not a range; optional when
-   #                                             # derivable from Fixes:
-   #   Reviewed-by: / Tested-by: / Acked-by:     (REAL tags only — never invent)
-   #   Assisted-by: LLM coccinelle sparse        # if a tool helped; no model names
-   #   Signed-off-by: Name <email>               # MANDATORY (DCO 1.1), human only
-   #
-   # Draft the message; do NOT run the sign-off yourself. Only the human author can
-   # certify the DCO. Hand over the exact command instead:
-   #   git commit -s -m "subsystem: imperative subject" -m "Body."
-   ```
-
-   Conventional Commits prefixes (`feat:`, `fix:`, `chore:`) are **forbidden** here and `checkpatch.pl` will flag them.
-
-4. **Recipient derivation** (preparation only; sending is gated by user consent — see `ship-commit` Phase 4C):
-
-   ```bash
-   # Build the patch series locally, against the review base you established for
-   # this work (often a subsystem maintainer tree — origin/master is not universal).
+   # Against the review base you established (often a subsystem tree; origin/master is not universal).
    git format-patch -M --cover-letter -o outgoing/ <review-base>..
-
-   # Derive maintainers and lists for review. DO NOT auto-pipe into send-email.
-   # Use the DEFAULTS here: git fallback contributes history-derived reviewers that
-   # MAINTAINERS alone does not list, and dropping them silently shrinks the audience.
+   # Keep the defaults: git fallback adds history-derived reviewers that MAINTAINERS alone does not list.
    scripts/get_maintainer.pl --no-rolestats outgoing/*.patch
-
-   # Only for MAINTAINERS-only inspection (auditing what the file itself declares),
-   # not for deriving who to send to:
+   # MAINTAINERS-only inspection, never for deriving recipients:
    #   scripts/get_maintainer.pl --nogit --no-git-fallback outgoing/*.patch
-
-   # Show the proposed send-email command but do NOT execute it.
-   # User must explicitly authorize before any SMTP traffic.
    echo "Proposed: git send-email --to=<maintainer> --cc=<list> outgoing/*.patch"
    ```
 
-   A `.get_maintainer.conf` in the tree root is prepended to the command line, so explicit flags
-   you pass afterwards take precedence over it. Still read it before trusting output you did not
-   fully specify.
+   Never pipe recipients into `git send-email` or run it: print the plan and stop. SMTP traffic needs explicit user authorization, and the user runs the send. A root `.get_maintainer.conf` is prepended to the arguments, so explicit flags win; read it before trusting output whose flags you did not fully set.
+5. When the fix may reach stable, answer six questions separately: affected range, target branches, prerequisite investigation, application, build, behavioral evidence. History searches (`git log -S`/`-G`, `git describe --contains`) give leads to read, not verdicts; they misreport renames, reverts, and substring matches. An affected branch that needs an adapted patch or a prerequisite is not an excluded branch. Procedure: `references/backport-review.md`.
+6. Before `git format-patch` for a public list:
+   - Rerun `qa-trace` with the error path, not the happy path, as the entry point.
+   - Have a fresh agent or reviewer review the patch without the earlier context; if the design survives only with the backstory, it is not ready.
+   - For each `(input × concurrent-op)` quadrant no test reaches, state in the patch why and how you verified it by inspection.
+   - If an earlier version went public, write the vN changelog as a real diff of the design.
+7. Before reporting, apply `references/finding-discipline.md`: each issue needs concrete evidence on at least one execution path, style points are capped and held to a higher bar than correctness, and you never assert authorship or comment on a disclosure trailer. Report in the Output format.
 
-   Heuristic: if you have not been told to send, you are not sending. Print the plan, stop.
+Never push to a branch named `master`, `main`, `linus`, or `next`.
 
-5. **Backport review (when the fix may reach stable).** Answer six questions separately —
-   affected range, target branches, prerequisite investigation, application, build, behavioral
-   evidence — and do not let one stand in for another. History searches (`git log -S`/`-G`,
-   `git describe --contains`) produce **leads to read, not verdicts**; they misreport renames,
-   reverts and substring matches. An affected branch that needs an adapted patch or a prerequisite
-   is not an excluded branch. Full procedure and the failure modes in
-   `references/backport-review.md`.
+## Checklist
 
-6. **Pre-public review (if patch will hit a public ML).** Before `git format-patch` for upstream submission:
-   - Run `qa-trace` again with the **error path** — not the happy path — as the entry point.
-   - Hand the patch to a fresh agent / reviewer **without** the v1 context. If the design only survives review when you explain the journey, the patch is not ready.
-   - For any `(input × concurrent-op)` quadrant you cannot empirically reach in a test, document why and how you verified by inspection. The race quadrant of RSV-2 was *only* covered by code review; that is acceptable when stated, not acceptable when hidden.
-   - If a previous version was already sent publicly, write the v1→v2 changelog **as a real diff of the design**, not a politeness sentence. Reviewers should not have to re-derive what changed.
+### Style
 
-7. **Report findings** using the output format below. Before you report anything, apply
-   `references/finding-discipline.md`: an issue needs concrete evidence on at least one execution
-   path, style observations are capped and held to a far higher bar than correctness, and you
-   never assert authorship or comment on a disclosure trailer. A review that reports everything it
-   suspects is worse than no review.
+Fix every checkpatch CHECK, WARNING, and ERROR.
 
-## DOMAIN CHECKLIST
+- Tabs for indentation, 8 columns wide; lines at most 100 columns, without awkward splits of one logical statement.
+- K&R braces: the opening brace on the `if`/`while`/`for`/`do` line, on its own line for function definitions.
+- `/* … */` comments (no `//` outside `tools/`); kernel-doc on exported symbols.
+- No trailing whitespace, DOS line endings, or smart quotes.
 
-### Style (checkpatch territory — fix every CHECK/WARNING/ERROR)
+### Correctness
 
-- [ ] No tabs vs spaces drift; tabs for indentation, 8-column tabs.
-- [ ] Lines ≤100 chars (kernel relaxed from 80 in 2020); reflow if you split a logical statement awkwardly.
-- [ ] Braces follow K&R style: opening brace on the same line as `if`/`while`/`for`/`do`, but on its own line for function definitions.
-- [ ] Comments use `/* … */` (no `//` in code outside `tools/`); kernel-doc on exported symbols.
-- [ ] No trailing whitespace, no DOS line endings, no smart quotes.
+- No mixed pointer/integer arithmetic without an explicit cast and reason.
+- Keep `__user`, `__kernel`, `__iomem`, and `__rcu` on every pointer that needs them; act on sparse's warnings.
+- Use endianness types (`__le32`, `__be64`) consistently, with no implicit `cpu_to_*` round-trips.
+- No sleeping in atomic context against the `gfp_t` flags (smatch flags this).
+- Release every lock on every exit path; no double lock; document lock ordering.
+- Balance `rcu_read_lock`/`rcu_read_unlock`; free an RCU-protected pointer only with `kfree_rcu` or after `synchronize_rcu`.
+- Use `WARN_ON_ONCE` plus an error return, not `BUG_ON`, for runtime-recoverable conditions.
 
-### Correctness (sparse/smatch/coccinelle)
+### Memory and API
 
-- [ ] No mixed pointer / integer arithmetic without explicit cast and reason.
-- [ ] `__user`, `__kernel`, `__iomem`, `__rcu` annotations preserved on every pointer that needs them. Sparse will complain — listen.
-- [ ] Endianness annotations (`__le32`, `__be64`) used consistently; no implicit `cpu_to_*` round-trips.
-- [ ] No `gfp_t` flags violated by sleeping in atomic context (`smatch` flags this).
-- [ ] Locking: every `lock()` has a matching `unlock()` on every exit path; no double-lock; correct lock ordering documented.
-- [ ] RCU: `rcu_read_lock`/`rcu_read_unlock` balanced; no `kfree` of an RCU-protected pointer without `kfree_rcu` or `synchronize_rcu`.
-- [ ] No `BUG_ON` for runtime-recoverable conditions — use `WARN_ON_ONCE` + return error.
+- Pair `kmalloc`/`kzalloc`/`vmalloc` with the matching free, check for `NULL`, and unwind through a cleanup pattern or `goto err_*` ladder with no silent leak path.
+- Use `strscpy`/`scnprintf`, never `strcpy`/`sprintf`.
+- Cross the user/kernel boundary with `copy_from_user`/`copy_to_user` and check the return; no raw `memcpy`.
+- Choose DMA mapping by lifetime: `dma_alloc_coherent`/`dma_pool` for long-lived structures the CPU and device touch in parallel (ring descriptors, mailboxes); `dma_map_single`/`dma_map_sg` with the matching `dma_unmap_*` for one-shot transfers. Coherent memory can be expensive and page-granular, so it is not the default.
+- Never DMA to or from stack, static or module-image, vmalloc, or kmap addresses: they may map differently from the rest of physical memory, and unaligned buffers corrupt shared cachelines on DMA-incoherent CPUs. `dma_map_single` buffers come from a physically contiguous source (kmalloc or the page allocator).
+- Give every `printk` a level (`pr_err`, `pr_warn`, `dev_err`); rate-limit repeated noise with `*_ratelimited`.
 
-### Memory / API hygiene
+### Build and Modules
 
-- [ ] `kmalloc`/`kzalloc`/`vmalloc` paired with the matching free; check return for `NULL`; use `_return: kfree(...)` cleanup pattern or `goto err_*` ladders, not silent leak paths.
-- [ ] No `strcpy`/`sprintf`; use `strscpy`/`scnprintf`.
-- [ ] No raw `memcpy` between user/kernel — use `copy_from_user`/`copy_to_user` and check the return.
-- [ ] DMA mapping chosen by **lifetime**, not by "the device can see it": `dma_alloc_coherent`/`dma_pool` for long-lived structures the CPU and device touch in parallel (ring descriptors, mailboxes); `dma_map_single`/`dma_map_sg` + matching `dma_unmap_*` for one-shot transfers. Coherent memory can be expensive and page-granular, so it is not the default.
-- [ ] Never DMA to/from stack, static/module image, vmalloc or kmap addresses — these may map somewhere other than the rest of physical memory, and unaligned buffers cause cacheline-sharing corruption on DMA-incoherent CPUs. `dma_map_single` buffers must come from a physically contiguous source (kmalloc / page allocator).
-- [ ] `printk` carries a level (`pr_err`, `pr_warn`, `dev_err`, etc.); no rate-limited noise without `*_ratelimited`.
+- `Kconfig` entries have `help` text and a depends-on chain that matches the code; no `select` of unselectable symbols.
+- `Makefile` uses `obj-$(CONFIG_FOO)`; build both built-in and as a module when `CONFIG_FOO=m` is meaningful.
+- New modules declare `MODULE_LICENSE`, `MODULE_AUTHOR`, and `MODULE_DESCRIPTION`.
+- No new `EXPORT_SYMBOL` without justification; prefer `EXPORT_SYMBOL_GPL`.
 
-### Build & module hygiene
+### Concurrency
 
-- [ ] `Kconfig` entry has `help` text and depends-on chain matches the code (no `select` of unselectable symbols).
-- [ ] `Makefile` uses `obj-$(CONFIG_FOO)` correctly; built both as built-in and as module if `CONFIG_FOO=m` is meaningful.
-- [ ] `MODULE_LICENSE`, `MODULE_AUTHOR`, `MODULE_DESCRIPTION` present on new modules.
-- [ ] No new `EXPORT_SYMBOL` without justification; prefer `EXPORT_SYMBOL_GPL` for new exports.
+- A patch touching locking, IRQ context, RCU, atomics, or scheduler hooks needs a `qa-trace` pass before commit (`ship-commit` "Review Once").
+- Each added cancel, disable, or barrier needs a producer the caller or core does not already exclude; otherwise drop it and its race claim.
+- Mark accesses per `tools/memory-model/Documentation/access-marking.txt`, a four-way choice:
+  - Plain C when a held lock or seqlock excludes the access, for init-before-publication or cleanup, for CPU- or task-private data, or with no concurrent store; marking these hides real bugs from KCSAN.
+  - `READ_ONCE`/`WRITE_ONCE` when the race is intentional and the value is load-bearing for the concurrency design.
+  - `data_race()` (or `__data_racy`) when the race is intentional and the value is diagnostic, re-validated against a marked reload, or feeds an error-tolerant heuristic; `data_race(READ_ONCE(x))` when both apply.
+- Comment each marking's reason and document the design with `ASSERT_EXCLUSIVE_WRITER`/`ASSERT_EXCLUSIVE_ACCESS`. KCSAN is an input, not the arbiter: its silence is not correctness, and churning markings to quiet it does not help.
+- Order with `smp_*` barriers, never `volatile`.
 
-### Concurrency / hot path (gates `qa-trace`)
+### Error Paths and Cleanup
 
-- [ ] If the patch touches locking, IRQ context, RCU, atomics, or scheduler hooks — `qa-trace` is **mandatory** before commit (see `ship-commit` Phase 1.5).
-- [ ] **Each added cancel, disable or barrier needs a producer the caller or core does not already exclude; otherwise drop it and its race claim.**
-- [ ] Access marking follows `tools/memory-model/Documentation/access-marking.txt` — a four-way choice, not a blanket rule:
-      **plain C** when the access is excluded by a held lock or seqlock, is init-before-publication or cleanup, is CPU- or task-private, or has no concurrent store (marking these *hides* real bugs from KCSAN);
-      **`READ_ONCE`/`WRITE_ONCE`** when the race is intentional and the value is load-bearing for the concurrency design;
-      **`data_race()`** (or `__data_racy`) when the race is intentional and the value is diagnostic, re-validated against a marked reload, or feeds an error-tolerant heuristic — combine as `data_race(READ_ONCE(x))` when you need both.
-      Comment the reason; document the design with `ASSERT_EXCLUSIVE_WRITER`/`ASSERT_EXCLUSIVE_ACCESS`. KCSAN is an input, not the arbiter: silence does not imply correctness, and churning in markings to quiet it is unhelpful.
-- [ ] No `volatile` as a substitute for proper ordering — use `smp_*` barriers.
+When a patch adds or changes `out_*:` labels, `goto err_*`, or `if (failed) cleanup(...)`, run every check below; an "undo" helper is not automatically the inverse of the step it undoes.
 
-### Error-path & cleanup audit
+- Read the cleanup helper end to end and list every side effect: locks taken and released, counters, list mutations, conditional state changes, the return value's meaning. Never infer them from its name (a `*_put_pages` helper may also restore reservations, drop a refcount, or free the object).
+- Search the file for `out_`, `goto err_`, `unwind`, and the struct's other failure paths, and mirror the existing pattern instead of inventing one.
+- Enumerate the cross-product of every input that selects a path (e.g. `gbl_chg ∈ {0, >0}` × `map_chg ∈ {0, 1}` × `max_hpages ∈ {-1, finite}`). Every cell needs a documented cleanup; "shouldn't happen" or "covered by the other branch" is a bug.
+- For each cell, list the concurrent operations on the same struct that can race with the failure (`*_put_pages`, `*_unreserve_pages`, free to buddy, cgroup migration) and walk the cleanup as if each fires between the failed step and the unwind. It must stay correct and create no phantom state, such as incrementing a reserve count after a concurrent free drained the pool.
+- When one local pointer would span two charges (regular vs reserved, vmalloc vs kmalloc, DMA vs CPU), use separate locals per ownership domain; migration, preemption, or an interrupt between the charges can rebind ownership.
+- Keep severity attached to the bug: if v1 was wrong, v2 has the same severity until proven otherwise.
+- Do not bundle unrelated fixes, but bundle fixes that share the change's charge, failure, or commit window (the same `out_uncharge_*` ladder); a fix in another function ships separately.
 
-When a patch adds/changes anything under `out_*:` labels, `goto err_*`, or `if (failed) cleanup(...)`, the helper you call to "undo" the prior step is **not** automatically the inverse of that step. Run all checks below before the patch leaves your machine.
+## Commit Message
 
-- [ ] **Helper introspection.** Open the cleanup helper end-to-end. Enumerate every side effect: lock taken, lock released, counter touched, list mutated, conditional state changes, return value's meaning. A helper named `*_put_pages` may also restore reservations, release a refcount, free the object — read it; do not infer from the name.
-- [ ] **Grep-existing-cleanups.** In the same file, search for `out_`, `goto err_`, `unwind`, the struct's other failure paths. The pattern you need probably already exists. Mirror it instead of inventing one. (Concrete: `hugetlb_reserve_pages` already had the direct-decrement pattern at the time of RSV-2; reaching for the helper was the mistake.)
-- [ ] **State-space quadrant table.** For every input that selects a code path (e.g., `gbl_chg ∈ {0, >0}`, `map_chg ∈ {0, 1}`, `max_hpages ∈ {-1, finite}`), enumerate the cross-product. Each cell must have a documented cleanup. A cell with "shouldn't happen" or "covered by the other branch" is a bug.
-- [ ] **Concurrent-op interleaving.** For each cell, list which concurrent operations on the same struct can race with the failure (`*_put_pages`, `*_unreserve_pages`, free returning to buddy, cgroup migration, ...). Walk the cleanup as if each one fires between the failed step and the unwind. The cleanup must remain correct — including not creating phantom state (e.g., raw `h->resv_huge_pages++` after concurrent free dropped `free_huge_pages` to 0).
-- [ ] **Pointer aliasing across charge/uncharge windows.** If the same local pointer is reused for two charges (regular vs reserved, vmalloc vs kmalloc, dma vs cpu), task migration / preemption / interrupt between the two charges can rebind ownership. Use **separate locals** for separate ownership domains, not "save into one and uncharge it later".
-- [ ] **Severity stays attached to the bug, not the patch.** If v1 was wrong, v2 is the same severity until proven otherwise. Do not let "we tried twice" lower the CVSS.
-- [ ] **Do not bundle unrelated fixes** — but **do** bundle fixes that share the same charge/failure/commit window with the change you're sending. The cgroup-pointer split lived in the same `out_uncharge_*` ladder as the subpool fix, so it shipped together. A migration-state-machine fix in another function does not.
+Follow `Documentation/process/submitting-patches.rst` and `5.Posting.rst`.
 
-### Commit message & email discipline
+Subject:
 
-Anchored to `Documentation/process/submitting-patches.rst` and `5.Posting.rst`. Reviewers' time is more valuable than your prose: minimum surface area, maximum signal.
+- `subsystem: imperative summary` of at most 70-75 characters, saying what changes and why; no period, no Conventional Commits prefix (`feat:`, `fix:`, `chore:`), no filename.
+- Give each patch in a series a unique summary; it becomes a global identifier.
+- The version tag counts public sends: after a public v1 and v2, the next public revision is v3, even if an internal v2 was never sent.
 
-**Body**
+Body:
 
-- [ ] **State the user-visible impact first.** For a bug fix, name the affected workload or configuration and the observable failure before explaining the internal mechanism. Explain why downstream users need the backport and how they can recognize the problem.
-- [ ] **Imperative mood.** "Decrement used_hpages …", not "This patch decrements …" or "I changed …". Banned phrases: `this patch`, `I/we`, past tense verbs describing the change.
-- [ ] **Frame the actual bug, not one symptom.** If the unwind needs to fire on cgroup-charge fail AND dequeue fail AND buddy alloc fail, name the underlying invariant (e.g. "subpool used_hpages accounting"), not just one trigger. Pinning the bug to a specific failure mode is misleading.
-- [ ] **Wrap body at 75 columns.** Tags (`Fixes:`, `Closes:`, `Link:`) are exempt — never split a tag across lines.
-- [ ] **Self-contained.** A reviewer who never saw v(N-1) must understand the patch from this message alone. Don't make them dig out the previous thread.
-- [ ] **One problem per patch.** If the description grows past ~3 short paragraphs, that's a sign to split. Bundling is the exception, not the default.
-- [ ] **Cite commits as `12-hex ("oneline summary")`.** Never bare SHA. The summary survives even if the SHA gets reorged.
-- [ ] **Don't reference future RFCs from the commit body.** Stable backports don't advertise out-of-scope work. RFC pointers belong in cover letters or follow-up threads.
+- Lead with the user-visible impact: the affected workload or configuration and the observable failure, then the mechanism; for a fix, say why downstream users need the backport and how they recognize the problem.
+- Imperative mood; no "this patch", "I"/"we", or past tense describing the change.
+- Name the underlying invariant (e.g. "subpool used_hpages accounting"), not one triggering symptom.
+- Wrap at 75 columns; never wrap or split a tag (`Fixes:`, `Closes:`, `Link:`).
+- Make it self-contained for a reviewer who never saw earlier versions; one problem per patch, and past about three short paragraphs consider splitting.
+- Cite commits as `12-hex ("oneline summary")`, never a bare SHA.
+- No pointers to future RFCs; those belong in cover letters or follow-up threads.
 
-**Subject**
+Trailers, in this order with no blank lines between:
 
-- [ ] **70-75 chars max.** Describe both *what* changes and *why* it might be necessary, in that one line.
-- [ ] **Form: `subsystem: imperative summary`.** No period, no Conventional Commits prefix (`feat:`, `fix:`), no filename.
-- [ ] **Don't reuse the same summary across patches in a series.** Each `summary phrase` becomes a globally-unique identifier — search engines, git log, follow-up review threads all key off it.
-- [ ] **Version tag reflects what was sent publicly.** If v1 + v2 went to a public list, the next public revision is v3 — don't reset to v2 just because the v2-internal you wrote was never sent.
+- `Fixes: <12-hex> ("oneline")` for bug fixes. Verify the SHA exists and is reachable from the base you actually target (often a subsystem tree; `origin/master` is not universal). Non-ancestry is a lead (unfetched tree, rebased or cherry-picked history), not proof the tag is wrong; report `MISS` without a tree to check.
+- `Reported-by:`, `Closes:`, `Link:` only with real attribution; prefer lore.kernel.org URLs for `Link:`.
+- `Cc: <stable@vger.kernel.org> # 5.14.x` only when a backport is intended. The single version already means "and newer", so a trailing `+` is redundant, and an absent annotation is not a defect when `Fixes:` implies the range. Honor `Cc: <stable+noautosel@kernel.org> # reason`. For an unpublished vulnerability use `stable@kernel.org`, after reading `references/submission-policy.md`: it protects one channel and does not make the mail private.
+- `Reviewed-by:`, `Tested-by:`, `Acked-by:` only when real; never invent one.
+- `Assisted-by: LLM [tools]` when a tool helped: the literal `LLM`, then any specialized analysis tools used (e.g. `Assisted-by: LLM coccinelle sparse`), never an agent or model name. Placing it directly above `Signed-off-by:` is this skill's convention, not upstream's (`references/submission-policy.md`).
+- `Signed-off-by:` is mandatory (DCO 1.1, `git commit -s`) and certified by a human; an agent never adds it.
 
-**Trailers (order, no blank lines between)**
+Trailers live in the commit object, so correcting one rewrites every later hash and invalidates a prepared series: report trailer problems, never rewrite them silently.
 
-- [ ] `Fixes: <12-hex> ("oneline")` — required for bug fixes. Tag exempt from 75-col wrap. Verify
-      the SHA exists, then that it is reachable from **the base you are actually targeting**
-      (a subsystem tree is normal; `origin/master` is not universal). Non-ancestry is a lead to
-      investigate — unfetched tree, or rebased/cherry-picked history — not proof the tag is wrong.
-      Report `MISS` if you have no tree to check against.
-- [ ] `Reported-by:` / `Closes:` / `Link:` — only with real attribution; lore.kernel.org URLs preferred for `Link:`.
-- [ ] `Cc: <stable@vger.kernel.org> # 5.14.x` — only if backport intended. The annotation names a
-      single version and already means "that version and newer" (`# 3.3.x` and `# v5.14` both
-      appear in practice), so a trailing `+` is redundant rather than a range expression. An
-      **absent** annotation is not a defect — upstream says it is unnecessary when the range is
-      derivable from `Fixes:`. Honor `Cc: <stable+noautosel@kernel.org> # reason`. For an
-      unpublished vulnerability use `stable@kernel.org`, and read
-      `references/submission-policy.md` first: that address protects one channel, it does not make
-      the mail private.
-- [ ] `Reviewed-by:` / `Tested-by:` / `Acked-by:` — **never invent**. Each fake trailer is a career-shortening event.
-- [ ] `Assisted-by: LLM [tools]` — when a tool helped produce the patch. The literal token `LLM`,
-      then optional specialized *analysis* tools actually used. No agent or model name. See
-      `references/submission-policy.md`; upstream specifies no position for this trailer, so
-      placing it immediately above `Signed-off-by:` is our convention, not upstream's.
-- [ ] `Signed-off-by:` — mandatory (DCO 1.1). Use `git commit -s`. **A human certifies this.** An
-      agent must never add it.
+Put `Changes in vN:` below `---`, between `Signed-off-by:` and the diffstat, never in the commit body: a brief bullet list of the previous-to-current delta that omits designs never sent publicly.
 
-Trailers live inside the commit object. Correcting one rewrites every subsequent hash and
-invalidates an already-prepared series. **Report trailer problems; do not silently rewrite them.**
+Inside the patch, place one short comment per branch where it explains the local action rather than one long composed comment above a multi-branch `if`; when a comment makes the reader track several counters and locks at once, split it or let the code structure carry the explanation.
 
-**`Changes in vN:` placement**
+Email: plain text through `git send-email`, a new top-level thread per revision, shallow threading within a series, and trimmed inline replies; checklist in `references/email-plumbing.md`.
 
-- [ ] **Below the `---` separator**, between Signed-off-by and the diffstat. Never inside the commit body itself — it doesn't belong in `git log`.
-- [ ] **Brief bullet list of the v(N-1) → vN delta.** Drop history of designs that never went public. Reviewers don't need to retrace your private exploration.
-
-**Comments inside the patch (Oscar)**
-
-- [ ] **Split long composed comments into the relevant code blocks.** A multi-paragraph comment ahead of a multi-branch `if/else if/else` is harder to map back to code than one short comment per branch placed where it explains the local action.
-- [ ] **Don't compose head-spinning prose for tricky subsystems.** If the comment requires the reader to hold three counters and two locks in their head, the comment is too dense — split, or let the structure carry the explanation.
-
-**Email plumbing**
-
-- [ ] Plain text through `git send-email`, a new top-level thread per revision, shallow threading within a
-      series, and trimmed inline replies: the full checklist is in `references/email-plumbing.md`.
-
-## OUTPUT FORMAT
-
-### PART 1: UNDERSTANDING
+## Output
 
 ```text
+1. Understanding
 Subsystem: [drivers/foo, mm/slub, fs/ext4, …]
-Patch intent: [restate in one sentence]
+Patch intent: [one sentence]
 Series size: [N patches]; cover letter: [yes / no]
-```
 
-### PART 2: TOOLCHAIN
-
-Every selected check reports `PASS` / `FAIL` / `SKIP` / `MISS`, with a reason for the latter two
-and the number of files actually processed. `MISS` is not a pass and is excluded from any score.
-
-```text
+2. Toolchain
 checkpatch.pl --strict:  [PASS | FAIL: N CHECK / M WARNING / K ERROR | SKIP: reason | MISS: reason]
 make C=2 W=1 (sparse):   [PASS (f files) | FAIL: warnings | MISS: no built tree]
 make CHECK=smatch C=2:   [PASS (f files) | FAIL: findings | MISS: no built tree]
-  smatch coverage:       [cross-function DB built? if not, inter-procedural findings
-                          are out of scope — a limitation on the run, not a MISS]
+  smatch coverage:       [cross-function DB built? if not, inter-procedural findings are out of scope; a run limitation, not a MISS]
 coccicheck:              [PASS | FAIL: findings | MISS: ocaml unavailable]
 htmldocs (if touched):   [PASS | FAIL: kernel-doc warnings | SKIP: no kernel-doc touched]
+Not run: [every MISS with its reason; restated below --- in the patch]
+Claims blocked by the above: [conclusions left unsupported]
 
-Not run: [list every MISS with its reason — these are restated below --- in the patch]
-Claims blocked by the above: [which conclusions are unsupported as a result]
-```
-
-### PART 3: SUBJECT + TRAILERS
-
-```text
+3. Subject and Trailers
 Subject:      [subsystem: imperative short description]
-Sign-off:     [Signed-off-by: present? yes/no — human-certified]
-Fixes:        [hex: subject — present? yes/no/n-a; ancestor check PASS/MISS]
-Cc stable:    [yes # 6.1.x / no / n-a — absent annotation is not a defect]
+Sign-off:     [Signed-off-by present? yes/no; human-certified]
+Fixes:        [hex: subject; present? yes/no/n-a; ancestor check PASS/MISS]
+Cc stable:    [yes # 6.1.x / no / n-a]
 Assisted-by:  [LLM <tools> / n-a]
-Other tags:   [Reported-by, Reviewed-by, Tested-by, Acked-by — only real ones]
+Other tags:   [Reported-by, Reviewed-by, Tested-by, Acked-by; real ones only]
+Trailer corrections needed: [report only; never rewrite]
 
-Trailer corrections needed: [report only — never rewrite; rewriting invalidates the series]
-```
-
-### PART 4: DISTRIBUTION PLAN (Local Only — No Network)
-
-```text
+4. Distribution Plan (local only, no network)
 Patches:    outgoing/0001-…patch  outgoing/0002-…patch  …
 Cover:      outgoing/0000-cover-letter.patch
 Recipients (proposed by get_maintainer.pl):
   --to:  [maintainer1] [maintainer2]
   --cc:  [list1] [list2] linux-kernel@vger.kernel.org
-
-Send command (NOT EXECUTED — awaiting explicit user authorization):
+Send command (not executed; awaiting explicit user authorization):
   git send-email --to=<…> --cc=<…> outgoing/*.patch
-```
 
-### PART 5: BLOCKING ISSUES (if any)
-
-```text
+5. Blocking Issues (if any)
 - [BLOCKER] checkpatch ERROR at <file>:<line> — <issue>
 - [BLOCKER] sparse: __user pointer dereferenced without copy_from_user at <file>:<line>
 - [MUST-FIX] smatch: lock 'foo' acquired in <fn>, not released on error path <line>
-- [MUST-FIX] missing Signed-off-by trailer on patch 02/05
 ```
-
-## ENFORCEMENT REMINDER
-
-**You are not a clever exception.** Maintainers do not read your justification before they reply with "your patch is line-wrapped wrong, resend." Run the tools. Read `Documentation/process/submitting-patches.rst`. Use `git format-patch` and let the user invoke `git send-email`. **Do not** send patches autonomously, **do not** push to any branch named `master` / `main` / `linus` / `next`, and **do not** invent `Reviewed-by` tags — every fake trailer is a career-shortening event.
-
-For the actual commit + distribute steps, hand off to `ship-commit`. This command is the lint gate; `ship-commit` is the consent-gated send.

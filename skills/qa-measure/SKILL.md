@@ -3,82 +3,42 @@ name: qa-measure
 description: "Collect hard performance and resource measurements."
 ---
 
-## OBJECTIVE
+## Objective
 
-**THE QUANTIFIED REALITY.**
-You cannot improve what you cannot measure.
-**Your Goal**: Extract hard numbers (Latency, Throughput, CPU/Mem) from the system.
-**Boundary**: Stop at the data. Do not fix the code yet.
+Extract hard numbers (latency, throughput, CPU, memory) from the system. Stop at the data: do not fix the code.
 
-## PROTOCOL
+## Rules
 
-### Phase 1: Budgets & SLIs/SLOs
+1. Same input gives the same result envelope; if variance exceeds 10%, fix the environment.
+2. Never remove work users rely on just to meet a budget.
+3. Use synthetic or anonymized data with realistic distributions (payload sizes, cache-miss ratios); never production dumps in CI.
+4. Emit metrics and traces tagged by scenario and version, and link them to commits.
 
-1. **Define SLIs**: P50/P95/P99 latency, error rate, throughput, memory/CPU
-2. **Set SLOs**: e.g., P95 < 300ms for `/api/orders`, error rate < 0.1%
-3. **Scope**: Critical paths only (auth, checkout, search)
-4. **Perf Budgets**: Per endpoint/function; include payload sizes
+## 1. Budgets and SLOs
 
-### Phase 2: Baseline Measurement
+Define SLIs (P50/P95/P99 latency, error rate, throughput, memory/CPU) and SLOs (e.g. P95 < 300ms for `/api/orders`, error rate < 0.1%) for critical paths only (auth, checkout, search), with per-endpoint or per-function perf budgets that include payload sizes.
 
-1. **Local/CI Determinism**:
-    - Pin CPU governor; disable turbo if possible
-    - Fix input datasets and RNG seeds; isolate noisy neighbors (containers)
-2. **Profilers**:
-    - **Node/TS**: `clinic flame`, `0x`, built-in profiler
-    - **Python**: `py-spy`, `scalene`
-    - **Rust/Go**: `pprof`, `perf`
-3. **DB Explainability**:
-    - Use `EXPLAIN (ANALYZE, BUFFERS)`; forbid seq scans on hot paths
-    - Verify indexes on filter/join keys; add statement timeouts
+## 2. Baseline
 
-### Phase 3: Load & Stress
+- Make local and CI runs deterministic: pin the CPU governor, disable turbo if possible, fix input datasets and RNG seeds, and isolate noisy neighbors (containers).
+- Profile with `clinic flame`, `0x`, or the built-in profiler (Node/TS); `py-spy` or `scalene` (Python); `pprof` or `perf` (Rust/Go).
+- Run `EXPLAIN (ANALYZE, BUFFERS)` on hot queries; flag seq scans on hot paths, missing indexes on filter/join keys, and missing statement timeouts.
 
-1. **Load Tools**:
-    - `k6`, `wrk`, `vegeta`, Locust
-2. **Scenarios**:
-    - Steady-state (baseline), spike (burst), soak (hours)
-3. **Data Fidelity**:
-    - Anonymized, realistic distributions (payload sizes, cache miss ratios)
-4. **Thresholds**:
-    - Gate on P95/P99 and error rate; k6 thresholds in CI
+## 3. Load and Stress
 
-### Phase 4: Optimization Loop
+Run steady-state (baseline), spike (burst), and soak (hours) scenarios with `k6`, `wrk`, `vegeta`, or Locust, gating on P95/P99 and error rate with k6 thresholds. Recommend a CI perf check that ratchets those thresholds; adding it is a separate change.
 
-1. **Identify Hotspots**: Flamegraphs, top-down call stacks
-2. **Hypothesis -> Change -> Measure**: One change at a time
-3. **Cache & Concurrency**:
-    - Add bounded caches with eviction and TTLs
-    - Apply backpressure; timeouts with jittered retries; circuit breakers
-4. **Memory & GC**:
-    - Track allocations; avoid large object churn; pool where sensible
+## 4. Hotspots
 
-### Phase 5: Database & I/O Hygiene
+Profile the measured path (flamegraph, top-down call stack, allocation profile) and name the hotspots with their share of time or memory. List likely causes, such as N+1 queries, unbounded result sets, missing pooling, or allocation churn, as hypotheses for a later fix. Do not change code here.
 
-1. **N+1**: Replace with prefetch/batch queries
-2. **Connection Pooling**: Size per CPU and DB limits; avoid thundering herds
-3. **Prepared Statements**: Reuse plans for hot queries
-4. **Pagination & Streaming**: Avoid loading entire datasets; stream/chunk
-
-## OUTPUT FORMAT
-
-**1. Perf Report**
+## Output
 
 ```markdown
 > Route: `POST /checkout`
-> Baseline: P50 120ms, P95 480ms (CPU 65%)
-> After: P50 90ms, P95 220ms (CPU 52%)
-> Change: Added read-through cache for product lookup (TTL 60s, size 10k)
+> Baseline: P50 120ms, P95 480ms, error rate 0.1% (CPU 65%), 3 runs, variance 4%
+> Hotspot: product lookup, 38% of request time (flamegraph: perf/checkout.svg)
+> Hypothesis: N+1 queries in `loadProducts`; candidate fix: batch query
 ```
 
-**2. Artifact**
-
-Attach flamegraph SVG and load test script (`scripts/load/checkout.js`).
-
-## EXECUTION RULES
-
-1. **REPEATABILITY**: Same input -> same result envelope. If variance > 10%, fix environment
-2. **NO CHEATING**: Do not remove work that users rely on just to meet budgets
-3. **REGRESSION GUARD**: Add perf check to CI with threshold ratchet (P95/P99 + error rate)
-4. **OBSERVABILITY**: Emit metrics/traces; tag by scenario and version; link to commits
-5. **DATA SAFETY**: Use synthetic or anonymized data; never prod dumps in CI
+Attach the profile and the load script (`scripts/load/checkout.js`).

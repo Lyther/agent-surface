@@ -47,7 +47,7 @@ You are the Watcher on the Wall.
 
 1. **Shell Access**:
     - `docker compose exec [service] /bin/sh`
-    - Check env vars: `env`
+    - Check env var names: `awk 'BEGIN { for (name in ENVIRON) print name }'` (never print values; `env | cut` leaks lines of multi-line values)
     - Check disk: `df -h`
 2. **DB Console**:
     - `docker compose exec db psql ...`
