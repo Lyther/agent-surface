@@ -2,10 +2,11 @@
   "reviewed_at": "2026-08-31",
   "targets": {
     "claude-code": {
-      "summary": "Claude Code supports Agent Skills, subagents, and MCP; agent-surface generates canonical auto-invocable skills plus explicit-only high-impact workflows, subagents, first-party MCP wiring (Synapse + Grimoire), and external skills.",
+      "summary": "Claude Code supports Agent Skills, imported instruction files, subagents, and MCP; agent-surface generates canonical auto-invocable skills plus explicit-only high-impact workflows, an always-on rules document that CLAUDE.md imports, subagents, first-party MCP wiring (Synapse + Grimoire), and external skills.",
       "generated_render_tokens": [
         "skills",
         "subagents",
+        "rules",
         "external",
         "mcps"
       ],
@@ -62,6 +63,19 @@
             ".mcp.json"
           ],
           "notes": "First-party secretless MCP services are generated/merged; external or secret-bearing MCPs remain opt-in."
+        },
+        "rules": {
+          "support": "native",
+          "generation": "generated",
+          "scope": [
+            "user",
+            "project"
+          ],
+          "paths": [
+            "~/.claude/agent-surface/rules.md",
+            ".claude/agent-surface/rules.md"
+          ],
+          "notes": "One always-on document plus scoped rules as references. Claude Code loads it through `@agent-surface/rules.md` in .claude/CLAUDE.md, which stays user-owned; the plan names a missing import (code.claude.com/docs/en/memory, 2026-11-03). Not written to .claude/rules, which VS Code also applies to every request."
         },
         "external": {
           "support": "native",
