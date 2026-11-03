@@ -3,19 +3,13 @@ name: workflow-orchestrator
 description: "Run risk-adaptive development, review, multi-agent, and release workflows with runtime preflight, bounded retries, liveness checks, isolated writers, and evidence-backed handoffs."
 ---
 
-## OBJECTIVE
+## Objective
 
-Control the execution shape without becoming the implementer, reviewer, or release judge.
+Control the execution shape without becoming the implementer, reviewer, or release judge. Default to one owner; add roles only when risk, independent parallelism, or release proof requires them. The orchestrator owns routing, runtime selection, liveness, isolation, and handoffs; role commands own their work; repository state and real checks outrank agent narration.
 
-IRON LAW: DEFAULT TO ONE OWNER; ADD ROLES ONLY WHEN RISK, INDEPENDENT PARALLELISM, OR RELEASE PROOF REQUIRES THEM.
+## 1. Admission Control (required)
 
-The orchestrator owns routing, runtime selection, liveness, isolation, and handoffs. Role commands own their work. Repository state and real checks outrank agent narration.
-
-## STEP 1: ADMISSION CONTROL ⚠️ REQUIRED
-
-Run `ops-flow` against the current request and repository evidence. Record its routing object before spawning anything.
-
-Follow exactly one profile:
+Run `ops-flow` against the request and repository evidence, and record its routing object before spawning anything. Follow exactly one profile:
 
 ```text
 direct      -> return to the current session for the bounded edit
@@ -28,15 +22,13 @@ parallel    -> bounded read-only probes or isolated proposals; one owner consoli
 ship        -> route to the requested shipping command after accepted evidence exists
 ```
 
-If `direct` or `standard` is selected, collapse the workflow immediately. Do not open `.agent-surface/workflows/` merely because this command was invoked.
+- `direct` or `standard`: collapse the workflow immediately; never open `.agent-surface/workflows/` merely because this command was invoked.
+- `reviewed`: a lightweight loop whose handoff is the Git diff and check output. Create no BOSS, judger, or rescue artifacts. Allow at most two developer-review cycles; repeated disagreement needs a human decision or a fresh route classification.
+- Only `orchestrated` and `release` may create or rehydrate the formal workflow ledger.
 
-If `reviewed` is selected, use a lightweight loop with the Git diff and check output as the handoff. Do not create BOSS/judger/rescue artifacts. Allow at most two developer-review cycles; repeated disagreement requires a human decision or a fresh route classification.
+## 2. Minimum Contract
 
-Only `orchestrated` and `release` may create or rehydrate the formal workflow ledger.
-
-## STEP 2: DEFINE THE MINIMUM CONTRACT
-
-For a bounded fix, give the writer:
+Give the writer of a bounded fix:
 
 ```text
 Objective:
@@ -47,55 +39,25 @@ Filescope:
 Acceptance checks:
 ```
 
-For an orchestrated or release run, invoke `workflow-boss`. BOSS may create at most five tasks in a batch and should normally create three or fewer. It must prove either:
+For an orchestrated or release run, invoke `workflow-boss` (at most five tasks per batch, normally three or fewer). BOSS must prove that at least two writable tasks are independent and isolated, or that the run needs durable long-running/release state a lightweight loop cannot preserve safely; otherwise downgrade to `reviewed` or `standard`.
 
-- at least two writable tasks are independent and isolated; or
-- the run needs durable long-running/release state that a lightweight loop cannot preserve safely.
+## 3. Runtime
 
-Otherwise downgrade to `reviewed` or `standard`.
+- Use the current runtime's native subagent or agent-manager tools first when they can select the required model, isolate the task, and materialize the required artifact; never open a terminal merely to launch another copy of the current runtime. For example, a Kilo VS Code driver queries `agent_manager_models` and launches through `agent_manager`; Kilo CLI uses its native `task` subagents when they fit.
+- Use an external headless runtime when native delegation lacks a required model or capability, or when a different provider family materially improves independence. Provider diversity is optional for ordinary work and valuable for independent high-risk review only after operational fit is proven; start from the current dated recommendation table in `ops-swarm`.
+- Before assigning any external/headless runtime, verify the exact candidate with `workflow-runtime`. The probe must read an exact repository path, identify a verifiable symbol or value, run a harmless repository command, (for writers) create a scratch edit and return a diff, materialize the required output artifact, and report the actual model/runtime identity and output shape. Chat success is not a worker preflight; a runtime that cannot materialize its handoff is ineligible for that role.
+- Full-execution consent covers the external service calls, provider probes, live installs, and networked launches the task requires. Inject only the named credential the selected provider needs; never print secrets, dump `.env`, or send raw customer data or unrelated repository content.
+- Select by, in order: driver-native delegation with adequate model, isolation, and artifact control; tool and repository fit; privacy and authorization fit; task quality; liveness and reliability; latency and cost; provider-family independence when review independence matters. Never infer capability from a model name, extension login, prior snapshot, or provider reputation.
 
-## STEP 3: CHOOSE AND PROBE THE RUNTIME
-
-Use the current runtime's native subagent or agent-manager tools first when they can select the required model, isolate the task, and materialize the required artifact. Do not open a terminal merely to launch another copy of the current runtime. For example, a Kilo VS Code driver should query `agent_manager_models` and launch through `agent_manager`; Kilo CLI should use its native `task` subagents when they fit.
-
-Use an external headless runtime when native delegation lacks a required model or capability, or when a different provider family materially improves independence. External provider diversity is optional for ordinary work and valuable for independent high-risk review only after operational fit is proven. Use the current dated recommendation table in `ops-swarm`, then verify the exact candidate through `workflow-runtime`.
-
-Before assigning any external/headless runtime, invoke `workflow-runtime`. The probe must demonstrate the task-shaped capabilities the role needs:
-
-- read an exact repository path;
-- identify a verifiable symbol or value;
-- run a harmless repository command;
-- for writers, create a scratch edit and return a diff;
-- materialize the required output artifact;
-- report the actual model/runtime identity and output shape.
-
-Chat success alone is not a worker preflight. A runtime that cannot materialize its handoff is ineligible for that role.
-
-Full-execution consent covers external service calls, provider probes, live installs, and networked launches required by the task. Inject only the named credential needed by the selected provider; never print secrets, dump `.env`, or send raw customer data or unrelated repository content.
-
-Select by this order:
-
-1. driver-native delegation with adequate model, isolation, and artifact control;
-2. tool and repository fit;
-3. privacy and authorization fit;
-4. task quality;
-5. liveness and reliability;
-6. latency and cost;
-7. provider-family independence when review independence matters.
-
-Do not infer capability from a model name, extension login, prior snapshot, or provider reputation.
-
-## STEP 4: EXECUTE THE SELECTED PROFILE
+## 4. Execute the Profile
 
 ### Standard
-
-One owner performs:
 
 ```text
 locate -> implement -> focused check -> broader relevant gate -> self-review -> report
 ```
 
-Do not spawn a planner, reviewer, or rescue role. The owner may use read-only subagents for independent discovery when useful, but remains responsible for the patch and checks.
+One owner does all of it; spawn no planner, reviewer, or rescue role. The owner may use read-only subagents for independent discovery but stays responsible for the patch and checks.
 
 ### Reviewed
 
@@ -106,17 +68,11 @@ writer -> verify -> independent reviewer
                     | repeated dispute/failure -> human or reroute
 ```
 
-Rules:
-
-- One active writer owns the filescope.
-- Reviewer is read-only and receives the contract, exact diff, checks, and relevant source.
-- Reviewer reports severity-ranked, evidenced defects; style preferences do not trigger rework.
-- Use a different model family for high/critical review when an approved, operationally proven runtime exists. Otherwise record degraded independence and require stronger deterministic evidence or human review.
+- One active writer owns the filescope. The read-only reviewer receives the contract, exact diff, checks, and relevant source, and reports severity-ranked, evidenced defects; style preferences never trigger rework.
+- For high/critical review, use a different model family when an approved, operationally proven runtime exists; otherwise record degraded independence and require stronger deterministic evidence or human review.
 - Maximum two rework cycles.
 
 ### Orchestrated
-
-Use the existing `workflow.v3` ledger and role ownership:
 
 ```text
 workflow-boss -> isolated worker sessions -> integration -> workflow-reviewer
@@ -125,14 +81,11 @@ workflow-boss -> isolated worker sessions -> integration -> workflow-reviewer
                     +-- repeated substantive failure -> workflow-judger
 ```
 
-Rules:
-
-- Default execution remains serial.
-- Parallel writers require disjoint filescope, no dependency edge, separate worktrees, and no shared generated output, lockfile, migration, service port, database, or fixture.
+- Execution stays serial by default. Parallel writers need disjoint filescopes, no dependency edge, separate worktrees, and no shared generated output, lockfile, migration, service port, database, or fixture.
 - One integration owner reconciles worker output before review.
-- When concurrent agents use Synapse, give each process a distinct `SYNAPSE_AGENT_ID` and the run a shared `SYNAPSE_PROJECT`; leave both unset for a single-agent run. Do not persist these process-local values in artifacts.
-- `workflow-rescue` is exceptional: use it only after a concrete spec/context/runtime failure cannot be resolved by one retry or normal rework. Do not spawn rescue to restate a stall.
-- Formal role state advances only through `agent-surface workflow apply`.
+- When concurrent agents use Synapse, give each process a distinct `SYNAPSE_AGENT_ID` and the run a shared `SYNAPSE_PROJECT`; leave both unset for a single-agent run, and never persist these process-local values in artifacts.
+- Use `workflow-rescue` only after a concrete spec/context/runtime failure that one retry or normal rework cannot resolve; never spawn rescue to restate a stall.
+- Formal role state advances only through `agent-surface workflow apply`, which trusts its caller: run one apply at a time, apply only the current round's artifact for the role `run.json` routes to, and keep each `run_state_update` consistent with its verdict.
 
 ### Release
 
@@ -140,13 +93,11 @@ Rules:
 freeze source identity -> build artifact -> real acceptance/proof -> independent QA -> readiness decision
 ```
 
-Do not freeze or prove every intermediate patch. A failed acceptance invalidates the candidate; fix the product, freeze a new candidate, and rerun the relevant proof.
+Do not freeze or prove every intermediate patch. A failed acceptance invalidates the candidate: fix the product, freeze a new candidate, and rerun the relevant proof.
 
-## STEP 5: LIVENESS AND RECOVERY ⚠️ REQUIRED
+## 5. Liveness and Recovery (required)
 
-For formal `orchestrated` or `release` sessions, create `.agent-surface/workflows/<run_id>/agents.json` with `schema_version: workflow.monitor.v2`. Use run-level retry/review policy plus per-agent liveness budgets. This is mutable monitor state, not product evidence and never committed.
-
-For a lightweight `reviewed` loop, enforce the same budgets through the host's native session controls and concise progress updates; do not open a formal ledger solely to store monitor state.
+For formal `orchestrated` or `release` sessions, create `.agent-surface/workflows/<run_id>/agents.json` with `schema_version: workflow.monitor.v2`, holding run-level retry/review policy and per-agent liveness budgets. It is mutable monitor state, not product evidence, and never committed. A `reviewed` loop enforces the same budgets through the host's native session controls and concise progress updates, without opening a formal ledger for monitor state.
 
 Default budgets unless repository evidence justifies another value:
 
@@ -157,47 +108,29 @@ Default budgets unless repository evidence justifies another value:
 | reviewer/QA | 3 min | 5 min | 15 min |
 | judger/rescue | 2 min | 3 min | 10 min |
 
-A progress event must reference real activity: inspected file, materialized plan/diff/artifact, command start/finish, check result, or blocker. Repeated prose such as “still working” is not progress.
+A progress event references real activity: an inspected file, a materialized plan/diff/artifact, a command start or finish, a check result, or a blocker. Repeated prose such as "still working" is not progress.
 
 On timeout:
 
 1. Poll once and inspect the latest real output.
 2. Interrupt or terminate the stalled session when the runtime supports it.
 3. Retry once with the same contract and fresh context, or switch to an already-probed compatible runtime.
-4. After the second stall on the same role/task, downgrade to a simpler profile or require human input. Do not start an unbounded rescue chain.
-5. Mark late output from superseded sessions `stale`; never let it overwrite current ledger state.
+4. After a second stall on the same role/task, downgrade to a simpler profile or require human input; start no unbounded rescue chain.
+5. Mark late output from superseded sessions `stale`; it never overwrites current ledger state.
 
 Run `agent-surface workflow doctor --run <run_id>` before each formal transition. Stale heartbeats, contradictory task buckets, malformed monitor state, or mismatched ledger transitions fail closed.
 
-## STEP 6: MEASURE THE WORKFLOW
+## 6. Measure
 
-Record actual values when available:
-
-- wall time and time to first materialized output;
-- implementation, verification, review, and orchestration time;
-- runtime/model identity, token usage, and cost;
-- stalls, retries, rework cycles, reviewer findings, and acceptance failures;
-- downstream verdict on each role's output.
-
-Do not persist thinking/chain-of-thought text. Store only whether reasoning was enabled/present, trace handling, usage, final output, and verdict.
+Record actual values when available: wall time and time to first materialized output; implementation, verification, review, and orchestration time; runtime/model identity, token usage, and cost; stalls, retries, rework cycles, reviewer findings, and acceptance failures; and the downstream verdict on each role's output. Never persist thinking/chain-of-thought text; store only whether reasoning was enabled or present, trace handling, usage, final output, and verdict.
 
 If orchestration consumes more time than implementation on a non-release task, or no real parallelism remains, collapse the next round to `reviewed` or `standard` and record why.
 
-## TERMINAL CONDITIONS
+## Terminal Conditions
 
-Stop only when one is true:
+Stop only when the selected lightweight profile completed its checks and required review; `workflow-close` closed or aborted the formal run; a role set `requires_human: true` with a concrete decision needed; an external prerequisite blocks the required acceptance path; or the run was quarantined because source, artifact, or ledger identity is inconsistent. A role returning is a handoff, not automatically completion; a stalled runtime is an execution failure, not a product blocker.
 
-- the selected lightweight profile completed its checks and required review;
-- `workflow-close` closed or aborted the formal run;
-- a role set `requires_human: true` with a concrete decision needed;
-- an external prerequisite blocks the required acceptance path;
-- the run was quarantined because source, artifact, lock, or ledger identity is inconsistent.
-
-A role returning is a handoff, not automatically completion. A stalled runtime is an execution failure, not a product blocker.
-
-## OUTPUT
-
-Keep the user-facing update compact:
+## Output
 
 ```text
 Profile: standard|reviewed|orchestrated|release|audit|parallel|ship
@@ -208,12 +141,11 @@ Elapsed: <wall time>
 Next: <command/action or human decision>
 ```
 
-## ANTI-PATTERNS
+## Anti-Patterns
 
-- Do not force BOSS -> worker -> reviewer -> judger -> rescue for a linear fix.
-- Do not use several CLIs as fake provider independence when they resolve to the same model family.
-- Do not parallelize overlapping writers.
-- Do not wait indefinitely without materialized progress.
-- Do not treat a runtime stall as evidence that the implementation is blocked.
-- Do not count self-created workflow artifact defects as product-quality wins.
-- Do not keep both canonical and manually maintained copies of the same state; the ledger is authoritative and other views are derived.
+- Forcing BOSS -> worker -> reviewer -> judger -> rescue on a linear fix.
+- Counting several CLIs that resolve to one model family as provider independence.
+- Parallelizing overlapping writers, or waiting indefinitely without materialized progress.
+- Treating a runtime stall as evidence that the implementation is blocked.
+- Counting self-created workflow artifact defects as product-quality wins.
+- Keeping both canonical and manually maintained copies of the same state; the ledger is authoritative and other views are derived.

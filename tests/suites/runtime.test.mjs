@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -155,6 +156,82 @@ for (const testCase of argvRedactionCases) {
   } finally {
     rmSync(dest, { recursive: true, force: true });
   }
+}
+
+// The child prints from a script file, so only the output path can redact these lines; the
+// last line echoes an argv secret without its option name.
+const outputRedactionRoot = mkdtempSync(path.join(tmpdir(), "agent-surface-output-redaction-"));
+try {
+  const outputRedactionCases = [
+    ['{"password":"sentinel-json-value"}', '{"password":"[REDACTED]"}'],
+    ['password="sentinel quoted words"', 'password="[REDACTED]"'],
+    ["Set-Cookie: sid=sentinel-cookie-header; Path=/", "Set-Cookie: [REDACTED]"],
+    ['{"set-cookie":"sid=sentinel-cookie-json"}', '{"set-cookie":"[REDACTED]"}'],
+    // Node's inspect and indented JSON print a header array across lines.
+    ["  'set-cookie': [\n    'session=sentinel-inspect-array; Path=/; HttpOnly'\n  ]", "  'set-cookie': [REDACTED]"],
+    ['  "set-cookie": [\n    "sid=sentinel-indented-json"\n  ]', '  "set-cookie": [REDACTED]'],
+    ['"{\\"password\\":\\"sentinel-escaped-json\\"}"', '"{\\"password\\":\\"[REDACTED]\\"}"'],
+    ['{"Authorization": "Bearer sentinel-json-bearer"}', '{"Authorization": "Bearer [REDACTED]"}'],
+    ["status: ok", "status: ok"],
+  ];
+  const emitter = path.join(outputRedactionRoot, "emit.mjs");
+  writeFileSync(emitter, `process.stdout.write(${JSON.stringify(outputRedactionCases.map(([line]) => line).join("\n"))} + "\\necho: " + process.argv.at(-1) + "\\n");\n`);
+  const out = path.join(outputRedactionRoot, "out");
+  run(["run", "--task", "T1", "--class", "read_only", "--timeout", "5000", "--out", out, "--", process.execPath, emitter, "--token", SENTINEL]);
+  const redactionEvidence = JSON.parse(readFileSync(files(out).find((file) => file.endsWith(".evidence.json")), "utf8"));
+  const redactedLines = readFileSync(path.join(out, path.basename(redactionEvidence.stdout_ref)), "utf8").split("\n");
+  assert.deepEqual(redactedLines, [...outputRedactionCases.flatMap(([, expected]) => expected.split("\n")), "echo: [REDACTED]", ""]);
+  for (const pattern of ["authorization-header", "secret-assignment", "cookie-header", "argv-secret-echo"]) {
+    assert.ok(redactionEvidence.redaction.patterns.includes(pattern), pattern);
+  }
+} finally {
+  rmSync(outputRedactionRoot, { recursive: true, force: true });
+}
+
+// A child that exits 0 on SIGTERM still timed out, so exit_code must not read as success.
+const timeoutDest = mkdtempSync(path.join(tmpdir(), "agent-surface-evidence-timeout-"));
+try {
+  const timedOut = status([
+    "run", "--task", "T1", "--class", "read_only", "--timeout", "1000", "--out", timeoutDest, "--",
+    process.execPath, "-e", "process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1000);",
+  ]);
+  assert.equal(timedOut.status, 124, `${timedOut.stdout}${timedOut.stderr}`);
+  const timeoutEvidence = JSON.parse(readFileSync(files(timeoutDest).find((file) => file.endsWith(".evidence.json")), "utf8"));
+  assert.equal(timeoutEvidence.signal, null, "the child handled SIGTERM and exited 0");
+  assert.equal(timeoutEvidence.timed_out, true);
+  assert.equal(timeoutEvidence.exit_code, 124);
+} finally {
+  rmSync(timeoutDest, { recursive: true, force: true });
+}
+
+// tree_hash is HEAD's tree whatever the worktree holds; dirty records uncommitted changes.
+const dirtyRepo = mkdtempSync(path.join(tmpdir(), "agent-surface-evidence-repo-"));
+const dirtyOut = mkdtempSync(path.join(tmpdir(), "agent-surface-evidence-out-"));
+try {
+  const git = (...args) => execFileSync("git", [
+    "-c", "user.name=evidence", "-c", "user.email=evidence@example.invalid", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
+    ...args,
+  ], { cwd: dirtyRepo, encoding: "utf8" }).trim();
+  git("init");
+  writeFileSync(path.join(dirtyRepo, "tracked.txt"), "committed\n");
+  git("add", "tracked.txt");
+  git("commit", "-m", "base");
+  const headTree = git("rev-parse", "HEAD^{tree}");
+  const evidenceIn = (label) => {
+    const out = path.join(dirtyOut, label);
+    run(["run", "--task", "T1", "--class", "read_only", "--timeout", "5000", "--out", out, "--", process.execPath, "-e", "0"], { cwd: dirtyRepo });
+    return JSON.parse(readFileSync(files(out).find((file) => file.endsWith(".evidence.json")), "utf8"));
+  };
+  const clean = evidenceIn("clean");
+  assert.equal(clean.tree_hash, headTree);
+  assert.equal(clean.dirty, false);
+  writeFileSync(path.join(dirtyRepo, "tracked.txt"), "uncommitted\n");
+  const dirty = evidenceIn("dirty");
+  assert.equal(dirty.tree_hash, headTree, "tree_hash stays HEAD's tree");
+  assert.equal(dirty.dirty, true);
+} finally {
+  rmSync(dirtyRepo, { recursive: true, force: true });
+  rmSync(dirtyOut, { recursive: true, force: true });
 }
 
 const fullConsentClassDest = "/tmp/agent-surface-full-consent-class";

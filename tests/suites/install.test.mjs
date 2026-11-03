@@ -70,7 +70,7 @@ function planLacks(plan, patterns, label) {
   assert.match(status(["check", "generted", "--target", "codex"]).stderr, /^ERROR: unexpected argument for check: generted$/m);
   assert.match(status(["workflow", "doctor", "stray", "--run", "r1"]).stderr, /unexpected argument for workflow doctor: stray$/m);
   assert.match(status(["workflow", "patch", "verify", "--run", "r1", "--file", "a"]).stderr, /unknown option for workflow patch verify: --file;/);
-  assert.match(status(["workflow", "doctr", "--run", "r1"]).stderr, /workflow requires doctor, apply, or patch/);
+  assert.match(status(["workflow", "doctr", "--run", "r1"]).stderr, /workflow requires init, doctor, apply, close, or patch/);
   assert.match(status(["bogus", "--flag"]).stderr, /unknown command: bogus/);
   assert.match(run(["install", "--help"]), /^Usage:$/m);
   // A value that looks like an option, `--help` included, is still a value, and everything after `--`

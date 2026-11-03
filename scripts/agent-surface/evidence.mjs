@@ -1,5 +1,5 @@
-// The `run` command: execute a verify command and capture tamper-evident evidence
-// (redacted stdout/stderr, hashes, git tree, timing) for a workflow round. Secret
+// The `run` command: execute a verify command and capture hashed evidence (redacted
+// stdout/stderr, HEAD's tree plus a dirty flag, timing) for a workflow round. Secret
 // redaction and command-class recording live here.
 import { spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -8,6 +8,11 @@ import process from "node:process";
 
 import { gitValue } from "./proc.mjs";
 import { fail, requiredArgValue, safeFilename, safeTimestamp, sha256 } from "./util.mjs";
+
+// timeout(1)'s exit status, so a child that exits 0 on SIGTERM still reads as timed out.
+const TIMEOUT_EXIT_CODE = 124;
+// Shorter argv secret values are not scrubbed from output, so a value like `x` cannot erase every `x`.
+const MIN_ECHOED_SECRET_LENGTH = 4;
 
 export async function runEvidence(args) {
   const separator = args.indexOf("--");
@@ -32,6 +37,10 @@ export async function runEvidence(args) {
   const startedAt = new Date();
   const startedStamp = safeTimestamp(startedAt.toISOString());
   const basename = `${startedStamp}-${safeFilename(taskId)}`;
+  // tree_hash is HEAD's tree and omits uncommitted changes; dirty records whether any existed at start.
+  const treeHash = gitValue(["rev-parse", "HEAD^{tree}"]);
+  const porcelain = spawnSync("git", ["status", "--porcelain"], { encoding: "utf8" });
+  const dirty = porcelain.status === 0 ? porcelain.stdout !== "" : null;
   const started = Date.now();
   const result = spawnSync(command, commandArgs, {
     cwd: process.cwd(),
@@ -42,16 +51,17 @@ export async function runEvidence(args) {
   const durationMs = Date.now() - started;
   const stdoutRaw = result.stdout ?? "";
   const stderrRaw = result.stderr ?? (result.error ? `${result.error.message}\n` : "");
-  const stdoutRedacted = redactEvidenceText(stdoutRaw);
-  const stderrRedacted = redactEvidenceText(stderrRaw);
   const cmdRaw = [command, ...commandArgs];
   const cmdRedacted = redactEvidenceCmd(cmdRaw);
+  const stdoutRedacted = redactEvidenceOutput(stdoutRaw, cmdRedacted.secrets);
+  const stderrRedacted = redactEvidenceOutput(stderrRaw, cmdRedacted.secrets);
   const stdout = stdoutRedacted.text;
   const stderr = stderrRedacted.text;
   const stdoutPath = path.join(outDir, `${basename}.stdout.log`);
   const stderrPath = path.join(outDir, `${basename}.stderr.log`);
   const evidencePath = path.join(outDir, `${basename}.evidence.json`);
-  const exitCode = typeof result.status === "number" ? result.status : result.error?.code === "ETIMEDOUT" ? 124 : 1;
+  const timedOut = result.error?.code === "ETIMEDOUT";
+  const exitCode = timedOut ? TIMEOUT_EXIT_CODE : typeof result.status === "number" ? result.status : 1;
   const evidence = {
     task_id: taskId,
     class: klass,
@@ -65,10 +75,11 @@ export async function runEvidence(args) {
     timeout_ms: timeoutMs,
     exit_code: exitCode,
     signal: result.signal ?? null,
-    timed_out: result.error?.code === "ETIMEDOUT",
+    timed_out: timedOut,
     started_at: startedAt.toISOString(),
     duration_ms: durationMs,
-    tree_hash: gitValue(["rev-parse", "HEAD^{tree}"]),
+    tree_hash: treeHash,
+    dirty,
     stdout_ref: path.relative(process.cwd(), stdoutPath),
     stdout_hash: `sha256:${sha256(stdout)}`,
     stdout_raw_hash: `sha256:${sha256(stdoutRaw)}`,
@@ -113,7 +124,7 @@ function parseSecretOption(part) {
   const eq = /^(--?)([^=]+)=(.*)$/.exec(part);
   if (eq) {
     const allowed = eq[1] === "--" ? isSecretOptionName(eq[2]) : SHORT_SECRET_OPTION_NAME.test(eq[2]);
-    if (allowed) return { kind: "eq", prefix: eq[1], name: eq[2] };
+    if (allowed) return { kind: "eq", prefix: eq[1], name: eq[2], value: eq[3] };
   }
   const flag = /^(--?)(.+)$/.exec(part);
   if (flag && !part.includes("=")) {
@@ -123,41 +134,53 @@ function parseSecretOption(part) {
   return null;
 }
 
-function redactEvidenceText(value) {
+// Quoted values may hold spaces; escaped quotes stay inside them. \"…\" is a value inside a
+// JSON string that was serialized again.
+const SECRET_VALUE = String.raw`\\"[^"\r\n]*\\"|"(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'`;
+// A key may close with a quote or an escaped quote before its separator: "password": or \"password\":.
+const KEY_END = String.raw`(?:\\?["'])?`;
+// A header printed as an array (Node's inspect, indented JSON) spans lines up to its `]`.
+const ARRAY_VALUE = String.raw`\[[^\]]{0,8192}\]`;
+// Group 1 is kept, group 2 is the secret.
+const TEXT_REDACTIONS = [
+  {
+    name: "authorization-header",
+    pattern: new RegExp(String.raw`(Authorization${KEY_END}\s*:\s*${KEY_END}(?:Bearer|Basic)\s+)([^\s"'\\]+)`, "gi"),
+  },
+  {
+    name: "cookie-header",
+    pattern: new RegExp(String.raw`((?:Set-)?Cookie${KEY_END}\s*:\s*)(${SECRET_VALUE}|${ARRAY_VALUE}|[^\r\n]+)`, "gi"),
+  },
+  {
+    name: "secret-assignment",
+    pattern: new RegExp(
+      String.raw`\b((?:[A-Za-z0-9]+[_-])*(?:api[_-]?key|secret|token|password|passwd|pwd)(?:[_-][A-Za-z0-9]+)*\b${KEY_END}\s*[:=]\s*)(${SECRET_VALUE}|["']?[^\s'"]+)`,
+      "gi",
+    ),
+  },
+  {
+    name: "private-key-block",
+    pattern: /()(-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----)/g,
+    replacement: "[REDACTED PRIVATE KEY]",
+  },
+  {
+    name: "url-credential",
+    pattern: /(:\/\/)([^\/\s:@]+:[^\/\s:@]+)(?=@)/g,
+  },
+];
+
+/** Redact known secret shapes; push each removed secret value onto `found`. */
+function redactEvidenceText(value, found = []) {
   const patterns = [];
   let text = value;
-  const replacements = [
-    {
-      name: "authorization-header",
-      pattern: /(Authorization:\s*(?:Bearer|Basic)\s+)[^\s\r\n]+/gi,
-      replacement: "$1[REDACTED]",
-    },
-    {
-      name: "cookie-header",
-      pattern: /(Cookie:\s*)[^\r\n]+/gi,
-      replacement: "$1[REDACTED]",
-    },
-    {
-      name: "secret-assignment",
-      pattern: /\b((?:[A-Za-z0-9]+[_-])*(?:api[_-]?key|secret|token|password|passwd|pwd)(?:[_-][A-Za-z0-9]+)*)\b(\s*[:=]\s*)(["']?)[^\s'"]+\3/gi,
-      replacement: "$1$2$3[REDACTED]$3",
-    },
-    {
-      name: "private-key-block",
-      pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
-      replacement: "[REDACTED PRIVATE KEY]",
-    },
-    {
-      name: "url-credential",
-      pattern: /:\/\/[^\/\s:@]+:[^\/\s:@]+@/g,
-      replacement: "://[REDACTED]@",
-    },
-  ];
-
-  for (const replacement of replacements) {
-    const next = text.replace(replacement.pattern, replacement.replacement);
+  for (const { name, pattern, replacement = "[REDACTED]" } of TEXT_REDACTIONS) {
+    const next = text.replace(pattern, (_match, kept, secret) => {
+      const quote = /^(\\?["'])[\s\S]*\1$/.exec(secret)?.[1] ?? "";
+      found.push(quote ? secret.slice(quote.length, -quote.length) : secret);
+      return `${kept}${quote}${replacement}${quote}`;
+    });
     if (next !== text) {
-      patterns.push(replacement.name);
+      patterns.push(name);
       text = next;
     }
   }
@@ -165,10 +188,20 @@ function redactEvidenceText(value) {
   return { text, applied: patterns.length > 0, patterns };
 }
 
+/** Redact stdout/stderr, including bare echoes of secret values recognized in argv. */
+function redactEvidenceOutput(value, argvSecrets) {
+  const redacted = redactEvidenceText(value);
+  let text = redacted.text;
+  for (const secret of argvSecrets) text = text.replaceAll(secret, "[REDACTED]");
+  if (text === redacted.text) return redacted;
+  return { text, applied: true, patterns: [...redacted.patterns, "argv-secret-echo"] };
+}
+
 /** Redact secret option values in argv (`--token x`, `--token=-x`, `--access-token x`). */
 function redactEvidenceCmd(cmdRaw) {
   const patterns = [];
   const cmd = [];
+  const found = [];
   for (let i = 0; i < cmdRaw.length; i += 1) {
     const part = cmdRaw[i];
     const opt = parseSecretOption(part);
@@ -176,6 +209,7 @@ function redactEvidenceCmd(cmdRaw) {
     if (opt?.kind === "eq") {
       cmd.push(`${opt.prefix}${opt.name}=[REDACTED]`);
       patterns.push("secret-flag");
+      found.push(opt.value);
       continue;
     }
 
@@ -187,14 +221,19 @@ function redactEvidenceCmd(cmdRaw) {
       if (next !== null && parseSecretOption(next) === null) {
         cmd.push("[REDACTED]");
         patterns.push("secret-flag");
+        found.push(next);
         i += 1;
       }
       continue;
     }
 
-    const textPart = redactEvidenceText(part);
+    const textPart = redactEvidenceText(part, found);
     patterns.push(...textPart.patterns);
     cmd.push(textPart.text);
   }
-  return { cmd, applied: patterns.length > 0, patterns };
+  // Longest first, so a secret that contains another is replaced whole.
+  const secrets = [...new Set(found)]
+    .filter((secret) => secret.length >= MIN_ECHOED_SECRET_LENGTH)
+    .sort((left, right) => right.length - left.length);
+  return { cmd, applied: patterns.length > 0, patterns, secrets };
 }

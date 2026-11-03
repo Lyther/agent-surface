@@ -566,4 +566,125 @@ assert.notEqual(badPatchDoctor.status, 0);
 assert.match(`${badPatchDoctor.stdout}${badPatchDoctor.stderr}`, /applies_cleanly/);
 rmSync(patchDest, { recursive: true, force: true });
 
+// git quotes non-ASCII paths in line output, and hashing a symlink stores its target's bytes.
+const pathsDest = "/tmp/agent-surface-patch-paths";
+rmSync(pathsDest, { recursive: true, force: true });
+mkdirSync(path.join(pathsDest, "src"), { recursive: true });
+execFileSync("git", ["init"], { cwd: pathsDest, encoding: "utf8" });
+const accentedFile = path.join("src", "café-ü.txt");
+writeFileSync(path.join(pathsDest, accentedFile), "before\n");
+writeFileSync(path.join(pathsDest, "outside.txt"), "outside\n");
+execFileSync("git", ["add", "-A"], { cwd: pathsDest, encoding: "utf8" });
+const pathsPatch = (subcommand, round, ...rest) => status(
+  ["workflow", "patch", subcommand, "--run", "run-paths", "--round", String(round), "--task", "T1", ...rest],
+  { cwd: pathsDest },
+);
+const accentedBegin = pathsPatch("begin", 1, "--file", "src");
+assert.equal(accentedBegin.status, 0, `${accentedBegin.stdout}${accentedBegin.stderr}`);
+writeFileSync(path.join(pathsDest, accentedFile), "after\n");
+const accentedEnd = pathsPatch("end", 1);
+assert.equal(accentedEnd.status, 0, `${accentedEnd.stdout}${accentedEnd.stderr}`);
+const accentedVerify = pathsPatch("verify", 1);
+assert.equal(accentedVerify.status, 0, `${accentedVerify.stdout}${accentedVerify.stderr}`);
+const accentedPatchDir = path.join(pathsDest, ".agent-surface", "workflows", "run-paths", "rounds", "round-001", "patches");
+assert.deepEqual(JSON.parse(readFileSync(path.join(accentedPatchDir, "T1.patch.json"), "utf8")).changed_files, ["src/café-ü.txt"]);
+assert.match(readFileSync(path.join(accentedPatchDir, "T1.patch"), "utf8"), /^-before\n\+after$/m);
+// A link is captured as git stores one, so the file it points at, here outside the
+// scope, never enters the patch; an untouched link does not block a later round.
+const symlinkBegin = pathsPatch("begin", 2, "--file", "src");
+assert.equal(symlinkBegin.status, 0, `${symlinkBegin.stdout}${symlinkBegin.stderr}`);
+symlinkSync(path.join("..", "outside.txt"), path.join(pathsDest, "src", "link.txt"));
+for (const step of ["end", "verify"]) {
+  const result = pathsPatch(step, 2);
+  assert.equal(result.status, 0, `${step}: ${result.stdout}${result.stderr}`);
+}
+const linkPatch = readFileSync(path.join(pathsDest, ".agent-surface", "workflows", "run-paths", "rounds", "round-002", "patches", "T1.patch"), "utf8");
+assert.match(linkPatch, /^new file mode 120000$/m);
+assert.match(linkPatch, /^\+\.\.\/outside\.txt$/m);
+assert.doesNotMatch(linkPatch, /^\+outside$/m, "the link target's content is not in the patch");
+const untouchedLink = pathsPatch("begin", 3, "--file", "src");
+assert.equal(untouchedLink.status, 0, `${untouchedLink.stdout}${untouchedLink.stderr}`);
+rmSync(pathsDest, { recursive: true, force: true });
+
+// Boss and close write the ledger only through the CLI: init, a boss apply, then close.
+const lifecycleDest = "/tmp/agent-surface-workflow-lifecycle";
+rmSync(lifecycleDest, { recursive: true, force: true });
+mkdirSync(lifecycleDest, { recursive: true });
+const lifecycleGit = (...args) => execFileSync("git", [
+  "-c", "user.name=workflow", "-c", "user.email=workflow@example.invalid", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
+  ...args,
+], { cwd: lifecycleDest, encoding: "utf8" }).trim();
+lifecycleGit("init");
+writeFileSync(path.join(lifecycleDest, "README.md"), "lifecycle\n");
+lifecycleGit("add", "README.md");
+lifecycleGit("commit", "-m", "base");
+const lifecycle = (...args) => status(["workflow", ...args], { cwd: lifecycleDest });
+const lifecycleRunDir = path.join(lifecycleDest, ".agent-surface", "workflows", "run-fixture-001");
+const currentPath = path.join(lifecycleDest, ".agent-surface", "workflows", "current.json");
+const lifecycleInit = lifecycle("init", "--run", "run-fixture-001");
+assert.equal(lifecycleInit.status, 0, `${lifecycleInit.stdout}${lifecycleInit.stderr}`);
+const initRun = JSON.parse(readFileSync(path.join(lifecycleRunDir, "run.json"), "utf8"));
+assert.equal(initRun.base_commit, lifecycleGit("rev-parse", "HEAD"));
+assert.equal(initRun.base_tree_hash, lifecycleGit("rev-parse", "HEAD^{tree}"));
+assert.equal(initRun.workflow_next_command, "workflow-boss");
+assert.match(lifecycle("init", "--run", "run-fixture-001").stderr, /workflow run already exists/);
+assert.equal(JSON.parse(readFileSync(currentPath, "utf8")).run_id, "run-fixture-001", "init points current.json at the new run");
+assert.match(lifecycle("init", "--run", "run-fixture-002").stderr, /workflow run run-fixture-001 is still active; close it before starting another/);
+assert.match(lifecycle("init", "--run", "current.json").stderr, /current\.json is reserved/);
+const lifecycleBoss = JSON.parse(readFileSync(path.join(root, "tests", "fixtures", "workflow", "boss-chore.json"), "utf8"));
+lifecycleBoss.run_state = { active_task_ids: ["T1"] };
+const lifecycleBossText = `${JSON.stringify(lifecycleBoss, null, 2)}\n`;
+mkdirSync(path.join(lifecycleRunDir, "rounds", "round-000"), { recursive: true });
+writeFileSync(path.join(lifecycleRunDir, "rounds", "round-000", "boss.json"), lifecycleBossText);
+writeFileSync(path.join(lifecycleRunDir, "boss.json"), lifecycleBossText);
+const lifecycleApply = lifecycle(
+  "apply", "--role", "workflow-boss", "--run", "run-fixture-001",
+  "--artifact", path.join(".agent-surface", "workflows", "run-fixture-001", "rounds", "round-000", "boss.json"),
+);
+assert.equal(lifecycleApply.status, 0, `${lifecycleApply.stdout}${lifecycleApply.stderr}`);
+const activeDoctor = lifecycle("doctor", "--run", "run-fixture-001");
+assert.equal(activeDoctor.status, 0, `${activeDoctor.stdout}${activeDoctor.stderr}`);
+assert.equal(JSON.parse(readFileSync(currentPath, "utf8")).run_id, "run-fixture-001");
+assert.match(lifecycle("close", "--run", "run-fixture-001", "--state", "done").stderr, /--state must be one of: closed, quarantined, aborted/);
+const lifecycleClose = lifecycle("close", "--run", "run-fixture-001", "--state", "closed");
+assert.equal(lifecycleClose.status, 0, `${lifecycleClose.stdout}${lifecycleClose.stderr}`);
+const closedRun = JSON.parse(readFileSync(path.join(lifecycleRunDir, "run.json"), "utf8"));
+assert.equal(closedRun.status, "closed");
+assert.equal(closedRun.workflow_next_command, null);
+const lifecycleEvents = readFileSync(path.join(lifecycleRunDir, "events.ndjson"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
+assert.deepEqual(lifecycleEvents.map((event) => [event.role, event.from, event.to]), [
+  ["workflow-boss", "workflow-boss", "dev-chore"],
+  ["workflow-close", "dev-chore", null],
+]);
+assert.equal(JSON.parse(readFileSync(currentPath, "utf8")).run_id, null);
+const closedDoctor = lifecycle("doctor", "--run", "run-fixture-001");
+assert.equal(closedDoctor.status, 0, `${closedDoctor.stdout}${closedDoctor.stderr}`);
+
+// A terminal state is final: another state and further applies are refused, and rerunning
+// the same state appends nothing.
+const lifecycleEventCount = () => readFileSync(path.join(lifecycleRunDir, "events.ndjson"), "utf8").trim().split("\n").length;
+const reclose = lifecycle("close", "--run", "run-fixture-001", "--state", "aborted");
+assert.notEqual(reclose.status, 0);
+assert.match(reclose.stderr, /workflow run is already closed; it cannot be closed as aborted/);
+assert.equal(JSON.parse(readFileSync(path.join(lifecycleRunDir, "run.json"), "utf8")).status, "closed");
+const closedApply = lifecycle(
+  "apply", "--role", "workflow-boss", "--run", "run-fixture-001",
+  "--artifact", path.join(".agent-surface", "workflows", "run-fixture-001", "rounds", "round-000", "boss.json"),
+);
+assert.notEqual(closedApply.status, 0);
+assert.match(closedApply.stderr, /workflow run is closed; apply needs an active run/);
+assert.equal(lifecycleEventCount(), 2);
+
+// Closing one run never clears a pointer that names another.
+const secondInit = lifecycle("init", "--run", "run-fixture-002");
+assert.equal(secondInit.status, 0, `${secondInit.stdout}${secondInit.stderr}`);
+const sameStateClose = lifecycle("close", "--run", "run-fixture-001", "--state", "closed");
+assert.equal(sameStateClose.status, 0, `${sameStateClose.stdout}${sameStateClose.stderr}`);
+assert.equal(lifecycleEventCount(), 2);
+assert.equal(JSON.parse(readFileSync(currentPath, "utf8")).run_id, "run-fixture-002");
+const secondClose = lifecycle("close", "--run", "run-fixture-002", "--state", "aborted");
+assert.equal(secondClose.status, 0, `${secondClose.stdout}${secondClose.stderr}`);
+assert.equal(JSON.parse(readFileSync(currentPath, "utf8")).run_id, null);
+rmSync(lifecycleDest, { recursive: true, force: true });
+
 console.log("workflow: ok");

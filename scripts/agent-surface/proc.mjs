@@ -41,11 +41,12 @@ export function gitValue(args) {
   return result.stdout.trim() || null;
 }
 
-export function gitOutput(args, env = process.env) {
+export function gitOutput(args, env = process.env, input = undefined) {
   const result = spawnSync("git", args, {
     cwd: process.cwd(),
     encoding: "utf8",
     env,
+    input,
     maxBuffer: 64 * 1024 * 1024,
   });
   if (result.status !== 0) {
@@ -54,8 +55,9 @@ export function gitOutput(args, env = process.env) {
   return result.stdout;
 }
 
-export async function gitLines(args) {
-  return gitOutput(args).split(/\r?\n/).filter(Boolean);
+// Pass -z: line output quotes non-ASCII paths (core.quotePath), so callers would miss those files.
+export function gitNulFields(args) {
+  return gitOutput(args).split("\0").filter(Boolean);
 }
 
 export function gitIgnoredPaths(paths) {

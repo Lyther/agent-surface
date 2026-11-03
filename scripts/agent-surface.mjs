@@ -37,8 +37,10 @@ const COMMAND_FLAGS = {
   },
   run: { values: ["--task", "--class", "--timeout", "--out"], rest: true },
   workflow: {},
+  "workflow init": { values: ["--run"] },
   "workflow doctor": { values: ["--run"] },
   "workflow apply": { values: ["--role", "--run", "--artifact"] },
+  "workflow close": { values: ["--run", "--state"] },
   "workflow patch begin": { values: ["--run", "--round", "--task", "--file"], repeatable: ["--file"] },
   "workflow patch end": { values: ["--run", "--round", "--task"] },
   "workflow patch verify": { values: ["--run", "--round", "--task"] },
@@ -145,8 +147,10 @@ Usage:
   agent-surface install --target <target>[,<target>...] [--runtime <runtime>[,<runtime>...]] [--category <category>[,<category>...]] [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
   agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
   agent-surface doctor
+  agent-surface workflow init --run <run_id>
   agent-surface workflow doctor --run <run_id>
   agent-surface workflow apply --role <role> --run <run_id> --artifact <path>
+  agent-surface workflow close --run <run_id> --state closed|quarantined|aborted
   agent-surface workflow patch begin --run <run_id> --round <n> --task <id> --file <path> [--file <path>...]
   agent-surface workflow patch end --run <run_id> --round <n> --task <id>
   agent-surface workflow patch verify --run <run_id> --round <n> --task <id>
