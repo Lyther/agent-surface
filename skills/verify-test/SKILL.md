@@ -23,7 +23,7 @@ FAIL when green came from removing a gate, diluting an assertion, substituting a
 - The repo's test and coverage commands and container or service tooling.
 - Baseline: the pre-change tree or protected branch, for skip, assertion, and regression diffs.
 - Risk surface: auth, money, persistence, concurrency, secrets, external I/O.
-- Substitute inventory: mocks, fakes, fixtures, stubs, spies, emulators, in-memory implementations, monkeypatches, recorded or synthetic responses, sandboxes, and test modes, under any name.
+- Substitute inventory: mocks, fakes, stubs, spies, emulators, in-memory implementations, monkeypatches, recorded responses, sandboxes, and test modes, under any name; a fixture or other input the real component reads is not one.
 
 Missing integration tooling, credentials, services, or environments make that layer `BLOCKED`, never a silent pass on a substitute or a downgraded claim.
 

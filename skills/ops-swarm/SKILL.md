@@ -23,7 +23,7 @@ Not for a safe single-agent edit, tightly serial steps, work whose cost is rerun
 
 `ops-swarm [issue_or_target] [--mode M] [--target T] [--focus F] [--agents N] [--pool P] [--roles R] [--topology T] [--rounds N] [--concurrency N] [--critic C] [--consensus C] [--verify V] [--context X] [--share S] [--run R] [--budget B] [--max-depth N] [--max-frontier N] [--max-agent-failures N|%] [--seed S] [--write report.md] [--state state.json]`
 
-Defaults: issue `.`, target `auto` (`path|repo|ticket|url|artifact`), mode `hybrid` (`clarify|research|analyze|solve|implement|review|challenge`), focus `all`, agents, pool, and roles `auto`, topology `hybrid` (`coordinator|mapreduce|worker-led|debate`), rounds 2, concurrency `min(agents, 4)`, critic `strict` (`off|light|strict|hostile`), consensus `evidence` (`none|majority|weighted`), verify `auto` (`off|static|tests|repro|review-gate`), context `focused` (`full|redacted|minimal`), share `no-secrets`, run `inspect`, budget `auto` (`tokens=N|cost=N|time=N`), max depth 8, max frontier 12, max agent failures 30%.
+Defaults: issue `.`, target `auto` (`path|repo|ticket|url|artifact`), mode `hybrid` (`clarify|research|analyze|solve|implement|review|challenge`), focus `all`, agents, pool, and roles `auto`, topology `hybrid` (`coordinator|mapreduce|worker-led|debate`), rounds 2, concurrency `min(agents, 4)`, critic `off` (`light|strict|hostile`), consensus `evidence` (`none|majority|weighted`), verify `auto` (`off|static|tests|repro|review-gate`), context `focused` (`full|redacted|minimal`), share `no-secrets`, run `inspect`, budget `auto` (`tokens=N|cost=N|time=N`), max depth 8, max frontier 12, max agent failures 30%.
 
 Ask a blocking question only when the target cannot be resolved or the next step needs a human-only action or a missing product decision.
 
@@ -32,7 +32,7 @@ Ask a blocking question only when the target cannot be resolved or the next step
 1. Parallelism is the reason to swarm; if packets are not independent, shrink the swarm or use another command.
 2. Start small (coordinator, 2-4 workers, a verifier); add an agent only for a distinct evidence target, and stop when agents stop producing new evidence.
 3. Run first passes blind: no agent sees another's conclusions before cross-review.
-4. Run the critic once concrete claims exist, unless `--critic off`, preferably from another model family; it attacks unsupported claims, hidden assumptions, missing probes, unsafe actions, conflicts, false consensus, and stale claims, citing claim IDs. Debate and voting are decision aids, never verification.
+4. Run the critic when `--critic` is not `off` or packet claims conflict, preferably from another model family; it attacks unsupported claims, hidden assumptions, missing probes, unsafe actions, conflicts, false consensus, and stale claims, citing claim IDs. Debate and voting are decision aids, never verification.
 5. Synthesize by evidence ID, not majority opinion.
 6. Cap cost, time, context, and failure rate, and monitor liveness, evidence, cost, and blockers.
 7. Launch in parallel only packets that share no write surface.
