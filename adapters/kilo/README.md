@@ -27,7 +27,7 @@ Kilo resolves a relative `instructions` entry against the project directory, eve
 - An absolute entry loaded.
 - A `~/.config/kilo/rules/<probe>.md` entry loaded from a project subdirectory.
 
-Build/check previews include a generated `kilo.jsonc` so the `dist/kilo` tree is self-contained. Live installs merge `kilo.jsonc` instead of overwriting user config. Cybersecurity policy is always-on; scoped language policies are reference files only, and project-aware commands decide whether to attach them.
+Build/check previews include a generated `kilo.jsonc` so the `dist/kilo` tree is self-contained. Live installs merge `kilo.jsonc` instead of overwriting user config. The scoped cybersecurity and language policies are reference files only, and project-aware commands decide whether to attach them.
 
 First-party MCP wiring (Synapse and Grimoire) is generated and safely merged into the top-level `mcp` map. External or secret-bearing MCPs remain opt-in. Canonical skills and reviewed external skill packs use Kilo's native skill root; manual commands are not copied into the skill catalog.
 
