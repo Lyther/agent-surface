@@ -170,6 +170,8 @@ try {
     // Node's inspect and indented JSON print a header array across lines.
     ["  'set-cookie': [\n    'session=sentinel-inspect-array; Path=/; HttpOnly'\n  ]", "  'set-cookie': [REDACTED]"],
     ['  "set-cookie": [\n    "sid=sentinel-indented-json"\n  ]', '  "set-cookie": [REDACTED]'],
+    // A `]` inside a value does not end the array early.
+    ["  'set-cookie': [\n    'prefs=[dark]; Path=/',\n    'session=sentinel-after-bracket'\n  ]", "  'set-cookie': [REDACTED]"],
     ['"{\\"password\\":\\"sentinel-escaped-json\\"}"', '"{\\"password\\":\\"[REDACTED]\\"}"'],
     ['{"Authorization": "Bearer sentinel-json-bearer"}', '{"Authorization": "Bearer [REDACTED]"}'],
     ["status: ok", "status: ok"],

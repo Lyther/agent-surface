@@ -675,6 +675,19 @@ assert.notEqual(closedApply.status, 0);
 assert.match(closedApply.stderr, /workflow run is closed; apply needs an active run/);
 assert.equal(lifecycleEventCount(), 2);
 
+// A close interrupted after run.json but before its event fails doctor until the same
+// close is rerun.
+const interruptedEvents = path.join(lifecycleRunDir, "events.ndjson");
+const fullLog = readFileSync(interruptedEvents, "utf8");
+writeFileSync(interruptedEvents, `${fullLog.trim().split("\n").slice(0, -1).join("\n")}\n`);
+const interruptedDoctor = lifecycle("doctor", "--run", "run-fixture-001");
+assert.notEqual(interruptedDoctor.status, 0);
+assert.match(interruptedDoctor.stderr, /run\.json is closed but events\.ndjson ends without its close event; rerun `agent-surface workflow close --run run-fixture-001 --state closed`/);
+const finishClose = lifecycle("close", "--run", "run-fixture-001", "--state", "closed");
+assert.equal(finishClose.status, 0, `${finishClose.stdout}${finishClose.stderr}`);
+const finishedDoctor = lifecycle("doctor", "--run", "run-fixture-001");
+assert.equal(finishedDoctor.status, 0, `${finishedDoctor.stdout}${finishedDoctor.stderr}`);
+
 // Closing one run never clears a pointer that names another.
 const secondInit = lifecycle("init", "--run", "run-fixture-002");
 assert.equal(secondInit.status, 0, `${secondInit.stdout}${secondInit.stderr}`);

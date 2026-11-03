@@ -139,8 +139,10 @@ function parseSecretOption(part) {
 const SECRET_VALUE = String.raw`\\"[^"\r\n]*\\"|"(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'`;
 // A key may close with a quote or an escaped quote before its separator: "password": or \"password\":.
 const KEY_END = String.raw`(?:\\?["'])?`;
-// A header printed as an array (Node's inspect, indented JSON) spans lines up to its `]`.
-const ARRAY_VALUE = String.raw`\[[^\]]{0,8192}\]`;
+// A header printed as an array (Node's inspect, indented JSON) spans lines up to the `]`
+// that opens a line, so a `]` inside a value does not end it. Scanning whole lines, at
+// most 64, keeps many unclosed arrays linear; a one-line array falls to rest-of-line.
+const ARRAY_VALUE = String.raw`\[[ \t]*\r?\n(?:[^\n]*\n){0,64}?[ \t]*\]`;
 // Group 1 is kept, group 2 is the secret.
 const TEXT_REDACTIONS = [
   {

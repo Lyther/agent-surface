@@ -177,6 +177,11 @@ async function workflowDoctor(args) {
       );
     }
   }
+  // close writes run.json before its event, so a terminal run whose last event is not
+  // the close was interrupted; rerunning the same close appends the missing event.
+  if (runData && runData.status !== "active" && events.at(-1)?.role !== "workflow-close") {
+    errors.push(`run.json is ${runData.status} but events.ndjson ends without its close event; rerun \`agent-surface workflow close --run ${runId} --state ${runData.status}\``);
+  }
 
   if (errors.length > 0) {
     for (const error of errors) console.error(`ERROR: ${error}`);
