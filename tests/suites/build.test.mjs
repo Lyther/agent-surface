@@ -195,6 +195,14 @@ assert.match(
   /^disable-model-invocation: true$/m,
 );
 
+// Claude Code gets one always-on document that CLAUDE.md imports, and scoped rules as references; nothing
+// lands in .claude/rules, which VS Code also reads.
+const claudeRules = readFileSync(path.join(root, "dist", "claude-code", ".claude", "agent-surface", "rules.md"), "utf8");
+assert.match(claudeRules, /^## 00-precedence-and-safety\.mdc$/m);
+assert.doesNotMatch(claudeRules, /^## 10-python\.mdc$/m);
+assert.ok(existsSync(path.join(root, "dist", "claude-code", ".claude", "agent-surface", "references", "rules", "10-python.md")));
+assert.equal(existsSync(path.join(root, "dist", "claude-code", ".claude", "rules")), false);
+
 // Substitute-policy contract lands in always-on Codex instructions + verify-test skill.
 const codexInstructions = readFileSync(path.join(root, "dist", "codex", ".codex", "AGENTS.md"), "utf8");
 assert.match(codexInstructions, /SUBSTITUTE_JUSTIFICATION/);

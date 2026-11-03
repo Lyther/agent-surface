@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { gooseXdgConfigNotice, localDate, noticeTiming, opencodeConfigRootNotices, sharedSkillRootNotice } from "../../scripts/agent-surface/notices.mjs";
+import { claudeRulesImportNotice, gooseXdgConfigNotice, localDate, noticeTiming, opencodeConfigRootNotices, sharedSkillRootNotice } from "../../scripts/agent-surface/notices.mjs";
 import { files, run } from "../lib/helpers.mjs";
 
 // Split an install plan printout into one section per target.
@@ -167,6 +167,25 @@ try {
   assert.match(doctor, /^notice pool: POOL_AGENTS_MD_CLIENT_FLOOR \(/m);
 } finally {
   rmSync(scratch, { recursive: true, force: true });
+}
+
+// Claude Code reads the rules document only through an import that the user adds to CLAUDE.md.
+const claudeRoot = mkdtempSync(path.join(os.tmpdir(), "agent-surface-claude-import-"));
+try {
+  const writes = [{ relativeOutput: path.join(".claude", "agent-surface", "rules.md") }];
+  assert.equal(claudeRulesImportNotice("claude-code", writes, claudeRoot)?.code, "CLAUDE_RULES_IMPORT_MISSING", "no CLAUDE.md");
+  assert.equal(claudeRulesImportNotice("codex", writes, claudeRoot), null, "another target");
+  assert.equal(claudeRulesImportNotice("claude-code", [], claudeRoot), null, "no rules document planned");
+  mkdirSync(path.join(claudeRoot, ".claude"));
+  writeFileSync(path.join(claudeRoot, ".claude", "CLAUDE.md"), "# Mine\n\nsee @agent-surface/rules.md later\n");
+  assert.equal(claudeRulesImportNotice("claude-code", writes, claudeRoot)?.code, "CLAUDE_RULES_IMPORT_MISSING", "a mention is not an import line");
+  writeFileSync(path.join(claudeRoot, ".claude", "CLAUDE.md"), "# Mine\r\n@agent-surface/rules.md\r\n");
+  assert.equal(claudeRulesImportNotice("claude-code", writes, claudeRoot), null, "imported from .claude/CLAUDE.md");
+  rmSync(path.join(claudeRoot, ".claude", "CLAUDE.md"));
+  writeFileSync(path.join(claudeRoot, "CLAUDE.md"), "@.claude/agent-surface/rules.md\n");
+  assert.equal(claudeRulesImportNotice("claude-code", writes, claudeRoot), null, "imported from a root CLAUDE.md");
+} finally {
+  rmSync(claudeRoot, { recursive: true, force: true });
 }
 
 console.log("notices: ok");

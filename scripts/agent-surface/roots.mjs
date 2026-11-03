@@ -55,6 +55,9 @@ export function codexSkillOutputName(source) {
   return path.join(source.name, "SKILL.md");
 }
 
+// Claude Code reads this through an @import in .claude/CLAUDE.md (see claudeCodeStaticOutputs).
+export const claudeRulesDocument = path.join(".claude", "agent-surface", "rules.md");
+
 export function claudeMcpPath(context) {
   return context.scope === "user" ? ".claude.json" : ".mcp.json";
 }
