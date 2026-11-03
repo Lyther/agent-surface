@@ -105,6 +105,37 @@ if (process.platform === "win32") {
       }
       console.log(`mcp-launch-resolve: both install layouts resolved and launched (${version.stdout.trim()})`);
     }
+
+    // ---- pentestagent: credentialed launch-binary, undetectable → bare inner fallback -------
+    // pentestagent resolves the same way as pentest-ai, but because it carries required credentials the
+    // resolution happens INSIDE the env wrapper: the wrapper is the command and the detected (or bare)
+    // executable is the inner command after `--`. This offline case plants no binary and supplies the
+    // required credentials through the environment, so the install is not blocked and the undetectable
+    // executable degrades to the bare command — proving REGISTRATION behavior only, never that an
+    // unavailable service is usable. The resolved-absolute-path side is proven in mcp-credential-launch.
+    const ptHome = path.join(dir, "ptagent-home");
+    const ptDest = path.join(dir, "ptagent-dest");
+    mkdirSync(ptHome, { recursive: true });
+    mkdirSync(ptDest, { recursive: true });
+    const ptResult = spawnSync(
+      process.execPath,
+      [cli, "install", "--target", "droid", "--dest", ptDest, "--category", "mcps", "--service", "pentestagent", "--allow-scope-root", "-y"],
+      {
+        encoding: "utf8",
+        env: {
+          HOME: ptHome,
+          USERPROFILE: ptHome,
+          PATH: "/usr/bin:/bin",
+          OPENAI_API_KEY: "k",
+          OPENAI_API_BASE: "http://127.0.0.1:4000/v1",
+          PENTESTAGENT_MODEL: "openai/test-model",
+        },
+      },
+    );
+    assert.equal(ptResult.status, 0, `pentestagent install exited ${ptResult.status}: ${ptResult.stderr || ptResult.stdout}`);
+    const ptArgs = JSON.parse(readFileSync(path.join(ptDest, ".factory", "mcp.json"), "utf8")).mcpServers?.pentestagent?.args ?? [];
+    const ptInner = ptArgs[ptArgs.indexOf("--") + 1] ?? null;
+    assert.equal(ptInner, "pentestagent", `an undetectable credentialed launch-binary degrades to the bare inner command, got: ${ptInner}`);
   } finally {
     rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }

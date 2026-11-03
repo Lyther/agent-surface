@@ -21,14 +21,16 @@ const cli = path.join(root, "scripts", "agent-surface.mjs");
 const dir = mkdtempSync(path.join(os.tmpdir(), "as-cred-launch-"));
 
 // Install into a disposable HOME so the config's "~" and the wrapper both resolve to the same place.
-function install(home, dest, extra, target = "droid") {
+// extraEnv injects required credentials into the installer's environment for a service that blocks the
+// install when they are absent (pentestagent); it is empty for the keyless/optional-credential cases.
+function install(home, dest, extra, target = "droid", extraEnv = {}) {
   mkdirSync(home, { recursive: true });
   mkdirSync(dest, { recursive: true });
   return spawnSync(process.execPath, [cli, "install", "--target", target, "--dest", dest, "--category", "mcps", ...extra], {
     encoding: "utf8",
     // os.homedir() reads USERPROFILE on Windows and HOME elsewhere; set both so the disposable
     // home applies on every platform.
-    env: { ...process.env, HOME: home, USERPROFILE: home },
+    env: { ...process.env, HOME: home, USERPROFILE: home, ...extraEnv },
   });
 }
 
@@ -161,6 +163,68 @@ try {
     assert.equal(kilo.status, 0, `kilo install failed: ${kilo.stderr || kilo.stdout}`);
     const kiloCommand = JSON.parse(readFileSync(path.join(kiloDest, "kilo.jsonc"), "utf8")).mcp.openosint.command;
     assert.equal(kiloCommand[kiloCommand.indexOf("--as-env-file") + 1], kiloFile, "kilo bakes in the custom --credentials-file path");
+  }
+
+  // ---- credentialed launch-binary: wrapper + resolved absolute inner command (pentestagent) ----
+  // pentestagent combines two shapes that must BOTH hold at once: its executable is an externally
+  // installed launch-binary whose absolute path the installer detects and wires (like pentest-ai), AND
+  // it carries required LLM credentials that travel through the env wrapper (like openosint). So the
+  // generated command is the wrapper and the detected executable is the inner command after `--`. The
+  // wrapper and the shell probe are POSIX-shaped, so this case is POSIX-only. The seeded stub stands in
+  // only for "a binary exists at this path"; it is not evidence the real delegate works (its live MCP
+  // run is verified out of band), and the credentials are the installer-collected values, never real.
+  if (process.platform === "win32") {
+    console.log("mcp-credential-launch: pentestagent case skipped on win32 (POSIX wrapper/probe)");
+  } else {
+    const ptHome = path.join(dir, "ptagent-home");
+    const ptDest = path.join(dir, "ptagent-proj");
+    // Seed the stub at the default off-PATH ~/.local/bin location the installer detects by path.
+    seedBin(ptHome, "pentestagent");
+    // Required credentials go into the installer's environment so the install is not blocked; the baked
+    // env-file is then written directly for the delivery diagnostic, as with openosint above.
+    const ptCreds = {
+      OPENAI_API_KEY: "k-install",
+      OPENAI_API_BASE: "http://127.0.0.1:4000/v1",
+      PENTESTAGENT_MODEL: "openai/test-model",
+    };
+    const ptRes = install(ptHome, ptDest, ["--service", "pentestagent"], "droid", ptCreds);
+    assert.equal(ptRes.status, 0, `pentestagent install failed: ${ptRes.stderr || ptRes.stdout}`);
+    const ptEntry = JSON.parse(readFileSync(path.join(ptDest, ".factory", "mcp.json"), "utf8")).mcpServers.pentestagent;
+
+    // The generated command is the env wrapper at the resolved $HOME path, and it exists.
+    const ptWrapper = path.join(ptHome, ".local", "bin", "agent-surface-mcp-env");
+    assert.equal(ptEntry.command, ptWrapper, "pentestagent generated command is the wrapper at the resolved $HOME path");
+    assert.ok(existsSync(ptEntry.command), "the pentestagent wrapper exists at exactly the path the config launches");
+
+    // The installer-resolved env-file path is baked into the launch args (project .env).
+    const ptEnvFlag = ptEntry.args.indexOf("--as-env-file");
+    assert.notEqual(ptEnvFlag, -1, "pentestagent bakes the resolved env-file path into the launch args");
+    assert.equal(ptEntry.args[ptEnvFlag + 1], path.join(ptDest, ".env"), "baked path is the installer-resolved project .env");
+
+    // The real command after "--" is the detected ABSOLUTE pentestagent path (not the bare name), and
+    // the registry launch args are preserved verbatim after it — target and scope deliberately absent.
+    const ptInnerIdx = ptEntry.args.indexOf("--") + 1;
+    assert.equal(ptEntry.args[ptInnerIdx], path.join(ptHome, ".local", "bin", "pentestagent"), "real command after -- is the detected absolute pentestagent path");
+    assert.deepEqual(
+      ptEntry.args.slice(ptInnerIdx + 1),
+      ["mcp_server", "--type", "stdio", "--no-rag", "--no-mcp"],
+      "the registry launch args are preserved after the resolved executable",
+    );
+
+    // Env-delivery DIAGNOSTIC: seed the baked env-file with the required credentials, then run the ACTUAL
+    // generated command (only the real delegate after `--` swapped for a probe) from a different cwd under
+    // a restricted PATH. The probe must receive the installer-collected provider key.
+    writeFileSync(
+      path.join(ptDest, ".env"),
+      "OPENAI_API_KEY=installer-collected\nOPENAI_API_BASE=http://127.0.0.1:4000/v1\nPENTESTAGENT_MODEL=openai/test-model\n",
+      { mode: 0o600 },
+    );
+    const ptProbe = path.join(dir, "ptagent-probe.sh");
+    writeFileSync(ptProbe, "#!/bin/sh\nprintf 'OPENAI_API_KEY=%s' \"$OPENAI_API_KEY\"\n", { mode: 0o755 });
+    const ptLaunchArgs = ptEntry.args.slice(0, ptInnerIdx).concat([ptProbe]);
+    const ptLaunch = spawnSync(ptEntry.command, ptLaunchArgs, { encoding: "utf8", cwd: dir, env: { PATH: "/usr/bin:/bin", HOME: ptHome } });
+    assert.equal(ptLaunch.status, 0, `pentestagent launch failed: ${ptLaunch.stderr}`);
+    assert.equal(ptLaunch.stdout, "OPENAI_API_KEY=installer-collected", "installer-collected provider key reaches the launched delegate under minimal PATH from another cwd");
   }
 
   // ---- keyless server: direct launch preserved, no wrapper materialized -------
