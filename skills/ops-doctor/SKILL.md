@@ -87,7 +87,7 @@ For each manifest, verify that the JSON parses, that `target` matches the manife
 
 ## 7. Full Verification
 
-For `--depth full`, run these sequentially, never in parallel, because `npm test` and `build` both touch `dist/`:
+For `--depth full`, run these sequentially, never in parallel, because `npm test` and `build` both rewrite `dist/`. That gitignored build output is the only thing this depth writes in the checkout; nothing tracked changes:
 
 ```bash
 npm test

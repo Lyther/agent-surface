@@ -104,7 +104,7 @@ Agreement raises corroboration, never confidence: five agreeing agents without a
 5. Cross-review only conflicting or unsupported claims, citing claim IDs.
 6. Resolve conflicts: direct evidence over opinion, reproduction over static inference, narrower claims over broad ones; otherwise mark unresolved and name the next probe. Use a judge only for a close conflict that needs a decision.
 7. Synthesize, then verify per `--verify`: `static`, `tests`, or `repro` within what `--run` allows; `review-gate` has an independent critic or reviewer validate the synthesis; `auto` picks the strongest available; `off` marks the result unverified. Label anything resting on unrun checks `not verified`.
-8. With `--state`, write the resumable artifact in `references/report-template.md`, never raw secrets.
+8. With `--state`, write the resumable artifact to that path, shaped like `references/report-template.md`, never with raw secrets.
 
 In workflow mode, take run, round, tasks, filescope, isolation, and verify commands from the ledger, map every packet to a task or an evidence-only packet, return worker-style reports, and leave reviewer and judger authority unchanged; competing patches go to `dev-converge`.
 
