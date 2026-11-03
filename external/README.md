@@ -1,8 +1,8 @@
 # External Services
 
-This directory contains git submodules wired into local agents and IDEs around `agent-surface`. They are not part of the core compiler surface: core builds still work without initializing them.
+This directory contains git submodules wired into local agents and IDEs around `agent-surface`. Run `git submodule update --init --recursive` before `build` or a category install: both fail on an uninitialized registered pack.
 
-Source-packs with `status: required` and `served_by: ["grimoire"]` in the registry (currently `anthropic-cybersecurity-skills`, `rev-skills`, and `hack-skills`) must be initialized for `npm run install:grimoire`. The optional `trailofbits-static-analysis` pack (the static-analysis subset of `trailofbits-skills`) is served the same way when that submodule is present and skipped without error when it is absent. Other externals remain optional.
+Source-packs with `status: required` and `served_by: ["grimoire"]` in the registry (currently `anthropic-cybersecurity-skills`, `rev-skills`, and `hack-skills`) must be initialized for `npm run install:grimoire`. The optional `trailofbits-static-analysis` (the static-analysis subset of `trailofbits-skills`) and `tech-leads-club` packs are served the same way when their submodules are present and skipped without error when absent. Other externals remain optional.
 
 The authoritative optional-service inventory is `registry/optional-services.json`.
 

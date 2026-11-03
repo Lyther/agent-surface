@@ -2,10 +2,12 @@
 import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
+import { parseJsonc, removeJsoncProperty } from "../../scripts/agent-surface/jsonc.mjs";
+import { mergeJsonMcpConfig } from "../../scripts/agent-surface/merge.mjs";
 import { kimiCodeCursorSettingsPath, kimiCodeVsCodeSettingsPath, vsCodeUserRoot } from "../../scripts/agent-surface/roots.mjs";
 import { targets } from "../../scripts/agent-surface/targets.mjs";
 import {
@@ -18,6 +20,20 @@ import {
   run, status,
   useDisposableHome,
 } from "../lib/helpers.mjs";
+
+// Removing a managed server deletes only that entry and its comma; the user's comments around it stay.
+{
+  const config = "{\n  \"mcpServers\": { // servers-note\n    \"keep\": { \"command\": \"k\", \"args\": [] }, // keep-note\n    \"synapse\": { \"type\": \"stdio\", \"command\": \"s\", \"args\": [] }\n  }\n}\n";
+  const removed = mergeJsonMcpConfig(config, "mcpServers", [], ["synapse"]);
+  assert.match(removed, /servers-note/);
+  assert.match(removed, /"keep": \{ "command": "k", "args": \[\] \} \/\/ keep-note/, "the neighbour keeps its bytes and its comment");
+  assert.deepEqual(Object.keys(parseJsonc(removed, "removed").mcpServers), ["keep"]);
+  assert.equal(removeJsoncProperty("{\"m\":{\"a\":1,\"s\":2,\"b\":3}}", ["m", "s"]), "{\"m\":{\"a\":1,\"b\":3}}");
+  // An id both released and rendered in one merge is written whole, as the TOML and YAML merges do.
+  const service = { path: "registry#a", mcp: { server: { type: "stdio", command: "c", args: [] } } };
+  const rewritten = mergeJsonMcpConfig("{\"mcpServers\":{\"a\":{\"type\":\"stdio\",\"command\":\"c\",\"args\":[]}}}", "mcpServers", [["a", service]], ["a"]);
+  assert.equal(parseJsonc(rewritten, "rewritten").mcpServers.a?.command, "c");
+}
 
 // Live installs here wire credentialed MCP servers, which write the shared env launcher into HOME.
 const disposableHome = useDisposableHome();
@@ -277,6 +293,16 @@ rejects("--target", "all,codex", "codex");
 // A typo next to `all` must surface as an error, not vanish behind it.
 rejects("--category", "all,developmnet", "developmnet");
 rejects("--target", "all,codx", "codx");
+// A list option given only empty values names nothing. Read as the option left out, `--category ""`
+// was the general install, which removes the opt-in categories installed earlier.
+for (const [flag, value, extra = []] of [
+  ["--category", ""], ["--category", ","], ["--categories", " , "], ["--target", ""], ["--runtime", ","], ["--service", "", ["--category", "mcps"]],
+]) {
+  const result = status(["install", ...(flag === "--target" ? [] : ["--target", "codex"]), "--dest", "/tmp/agent-surface-empty-selector", flag, value, ...extra, "--dry-run"]);
+  assert.equal(result.status, 1, `${flag} ${JSON.stringify(value)} is rejected: ${result.stdout}`);
+  assert.ok(result.stderr.includes(`ERROR: ${flag} ${JSON.stringify(value)} names no value; pass one or more comma-separated values`), result.stderr);
+  assert.doesNotMatch(result.stdout, /^target: /m, "nothing is planned");
+}
 // Standalone `all` keeps its documented meaning on both selectors: the general full sync.
 const standaloneCategory = status(["install", "--target", "codex", "--dest", "/tmp/agent-surface-all-standalone", "--category", "all", "--dry-run"]);
 assert.equal(standaloneCategory.status, 0, `--category all alone still performs the general sync: ${standaloneCategory.stderr}`);
@@ -1613,6 +1639,100 @@ for (const fx of [
     assert.equal(config.extensions.synapse.name, "synapse");
     run(["install", "--target", "goose", "--scope", "user", "--category", "mcps", "--dest", dest]);
     assert.equal(readFileSync(path.join(dest, ".config", "goose", "config.yaml"), "utf8"), merged, "goose YAML re-merge is idempotent");
+  } finally {
+    rmSync(dest, { recursive: true, force: true });
+  }
+}
+
+// A managed server keeps the keys a user added to it, and env merges by variable, while the keys
+// agent-surface renders are refreshed; comments keep their place, an owned server no longer rendered
+// is deleted whole, and a repeat install changes no byte. OpenHands is the JSONC host whose Synapse
+// README has users add env.SYNAPSE_PROJECT; Codex covers TOML and Goose YAML.
+/*
+SUBSTITUTE_JUSTIFICATION
+- substitute: seeded host configs carrying user keys inside managed entries, and manifests recording those entries
+- replaces: a profile where the user edited agent-surface's servers after an earlier install
+- necessity: an install never writes user keys, so the edited state must be seeded; real profiles must not be rewritten
+- real-option: the real CLI, planner, merge code and filesystem run unchanged against disposable roots
+- proof-limit: proves what the installer keeps, not that a host honors the kept keys
+- real-proof: BLOCKED: needs an operator profile with such edits, installed through a disposable copy
+*/
+{
+  const synapseBin = path.join(os.homedir(), ".local", "bin", "synapse-bridge");
+  const fixtures = [
+    {
+      target: "openhands", rel: path.join(".openhands", "mcp.json"), format: "mcpServers",
+      seed: '{\n  // my servers\n  "mcpServers": {\n    // my own server\n    "existing": { "command": "local-existing", "args": ["--keep"] },\n    "synapse": {\n      "command": "old",\n      "disabled": false, // my toggle\n      "alwaysAllow": ["memory_recall"],\n      "env": { "SYNAPSE_PROJECT": "mine" }\n    },\n    "old-owned": { "command": "old" }\n  }\n}\n',
+      check: (text) => {
+        for (const comment of ["// my servers", "// my own server", "// my toggle"]) assert.ok(text.includes(comment), `openhands keeps ${comment}`);
+        const servers = parseJsonc(text, "openhands").mcpServers;
+        assert.deepEqual(servers.existing, { command: "local-existing", args: ["--keep"] });
+        assert.equal(servers.synapse.command, synapseBin, "a rendered key is refreshed");
+        assert.equal(servers.synapse.disabled, false);
+        assert.deepEqual(servers.synapse.alwaysAllow, ["memory_recall"]);
+        assert.deepEqual(servers.synapse.env, { SYNAPSE_PROJECT: "mine", SYNAPSE_ROOTS: "ignore" }, "env keeps the user's variable beside the rendered one");
+        return servers;
+      },
+    },
+    {
+      target: "codex", rel: path.join(".codex", "config.toml"), format: "codex-toml",
+      // toml-patch re-renders a table set that loses one table and gains another, comments included,
+      // so only the keys are asserted here.
+      seed: '[mcp_servers.synapse]\ncommand = "old"\nargs = []\nstartup_timeout_sec = 30\n\n[mcp_servers.synapse.env]\nSYNAPSE_PROJECT = "mine"\n\n[mcp_servers.old-owned]\ncommand = "old"\n',
+      check: (text) => {
+        const servers = TOML.parse(text).mcp_servers;
+        assert.equal(servers.synapse.command, synapseBin);
+        assert.equal(servers.synapse.startup_timeout_sec, 30);
+        assert.deepEqual({ ...servers.synapse.env }, { SYNAPSE_PROJECT: "mine" });
+        return servers;
+      },
+    },
+    {
+      target: "goose", rel: path.join(".config", "goose", "config.yaml"), format: "goose-extensions",
+      seed: "extensions:\n  synapse:\n    name: synapse\n    type: stdio\n    cmd: old\n    args: []\n    enabled: true\n    timeout: 300\n    description: keep me # my key\n    envs:\n      SYNAPSE_PROJECT: mine\n  old-owned:\n    name: old-owned\n",
+      check: (text) => {
+        assert.ok(text.includes("# my key"));
+        const servers = parseYaml(text).extensions;
+        assert.equal(servers.synapse.cmd, synapseBin);
+        assert.equal(servers.synapse.description, "keep me");
+        assert.deepEqual(servers.synapse.envs, { SYNAPSE_PROJECT: "mine" });
+        return servers;
+      },
+    },
+  ];
+  for (const fx of fixtures) {
+    const dest = mkdtempSync(`/tmp/agent-surface-${fx.target}-owned-keys-`);
+    try {
+      mkdirSync(path.dirname(path.join(dest, fx.rel)), { recursive: true });
+      mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
+      writeFileSync(path.join(dest, fx.rel), fx.seed);
+      writeFileSync(path.join(dest, ".agent-surface", `${fx.target}-manifest.json`), `${JSON.stringify({
+        target: fx.target, scope: "user", managed: [], config_entries: [{ path: fx.rel, format: fx.format, ids: ["old-owned", "synapse"] }],
+      }, null, 2)}\n`);
+      const args = ["install", "--target", fx.target, "--scope", "user", "--dest", dest, "--category", "mcps"];
+      run(args);
+      const merged = readFileSync(path.join(dest, fx.rel), "utf8");
+      const servers = fx.check(merged);
+      assert.equal(Object.hasOwn(servers, "old-owned"), false, `${fx.target}: an owned server no longer rendered is deleted`);
+      assert.ok(servers.grimoire, `${fx.target}: grimoire is added`);
+      run(args);
+      assert.equal(readFileSync(path.join(dest, fx.rel), "utf8"), merged, `${fx.target}: a repeat install is byte-identical`);
+    } finally {
+      rmSync(dest, { recursive: true, force: true });
+    }
+  }
+}
+
+// A host config is replaced through a temporary file and keeps its mode, so a private one stays private.
+if (process.platform !== "win32") {
+  const dest = mkdtempSync("/tmp/agent-surface-config-mode-");
+  try {
+    const file = path.join(dest, ".mcp.json");
+    writeFileSync(file, `${JSON.stringify({ mcpServers: { existing: { command: "local-existing" } } }, null, 2)}\n`, { mode: 0o600 });
+    run(["install", "--target", "claude-code", "--dest", dest, "--category", "mcps"]);
+    assert.equal(statSync(file).mode & 0o777, 0o600, "a 0600 config keeps its mode");
+    assert.deepEqual(Object.keys(JSON.parse(readFileSync(file, "utf8")).mcpServers).sort(), ["existing", "grimoire", "synapse"]);
+    assert.deepEqual(readdirSync(dest).filter((name) => name.endsWith(".tmp")), [], "no temporary file is left beside it");
   } finally {
     rmSync(dest, { recursive: true, force: true });
   }
