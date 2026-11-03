@@ -1,6 +1,6 @@
 # Concept Zero: Runtime Identity and Compatibility Refresh
 
-Status: PROPOSED DESIGN; USER DIRECTION ACCEPTED; IMPLEMENTATION NOT STARTED
+Status: IMPLEMENTED; facts below are dated to their baseline, and docs/roadmap.md records what shipped
 Last updated: 2026-09-28
 Baseline: `main` at `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 
