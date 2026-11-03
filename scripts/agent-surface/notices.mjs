@@ -1,11 +1,13 @@
 // Operator notices: lifecycle, security and compatibility facts stored per target in the capability
 // registry, plus notices the install planner derives from the operation itself. A notice is plan
 // and report text only: it never blocks, and no notice is written into a generated native file.
+import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 import { parseSimpleFrontmatter } from "./commands.mjs";
 import { readTargetCapabilities } from "./registry.mjs";
+import { claudeRulesDocument } from "./roots.mjs";
 
 const SHARED_SKILL_ROOT_NOTICE = {
   code: "SHARED_SKILL_ROOT_MANUAL_UNQUALIFIED",
@@ -44,6 +46,16 @@ const OPENCODE_XDG_CONFIG_NOTICE = {
   checked_at: "2026-10-20",
 };
 
+const CLAUDE_RULES_IMPORT_NOTICE = {
+  code: "CLAUDE_RULES_IMPORT_MISSING",
+  kind: "compatibility",
+  surface: "rules",
+  message: "This plan writes .claude/agent-surface/rules.md, which Claude Code loads only through an @import in CLAUDE.md, and the CLAUDE.md under this install root does not import it yet.",
+  action: "Add the line `@agent-surface/rules.md` to .claude/CLAUDE.md under the install root (~/.claude/CLAUDE.md for a user install); agent-surface never edits CLAUDE.md.",
+  source_url: "https://code.claude.com/docs/en/memory",
+  checked_at: "2026-11-03",
+};
+
 const OPENCODE_CONFIG_DIR_NOTICE = {
   code: "OPENCODE_CONFIG_DIR_SET",
   kind: "compatibility",
@@ -72,6 +84,7 @@ export async function planNotices(target, writes = [], installRoot = null, confi
     sharedSkillRootNotice(writes, installRoot),
     gooseXdgConfigNotice(target, configMerges, installRoot),
     ...opencodeConfigRootNotices(target, writes, configMerges, installRoot),
+    claudeRulesImportNotice(target, writes, installRoot),
   ].filter(Boolean);
   return [...await storedNotices(target), ...derived];
 }
@@ -106,6 +119,22 @@ export function opencodeConfigRootNotices(target, writes, configMerges, installR
   const configDir = (env.OPENCODE_CONFIG_DIR ?? "").trim();
   if (configDir && path.resolve(configDir) !== path.resolve(installRoot, userRoot)) notices.push(OPENCODE_CONFIG_DIR_NOTICE);
   return notices;
+}
+
+// Imports resolve relative to the importing file, so .claude/CLAUDE.md names the document directly
+// and a root CLAUDE.md names it through .claude/.
+export function claudeRulesImportNotice(target, writes, installRoot) {
+  if (target !== "claude-code" || !writes.some((item) => item.relativeOutput === claudeRulesDocument)) return null;
+  const candidates = [
+    [path.join(installRoot, ".claude", "CLAUDE.md"), "@agent-surface/rules.md"],
+    [path.join(installRoot, "CLAUDE.md"), "@.claude/agent-surface/rules.md"],
+  ];
+  for (const [file, line] of candidates) {
+    let text = "";
+    try { text = readFileSync(file, "utf8"); } catch { continue; }
+    if (text.split(/\r?\n/).some((entry) => entry.trim() === line)) return null;
+  }
+  return CLAUDE_RULES_IMPORT_NOTICE;
 }
 
 // The home root is excluded: its .agents/skills is a workspace root only when the home directory
