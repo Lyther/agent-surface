@@ -5,60 +5,47 @@ alwaysApply: true
 
 # Project Defaults
 
-[P2] defaults. Existing repository evidence overrides them. Do not migrate stack, database, UI framework, package manager, or tooling unless the user asks.
+[P2] Repository evidence overrides these. Do not migrate stack, database, UI framework, package manager, or tooling unless the user asks.
 
 ## Proportional Engineering
 
-Match engineering depth to the requested maturity. Do not silently promote a prototype or MVP into a production or enterprise program.
+Match engineering depth to the requested maturity; never silently promote a prototype or MVP into a production program.
 
-- **Prototype**: resolve the named uncertainty with disposable, inspectable code. Do not claim completeness, durability, or operational readiness.
-- **MVP**: deliver the smallest real end-to-end user outcome with basic error handling and data integrity. Defer scale, extension points, and secondary workflows.
-- **Core**: make the central domain behavior correct, cohesive, and testable. Keep peripheral integrations and polish outside the core unless required.
-- **Usable**: complete the primary user journeys, recovery paths, accessibility, documentation, and operational ergonomics needed for regular use.
-- **Production**: add reliability, security, observability, recovery, performance, and deployment controls justified by the real threat model, load, data, and SLOs.
-- **Business or regulated**: add tenancy, audit, compliance, support, governance, and organizational controls only when the business or regulatory contract requires them.
+- Prototype: disposable, inspectable code that resolves the named uncertainty; claim nothing about completeness, durability, or readiness.
+- MVP: the smallest real end-to-end user outcome with basic error handling and data integrity; defer scale, extension points, and secondary workflows.
+- Core: correct, cohesive, testable central domain behavior; peripheral integrations and polish stay outside unless required.
+- Usable: primary journeys, recovery paths, accessibility, documentation, and operational ergonomics for regular use.
+- Production: reliability, security, observability, recovery, performance, and deployment controls justified by the real threat model, load, data, and SLOs.
+- Business or regulated: tenancy, audit, compliance, support, and governance only when the business or regulatory contract requires them.
 
-Simplicity is a design constraint:
+## Simplicity
 
-- Prefer one clear implementation, owner, data path, and source of truth.
-- Reuse a proven local or standard capability before building another one.
-- Add an abstraction, service, compatibility layer, dependency, or configuration axis only when a current requirement earns its complexity.
-- Do not build for hypothetical scale, providers, callers, attacks, or future reuse. Record the limit and evolve when evidence crosses it.
-- When two designs satisfy the current goal, choose the one with fewer concepts, states, dependencies, and failure modes.
-- Name the current user-visible failure or explicit requirement before adding safeguards. If the case is only hypothetical, document the limit and defer it.
-- Prefer replacing or deleting a flawed design over stacking guards, exceptions, and compatibility branches around it. Repeated same-class fixes are a signal to stop and simplify the design.
-- Use a maintained parser, library, or protocol implementation for non-trivial domain rules instead of enumerating cases locally. Add the dependency only when it reduces total owned complexity.
-- Weigh occurrence likelihood and impact against implementation size and long-term maintenance. Decline work whose complexity cost is disproportionate to its demonstrated value.
-- Keep findings scoped: nits, speculative edge cases, and unrelated pre-existing debt do not become implementation work without explicit value or user direction.
-- Test user-observable behavior and stable contracts. Do not test prose wording, documentation counts, implementation shape, or dependency internals unless those exact bytes are a consumed interface.
+- Prefer one implementation, owner, data path, and source of truth; reuse a proven local or standard capability before building another.
+- Add an abstraction, service, compatibility layer, dependency, or configuration axis only for a current requirement. Do not build for hypothetical scale, providers, callers, attacks, or reuse; record the limit and evolve when evidence crosses it.
+- Between designs that meet the goal, choose the one with fewer concepts, states, dependencies, and failure modes.
+- State the basis of every cap, gate, guard, or refusal where it is defined: an observed failure, a measured external limit, or a stated requirement. "Engineering bound", "policy choice", or "not yet observed" is not a basis; leave the path open and note the limit.
+- Enforce each safety property at one boundary; add a second layer only after naming an input the first passes and the second stops.
+- Do not accept, parse, emit, model, or allowlist what nothing produces or consumes yet: reserved values, input accepted only to be refused, fields no code sets, and events nothing reads arrive with their feature.
+- When a new path replaces an old one, delete the old path's code, tests, docs, and schema in that change or the next, unless a named current consumer remains.
+- Integrate repositories, tools, or services the user supplies as building blocks before building equivalents, and record why when you do not.
+- Replace or delete a flawed design rather than stacking guards, exceptions, and compatibility branches; repeated same-class fixes mean simplify.
+- Use a maintained parser, library, or protocol implementation for non-trivial domain rules when it reduces total owned complexity.
+- Decline work whose complexity cost exceeds its demonstrated value; nits, speculative edge cases, and unrelated debt are not work without explicit value or user direction.
+- Test user-observable behavior and stable contracts, not prose wording, documentation counts, implementation shape, or dependency internals, unless those exact bytes are a consumed interface.
 
-## Reliability
+## Reliability, Security, Data
 
-- Handle, propagate, or convert errors explicitly; do not silently discard fallible results.
-- Libraries return errors instead of exiting the process.
-- Avoid crash-only handling in production paths unless the invariant is proven and local convention supports it.
+- Handle, propagate, or convert errors explicitly; never silently discard a fallible result; libraries return errors instead of exiting; avoid crash-only handling in production paths unless the invariant is proven and local convention allows it.
+- Validate external input at trust boundaries, use parameterized queries, and take secrets from platform stores or the environment, never from source.
+- For new persistent datastores prefer PostgreSQL; keep existing choices.
 
-## Security and Data
+## Stack
 
-- Validate external input at trust boundaries.
-- Use parameterized database queries.
-- Prefer platform secret stores or environment-provided secrets; never hardcode credentials.
-- Prefer PostgreSQL for new persistent datastores in this project family, but preserve existing datastore choices.
+- For new UI in this project family prefer Rust Leptos or Python Reflex; keep an existing web stack (React, Vue, Svelte, raw web assets, Node services).
+- Node is fine for tooling and for repos that already ship Node.
 
-## Frontend and Node
+## Scripts and Maintainability
 
-- Prefer Rust Leptos or Python Reflex for new UI in this project family.
-- Preserve existing web stacks when the repo already uses React, Vue, Svelte, raw web assets, Node services, or another framework.
-- Node is acceptable for tooling and for repos that already use Node as product code.
-
-## Scripts
-
-- Keep durable automation in repo scripts when it improves reproducibility.
-- Keep one-off investigation scripts out of the repo unless the user asks to preserve them as tooling, runbooks, tests, or release automation.
-
-## Maintainability
-
-- Prefer named constants for meaningful magic values.
-- Comments explain why, not what.
-- Write code that reads like the file you are editing: match its comment density, naming, formatting, and idiom rather than imposing a different style.
-- Avoid broad refactors unless required by the request or needed to make the fix safe.
+- Keep durable automation in repo scripts; keep one-off investigation scripts out of the repo unless the user asks to preserve them as tooling, runbooks, tests, or release automation.
+- Name meaningful magic values; comments explain why, not what; match the file's comment density, naming, formatting, and idiom; avoid broad refactors unless the request or a safe fix needs them.
+- Living docs state the current contract and open decisions once and link instead of restating. After a change is accepted, remove its handoff, evidence, and review history from specs and plans, and do not document designs nobody is building.

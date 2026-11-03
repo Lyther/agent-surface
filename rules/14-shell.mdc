@@ -40,7 +40,7 @@ Run in order, each green before the next:
 ```bash
 bash -n script.sh        # syntax
 shellcheck -x script.sh  # zero warnings
-shfmt -i 4 -ci -d .      # diff (no -w unless intentionally formatting)
+shfmt -d .               # diff; indentation comes from .editorconfig
 ```
 
 Common ShellCheck codes: `SC2086` quote expansions, `SC2046` quote substitution, `SC2006` use `$()`, `SC2164` `cd || exit`, `SC2155` declare/assign separately.

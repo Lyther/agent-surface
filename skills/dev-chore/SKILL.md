@@ -34,9 +34,10 @@ Use this mode when the user invokes `dev-chore` without an active workflow. Insp
 
 ## TRIGGERS
 
-Run the quality loop at the start of a meaningful increment and whenever any of these signals appears:
+Run the quality loop at the start of a meaningful increment and whenever one of these signals appears; stop once that signal's risk is resolved:
 
 - A new helper, type, abstraction, adapter, layer, dependency, service, configuration flag, state store, or framework is about to be added.
+- A cap, limit, timeout, guard, refusal, allowlist, or validation rule is about to be added.
 - The same rule, validation, mapping, retry, state, query, UI pattern, or integration is being implemented a second time.
 - A design premise has been disproven, a workaround is growing, or two focused correction attempts have failed.
 - The implementation diff is expanding faster than the user outcome, or support infrastructure is becoming larger than the requested behavior.
@@ -63,13 +64,13 @@ Route instead when:
 - An independent whole-diff or repository review is requested: `qa-review`.
 - Product intent, architecture ownership, or a security-versus-feature decision cannot be inferred from authoritative evidence: `workflow-boss` or a human decision.
 
-Do not expand a local quality correction into an opportunistic repository rewrite. Record important out-of-scope findings and route them separately.
+Do not expand a local quality correction into an opportunistic repository rewrite. Report important out-of-scope findings; the user decides whether to schedule them.
 
 ## DEVELOPMENT QUALITY LOOP
 
 ### Gate 1: Outcome and direction
 
-1. State the user or developer outcome in one sentence.
+1. State the user or developer outcome in one sentence, and the planned item it advances. If the slice already works and the increment neither advances a planned item nor fixes an observed defect, stop and propose the next planned item.
 2. Identify the current implementation premise that is supposed to produce that outcome.
 3. Check the premise against the task AC, repository contracts, current code, and the latest real execution evidence.
 4. If the premise is false, stop extending it. Choose one result:
@@ -108,14 +109,14 @@ Prefer deleting or consolidating the new duplicate. Do not launch a broad dedupl
 
 ### Gate 4: Proportional design and complexity
 
-For each new layer, abstraction, dependency, configuration option, background job, cache, queue, state store, or policy mechanism, require one present-tense justification:
+For each new layer, abstraction, dependency, configuration option, background job, cache, queue, state store, policy mechanism, cap, limit, guard, refusal, or validation rule, require one present-tense justification, stated where the construct is defined:
 
 - A current AC requires it.
 - An observed failure cannot be solved safely at the existing boundary.
 - Measured scale, reliability, or performance evidence requires it.
 - It centralizes an invariant that is already duplicated.
 
-Future flexibility, possible reuse, architectural fashion, or the ability to configure a value that has one valid setting are not sufficient.
+Future flexibility, possible reuse, architectural fashion, a hypothetical input, or the ability to configure a value that has one valid setting are not sufficient. When the right correction removes behavior, remove it: a flag, fallback, or guard around code that should go is not a correction.
 
 Compare at least these options when they are plausible: use the existing capability, make a small local change, or introduce a new abstraction. Choose the option that satisfies the outcome and non-negotiable constraints with the fewest new concepts and operational obligations.
 
@@ -133,13 +134,13 @@ When a required safeguard and the requested feature genuinely conflict, do not q
 
 ### Gate 6: User and operator outcome
 
-Treat UX and operability as functional quality, not post-implementation polish. Exercise the relevant real entry point and inspect the complete path:
+Treat UX and operability as functional quality, not post-implementation polish. Exercise the changed path through its real entry point against the accepted requirements, including the failures it can actually hit:
 
-- UI: goal completion, loading, empty, error, retry/cancel, success feedback, keyboard/focus behavior, accessibility, responsiveness, and no dead ends.
-- CLI/API: discoverable inputs, stable contracts, actionable errors, correct exit/status behavior, machine-readable output where promised, cancellation/timeouts, and no false success.
-- Service/operations: startup, configuration failure, logs/metrics needed to diagnose the changed path, bounded retries, shutdown/recovery, and rollback where relevant.
+- UI: goal completion, the loading, empty, and error states the journey reaches, keyboard/focus behavior, accessibility, and no dead ends.
+- CLI/API: discoverable inputs, stable contracts, actionable errors, correct exit/status behavior, promised machine-readable output, and no false success.
+- Service/operations: startup, configuration failure, and the logs needed to diagnose the changed path.
 
-The implementation is not user-complete merely because a function returns, a component renders, or a mocked transcript looks correct. Real acceptance claims still belong to the verify commands and require real dependencies.
+Report other gaps instead of making them acceptance conditions. The implementation is not user-complete merely because a function returns, a component renders, or a mocked transcript looks correct. Real acceptance claims still belong to the verify commands and require real dependencies.
 
 ### Gate 7: Correct in small increments
 
@@ -172,7 +173,7 @@ Protocol:
 
 1. Validate `run.json`, `boss.json`, branch, baseline, lock, round, parent hashes, active task IDs, AC, FILESCOPE, and latest reviewer/judger/rescue handoff.
 2. Start from `boss.context_capsule`; inspect deltas unless evidence is missing, stale, contradictory, or changed.
-3. For each active task, run Gates 1-6 before editing. Record the outcome, reuse search, rejected alternatives, ownership decision, security trade-off, and UX/operability result in `summary`, `decisions`, `assumptions`, `known_limitations`, and `self_audit`.
+3. For each active task, apply the gates its scope and risk call for before editing, and record the decisions that matter once, in `summary` and `decisions`.
 4. Scope autofix and generated-output refreshes to FILESCOPE. Repo-wide mutation requires BOSS scope and a recorded reason.
 5. When `task.patch_required=true`, wrap it with `agent-surface workflow patch begin/end/verify`. Otherwise record ordinary diff evidence and mark it ineligible for partial merge.
 6. Run task verify commands through:
@@ -249,6 +250,7 @@ Reuse/ownership: <existing capability used or concrete gap; invariant owner>
 Complexity/risk: <trade-off and rejected unnecessary machinery>
 UX/operations: <real path exercised and result, or not run with reason>
 Changed: <files or none>
+Size: <lines added/removed in code, tests, and docs>
 Checks: <command/scenario -> passed/failed/not run>
 Remaining: <real issue or none>
 Workflow: <worker path and next command when routed worker mode is active>

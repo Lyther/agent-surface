@@ -3,32 +3,20 @@ name: ops-doctor
 description: "Run a health check on the agent-surface repository and local generated surfaces."
 ---
 
-## OBJECTIVE
+## Objective
 
-Diagnose whether `agent-surface` is internally consistent and whether the local generated surfaces match the current compiler model.
+Diagnose whether `agent-surface` is internally consistent and whether the local generated surfaces match the current compiler model. This check is read-only: report drift; never fix issues, edit files, install surfaces, delete files, prune branches, or repair docs. Prefer repo scripts over ad hoc validators, and record failed probes separately from missing evidence.
 
-This is a read-only health check. It reports drift; it does not edit files, install surfaces, prune branches, or repair docs.
+## Input
 
-## INPUT
+`ops-doctor [target] [--scope repo|local|all] [--depth quick|standard|full] [--ci]`
 
-```text
-ops-doctor [target] [--scope repo|local|all] [--depth quick|standard|full] [--ci]
-```
+- `target`: repository root or subdirectory; default `.`.
+- `--scope` (default `all`): `repo` checks source, registry, and compiler state; `local` checks installed user surfaces; `all` runs both.
+- `--depth` (default `standard`): `quick` runs cheap probes; `standard` adds generated checks and install dry-runs; `full` also runs tests and the full build.
+- `--ci` (default off): machine-readable mode; exit non-zero only for errors, not for ordinary local-install warnings.
 
-## PARAMETERS
-
-| Parameter | Default | Description |
-|---|---:|---|
-| `[target]` | `.` | Repository root or subdirectory. |
-| `--scope` | `all` | `repo` checks source/registry/compiler state; `local` checks installed user surfaces; `all` runs both. |
-| `--depth` | `standard` | `quick` runs cheap probes; `standard` includes generated checks and install dry-runs; `full` also runs tests and full build. |
-| `--ci` | off | Machine-readable mode. Exit non-zero for errors. |
-
-## PROTOCOL
-
-### Check 1: Repository Baseline
-
-Run:
+## 1. Repository Baseline
 
 ```bash
 pwd
@@ -37,17 +25,9 @@ node scripts/agent-surface.mjs inventory
 node scripts/agent-surface.mjs doctor
 ```
 
-Report:
+Report the current branch and dirty state, source counts for `skills`, manual `commands`, `rules`, `ignores`, `external`, and `schemas`, and the local tool availability `doctor` reports. A dirty worktree is an error only when the requested health claim depends on a clean tree.
 
-- current branch and dirty state
-- source counts for `skills`, manual `commands`, `rules`, `ignores`, `external`, and `schemas`
-- local tool availability reported by `doctor`
-
-Dirty worktree is not automatically an error. It is an error only when the requested health claim depends on a clean tree.
-
-### Check 2: Source and Registry Integrity
-
-Run:
+## 2. Source and Registry Integrity
 
 ```bash
 npm run check
@@ -55,54 +35,19 @@ npm run check:skills
 npm run check:commands
 ```
 
-Report:
+Report skill and manual-command counts with metadata status, broken workflow references, registry/schema validation errors, source-kind drift, and adapter/registry render-token drift.
 
-- skill and manual-command counts plus metadata status
-- broken workflow references
-- registry/schema validation errors
-- source-kind drift
-- adapter/registry render-token drift
+## 3. Generated Surface Integrity
 
-### Check 3: Generated Surface Integrity
+Run `npm run check:generated` and report one line per target: generated output count, failed target validations, missing native carrier files, and unexpected duplicate output paths.
 
-Run:
+Expected target families: native command/workflow targets `claude-code`, `cline`, `kilo`, `antigravity`, `cursor`; skill/plugin targets `codex`, `antigravity-cli`; instruction/rules targets `copilot`, `vscode`, `opencode`, `trae`. Do not expect removed primitive producers (`mcps`, generated hooks) unless the compiler has reintroduced them.
 
-```bash
-npm run check:generated
-```
+## 4. Rule Budget
 
-Report one line per target:
+Run `npm run check:rules` and report hard failures, soft budget warnings, and scenarios over target but under the hard limit. Report soft warnings as warnings, not failures, unless `--ci` policy says otherwise.
 
-- generated output count
-- failed target validations
-- missing native carrier files
-- unexpected duplicate output paths
-
-Expected current target families:
-
-- native command/workflow targets: `claude-code`, `cline`, `kilo`, `antigravity`, `cursor`
-- skill/plugin target: `codex`, `antigravity-cli`
-- instruction/rules targets: `copilot`, `vscode`, `opencode`, `trae`
-
-Do not expect removed primitive producers (`mcps`, generated hooks) unless the compiler has reintroduced them.
-
-### Check 4: Rule Budget
-
-Run:
-
-```bash
-npm run check:rules
-```
-
-Report:
-
-- hard failures
-- soft budget warnings
-- scenarios over target but under hard limit
-
-Soft warnings are not failures unless `--ci` policy says otherwise.
-
-### Check 5: Install Plan Dry-Runs
+## 5. Install Dry-Runs
 
 For `--depth standard|full`, dry-run representative user installs:
 
@@ -122,16 +67,9 @@ node scripts/agent-surface.mjs install --target kilo --dest /tmp/agent-surface-d
 node scripts/agent-surface.mjs install --target cline --dest /tmp/agent-surface-doctor-project --dry-run
 ```
 
-Report:
+Report blocked writes, stale managed removals, missing manifests, and project-only artifacts skipped on user-scope installs. Dry-run only; never add `--allow-scope-root` from `ops-doctor`.
 
-- blocked writes
-- stale managed removals
-- missing manifests
-- project-only artifacts skipped on user-scope installs
-
-Dry-run only. Never add `--allow-scope-root` from `ops-doctor`.
-
-### Check 6: Local Distribution Drift
+## 6. Local Distribution Drift
 
 For `--scope local|all`, inspect installed manifests without editing them:
 
@@ -141,22 +79,15 @@ For `--scope local|all`, inspect installed manifests without editing them:
 | `codex` | `~/.agent-surface/codex-manifest.json` |
 | `cursor` | `~/.agent-surface/cursor-manifest.json` |
 | `kilo` | `~/.agent-surface/kilo-manifest.json` |
-| `antigravity` | `~/.gemini/antigravity/.agent-surface/antigravity-manifest.json` |
+| `antigravity` | `~/.gemini/.agent-surface/antigravity-manifest.json` |
 | `antigravity-cli` | `~/.gemini/.agent-surface/antigravity-cli-manifest.json` |
-| `vscode` / `copilot` | VS Code user config `.agent-surface/*-manifest.json` |
+| `vscode` / `copilot` | `~/.agent-surface/vscode-manifest.json`, `~/.agent-surface/copilot-manifest.json` |
 
-For each manifest:
+For each manifest, verify that the JSON parses, that `target` matches the manifest name, and that managed paths still exist; report the manifest's age if it predates the latest source commit. A missing local manifest is a warning unless the user claims that target is installed.
 
-- verify JSON parses
-- verify `target` matches the manifest name
-- verify managed paths still exist
-- report manifest age if it predates the latest source commit
+## 7. Full Verification
 
-Missing local manifests are warnings unless the user claims that target is installed.
-
-### Check 7: Full Verification
-
-For `--depth full`, run:
+For `--depth full`, run these sequentially, never in parallel, because `npm test` and `build` both touch `dist/`:
 
 ```bash
 npm test
@@ -165,9 +96,7 @@ git diff --check
 npm pack --dry-run --json
 ```
 
-Run these sequentially. `npm test` and `build` both touch `dist/`; do not run them in parallel.
-
-## OUTPUT FORMAT
+## Output
 
 ```text
 DOCTOR REPORT — agent-surface
@@ -207,11 +136,3 @@ Depth: quick|standard|full
 
 Summary: N errors, M warnings
 ```
-
-## EXECUTION RULES
-
-1. Read-only. Do not fix issues, install surfaces, delete files, or prune branches.
-2. Prefer repo scripts over ad hoc validators.
-3. Record failed probes separately from missing evidence.
-4. Report soft rule-budget warnings as warnings, not failures.
-5. If `--ci` is set, return non-zero only for errors, not ordinary local-install warnings.

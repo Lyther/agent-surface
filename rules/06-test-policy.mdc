@@ -5,47 +5,37 @@ alwaysApply: true
 
 # Test Policy
 
-- Test changed behavior, not implementation trivia.
-- Never weaken, delete, skip, or rewrite tests merely to pass a gate.
-- Add or update tests when behavior, public contracts, security posture, data mutation, or failure handling changes.
-- Use the cheapest meaningful test first; escalate to integration, contract, E2E, property, or regression tests when the risk surface warrants.
-- Use the real implementation, real data path, and real dependencies by default. A smaller test layer does not create permission to replace them silently.
+- Test changed behavior, not implementation trivia. Add or update tests when behavior, public contracts, security posture, data mutation, or failure handling changes.
+- Never weaken, delete, skip, or rewrite tests to pass a gate. Delete tests skipped on every run with no path to their prerequisite, or that only restate a constant. Un-skip a RED test in the change that makes it pass.
+- Start with the cheapest meaningful test; escalate to integration, contract, E2E, property, or regression tests as the risk warrants.
+- Use the real implementation, data path, and dependencies by default; a smaller test layer does not license replacing them.
 - Snapshot tests are acceptable for UI or stable generated output when reviewed.
-- Discrimination over coverage: line/branch % is supporting evidence only. Prefer real pre-fix behavior, known-bug characterization, real dependency failures, or property checks that fail under realistic faults (`verify-coverage`). Planted faults are diagnostic only and cannot supply PASS evidence.
-- Prefer independent oracles on Critical/High surfaces (human-locked expectations, standards-derived vectors, invariants) over circular AI-authored example pairs.
-- Outcome over transcript: acceptance grades world state, not agent or UI narration alone (`verify-prove`).
+- Prefer discrimination over coverage: real pre-fix behavior, known-bug characterization, real dependency failures, or property checks that fail under realistic faults (`verify-coverage`). Planted faults are diagnostic only. On Critical/High surfaces prefer independent oracles (human-locked expectations, standards-derived vectors, invariants) over AI-authored example pairs.
+- Acceptance grades world state, not agent or UI narration (`verify-prove`).
 
-## Test Substitute Necessity Gate
+## Test Substitutes
 
-`mock`, `fake`, `fixture`, `stub`, `spy`, `emulator`, `in-memory`, `monkeypatch`, `recorded`, `synthetic`, `sandbox`, `test mode`, and any renamed non-real replacement are all **test substitutes**. Naming does not change the policy.
+A test substitute stands in for something the code under test calls: a component, dependency, service, clock, randomness, filesystem, network, or external effect, whatever it is called (mock, fake, stub, spy, emulator, in-memory implementation, monkeypatch, recorded response, sandbox, test mode). An input the real component reads (a fixture, constructed document, synthetic dataset, or malformed record) is not a substitute; judge each test by the boundary it crosses.
 
-A substitute is allowed only when all of these are true:
+Use a substitute only when all of these hold:
 
-1. It exists only in test code or test-only configuration.
-2. The exact assertion requires controlled state or a failure that the real component or a disposable real instance cannot safely and deterministically produce.
-3. The substitute replaces the smallest possible boundary; the implementation under test remains real.
-4. Its declaration or use is covered by a specific, traceable record in the test or test documentation:
+1. It lives only in test code or test-only configuration.
+2. The assertion needs a state or failure that the real dependency or a disposable real instance cannot produce safely and deterministically, or the real call would be irreversible, destructive, or charged.
+3. It replaces the smallest boundary; the code under test stays real.
+4. It carries this record:
 
 ```text
 SUBSTITUTE_JUSTIFICATION
-- substitute: <symbol/file and the label used>
-- replaces: <real component, data source, or effect>
-- necessity: <why this assertion cannot safely and deterministically use the real option>
-- real-option: <real or ephemeral option considered and why it cannot serve this assertion>
-- proof-limit: <behavior and boundary this test does not prove>
-- real-proof: <separate real test command/artifact>, or BLOCKED: <missing prerequisite and unblock path>
+- replaces: <component, data source, or effect>
+- necessity: <why the real option cannot serve this assertion>
+- real-proof: <test or command that exercises the replaced boundary>, or BLOCKED: <missing prerequisite>
 ```
 
-5. Its passing result is treated as diagnostic only and excluded from verification, integration, E2E, acceptance, security, readiness, deployment, and completion evidence.
-
-Valid necessity is narrow: deterministic control of time/randomness at an exact boundary, forcing a failure the real dependency cannot reliably expose, or preventing an irreversible/destructive/charged external effect while testing local handling. "Faster", "easier", "hermetic", "works in CI", "service is flaky", "credentials are missing", and similar convenience statements are invalid. A shared substitute requires one record that explicitly names every covered test or use; a generic project-wide waiver is invalid.
-
-An unjustified substitute invalidates the affected test. Do not repair the violation by renaming a mock to a fake, fixture, stub, emulator, adapter, harness, simulator, or test implementation.
+Speed, convenience, hermeticity, CI-friendliness, a flaky service, and missing credentials are not necessity; an unjustified substitute invalidates the test. Missing real prerequisites make the integration, E2E, or acceptance layer `BLOCKED`.
 
 ## Acceptance Evidence
 
-- Never present substitute-backed execution as evidence that the implementation or replaced boundary works. A passing substitute-backed run may be reported only as a diagnostic and cannot contribute to a PASS verdict.
-- Green tests are not E2E. `E2E passed` requires the real entry point, production implementation path, required real dependency instances, data created through that workflow, and an observed expected result — plus UX/robustness/adversary evidence when those are in the claim (`verify-prove`).
-- A suite called `e2e_test`, `integration`, `real`, `live`, or equivalent is still non-E2E if any required component, dependency, data path, or effect was substituted.
-- Stable, production-ready, release-ready, deployment-ready, 100% implemented, and all-features-supported claims require a scoped readiness proof such as `verify-readiness` with no open Critical/High design or security findings in scope; otherwise state the narrower test/build/smoke result.
-- If a requested acceptance claim needs an unavailable dependency, credential, service, or environment, report it as `BLOCKED`. Substitute-backed diagnostics may still run when justified, but they do not reduce or clear the blocker.
+- A substitute-backed result is evidence only for the real code it ran, never for the boundary it replaced, whatever the test is named (`e2e`, `integration`, `real`, `live`).
+- `E2E passed` needs the real entry point, production implementation path, real dependency instances, data created through that workflow, and the observed expected result, plus UX, robustness, or adversary evidence when the claim includes them (`verify-prove`).
+- Stable, production-ready, release-ready, deployment-ready, 100% implemented, and all-features-supported claims need a scoped readiness proof such as `verify-readiness` with no open Critical/High findings in scope; otherwise state the narrower result.
+- If an acceptance claim needs an unavailable dependency, credential, service, or environment, report `BLOCKED`. Justified substitute-backed diagnostics may still run, but they do not clear the blocker.

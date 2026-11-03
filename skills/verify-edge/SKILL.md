@@ -3,79 +3,37 @@ name: verify-edge
 description: "Budgeted hostile I/O and edge harnesses that must catch real faults."
 ---
 
-## OBJECTIVE
+## Objective
 
-Expose trust-boundary I/O and prove the system fails closed under hostile or extreme inputs.
-
-Standard suites assume cooperation. This skill assumes parsers, APIs, configs, and uploads are under attack or entropy.
-
-## CORE RULE
-
-A fuzz/edge pass that finds nothing and never fails a planted fault is inadequate detection — not proof of safety.
+Prove trust-boundary I/O (parsers, APIs, configs, uploads) fails closed under hostile or extreme input. A fuzz or edge pass that finds nothing and never catches a planted fault is inadequate detection, not proof of safety; "ran fuzz for N minutes" never passes without invariants and discrimination.
 
 PASS requires:
 
-- Targets limited to the highest-blast-radius surfaces (default ≤3).
-- At least one harness with seed, budget, and shrink-on-fail.
-- At least one discrimination check: a known-bad input or injected fault is rejected/handled without corruption.
-- Findings classified by severity; Critical/High must be fixed or force claim narrowing.
+- targets limited to the highest-blast-radius surfaces (default at most 3);
+- at least one harness with a seed, a budget, and shrink-on-fail;
+- at least one discrimination check: a known-bad input or injected fault is rejected or handled without corruption;
+- findings classified by severity, with Critical/High fixed or the claim narrowed.
 
-## PROTOCOL
+## Procedure
 
-### Phase 1: Surface Selection (Budget)
+1. Rank surfaces by blast radius: parsers and deserializers at trust boundaries; auth, token, path, and config-merge inputs; public write APIs and file or path operations; multi-tenant or multi-agent shared state. Take the top 3 unless the user expands scope; never fuzz everything.
+2. Build harnesses with repo-native property or fuzz tools (`fast-check`, `hypothesis`, `cargo fuzz`, `go test -fuzz`). Each records its entry point and invariant ("never panic", "never corrupt store", "always DomainError"), seed, and time or iteration budget (default at most 5 minutes unless the user sets one), and shrinks failures to the smallest failing input.
+3. Run only the fault classes that apply, each with a command and result (an OWASP laundry list is not evidence):
 
-Identify and rank surfaces by blast radius:
+   | Class | Examples |
+   |---|---|
+   | Structural | empty, huge, truncated, wrong types |
+   | Boundary | MAX_INT±1, NaN, unicode/RTL, long strings |
+   | Injection | path escape, SQLi/command where inputs reach sinks |
+   | Merge/clobber | sibling-key preservation, hostile JSONC/YAML shapes |
+   | Resource | bounded large payload within a local sandbox |
 
-1. Parsers and deserializers at trust boundaries.
-2. Auth/token/path/config merge inputs.
-3. Public write APIs and file/path operations.
-4. Multi-tenant or multi-agent shared state.
+4. Optional environment chaos, when network, disk, or memory claims exist: dependency latency or timeout, permission denied or missing file, and full disk only in disposable environments. Contain the blast radius (local, staging, containers) and inject only into the resolved target the task or live environment selection names; before a production fault, bound the blast radius, define abort conditions, and verify rollback.
+5. Discriminate before PASS: plant or reuse one known-bad input the contract says must be rejected and confirm the harness or suite detects it instead of reporting success. An accepted bad case, or one that corrupts state, is FAIL.
 
-Pick the top ≤3 unless the user expands scope. Do not “fuzz everything.”
+Hand suite-wide oracle quality to `verify-coverage` and shipped journeys to `verify-prove`.
 
-### Phase 2: Harness
-
-Prefer repo-native property/fuzz tools (`fast-check`, `hypothesis`, `cargo fuzz`, `go test -fuzz`).
-
-Each harness must record:
-
-- Entry point and invariant (“never panic / never corrupt store / always DomainError”).
-- Seed and time/iteration budget (default ≤5 minutes unless user sets otherwise).
-- Shrink/minimize on failure — report the smallest failing input, not megabytes of noise.
-
-### Phase 3: Fault Classes (Relevant Only)
-
-Run only classes that apply to the surface:
-
-| Class | Examples |
-|-------|----------|
-| Structural | empty, huge, truncated, wrong types |
-| Boundary | MAX_INT±1, NaN, unicode/RTL, long strings |
-| Injection | path escape, SQLi/command where inputs reach sinks |
-| Merge/clobber | sibling-key preservation, hostile JSONC/YAML shapes |
-| Resource | bounded large payload within local sandbox |
-
-Do not paste an OWASP laundry list as evidence. Each executed class needs a command and result.
-
-### Phase 4: Environment Chaos (Optional, Scoped)
-
-When network/disk/memory claims exist, inject bounded faults in local/staging only:
-
-- Latency / timeout of dependencies.
-- Permission denied / missing file.
-- Full disk only in disposable environments.
-
-Chaos-test only the resolved target named by the task or live environment selection. Bound blast radius, define abort conditions, and verify rollback before injecting a production fault.
-
-### Phase 5: Discrimination
-
-Before PASS:
-
-1. Plant or reuse one known-bad input that must be rejected.
-2. Confirm the harness or suite fails open success (detects the bad case).
-3. If the bad case is accepted or corrupts state → FAIL.
-
-## OUTPUT FORMAT
+## Output
 
 ```markdown
 # EDGE / HOSTILE I/O REPORT
@@ -95,11 +53,3 @@ Before PASS:
 ## Verdict
 PASS|FAIL|BLOCKED
 ```
-
-## HARD RULES
-
-1. Budget first — max 3 surfaces by default.
-2. Capture seeds; shrink failures.
-3. Contain blast radius (local/staging/containers).
-4. No pass from “ran fuzz for N minutes” without invariants and discrimination.
-5. Hand suite-wide oracle quality to `verify-coverage`; hand shipped journeys to `verify-prove`.

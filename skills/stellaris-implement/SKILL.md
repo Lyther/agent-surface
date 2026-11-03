@@ -3,66 +3,56 @@ name: stellaris-implement
 description: "Translate Stellaris mod designs into defensive Paradox Script."
 ---
 
-## OBJECTIVE
+## Objective
 
-**THE CONSTRUCTOR**: Translate Design (ADR) into high-quality, defensive Paradox Script (`.txt`).
-**Philosophy**: "Trust No One." The Engine is fragile. Assume every scope is null, every target is missing, and every bracket is unbalanced until proven otherwise.
+Translate a design (ADR) into high-quality, defensive Paradox Script (`.txt`). The engine is fragile: assume every scope is null, every target is missing, and every bracket is unbalanced until proven otherwise.
 
-## PROTOCOL
+## Rules
 
-### Phase 1: File Genesis
+1. Generate one file content block at a time.
+2. Write the logic; never leave placeholders such as `# logic goes here`.
+3. Indent with tabs (standard Paradox) or 4 spaces, consistently.
 
-**Constraint**: All files reside in `src/`.
-**Action**: Create files based on the Manifest.
+## 1. Files
 
-1. **Standard Header**:
+Create the files in the manifest, all under `src/`, each starting with the standard header:
+
+```pdx
+# ==============================================================================
+# MOD: [Mod Name]
+# FILE: [Relative Path from src/]
+# PURPOSE: [Brief Description]
+# ==============================================================================
+```
+
+If a file contains `events`, its first functional line is `namespace = [NS]`, matching the project prefix defined in `init`.
+
+## 2. Logic
+
+Write PDX script from the `design` pseudocode:
+
+1. Never run an effect on a scope without checking that it exists:
 
     ```pdx
-    # ==============================================================================
-    # MOD: [Mod Name]
-    # FILE: [Relative Path from src/]
-    # PURPOSE: [Brief Description]
-    # ==============================================================================
+    if = {
+        limit = { exists = owner type = country }
+        owner = { ... }
+    }
     ```
 
-2. **Namespace Declaration**:
-    - **Rule**: If the file contains `events`, the *first functional line* must be `namespace = [NS]`.
-    - **Constraint**: The namespace must match the project prefix defined in `init`.
+2. Inside iterators (`every_system`, `random_planet`), always use `limit = { }` in the effect block to prevent scope leaks that affect the wrong target.
+3. No magic numbers: a value used more than twice becomes a `@scripted_variables` entry, e.g. `cost = @[NS]_tier1_cost`, defined at the top of the file or in `common/scripted_variables`.
+4. Never write raw English text in `title` or `desc`: `title = "[NS]_event_1_title" # TODO: LOC`.
 
-### Phase 2: Logic Implementation (The Iron Rules)
+## 3. Self-Check
 
-**Input**: Pseudocode from `design`.
-**Action**: Write PDX Script obeying these laws:
+Before output, verify:
 
-1. **Defensive Scoping (The Shield)**:
-    - **Rule**: Never run an effect on a scope without checking existence.
-    - **Pattern**:
+1. `{` and `}` balance; an imbalance causes silent crashes.
+2. No “curly quotes” exist; only standard ASCII `""`.
+3. For every `add_modifier = [NS]_mod`, `common/modifiers/[NS]_modifiers.txt` is planned.
 
-        ```pdx
-        if = {
-            limit = { exists = owner type = country }
-            owner = { ... }
-        }
-        ```
-
-2. **Scope Hygiene (The Tunnel)**:
-    - **Rule**: When using iterators (`every_system`, `random_planet`), ALWAYS use `limit = { }` inside the effect block to prevent "Scope Leaks" (affecting the wrong target).
-3. **Variable Hygiene**:
-    - **Rule**: No magic numbers (>2 uses). Use `@scripted_variables`.
-    - **Pattern**: `cost = @[NS]_tier1_cost` (Defined at top of file or in `common/scripted_variables`).
-4. **Localisation Markers**:
-    - **Rule**: Do not write raw English text in `title` or `desc`.
-    - **Pattern**: `title = "[NS]_event_1_title" # TODO: LOC`
-
-### Phase 3: Static Analysis (Self-Correction)
-
-**Before Output**, verify:
-
-1. **Bracket Balance**: Count `{` vs `}`. Imbalance causes silent crashes.
-2. **Smart Quotes**: Ensure NO “curly quotes” exist. Only standard ASCII `""`.
-3. **Dependency Check**: If using `add_modifier = [NS]_mod`, ensure `common/modifiers/[NS]_modifiers.txt` is planned.
-
-## OUTPUT TEMPLATE
+## Output
 
 ```pdx
 # ==============================================================================
@@ -102,9 +92,3 @@ country_event = {
 }
 
 ```
-
-## EXECUTION RULES
-
-1. **Atomic Writes**: Generate one file content block at a time.
-2. **No Placeholders**: Do not write `# logic goes here`. Write the logic.
-3. **Indentation**: Use **Tabs** (Standard Paradox) or **4 Spaces**. Be consistent.

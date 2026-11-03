@@ -3,117 +3,67 @@ name: ship-artifact
 description: "Package immutable release artifacts with provenance evidence."
 ---
 
-## OBJECTIVE
+## Objective
 
-**IMMUTABLE REALITY.**
-Turn code into a portable artifact that can be traced, verified, and rejected automatically if the supply chain is wrong.
-**The Law**:
+Turn code into a portable artifact that records its exact repo, full Git commit, builder, and build time; ships the smallest practical runtime; and carries digests, checksums, signatures, SBOM, and provenance that a consumer can verify independently. Never promote an unsigned, unscanned, or unverifiable artifact. Claim "same source, same artifact" only after pinning inputs and comparing repeated builds.
 
-1. **Traceable**: Every artifact points to an exact repo, full Git commit, builder, and build time.
-2. **Portable**: Ship the smallest practical runtime; public CLI releases should prefer self-contained/static binaries when the stack supports it.
-3. **Verifiable**: Publish digests, checksums, signatures, SBOM, and provenance that a consumer can verify independently.
-4. **Policy-Enforced**: Unsigned, unscanned, or unverifiable artifacts do not get promoted.
-5. **Reproducible by Proof**: If you claim "same source, same artifact", pin inputs and prove it with repeated-build verification.
+## Rules
 
-## PROTOCOL
+1. Abort when `git status` is not clean; a dirty build cannot be traced.
+2. Keep secrets out of the image (never `COPY .env .`); pass config at runtime.
+3. Pin base images, dependencies, lockfiles, and third-party CI actions by digest, checksum, or immutable version.
+4. Sign, verify, and deploy by digest, never by mutable tag.
+5. Every downstream step consumes the generated release or bundle manifest, never hand-copied values.
 
-### Phase 1: Release Identity (Naming)
+## 1. Release Identity
 
-*No "v1.0". Use specifics.*
+- The image digest or binary checksum is the identity; tags are pointers. Use specific names, not "v1.0".
+- Tag `sha-a1b2c3d` for operators and `v1.2.3` only for an intentional release.
+- Move `latest` only after verification and deployment succeed.
+- For non-OCI artifacts, publish `SHA256SUMS`, signatures, SBOM, and provenance together.
+- Publish one machine-readable release manifest binding Git SHA, artifact digest or checksum, bundle hash, version, SBOM path, and provenance path.
 
-1. **Primary Identity**: The image digest or binary checksum. Tags are pointers, not truth.
-2. **Commit Tag**: `sha-a1b2c3d` for operator convenience.
-3. **Semantic Tag**: `v1.2.3` only for an intentional release.
-4. **Latest Tag**: **DANGER**. Only update `latest` after successful verification and deployment.
-5. **Release Bundle**: For non-OCI artifacts, publish `SHA256SUMS`, signatures, SBOM, and provenance together.
-6. **Release Manifest**: Publish one machine-readable record that binds Git SHA, artifact digest/checksum, bundle hash, version, SBOM path, and provenance path.
+## 2. Build
 
-### Phase 2: Build for Portability
+- Build through one checked-in entrypoint (`scripts/build_artifact.sh` or `make artifact`) on `docker buildx` for OCI artifacts or an isolated builder otherwise, never an ad-hoc host with hidden state.
+- Target `linux/amd64` and `linux/arm64`.
+- Build multi-stage onto distroless or another minimal base pinned by digest; the final image holds no compiler, package manager, or source tree.
+- In every language, copy dependency manifests before application source so the cache survives rebuilds.
+- Prefer self-contained binaries for public CLI releases: Go with `CGO_ENABLED=0` and `-trimpath`, checked with `file`/`ldd`; Rust with a `*-unknown-linux-musl` target when Linux portability matters and dependencies allow. Verify libc, TLS, CGO, and target-runtime behavior before claiming portability. `upx` is optional; it can trigger AV heuristics and hinders debugging.
+- Set `SOURCE_DATE_EPOCH` from the commit timestamp and strip non-deterministic metadata and absolute paths where the toolchain supports it. To claim reproducibility, build twice and compare digests or artifact hashes.
 
-*The world is not just Intel.*
+## 3. Registry and Supply Chain
 
-1. **Setup**: Use `docker buildx` for OCI artifacts and an isolated builder for non-container releases.
-2. **Canonical Builder**:
-    - Build through one checked-in entrypoint such as `scripts/build_artifact.sh` or `make artifact`.
-    - No ad-hoc builder hosts with hidden state.
-3. **Platforms**: `linux/amd64` (Server), `linux/arm64` (Apple Silicon/AWS Graviton).
-4. **Minimize Runtime**:
-    - **Multi-Stage**: The final image MUST NOT contain a compiler, package manager, or source tree.
-    - **Minimal Final Layer**: Use distroless or another minimal base pinned by digest.
-    - **Language-Neutral Caching**: Copy dependency manifests before application source so cache reuse works across rebuilds.
-5. **Static / Self-Contained CLI Builds**:
-    - Prefer self-contained binaries for public CLI releases. They reduce install friction and improve accessibility on clean hosts.
-    - Go: prefer `CGO_ENABLED=0`, `-trimpath`, and verify the result with `file` / `ldd`.
-    - Rust: prefer a `*-unknown-linux-musl` target when Linux portability matters and dependencies allow it.
-    - Treat `upx` as optional. It can trigger AV heuristics and make debugging harder.
-6. **Reproducibility Controls**:
-    - Set `SOURCE_DATE_EPOCH` from the commit timestamp.
-    - Pin base images, dependencies, and lockfiles by digest or checksum.
-    - Strip non-deterministic metadata and absolute paths where the toolchain supports it.
-    - If you claim reproducibility, build twice and compare digests or artifact hashes.
+- Auth with `docker login` locally; in CI use OIDC or short-lived credentials from a secret manager, never long-lived static tokens.
+- Set OCI labels `org.opencontainers.image.source` (repo URL), `.revision` (full Git SHA), `.version` (SemVer, if any), and `.created` (build timestamp).
+- Emit SBOM and provenance during the build when the toolchain supports it (`docker buildx --sbom=true --provenance=mode=max`); capture the pushed digest from build metadata and use it in every later step.
+- Scan the pushed image's SBOM before signing and fail above the policy threshold (the script uses `--fail-on high`); an unsigned image is not released.
+- Verify signatures and attestations against a pinned identity and OIDC issuer, or an equivalent admission policy, so the pipeline rejects unsigned or unverifiable artifacts.
+- Promote `latest` or production channels only after verification passes.
 
-### Phase 3: Registry / Supply-Chain Handshake
+## 4. Packaging
 
-1. **Auth**:
-    - Local: `docker login`.
-    - CI: OIDC or short-lived creds from a secret manager. No long-lived static tokens.
-2. **Metadata Injection (OCI Labels)**:
-    - `org.opencontainers.image.source` = Repo URL.
-    - `org.opencontainers.image.revision` = full Git SHA.
-    - `org.opencontainers.image.version` = SemVer (if any).
-    - `org.opencontainers.image.created` = build timestamp.
-3. **SBOM & Provenance**:
-    - Emit SBOM and build provenance during the build when the toolchain supports it.
-    - `docker buildx`: `--sbom=true` and `--provenance=mode=max`.
-    - Capture the pushed digest from build metadata and use that digest for every downstream step.
-4. **Security Gates**:
-    - Scan the image, dependencies, and SBOM before publish; fail above policy threshold.
-    - Sign by digest, not mutable tag.
-    - Verify signatures and attestations with pinned identity / OIDC issuer or equivalent admission policy.
-    - Only promote `latest` or production channels after verification passes.
+Generate customer-facing archives, installers, manifests, docs, and checksum files from one packaging step; never hand-assemble release zips on a builder host.
 
-### Phase 4: Platform Packaging & Customer Bundle
+- Desktop (Tauri/Electron): `tauri build` / `electron-builder` → `.msi`, `.dmg`, `.AppImage`; codesign, and notarize for Apple.
+- Mobile: Gradle / Xcode → `.aab` / `.ipa`; keep keystores in CI secrets and never commit `.jks` or `.p12`.
+- CLI: `cargo build --release --target x86_64-unknown-linux-musl` or `CGO_ENABLED=0 go build -trimpath -ldflags="-s -w"`; check linkage with `file`/`ldd`, smoke test on a clean host or container, and publish binaries, `SHA256SUMS`, signatures, SBOM, and install instructions together.
+- IoT/edge: cross-compile (`GOARCH=arm`, `armv7-unknown-linux-gnueabihf`) to a static binary or multi-arch image (`linux/arm/v7`); check binary size, startup memory, and read-only filesystem limits.
 
-1. **Bundle Generation Is the Single Source of Truth**:
-    - Generate customer-facing archives, installers, manifests, docs, and checksum files from one packaging step.
-    - Do not hand-assemble release zips on a builder host.
+## 5. Verify
 
-2. **Desktop (Tauri/Electron)**:
-    - Build: `tauri build` / `electron-builder`
-    - Output: `.msi` (Win), `.dmg` (Mac), `.AppImage` (Linux)
-    - **Security**: Codesign (Cert) + Notarize (Apple).
-3. **Mobile (iOS/Android)**:
-    - Build: Gradle (Android) / Xcode (iOS)
-    - Output: `.aab` / `.ipa`
-    - **Security**: Keystores in CI Secrets. Never commit `.jks` or `.p12`.
-4. **CLI (Binary)**:
-    - Build: `cargo build --release --target x86_64-unknown-linux-musl` / `CGO_ENABLED=0 go build -trimpath -ldflags="-s -w"`
-    - **Verification**: Check linkage with `file` / `ldd`; smoke test on a clean host or container.
-    - **Distribution**: Publish binaries, `SHA256SUMS`, signatures, SBOM, and install instructions together.
-5. **IoT (Firmware/Edge)**:
-    - Build: Cross-compile (`GOARCH=arm` / `armv7-unknown-linux-gnueabihf`)
-    - Output: Static Binary or Multi-arch Docker Image (`linux/arm/v7`)
-    - **Constraint**: Check binary size, startup memory, and read-only filesystem limits.
+1. Run it: `docker run --rm <image@digest> --version`, or the healthcheck.
+2. Flag an image over 1 GB for review unless it carries an ML model.
+3. Check `docker history` for secrets, package-manager caches, and source dumps.
+4. Run `cosign verify` (or equivalent) with the expected identity and issuer.
+5. Confirm the provenance and SBOM exist and are inspectable.
+6. Confirm non-root execution and the expected entrypoint and linkage.
+7. Install or unpack the exact shipped bundle on a fresh host or container; verify required files exist and forbidden files are absent.
+8. Ship no source tree, test fixtures, internal prompts, debug endpoints, or private config unless explicitly intended.
 
-### Phase 5: Verification & Enforcement
+## Output
 
-*Did we ship something users can trust, or just something that happened to compile?*
-
-1. **Run It**: `docker run --rm [image@digest] --version` (or healthcheck).
-2. **Check Size**: If > 1GB, flag for review (unless ML model).
-3. **Check Layers**: `docker history`. Ensure no secrets, package-manager caches, or source dumps.
-4. **Check Signature**: `cosign verify` (or equivalent) with expected identity and issuer.
-5. **Check Attestations**: Confirm provenance and SBOM exist and are inspectable.
-6. **Check Runtime**: Confirm non-root execution and expected entrypoint / linkage.
-7. **Check the Bundle in a Clean Room**:
-    - Install or unpack the exact shipped bundle on a fresh host or container.
-    - Verify required files exist and forbidden files are absent.
-8. **Check for Internal Leaks**:
-    - No source tree, test fixtures, internal prompts, debug endpoints, or private config should ship unless explicitly intended.
-
-## OUTPUT FORMAT
-
-**The Build Script (`scripts/build_artifact.sh`)**
+The build script (`scripts/build_artifact.sh`):
 
 ```bash
 #!/usr/bin/env bash
@@ -161,6 +111,7 @@ PY
 IMAGE_REF="${IMAGE_NAME}@${IMAGE_DIGEST}"
 
 syft "${IMAGE_REF}" -o cyclonedx-json > sbom.cdx.json
+grype sbom:sbom.cdx.json --fail-on high   # vulnerability gate before signing
 
 cosign sign --yes "${IMAGE_REF}"
 cosign attest --yes --predicate sbom.cdx.json --type cyclonedx "${IMAGE_REF}"
@@ -192,14 +143,3 @@ docker buildx imagetools inspect "${IMAGE_REF}" --format '{{json .SBOM}}' >/dev/
 
 docker run --rm "${IMAGE_REF}" --version
 ```
-
-## EXECUTION RULES
-
-1. **NO DIRTY BUILDS**: If `git status` is not clean, **ABORT**. You cannot trace a dirty build.
-2. **NO SECRETS IN IMAGE**: Never `COPY .env .`. Pass config at runtime.
-3. **PIN THE SUPPLY CHAIN**: Pin base images, dependencies, and third-party CI actions by digest, checksum, or immutable version.
-4. **CACHE BY MANIFEST**: Arrange Dockerfile layers so dependency manifests install before application source. Do not make this Node-only.
-5. **DIGESTS ONLY**: Deploy by image digest, not mutable tags.
-6. **SIGN, VERIFY, ENFORCE**: Verification is not optional. The pipeline or admission policy must reject unsigned or unverifiable artifacts.
-7. **STATIC DOES NOT MEAN MAGIC**: Prefer self-contained binaries for CLI accessibility, but verify libc, TLS, CGO, and target-runtime reality before claiming portability.
-8. **PROMOTE THE MANIFEST, NOT A MEMORY**: Every downstream step should consume the generated release manifest / bundle manifest, not hand-copied values.

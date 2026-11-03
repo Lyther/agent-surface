@@ -35,7 +35,7 @@ These differ from a model's defaults; fix the underlying issue rather than suppr
 Run in order; each green before the next. Prefer repository scripts (`make check`); otherwise:
 
 ```bash
-gofumpt -w . && goimports -w .   # formatters — gofumpt supersedes gofmt
+out=$(gofumpt -l .) && test -z "$out" && out=$(goimports -l .) && test -z "$out"   # fails on unformatted files or a missing tool
 go vet ./...
 golangci-lint run ./...          # strict set below — not the 6-linter minimum
 govulncheck ./...                # known-vuln deps — blocking

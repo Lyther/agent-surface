@@ -21,7 +21,7 @@ These differ from a model's defaults; fix the underlying issue. Genuine exceptio
 
 - **Silent failures**: no bare `except:`, no `except Exception: pass`, no `except Exception as e: log(e)` without re-raise, no truthiness-as-error-check (`if result:`). Every handler re-raises, raises a more specific error, returns a typed error value, or documents why swallowing is safe.
 - **`Any` / `cast` / `# type: ignore` / `# noqa` to hide a defect**: scope and justify only genuine third-party or tool defects, with a specific code (`# type: ignore[import-untyped]`) and inline reason.
-- **Untyped boundaries**: external data (HTTP, CLI args, env, files, DB rows, external APIs) is parsed through Pydantic, attrs/cattrs, msgspec, or explicit runtime validation before flowing as `TypedDict`/dataclass. Don't let raw `dict` propagate.
+- **Untyped boundaries**: untrusted input (HTTP, CLI args, user-supplied files, external APIs) is parsed once at entry through Pydantic, attrs/cattrs, msgspec, or explicit runtime validation before flowing as `TypedDict`/dataclass. Don't let raw `dict` propagate.
 - **Foot-guns**: mutable default arguments (`def f(x=[])`), `import *`, `eval`/`exec`, `subprocess.run(shell=True)` with untrusted input, global mutable state, `__getattr__`/`__setattr__` magic, metaclasses outside frameworks.
 - **Implicit `Optional`** (`x: str = None`): write `x: str | None = None`.
 - **Garbage**: `print()` for diagnostics (use `logging`/`structlog`), `breakpoint()`/`pdb`, `NotImplementedError` in runtime paths.
@@ -39,7 +39,7 @@ Define a meaningful exception hierarchy per package/domain (`ServiceError` → `
 Run in order, each green before the next. Prefer repo scripts (`uv run`, `make check`); otherwise:
 
 ```bash
-ruff format .
+ruff format --check .
 ruff check .
 pyright .
 pytest -v
@@ -50,4 +50,4 @@ Use Ruff, Pyright, pytest only when present or required by the repo. If a tool i
 ## Ruff config
 
 - Config lives in `pyproject.toml`/`ruff.toml` as the single source of truth (the editor reads it too). Pin `line-length` and `target-version`.
-- Prefer a curated, correctness-focused `select` — not `["ALL"]` (floods the editor with noise) nor the bare `E/F` default. Strict-but-sane base: `E, W, F, I, UP, B, C4, SIM, PIE, PT, TID, PGH, PLE, DTZ, RUF`; exclude the pedantic rules (`S`/assert-nagging, `PLR2004` magic numbers, `ANN` — Pyright covers types, `D` docstrings, formatter-owned `COM`/`ISC001`, stylistic `PT011`/`PT018`/`SIM102`). `extend-exclude` generated code and test fixtures.
+- Prefer a curated, correctness-focused `select` — not `["ALL"]` (floods the editor with noise) nor the bare `E/F` default. Strict-but-sane base: `E, W, F, I, UP, B, C4, SIM, PIE, PT, TID, PGH, PLE, DTZ, RUF, S`; exclude the pedantic rules (`S101` assert-nagging, `PLR2004` magic numbers, `ANN` — Pyright covers types, `D` docstrings, formatter-owned `COM`/`ISC001`, stylistic `PT011`/`PT018`/`SIM102`). `extend-exclude` generated code and test fixtures.

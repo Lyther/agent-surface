@@ -5,42 +5,36 @@ alwaysApply: true
 
 # Tooling
 
-[P2] defaults. Existing manifests, lockfiles, tool configs, and CI scripts win.
+[P2] Existing manifests, lockfiles, tool configs, and CI scripts win.
 
-## Package Managers
+## Packages
 
-- Use the repo's existing package manager.
-- New Python projects in this family: prefer `uv`.
-- New Node tooling: prefer local package scripts and locked deps over global installs or unpinned `npx`.
-- Before adding deps, inspect manifest and lockfile; justify why existing deps are insufficient.
+- Use the repo's package manager. New Python projects prefer `uv`; new Node tooling prefers local scripts and locked dependencies over global installs or unpinned `npx`.
+- Before adding a dependency, read the manifest and lockfile and justify why existing dependencies are insufficient.
 
 ## Checks
 
-- Prefer repo-defined scripts: `make check`, `npm test`, `cargo test`, `go test`, `uv run`, or CI-equivalent.
-- Run narrow checks first; run broad checks before final when the change touches shared behavior, public APIs, security, data, or build tooling.
-- If a tool is missing, report `not available`; never pretend it passed.
+- Prefer repo scripts (`make check`, `npm test`, `cargo test`, `go test`, `uv run`) or their CI equivalent.
+- Run narrow checks first. Before finishing a change to shared behavior, public APIs, security, data, or build tooling, also run the repo's broad checks, including static security analysis, dependency audit, and secret scan where available.
+- Report a missing tool as `not available`, never as passed.
+- To find code only a retired entry point uses, remove the entry point and let the compiler's or language's dead-code analysis list the rest; hand-written call graphs miss macro, trait, and dynamic edges.
 
-## Formatting and linters (single source of truth)
+## Formatting
 
-- The repo's own config is authoritative for style: `pyproject.toml`/`ruff.toml`, `.editorconfig`, `.golangci.yml`, `rustfmt.toml`, `eslint.config.*`, `.shellcheckrc`, or the stack's equivalent. Editor, pre-commit, and CI all read these same files — never a personal editor default. Keep each setting (e.g. line length) in ONE place.
-- Make pre-commit the enforcement spine: `pre-commit install` so the formatters/linters that gate CI also run on every commit against the staged snapshot. Never `--no-verify`.
-- Keep format-on-save ON only where the repository gate defines the formatter and config (e.g. ruff reading the repo's `pyproject.toml`, shfmt reading `.editorconfig`). Point each language's default formatter at its gate tool reading the repo config; never run a second formatter or generic "organize imports" alongside it — they fight and churn. If a file type has no gated formatter, disable format-on-save for that file type until the project deliberately selects and gates one.
-- Editor auto-format resolves config from the window's root: open each repo as its own root (or a multi-root workspace) so the tool finds THAT repo's config, not a parent or built-in default. Symptom of a bad root: editor wraps at 88 while the repo pins 100, or strips an import blank line the linter keeps.
-- Pin the SAME tool version across the editor extension, the pre-commit rev, and CI so none disagree.
-- Never lint or reformat generated code or test fixtures — `extend-exclude` them; modernizing an intentionally-old fixture defeats its purpose.
-- If editor output differs from the gate, the editor is misconfigured — fix the config once; don't hand-fix the same file repeatedly. Treat recurring formatter drift as a config bug, not a chore.
+- The repo's config (`pyproject.toml`/`ruff.toml`, `.editorconfig`, `.golangci.yml`, `rustfmt.toml`, `eslint.config.*`, `.shellcheckrc`) is the single source of style for editor, pre-commit, and CI. Keep each setting in one place and pin the same tool version everywhere.
+- Run formatters and linters through pre-commit (`pre-commit install` in each clone) so they gate every commit against the staged snapshot; never `--no-verify`.
+- Format on save only with the gate's tool and config, and open each repo as its own editor root so the tool finds that repo's config. When editor output differs from the gate, fix the editor config once instead of hand-fixing files.
+- Never lint or reformat generated code or test fixtures; exclude them in config.
 
 ## Git
 
-- Commit atomically with imperative messages.
-- In an explicit commit-only task, package the accepted change without starting a review-fix loop. Reuse current review evidence or run one bounded read-only review when it is missing; report findings in chat without automatically patching or re-reviewing.
-- Limit commit-only edits to mechanical staging, formatter, hook, metadata, signing, or publication blockers. Release, artifact, deployment, and distribution workflows remain write-capable within their own declared scope.
-- Report behavioral defects, design issues, and missing tests directly in chat. Do not create a findings file unless explicitly requested, and do not defer publication unless the user or repository policy defines the review as a blocking gate.
-- If a configured hook physically blocks the commit because of a product defect, report the exact blocker without bypassing the hook or silently switching to development work. Product remediation requires a separate explicit fix request.
-- Completing implementation does not imply publication. Commit locally; push and PR/MR creation require explicit authorization in the user's request. Once authorized, complete that publication workflow — remote verification, push, PR/MR, branch cleanup — without asking again at each step.
-- Preserve protected/default-branch policy unless the task or established repository workflow selects that branch.
+- Commit atomically with imperative messages. Completing implementation does not imply publication: commit locally; push and PR/MR creation need explicit authorization, after which finish the whole publication workflow (remote verification, push, PR/MR, branch cleanup) without asking again.
+- Preserve protected and default-branch policy unless the task or the repo's workflow selects that branch.
+- A workflow is commit-only only when its command or the user says it packages an accepted change, as `ship-commit` does; `ship`, `publish`, `release`, `deploy`, or `distribute` alone do not make it so, and those workflows may edit what their own contracts require. A commit-only task reuses current review evidence or runs one bounded read-only review, makes only mechanical edits (staging, formatter, hook, metadata, signing, publication blockers), and never patches findings, starts a review-fix loop, or re-reviews.
+- Report defects, design issues, and missing tests in chat; create no report or findings file unless asked. Findings block publication only when the user or repo defines the review as a blocking gate.
+- If a hook blocks the commit because of a product defect, report the blocker and its unblock path; never bypass the hook or switch to development work without an explicit fix request.
 
-## Databases and Environments
+## Environments
 
-- Resolve the real environment and target before migrations or data mutation. Use the narrowest operation and capture a rollback point when the system supports one.
-- Prefer local, disposable, or staging environments for proof.
+- Resolve the real environment and target before migrations or data mutation; use the narrowest operation and capture a rollback point when the system supports one.
+- Prove changes in local, disposable, or staging environments first.

@@ -76,7 +76,7 @@ Absolute language (`all`, `100%`, `complete`, `production-ready`) requires an ex
 - Record working tree; identify unrelated dirty files.
 - Generated files, lockfiles, schemas, registries, docs consistent with the claim.
 - No production placeholders, `todo!()`, hard-coded success, forced pass, disabled gate, or no-op required path.
-- Inventory every mock/fake/fixture/stub/spy/emulator/in-memory/recorded/synthetic/test-mode or renamed substitute, including those inside tests. Each needs a complete `SUBSTITUTE_JUSTIFICATION`; every substitute-backed result is diagnostic only and excluded from readiness evidence.
+- Inventory every substitute for a boundary the claimed path calls (mock, fake, stub, spy, emulator, in-memory service, recorded service response, test mode, or a renamed equivalent), including those inside tests. Each needs a `SUBSTITUTE_JUSTIFICATION`, and its result is excluded from readiness evidence for the boundary it replaces. Constructed inputs that the real component reads are inputs, not substitutes.
 - Any required real dependency, data path, or external effect replaced by a substitute keeps that matrix item `BLOCKED` until the real path runs. A suite called `e2e_test`, `integration`, `real`, or equivalent does not change the classification.
 - Dependency risk evidence when deps changed.
 - Repo checks appropriate to the surface — green tests are evidence for tested gates only.
@@ -100,14 +100,14 @@ Catastrophic failure catalog:
 |-------|---------------|
 | Data loss / corruption | Can one normal or retry path destroy, duplicate, or silently corrupt user state? |
 | Auth / tenant break | Can one user, agent, plugin, or token cross an authorization or tenancy boundary? |
-| Unbounded cost / resource burn | Can a loop, retry, queue, model call, or autoscale path run without a hard budget or circuit breaker? |
+| Unbounded cost / resource burn | Can input-driven work (a loop, retry, queue, model call, or autoscale path) grow without any bound? |
 | Single point of failure | Does one dependency, config file, queue, host, key, or human action stop every supported path? |
 | Unobservable failure | Can the system be broken while health checks, logs, metrics, or user-visible status still report success? |
 | No rollback / recovery | If rollout, install, migration, or config merge fails, is there a tested path back to the previous working state? |
 | Destructive automation | Can an automated agent/tool delete, overwrite, publish, spend, deploy, or notify without the intended approval and scope controls? |
 | Irreversible external effect | Can the workflow send email, mutate production data, charge money, rotate secrets, or disclose data without replay-safe evidence and approval? |
 
-Treat any plausible `yes` on Critical/High surfaces as a candidate design finding. Prove it is mitigated, narrow the claim, or FAIL.
+Treat a `yes` you can show on a Critical/High surface (an input, a trace, or a missing control on a reachable path) as a candidate design finding. Prove it is mitigated, narrow the claim, or FAIL.
 
 Record findings with severity + confidence. Critical/High open → FAIL.
 
@@ -275,7 +275,7 @@ Blockers:
 1. Vague scope → BLOCKED until the matrix is explicit.
 2. Open Critical/High in scope → FAIL (cannot PASS via hygiene greens or claim narrowing that still markets the broken surface).
 3. No design/security pass → cannot PASS production-ready / stable / E2E / deployment-ready claims.
-4. Do not certify any substitute-backed run as acceptance, regardless of its label or location. Every necessary substitute requires the full justification record and remains diagnostic only.
+4. Do not certify a substitute-backed run as acceptance of the boundary it replaces, regardless of its label or location. Every necessary substitute requires the justification record.
 5. Do not certify release/install/deployment from source-tree-only runs.
 6. Do not certify `all targets` / `all features` / `100%` unless every supported item is listed and proven.
 7. Do not hide blockers in notes.

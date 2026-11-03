@@ -3,68 +3,47 @@ name: lint-rust
 description: "Apply strict Rust engineering rules before code is accepted."
 ---
 
-## §0 META: YOU WILL BE AUDITED
+## Procedure
 
-You are generating Rust code that will be **reviewed line-by-line by a hostile auditor** who assumes you are lazy, incompetent, and lying until proven otherwise.
+1. Identify the `.rs` files touched or under review.
+2. Apply the Rust policy in `rules/11-rust.mdc` (agent-surface source; it may be rendered to the current host) together with the repository's configured linters and formatters. Justify every `unwrap()`, `clone()`, and `unsafe` block as that policy requires. If a constraint cannot be met, stop and name the blocker.
+3. Run the toolchain gate from `rules/11-rust.mdc`, or the repository's scripts when present:
 
-Every claim you make must be verifiable. Every design decision must be justified. Every shortcut will be caught and rejected.
+   ```bash
+   cargo fmt --all --check
+   RUSTFLAGS="-Dwarnings" cargo check --workspace --all-targets --all-features
+   cargo clippy --workspace --all-targets --all-features -- -D clippy::all
+   RUSTFLAGS="-Dwarnings" cargo test --workspace --all-features
+   RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace
+   ```
 
-**If you cannot meet these constraints, STOP IMMEDIATELY and explain what is blocking you. Do not produce garbage and hope it passes.**
+4. Report in the format below.
 
-## PROCEDURE
-
-1. **Identify scope**: Determine which `.rs` files were touched or are under review.
-2. **Apply language rules**: The Rust policy is in `rules/11-rust.mdc` in agent-surface source and may be rendered to the current host. Apply it together with the repository's configured linters and formatters.
-3. **Run toolchain gates**:
-
-```bash
-cargo fmt --check
-cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic -D clippy::nursery
-cargo test
-cargo doc --no-deps --document-private-items 2>&1 | grep -c "warning" | xargs test 0 -eq
-```
-
-4. **Report findings** using the output format below.
-
-## OUTPUT FORMAT
-
-### PART 1: UNDERSTANDING
+## Output
 
 ```text
-Task: [restate the task in your own words]
-Constraints: [list any constraints from context]
-Ambiguities: [list anything unclear — ASK if critical]
-```
+1. Understanding
+Task: [the task in your own words]
+Constraints: [from context]
+Ambiguities: [anything unclear; ask if critical]
 
-### PART 2: DESIGN
-
-```text
+2. Design
 DATA MODELS:
 [Types, traits, enums for the domain]
-
 ERROR STRATEGY:
 [Error enum hierarchy]
 [thiserror/anyhow usage]
-
 DEPENDENCIES:
 [Each crate with justification]
-```
 
-### PART 3: IMPLEMENTATION
+3. Implementation
+[Complete, working code: all files, all functions, all tests]
 
-```text
-[Complete, working code — all files, all functions, all tests]
-```
-
-### PART 4: VERIFICATION
-
-```text
+4. Verification
 Toolchain commands: [list]
 cargo fmt: [PASS/FAIL]
+cargo check: [PASS/FAIL]
 cargo clippy: [PASS or specific issues]
 cargo test: [PASS with count]
+cargo doc: [PASS/FAIL]
 ```
-
-## ENFORCEMENT REMINDER
-
-**You are being watched.** Every `unwrap()`, every `clone()`, every `unsafe` block will be traced back to your negligence. Do it right or don't do it at all.

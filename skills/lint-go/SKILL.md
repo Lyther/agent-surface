@@ -3,65 +3,44 @@ name: lint-go
 description: "Apply strict Go engineering rules before code is accepted."
 ---
 
-## §0 META: YOU WILL BE AUDITED
+## Procedure
 
-You are generating Go code that will be **reviewed line-by-line by a hostile auditor** who assumes you are lazy, incompetent, and lying until proven otherwise.
+1. Identify the `.go` files touched or under review.
+2. Apply the Go policy in `rules/12-go.mdc` (agent-surface source; it may be rendered to the current host): the forbidden and default-deny list, concurrency rules, and the canonical strict `.golangci.yml` recipe. Apply it with the repository's configured linters and formatters; for a greenfield project without config, seed `.golangci.yml` from that recipe. No ignored errors, `interface{}`, or data races. If a constraint cannot be met, stop and name the blocker.
+3. Run the toolchain gates in order, each green before the next:
 
-Go's simplicity is NOT an excuse for sloppy code. The language makes correctness easy — you have no excuse for getting it wrong.
+   ```bash
+   out=$(gofumpt -l .) && test -z "$out" && out=$(goimports -l .) && test -z "$out"   # fails on unformatted files or a missing tool
+   go vet ./...
+   golangci-lint run ./...             # strict set from rules/12-go.mdc (gosec, exhaustive, errorlint, etc.)
+   govulncheck ./...                   # known-vuln deps — blocking
+   go test -race -count=1 ./...
+   ```
 
-**If you cannot meet these constraints, STOP IMMEDIATELY and explain what is blocking you. Do not produce garbage and hope it passes.**
+   Do not use plain `gofmt -s` in new projects; `gofumpt` is a strict superset, installed through the repository's pinned tooling (`rules/12-go.mdc`).
+4. Report in the format below.
 
-## PROCEDURE
-
-1. **Identify scope**: Determine which `.go` files were touched or are under review.
-2. **Apply language rules**: The Go policy is in `rules/12-go.mdc` in agent-surface source and may be rendered to the current host. It carries the forbidden/default-deny list, concurrency rules, and the canonical `.golangci.yml` strict-linter recipe. Apply it together with the repository's configured linters and formatters; for greenfield projects with no config, seed `.golangci.yml` from that recipe.
-3. **Run toolchain gates** (in order — each must be green before the next):
-
-```bash
-gofumpt -w . && goimports -w .      # formatters — gofumpt supersedes gofmt
-go vet ./...
-golangci-lint run ./...             # strict set from rules/12-go.mdc (gosec, exhaustive, errorlint, etc.)
-govulncheck ./...                   # known-vuln deps — blocking
-go test -race -count=1 ./...
-```
-
-**Do not** use plain `gofmt -s` in new projects. `gofumpt` is a strict superset — install: `go install mvdan.cc/gofumpt@latest`.
-
-4. **Report findings** using the output format below.
-
-## OUTPUT FORMAT
-
-### PART 1: UNDERSTANDING
+## Output
 
 ```text
-Task: [restate the task in your own words]
-Constraints: [list any constraints from context]
-Ambiguities: [list anything unclear — ASK if critical]
-```
+1. Understanding
+Task: [the task in your own words]
+Constraints: [from context]
+Ambiguities: [anything unclear; ask if critical]
 
-### PART 2: DESIGN
-
-```text
+2. Design
 DATA MODELS:
 [Structs, interfaces for the domain]
-
 ERROR STRATEGY:
 [Error types and wrapping]
 [sentinel vs typed errors]
-
 DEPENDENCIES:
 [Each module with justification]
-```
 
-### PART 3: IMPLEMENTATION
+3. Implementation
+[Complete, working code: all files, all functions, all tests]
 
-```text
-[Complete, working code — all files, all functions, all tests]
-```
-
-### PART 4: VERIFICATION
-
-```text
+4. Verification
 Toolchain commands: [list]
 gofumpt + goimports: [PASS/FAIL — zero diffs]
 go vet: [PASS/FAIL]
@@ -69,7 +48,3 @@ golangci-lint: [PASS or specific issues; note which strict linters ran]
 govulncheck: [PASS or CVE IDs]
 go test -race: [PASS with count]
 ```
-
-## ENFORCEMENT REMINDER
-
-**You are being watched.** Every ignored error, every `interface{}`, every data race will be traced back to your negligence. Do it right or don't do it at all.

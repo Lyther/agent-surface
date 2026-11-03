@@ -6,337 +6,72 @@ description: "Commit accepted local changes safely; publish only when explicitly
 
 ## OBJECTIVE
 
-**THE ATOMIC SURGEON.**
-Git history is a story, not a dump.
-**Your Job**: Dissect current changes into logical, atomic units.
-**The Enemy**: "WIP", "Update files", `git commit -a -m "fix"`.
-**The Law**: If I cannot revert a specific feature without breaking unrelated changes, YOU FAILED.
-**Critical Note**: Most git commands here are non-interactive. If you run anything that *could* open `$EDITOR` (commit without `-m`, interactive rebase, `git send-email --compose`), pipe it or pre-fill the message — never leave the LLM stranded at a blocked TTY.
+Package accepted work into atomic local commits: each commit reverts cleanly without breaking unrelated changes. Push and PR/MR creation happen only when the request explicitly authorizes publication; then finish that workflow without re-asking. Kernel patch email is prepared, never sent. Never commit WIP or vague subjects (`fix stuff`, `update files`); stash unfinished work or use a throwaway branch.
 
-## VIBE CODING INTEGRATION
+This is not a development loop. Edit only mechanical commit blockers (formatter output, staging, metadata, signing); report defects, design issues, and missing tests in chat, and create no findings or scratch file unless asked. Never let a command open `$EDITOR`: pass messages with `-m` or `-F`.
 
-This is the **checkpoint** in the iteration loop:
+## 1. Detect the Repo Mode
 
-```text
-spec → feature → test → REVIEW → COMMIT → next iteration
-```
+Pick one mode, state it in one line, and ask when signals conflict.
 
-Commit accepted work frequently. Atomic commits enable easy rollback and bisection. Reuse a current review for the exact diff; when direct development hands off without one, run one bounded review before publication.
+| Mode | Signals | Rules |
+|---|---|---|
+| kernel | `MAINTAINERS`, `scripts/checkpatch.pl`, `scripts/get_maintainer.pl`, `Kbuild`, `Makefile` with `VERSION =` | `subsystem: imperative subject`, no Conventional Commits; DCO `-s` by the human author; distribute with `git format-patch` + `git send-email`, never `git push` to mainline |
+| oss-pr | `.github/`, `CONTRIBUTING.md`, public remote, PR flow | Conventional Commits; feature branch + PR; never push to `main`/`master` directly |
+| internal-trunk | private remote, monorepo, no PR template | follow the repo's CONTRIBUTING/AGENTS.md; default to feature branch + PR |
+| solo | no remote, or a local mirror | commit and stop; a remote is a possible route, not an instruction |
 
-## COMMIT-ONLY BOUNDARY
+## 2. Pre-Flight
 
-`ship-commit` packages already-accepted work into a local commit. On its own it stops there; push and PR/MR creation happen only when the user's request explicitly authorizes them. It is not a development or remediation loop.
+1. Format and lint with the repo's own config (`05-tooling`); in kernel mode skip blanket reformatters and run `lint-kernel` (checkpatch, `make C=2 W=1`, smatch, coccicheck, kernel-doc). Re-stage formatter changes; never mix formatter churn into a feature commit.
+2. Check the staged snapshot, not only the working tree: after staging, run `pre-commit run`, or the repo's format/lint checks on the staged files, because format-on-save can re-touch files after your last check. Re-stage until clean. Never `--no-verify`.
+3. Run `git status`; add or remove each untracked file deliberately.
+4. Run focused tests for touched areas. In kernel mode build the affected subsystem and fix new warnings.
 
-- Commit-time edits are limited to mechanical blockers required to represent the accepted change correctly, such as repository-formatter output, staged-snapshot hygiene, or commit metadata.
-- Use current review evidence for the unchanged diff, or run exactly one read-only review pass when evidence is missing. Do not automatically fix findings or start another review round.
-- Report behavioral defects, design issues, missing tests, and improvements directly in chat. Continue publication unless the user or repository policy defines the review as a blocking gate.
-- Only a real commit/publication blocker or configured blocking gate under Phase 1.5 stops the workflow.
-- Do not create a findings document, scratch report, or temporary repository file unless the user explicitly requests an artifact.
+## 3. Review Once
 
-## PROTOCOL
+1. Inspect the diff for commit hygiene: intended scope, accidental files, secrets, conflict markers, malformed generated output, coherent buckets.
+2. Reuse review evidence that covers the unchanged diff: explicit user acceptance after the last edit, a `qa-review` or `qa-trace` pass over it, a `workflow-reviewer` PASS, or a repository approval. Tests and self-audit are not review.
+3. Otherwise run one read-only `qa-review` pass, plus one `qa-trace` pass when the diff touches kernel concurrency or hot paths, auth, sessions, cryptography, payments, privacy, IPC, ABI, cross-trust serialization, or an unproven race. Do not patch findings or start a second round.
+4. Report findings in chat. Stop only for a commit-safety blocker (accidental secret, unintended destructive content, scope substitution) or when the user or repo requires a clean verdict. Hand wanted remediation to `dev-fix` as a separate task.
 
-### Phase 0: Repo Mode Detection (Heuristic)
+## 4. Commit
 
-*The same word means different things in different trees. Detect the rules before applying them.*
+1. Bucket the diff (`git diff --stat`); split any bucket that mixes concerns, especially refactor plus behavior change ("also" in a body means two commits).
 
-Inspect the working tree and pick **one** mode. When in doubt, ask the user.
+    | Bucket | Conventional type | Kernel subject |
+    |---|---|---|
+    | config/build | `chore:` | `kbuild: …` |
+    | docs | `docs:` | `Documentation/<area>: …` |
+    | logic | `feat:` / `fix:` | `<subsystem>: <imperative>` |
+    | refactor | `refactor:` | `<subsystem>: cleanup …` |
+    | tests | `test:` | `selftests/<area>: …` |
+    | perf | `perf:` | `<subsystem>: speed up …` |
 
-| Mode | Detection signals | Implications |
-|------|-------------------|--------------|
-| **kernel** | Top-level `MAINTAINERS`, `scripts/checkpatch.pl`, `scripts/get_maintainer.pl`, `Documentation/process/submitting-patches.rst`, `Kbuild`, kernel-style `Makefile` with `VERSION =`/`PATCHLEVEL =` | Conventional Commits BANNED. Use `subsystem: imperative subject`. Sign-off via `-s` (DCO), GPG sign optional. Distribute via `git format-patch` + `git send-email`, never `git push` to mainline. |
-| **oss-pr** | `.github/`, `CONTRIBUTING.md`, public remote, GitHub/GitLab/Gitea PR flow | Conventional Commits typical. Push to feature branch + open PR. Never push to `main`/`master` directly. |
-| **internal-trunk** | Private remote, monorepo signals, no PR template | Follow repo's `CONTRIBUTING` or AGENTS.md. Default to feature-branch + PR unless told otherwise. |
-| **solo / local** | No remote, or remote == local mirror | Commit freely and stop at the local commit. A configured remote is a possible route, not an instruction to use it. |
+2. Stage each bucket by path or hunk (`git add <files>` or `git add -p`); never `git add .`, `-A`, or `commit -a`.
+3. Write an imperative subject of at most 50 characters that stands alone; for a complex change add a body, wrapped at 72 columns, that explains why. Conventional form: `type(scope): subject` with optional `Fixes #123`. Kernel form: `subsystem: subject`, body with the failure mode, then trailers.
+4. Kernel trailers: `Fixes: <12-hex> ("subject")` only with a known SHA; `Cc: stable@vger.kernel.org # 6.1.x` only when a backport is intended; `Reviewed-by`/`Tested-by` only when a human gave them; `Assisted-by:` when a tool helped, naming no product. Report trailer problems instead of rewriting existing commits (`lint-kernel` → `references/submission-policy.md`).
+5. Commit: `git commit -m "type(scope): subject"`, adding `-S` when a signing key is configured. Kernel mode is preparation only: `Signed-off-by:` is the human author's DCO, so print the exact `git commit -s -m …` for the author instead of running it.
+6. Read back the committed message (`git log -1 --format=%B`). Remove AI attribution or vendor advertising (`Made-with:`, `Co-Authored-By:` an AI, `Generated with …`, a `Signed-off-by:` naming an AI or `noreply@anthropic.com`, `AI-Generated:`) before any push or handoff; the kernel `Assisted-by:` and the human DCO stay.
+7. If a hook fails, fix only mechanical blockers, re-stage, and make a new commit (never `--amend` after an aborted hook). If the hook blocks on a product defect, report it and stop.
 
-State the detected mode in one line before proceeding (e.g., `Mode: kernel — checkpatch + send-email path engaged`). If multiple signals conflict, ask.
+## 5. Publish (only when authorized)
 
-### Phase 1: Pre-Flight Hygiene
+- Branch: never commit feature work onto `main`, `master`, `trunk`, or `release/*`; create a feature branch unless the repo works direct-to-trunk. Rebase only your feature branch onto the verified upstream base.
+- Push: verify the remote URL, branch, base, and commit set, then `git push -u origin <branch>`. A rewritten feature branch needs `--force-with-lease` against the proven remote tip, never bare `--force`. Push tags only in a release workflow.
+- Kernel: `git format-patch -M --cover-letter -o outgoing/ <base>..`, then `scripts/get_maintainer.pl outgoing/*.patch`. Never send: print the `git send-email --to=… --cc=…` command for the author, and use `--subject-prefix="PATCH v2"` with a cover-letter changelog for revisions without overwriting an earlier `outgoing/`.
+- PR/MR: one concern, ideally under 400 changed lines, linked to its issue or spec. Claim stable, production-ready, release-ready, or E2E-passed only with a scoped `verify-readiness` PASS or equivalent real-run evidence; otherwise state the narrower check that passed. Read back the published title and body and remove inserted attribution.
 
-*Don't wait for hooks to fail. Fix first.*
-
-1. **Format & Lint** (mode-aware):
-    - `oss-pr` / `internal-trunk` / `solo`: project formatter/linter (`npm run format`, `cargo fmt`, `ruff format`, `gofumpt`, etc.). Use the repo's own config (see rule `05-tooling`); do not pass ad-hoc style flags.
-    - `kernel`: do **not** run blanket reformatters. Delegate to `lint:kernel` (full toolchain: `checkpatch.pl --strict`, `make C=2 W=1`, `smatch`, `coccicheck`, kernel-doc warnings). `lint:kernel` also previews the `git send-email` recipient list without sending.
-    - If formatting changes files → fix and re-stage now. Never roll formatter churn into a feature commit.
-
-2. **Verify the STAGED snapshot, not just the working tree** (the drift that keeps recurring):
-    - An editor's format-on-save / organize-imports can silently re-touch a file between your last check and `git add`, so a tree that "passed earlier" can still be committed dirty (wrong line length, reordered imports, re-indented shell). The gate you ran on the working tree is not proof about what you are about to commit.
-    - After staging, prefer `pre-commit run` (staged-scoped and version-pinned) — it runs the gated formatters/linters on the staged snapshot, which is exactly what you are about to commit. If pre-commit is not configured, re-run the repository-defined formatter/linter checks on the staged files (for example `ruff format --check` + `ruff check`, `gofumpt -l`, `shfmt -d`, or a checked-in lint/format script). If anything is flagged or rewritten, re-stage and re-check; only commit once the staged snapshot is clean.
-    - Never `--no-verify`. This is the single reliable defense against editor-vs-gate drift.
-
-3. **Untracked Files**:
-
-    ```bash
-    git status
-    ```
-
-    New files? Decide: keep (add) or trash (delete/ignore). Do not let unrelated debris ride along.
-
-4. **Tests / Builds**:
-    - Run focused tests for touched areas; ensure green.
-    - `kernel`: build the affected subsystem with `make` and resolve new warnings. If the patch touches concurrency, locking, or hot paths, treat the next phase's `/qa:trace` step as **non-optional**.
-
-### Phase 1.5: Bounded Review and Commit-Scope Gate
-
-*Review once when needed. Report findings. Do not turn publication into remediation.*
-
-1. Inspect the staged and unstaged diff for commit hygiene only: intended scope, accidental files, secrets, conflict markers, malformed generated output, and whether the atomic buckets are internally coherent.
-2. Determine whether review evidence covers the exact current diff. Current evidence includes an explicit user acceptance after the latest edit, a completed `qa-review`/`qa-trace` pass over the same diff, a `workflow-reviewer` PASS, or a repository approval tied to the same commit. Tests and author self-audit are verification inputs, not independent review.
-3. If current review evidence exists and the diff has not changed, reuse it. Do not duplicate the review.
-4. If review evidence is missing, run one read-only `qa-review` pass over the changed paths. Also run one `qa-trace` pass when the diff touches kernel concurrency/hot paths; authentication, authorization, session, cryptography, payment, privacy, IPC, ABI, or cross-trust-zone serialization; or an unproven race/root cause. Treat the result as final for this invocation: do not patch findings and do not start round two.
-5. Report review and trace findings directly in chat. A finding does not by itself defer an authorized commit; a severity label emitted by the review command is not repository policy. Stop only when the user or repository explicitly requires a clean review verdict, or when the finding is itself a commit-safety blocker such as accidental secret inclusion, unintended destructive content, or scope substitution.
-6. Resolve only commit-mechanics blockers: merge/conflict state, formatter or generated-file drift required by the configured commit hook, staging mistakes, invalid commit metadata, signing failure, or publication failure. If a hook physically blocks the commit because of a product defect, report the blocker; do not bypass the hook and do not silently turn `ship-commit` into `dev-fix`.
-7. If remediation is wanted, hand the findings to `dev-fix` as a separate task. Do not create a note file, review artifact, backlog document, or temporary repository file unless the user explicitly requests one.
-
-### Phase 2: Classification
-
-*Read the diff. Understand the diff.*
-
-1. **Scan Changes**:
-
-    ```bash
-    git diff --name-only
-    git diff --stat
-    ```
-
-2. **Bucket Sorting**:
-
-    | Bucket | Files | Conventional type | Kernel subject form |
-    |--------|-------|-------------------|---------------------|
-    | **A: Config / Build** | `package.json`, `Dockerfile`, `Kconfig`, `Makefile` | `chore:` | `kbuild: …` / `<arch>: Kconfig: …` |
-    | **B: Docs** | `README.md`, `docs/*`, `Documentation/*` | `docs:` | `Documentation/<area>: …` |
-    | **C: Logic** | source code | `feat:` / `fix:` | `<subsystem>: <imperative>` |
-    | **D: Refactor** | renames, mechanical cleanups | `refactor:` | `<subsystem>: cleanup …` |
-    | **E: Tests** | spec/test-only changes | `test:` | `selftests/<area>: …` or `kunit: …` |
-    | **F: Perf** | tuning, no behavior change | `perf:` | `<subsystem>: speed up …` |
-
-3. **Conflict Check**:
-    - Does any bucket mix two unrelated concerns? Split it (`C1`, `C2`).
-    - Refactor + behavior change in the same commit is the most common offender. Separate them so revert is surgical.
-    - Heuristic: if the body needs the word "also" or "additionally", the commit should be two commits.
-
-### Phase 3: Atomic Execution
-
-**Loop for each bucket**:
-
-1. **Stage**: `git add <FILES_IN_BUCKET>`
-    - ⛔ Never `git add .` or `git add -A`. Stage by path or by hunk (`git add -p`) so you know exactly what is going in.
-
-2. **Craft Message**:
-
-    **Conventional repos** (oss-pr, internal-trunk, solo by default):
-
-    ```text
-    type(scope): subject (≤50 chars, imperative)
-
-    [optional body explaining WHY, wrapped at 72 cols]
-
-    [optional footer: Fixes #123, Refs ENG-456]
-    ```
-
-    **Kernel repos**:
-
-    ```text
-    subsystem: imperative short description
-
-    Body wrapped at 72 cols. Explain *why*, user-visible impact, and the
-    failure mode being fixed. Reference the offending commit when fixing.
-
-    Fixes: <12-hex> ("subject of bad commit")
-    Cc: <stable@vger.kernel.org> # 6.1.x   (only if backport intended)
-    Reported-by: Name <email>     (when applicable)
-    Reviewed-by: ...              (only after review actually given)
-    Assisted-by: LLM coccinelle   (if a tool helped — no model or product names)
-    Signed-off-by: Your Name <you@example.org>
-    ```
-
-    Heuristic guardrails for the LLM drafting the message:
-    - Imperative mood: "Add X", "Fix Y", "Remove Z" — never "Added", "Adds", "Fixes the" (in subject).
-    - The subject must stand alone. The body explains why, not what.
-    - Do **not** invent `Reviewed-by`/`Tested-by` trailers. They only appear when a real human gave that tag.
-    - Do **not** add `Fixes:` unless you know the offending SHA.
-    - The stable annotation is a version ("that version and newer"), not a range expression. Leaving
-      it off is legitimate when the range follows from `Fixes:` — do not manufacture one.
-    - `Signed-off-by:` is the human author's DCO certification. An agent never adds it.
-    - Report trailer problems; do not rewrite them. Trailers are inside the commit object, so
-      editing one rewrites every later hash and invalidates an already-prepared series.
-      See `lint-kernel` → `references/submission-policy.md`.
-
-3. **Sign & Commit** (mode-aware):
-
-    ```bash
-    # Conventional repo: GPG sign + message
-    git commit -S -m "type(scope): subject"
-    ```
-
-    **Kernel mode is preparation only.** `Signed-off-by:` is the DCO certification and only a
-    human can make it, so an agent does not run the sign-off itself. Draft the message — including
-    `Assisted-by:` when a tool helped — and hand the exact command to the author to run:
-
-    ```bash
-    # Proposed (NOT EXECUTED — the author certifies the DCO):
-    git commit -s -S -m "subsystem: imperative subject" \
-                     -m "Body paragraph explaining why."
-    ```
-
-    Use `-F <file>` (or repeated `-m`) for multi-paragraph bodies — never invoke `git commit` without `-m`/`-F` from an LLM, since it will block on `$EDITOR`.
-
-4. **Read Back the Actual Commit Message**:
-    - Immediately after each successful commit, inspect the committed text, not the draft you intended.
-    - Verify it contains no AI/vendor attribution, advertising, generated-by trailers, emoji watermarks, or assistant branding. Hooks, editor integrations, and hosted tools can mutate commit text after you draft it.
-    - **Kernel exception:** `Assisted-by: LLM [tools]` is *required* upstream disclosure, not vendor attribution, and must be preserved. It names no product. Same for the human author's DCO `Signed-off-by:`.
-    - If an unpublished local commit contains banned text, fix the message before any push, PR/MR, patch export, or handoff.
-
-5. **Handle Hook Failure**:
-    - Read the hook output. Correct only mechanical commit blockers within the accepted change, then re-stage and retry. If the hook exposes a behavioral defect, missing implementation, or broader remediation need, report it in chat without patching it in `ship-commit`; stop only when the configured hook actually refuses the commit.
-    - Create a NEW commit after an aborted hook; do NOT `--amend` blindly (the previous commit may not exist).
-    - ⛔ Never `--no-verify`. If the hook is wrong, fix the hook in a separate commit, with justification.
-
-### Phase 4: Distribute
-
-*Phase 4 runs only when the user's request explicitly authorizes publication. Without that, the workflow ends at the local commit with the route reported. Once authorized, complete the detected workflow end to end without re-asking at each step, and verify every external target before publishing.*
-
-#### 4A. Branch Discipline
-
-- Determine the current branch (`git rev-parse --abbrev-ref HEAD`).
-- Respect protected-branch policy. For feature work on `main`/`master`/`trunk`/`release/*`, create a feature branch and use the repository's PR/MR flow unless the established workflow is direct-to-trunk.
-- Do not rewrite a shared protected branch. Update feature branches against the verified upstream base.
-- Rebase against upstream is allowed *to update your feature branch*, not to rewrite history on a shared protected branch:
-
-    ```bash
-    git fetch origin
-    # Only if on a feature branch — never on main/master itself
-    git rebase origin/<base>
-    ```
-
-#### 4B. Push
-
-- Only under explicit authorization. Verify the remote URL, branch, upstream base, and commit set, then publish:
-
-  ```bash
-  git push -u origin <feature-branch>
-  ```
-
-- If rewritten feature-branch topology requires a force update, prove the expected remote tip and use `--force-with-lease`; never use bare `--force`.
-- Push tags only as part of a release workflow after verifying tag identity.
-
-#### 4C. Email / Patch Series (Kernel and Mailing-List Workflows)
-
-- For kernel mode, derive recipients from the exact patch and current tree and validate the final
-  `.eml`/patch inputs. **Preparation stops there** — the assistant never sends. Print the send
-  command for the author to run:
-
-    ```bash
-    # Prepare the exact patch series against the tree you are actually targeting
-    # (a subsystem maintainer tree is normal; origin/master is not universal).
-    git format-patch -M --cover-letter -o outgoing/ <review-base>..
-
-    # Derive and verify recipients for the exact patch.
-    scripts/get_maintainer.pl outgoing/*.patch
-
-    # Proposed (NOT EXECUTED — requires explicit human authorization):
-    #   git send-email --to=<maintainer> --cc=<list> outgoing/*.patch
-    ```
-
-- Record the final `--to` / `--cc` list, patch filenames, and transport result without exposing credentials.
-- For revisions, use `--subject-prefix="PATCH v2"` and update the cover-letter changelog. Never silently overwrite an earlier `outgoing/` directory.
-
-#### 4D. PR / MR Hygiene
-
-- Small PRs (≤ 400 LOC of meaningful change). Clear description. Link mission/spec/issue.
-- Preserve the Phase 1.5 result without reopening it as a review-fix loop. Report findings directly in chat and honor only the blocking gates defined there.
-- Do not claim `stable`, `production-ready`, `release-ready`, `deployment-ready`, `E2E passed`, `100% implemented`, or `all features supported` in the commit body, PR/MR text, release notes, or reviewer handoff unless a scoped `verify-readiness` PASS artifact or explicitly equivalent real-run proof artifact exists. Otherwise use the narrower claim that was actually proven, such as `tests passed`, `local smoke passed`, or `install dry-run passed`.
-- After opening or updating a PR/MR, read back the actual title/body/comments from the hosting service or CLI output and verify no AI/vendor attribution or advertising was inserted by templates, integrations, or assistants. Fix it before handing the PR/MR to the user.
-
-## OUTPUT FORMAT
-
-**The Commit Plan**
+## Output
 
 ```markdown
-# 📦 COMMIT PLAN
+Mode: oss-pr (feat/jwt-refresh) · Review: one qa-review pass, 0 blocking · Trace: not triggered
 
-**Mode**: oss-pr (feature branch `feat/jwt-refresh`)
-**Review**: reused user acceptance for the unchanged diff, or one `qa-review` pass completed
-**Trace**: reused / completed / not triggered
+1. chore(deps): update axios to 1.6.0 — package.json, package-lock.json
+2. feat(auth): implement JWT validation — src/auth/login.ts, src/auth/types.ts
+3. test(auth): add login flow tests — tests/auth/login.spec.ts
 
-## 1. Chore (Config)
-- **Files**: `package.json`, `package-lock.json`
-- **Message**: `chore(deps): update axios to 1.6.0`
-
-## 2. Feature (Main Work)
-- **Files**: `src/auth/login.ts`, `src/auth/types.ts`
-- **Message**: `feat(auth): implement JWT validation`
-
-## 3. Test (Verification)
-- **Files**: `tests/auth/login.spec.ts`
-- **Message**: `test(auth): add login flow tests`
-
-## Execution and Publication
-\`\`\`bash
-git add package.json package-lock.json
-git commit -S -m "chore(deps): update axios to 1.6.0"
-
-git add src/auth/login.ts src/auth/types.ts
-git commit -S -m "feat(auth): implement JWT validation"
-
-git add tests/auth/login.spec.ts
-git commit -S -m "test(auth): add login flow tests"
-
-git push -u origin feat/jwt-refresh
-gh pr create --base main --head feat/jwt-refresh --title "Implement JWT refresh" --body-file .agent-surface/pr-body.md
-\`\`\`
-
-## Publication Result
-- [x] pushed `feat/jwt-refresh` to `origin`
-- [x] opened PR against `main`
+Published: pushed feat/jwt-refresh; opened PR #42 against main
 ```
 
-For **kernel mode**, replace the push/PR block with the validated `git format-patch` and `git send-email` workflow, then report exact recipients and transport state.
-
-## EXECUTION RULES
-
-1. **ATOMICITY**: Unrelated changes = separate commits. Always.
-2. **REVIEW ONCE, DO NOT LOOP**: reuse current review evidence or run one missing review/trace pass. Report findings in chat; do not patch or re-review them inside `ship-commit`.
-3. **NO WIP**: Not done? Use `git stash` (or a throwaway branch). Don't commit "WIP".
-4. **EXPLAIN WHY**: Complex diff → body is mandatory. The subject is for the *what*, the body is for the *why*.
-5. **PRE-COMMIT RESPECT**: Hook complains → fix the underlying issue, never `--no-verify`.
-6. **IMPERATIVE MOOD**: "Add X", not "Added X" or "Adds X".
-7. **SIGN-OFFS**: Conventional repos → GPG sign (`-S`) when keys are configured. Kernel → DCO sign-off (`-s`) is mandatory; `-S` additionally if your key is set up.
-8. **PROTECTED BRANCHES**: Use the repository's protected-branch workflow; default feature work to a feature branch plus PR/MR.
-9. **VERIFIED EMAIL TARGETS**: For patch-email workflows, derive recipients from the exact patch and validate durable message inputs. Sending is publication and needs the same explicit authorization; once sent, record transport state.
-10. **PUBLICATION IS AUTHORIZED, NOT IMPLIED**: Stop at the local commit unless the request explicitly authorizes push or PR/MR. Once it does, complete that workflow fully rather than asking again at each step.
-11. **NO READINESS OVERCLAIMS**: Broad readiness claims require `verify-readiness` PASS or equivalent real-run proof; otherwise state the narrower checks that passed.
-12. **READ BACK PUBLISHED TEXT**: Before push, patch export, PR/MR handoff, or release handoff, re-check the actual commit messages and submitted PR/MR/release text for AI/vendor attribution or advertising.
-13. **HEURISTICS OVER HARD-CODES**: Treat the example commands as illustrations, not scripts. Pick the right tool for the detected stack (uv, cargo, go, kbuild). When the heuristic is ambiguous, ask.
-14. **SEPARATE REMEDIATION**: Resolve only mechanical commit blockers. Product remediation requires a separate task; never create a findings artifact unless requested.
-
-## AI GUARDRAILS
-
-| ⛔ Banned | ✅ Required |
-|----------|-------------|
-| `git add .` / `git add -A` | Explicit file or hunk staging |
-| `git commit -a` | Selective staging |
-| `git commit` without `-m`/`-F` | Pre-filled message (LLM has no TTY for `$EDITOR`) |
-| `--no-verify` | Fix the hook issue |
-| `--amend` after a failed pre-commit hook | NEW commit (the prior commit was never created) |
-| Push without verifying remote/branch/commit set | Verify identity, then publish the detected workflow |
-| Direct feature push / merge / rebase onto protected branches | Feature branch + PR/MR or established direct-to-trunk policy |
-| Patch email with guessed recipients or transient stdin | Exact patch-derived recipients + durable validated message files |
-| `git push --force` to shared branches | Prove expected remote tip and use `--force-with-lease` |
-| Conventional Commits prefixes (`feat:`/`fix:`) inside the kernel tree | `subsystem: imperative subject` per `Documentation/process/submitting-patches.rst` |
-| Fabricated `Reviewed-by`/`Tested-by`/`Fixes:` trailers | Only real, attributable trailers |
-| "WIP" / "fix stuff" / "update files" subjects | Specific, imperative, ≤50-char subjects |
-| Mixing unrelated changes | Atomic commits |
-| AI attribution trailers | Clean commit messages |
-
-### Zero-Tolerance AI Watermark Policy
-
-**NEVER** append any of these to commit messages, PR descriptions, code comments, or any output:
-
-- `Made-with: Cursor`, `Generated by Cursor`
-- `Co-Authored-By: Claude`, `Co-Authored-By: Copilot`, `Co-Authored-By: GPT`, or any AI tool
-- `Generated with Claude Code`, `🤖 Generated with [Claude Code]`
-- `Signed-off-by:` referencing any AI tool or `noreply@anthropic.com` (this is distinct from the kernel DCO `Signed-off-by:` for a *human* author, which IS required)
-- `AI-Generated:` headers or any branding from Anthropic, OpenAI, Google, Codeium, Windsurf
-
-If you must attribute, use something fun: `by human`, `by mass-energy equivalence`, `by mass hallucination`.
+In kernel mode, report the prepared patch files, the recipients, and the command left for the author.

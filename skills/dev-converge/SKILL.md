@@ -56,7 +56,7 @@ When AI tries multiple approaches in parallel:
 
 1. Compare surviving candidates by:
     - Alignment with `arch-contract`
-    - Test coverage & negative-path handling
+    - Required behavior covered, with the least added code
     - Simplicity (lower complexity, fewer deps)
     - Behavior preservation
     - Blast radius
@@ -88,8 +88,7 @@ When AI tries multiple approaches in parallel:
 - Agent-02: best architecture, strictly typed.
 
 ## Transplants
-- From Agent-01: ported `retry_logic()` after `npm test` passed.
-- From Agent-04: ported `InputValidation` after negative-path test passed.
+- From Agent-01: ported its date parser, which fixes a case the primary fails, after `npm test` passed.
 
 ## Rejected Candidates
 - Agent-03: failed compilation.

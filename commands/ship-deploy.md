@@ -6,122 +6,54 @@ description: "Deploy verified artifacts with target identity and rollback gates.
 
 ## OBJECTIVE
 
-**THE LAUNCH BUTTON.**
-Take the verified artifact from `ship-artifact` and make the target environment match it exactly.
-**The Goal**: Zero-drift rollout. Fast rollback.
-**The Enemy**: Mutable tags, cluster drift, half-applied migrations, and "healthy" deployments running the wrong build.
+Make the target environment match the verified artifact from `ship-artifact` exactly: zero-drift rollout, fast rollback. Kernel and mailing-list patch flows send patches instead of deploying; use `ship-commit` in kernel mode for them.
 
-## PROTOCOL
+## Rules
 
-### Phase 0: Target and Rollback Gate
+1. Resolve the exact staging, preview, production, customer, or store target from the task and live deployment config before touching anything live; if no unique target resolves, report the missing selector instead of guessing.
+2. Record the deployment plan (target, artifact digest, strategy, health gate, rollback path), then execute it under durable full-execution consent.
+3. Deploy by digest or signed checksum only; never use mutable tags or "latest installer" labels, and never silently promote `latest`.
+4. Promote only the exact artifact that passed proof and staging checks.
+5. Roll back when the live identity does not match the frozen record, even if healthchecks are green.
+6. Replace the runtime with the verified artifact; never SSH into a server to `git pull` or edit live files to hotpatch production. Repair source, rebuild, redeploy.
+7. Send Slack, email, or changelog announcements only to channels named by the deployment task or the established rollout workflow.
 
-*Production blast radius is irreversible. Resolve identity and rollback before touching anything live.*
+## 1. Pre-Flight
 
-- Resolve the exact staging, preview, production, customer, or store target from the task and live deployment config. If no unique target can be resolved, report the missing selector instead of guessing.
-- Record the deployment plan (target, artifact digest, strategy, health gate, rollback path), then execute it under durable full-execution consent.
-- Never silently promote mutable `latest`; deploy the frozen artifact identity and verify the environment reports that identity.
-- For mailing-list / kernel patch flows, this command does not apply — kernel deployment is "send patches", not "push to prod". Use `ship-commit` Phase 4C instead.
+1. Freeze the deployment record: Git SHA, artifact digest or package checksum, bundle manifest or checksum, expected version or build string, and change ticket or rollout owner.
+2. Verify trust material: the signature is valid and the SBOM, provenance, and release manifest are present.
+3. Diff desired against live: config, secret references, routes/ingress, resources/autoscaling, and feature flags.
+4. Confirm schema and config changes are backward-compatible or explicitly flag-gated.
+5. Confirm deployment docs, rollback steps, and release notes reference the real artifact names and commands that will be used.
 
-### Phase 1: Pre-Flight
+## 2. Rollout
 
-*Freeze the identity before touching prod.*
+Deploy OCI images as `image@sha256:...` and non-OCI packages by signed checksum, with one strategy:
 
-1. **Select Target**:
-    - `staging`, `production`, store channel, or customer environment.
-2. **Freeze the Deployment Record**:
-    - Git SHA
-    - Artifact digest or package checksum
-    - Bundle manifest / bundle checksum
-    - Expected version / build string
-    - Change ticket / rollout owner
-3. **Verify Trust Material**:
-    - Signature valid
-    - SBOM present
-    - Provenance present
-    - Release manifest present
-4. **Diff Desired vs Live**:
-    - Config
-    - Secrets references
-    - Routes / ingress
-    - Resources / autoscaling
-    - Feature flags
-5. **Compatibility Check**:
-    - Schema and config must be backward-compatible or explicitly flag-gated.
-6. **Docs / Runbook Parity**:
-    - Deployment docs, rollback steps, and release notes must reference the real artifact names and commands that will be used.
+- Rolling: start new instances, wait for readiness, and drain old instances once the new ones are healthy.
+- Blue/green: bring up the full new stack, switch traffic, and keep the old stack intact until verification passes.
+- Canary: shift 1% -> 10% -> 50% -> 100%; roll back automatically on an SLO or correctness breach.
 
-### Phase 2: Rollout
+## 3. Landing Verification
 
-*Deploy by identity, not by vibes.*
+1. Poll readiness/health on the new instances; roll back on timeout.
+2. Run a minimal `verify-prove` flow against the new revision.
+3. Confirm the running digest matches the frozen record, `/health`, `/version`, or `--version` reports the expected version or build SHA, and the expected schema version, config family, or license ID is present when applicable.
+4. Watch error rate, latency, and saturation for a hold window; roll back on breach.
 
-1. **Digest / Checksum Only**:
-    - OCI deploys use `image@sha256:...`
-    - Non-OCI deploys use signed package checksums
-2. **Strategy A: Rolling Update**:
-    - Start new instances
-    - Wait for readiness
-    - Drain old instances after the new ones are healthy
-3. **Strategy B: Blue / Green**:
-    - Bring up the full new stack
-    - Switch traffic
-    - Keep the old stack intact until verification passes
-4. **Strategy C: Canary / Progressive**:
-    - Shift 1% -> 10% -> 50% -> 100%
-    - Auto-rollback on SLO or correctness breach
+## 4. Audit Trail
 
-### Phase 3: Landing Verification
+1. Record target, time, operator, artifact digest, bundle checksum, and config revision.
+2. Link release notes, SBOM, provenance, and rollout logs.
+3. Reconcile desired against live state after rollout and alert on drift.
 
-*A green rollout is meaningless if the identity is wrong.*
+## 5. Channel and Store Release
 
-1. **Healthcheck Loop**:
-    - Poll readiness / health on the new instances.
-    - Timeout -> rollback.
-2. **Artifact-First Proof**:
-    - Run a minimal `verify-prove` flow against the new revision.
-3. **Live Identity Match**:
-    - Running digest matches the frozen record
-    - `/health`, `/version`, or `--version` reports the expected version / build SHA
-    - Expected schema version, config family, or license ID is present when applicable
-4. **SLO Hold Period**:
-    - Monitor error rate, latency, and saturation for a hold window.
-    - Breach -> rollback.
+- Desktop: distribute signed installers, verify codesign and notarization, and publish checksums and update metadata.
+- Mobile: submit the exact `.aab` / `.ipa` that passed validation; track staged rollout percentages and review status.
+- Customer bundles: deliver the exact tested archive with its manifest and checksum beside it.
 
-### Phase 4: Audit Trail
-
-*Leave evidence someone else can trust later.*
-
-1. **Record the Deployment**:
-    - Target
-    - Time
-    - Operator
-    - Artifact digest
-    - Bundle checksum
-    - Config revision
-2. **Link the Evidence**:
-    - Release notes
-    - SBOM
-    - Provenance
-    - Rollout logs
-3. **Post-Deploy Drift Check**:
-    - Reconcile desired vs live state after rollout.
-    - Alert on drift.
-
-### Phase 5: Channel / Store Release
-
-1. **Desktop**:
-    - Distribute signed installers
-    - Verify codesign / notarization
-    - Publish checksums and update metadata
-2. **Mobile**:
-    - Submit the exact `.aab` / `.ipa` that passed validation
-    - Track staged rollout percentages and review status
-3. **Customer Bundles**:
-    - Deliver the exact tested archive
-    - Keep the manifest and checksum beside the bundle
-
-## OUTPUT FORMAT
-
-**The Deployment Log**
+## Output
 
 ```markdown
 > **Target**: Production
@@ -138,13 +70,3 @@ Take the verified artifact from `ship-artifact` and make the target environment 
 > - SLO hold window: PASS
 > - **STATUS**: SUCCESS
 ```
-
-## EXECUTION RULES
-
-1. **IMMUTABLE INFRASTRUCTURE**: Never SSH into a server to `git pull`. Replace the runtime with the verified artifact.
-2. **DIGESTS OR CHECKSUMS ONLY**: Mutable tags and "latest installer" labels are banned.
-3. **ROLL BACK ON MISMATCH**: If live identity does not match the frozen record, rollback even if healthchecks are green.
-4. **NO MANUAL HOTPATCHES**: Do not fix prod by editing live files. Repair source, rebuild, redeploy.
-5. **NO UNPROVEN PROMOTION**: The exact artifact promoted must be the one that passed proof and staging checks.
-6. **VERIFIED PRODUCTION TARGET**: For production, customer environments, and store channels, resolve the exact target, artifact, health gate, and rollback path, then act under durable full-execution consent.
-7. **BOUND ANNOUNCEMENTS**: Send Slack/email/changelog broadcasts only to channels named by the deployment task or established rollout workflow.

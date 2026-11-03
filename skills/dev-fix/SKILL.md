@@ -97,10 +97,9 @@ Do not emit a blocker until you have attempted the safe discovery or repair avai
 1. **Minimal Scope**:
     - Touch only the lines necessary.
     - Avoid cleanup/refactoring unrelated code. Queue it as a separate BOSS task/run if needed.
-2. **Defensive Coding**:
-    - Add Guard Clauses.
-    - Validate inputs.
-    - Handle edge cases explicitly.
+2. **Fix the Cause**:
+    - Change the code that produces the defect; do not wrap it in a guard, fallback, or flag.
+    - Validate input only where the failing input enters.
 
 ### Phase 3: Verification (The Recovery)
 

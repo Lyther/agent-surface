@@ -206,11 +206,11 @@ assert.equal(existsSync(path.join(root, "dist", "claude-code", ".claude", "rules
 // Substitute-policy contract lands in always-on Codex instructions + verify-test skill.
 const codexInstructions = readFileSync(path.join(root, "dist", "codex", ".codex", "AGENTS.md"), "utf8");
 assert.match(codexInstructions, /SUBSTITUTE_JUSTIFICATION/);
-assert.match(codexInstructions, /A test substitute is any non-real replacement/);
+assert.match(codexInstructions, /A test substitute stands in for something the code under test calls/);
 assert.doesNotMatch(codexInstructions, /## 04-cybersecurity\.mdc/);
 assert.doesNotMatch(codexInstructions, /## 10-python\.mdc/);
 const codexVerifyTest = readFileSync(path.join(root, "dist", "codex", ".agents", "skills", "verify-test", "SKILL.md"), "utf8");
-assert.match(codexVerifyTest, /No substitute-backed proof on any path/);
+assert.match(codexVerifyTest, /No substitute-backed proof of a replaced boundary/);
 
 const kiloPreviewConfig = JSON.parse(readFileSync(path.join(root, "dist", "kilo", ".config", "kilo", "kilo.jsonc"), "utf8"));
 assert.deepEqual(kiloPreviewConfig.permission, { "*": "allow" });

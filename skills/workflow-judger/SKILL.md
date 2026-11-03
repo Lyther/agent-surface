@@ -140,7 +140,7 @@ Key finding: <short summary>
 6. Deterministic next command in workflow mode:
    - `MERGE` → `workflow-boss` (close the run or queue the next batch)
    - `MERGE_PARTIAL` → route-specific worker for the `rework_task_ids`; passing tasks are accepted in `run_state_update`
-   - `REWORK` → route-specific worker, scoped to listed task IDs
+   - `REWORK` → route-specific worker, scoped to listed task IDs; a task that returns to the judger after a REWORK goes to `RESCUE` for a human decision, never a second REWORK
    - `RESPEC` → `workflow-boss` (with diagnosis)
    - `RESCUE` → `workflow-rescue`
 7. In workflow mode, write only judger-owned artifacts for the current round; never modify another role file.
