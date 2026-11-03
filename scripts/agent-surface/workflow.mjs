@@ -1,16 +1,17 @@
-// The workflow subsystem: the `workflow` command tree (doctor, apply, patch)
-// that drives the validated run ledger under .agent-surface/workflows/<run_id>.
-// Owns run.json ledger advancement, the tamper-evident events.ndjson chain, and
-// git-tree-based patch capture/verify. Schema validation lives in check.mjs.
+// The workflow subsystem: the `workflow` command tree (init, doctor, apply, close,
+// patch) that drives the validated run ledger under .agent-surface/workflows/<run_id>.
+// Owns run.json ledger advancement, the hash-chained events.ndjson (the chain catches
+// hand edits, not a rewrite that recomputes hashes), and git-tree-based patch
+// capture/verify. Schema validation lives in check.mjs.
 import { spawnSync } from "node:child_process";
-import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
 import { checkBossArtifactCoherence, createAjv, formatAjvErrors, readWorkflowJson, validateWorkflowJson, validateWorkflowPatchManifests, workflowSchemaFiles } from "./check.mjs";
 import { readFileIfExists } from "./io.mjs";
-import { gitLines, gitOutput, gitValue } from "./proc.mjs";
+import { gitNulFields, gitOutput, gitValue } from "./proc.mjs";
 import { root } from "./registry.mjs";
 import { argValues, canonicalJson, exists, fail, isPathInside, isSafeRelativePath, requiredArgValue, safeFilename, sha256, uniqueStrings } from "./util.mjs";
 
@@ -22,9 +23,14 @@ const workflowTaskStateKeys = [
   "closed_task_ids",
 ];
 const workflowClockSkewMs = 60_000;
+const workflowCloseStates = ["closed", "quarantined", "aborted"];
 
 export async function workflow(args) {
   const [subcommand, ...rest] = args;
+  if (subcommand === "init") {
+    await workflowInit(rest);
+    return;
+  }
   if (subcommand === "doctor") {
     await workflowDoctor(rest);
     return;
@@ -33,11 +39,94 @@ export async function workflow(args) {
     await workflowApply(rest);
     return;
   }
+  if (subcommand === "close") {
+    await workflowClose(rest);
+    return;
+  }
   if (subcommand === "patch") {
     await workflowPatch(rest);
     return;
   }
-  fail("workflow requires doctor, apply, or patch");
+  fail("workflow requires init, doctor, apply, close, or patch");
+}
+
+// Creates run.json bound to the current git HEAD, an empty event log, and a current.json
+// naming the run; the first workflow-boss apply appends the first event. One run is
+// active per checkout, so init refuses while current.json names another active run.
+async function workflowInit(args) {
+  const runId = requiredSafeId(args, "--run");
+  const runDir = workflowRunDir(runId);
+  const runPath = path.join(runDir, "run.json");
+  const eventsPath = path.join(runDir, "events.ndjson");
+  if (await exists(runPath) || await exists(eventsPath)) fail(`workflow run already exists: ${path.relative(process.cwd(), runDir)}`);
+  const activeRunId = await workflowCurrentRunId(path.dirname(runDir));
+  if (activeRunId && activeRunId !== runId && (await workflowRunStatus(activeRunId)) === "active") {
+    fail(`workflow run ${activeRunId} is still active; close it before starting another`);
+  }
+  const baseCommit = gitValue(["rev-parse", "HEAD"]) ?? fail("workflow init requires a git repository with a commit");
+  const runData = {
+    schema_version: "workflow.v3",
+    status: "active",
+    run_id: runId,
+    branch: gitValue(["rev-parse", "--abbrev-ref", "HEAD"]),
+    base_commit: baseCommit,
+    base_tree_hash: gitValue(["rev-parse", "HEAD^{tree}"]),
+    current_round: 0,
+    workflow_next_command: "workflow-boss",
+    ...Object.fromEntries(workflowTaskStateKeys.map((key) => [key, []])),
+    last_artifact_hashes: {},
+  };
+  await writeWorkflowFile(runPath, `${JSON.stringify(runData, null, 2)}\n`);
+  await writeWorkflowFile(eventsPath, "");
+  await writeWorkflowCurrent(runDir, runId, runData);
+  console.log(`workflow init: ok (${path.relative(process.cwd(), runPath)})`);
+}
+
+// Records a terminal state through the same event writer as apply. Like apply, it
+// refuses an invalid run.json or a broken event chain rather than append to it. A
+// terminal state is final; rerunning the same state only finishes a partial close.
+async function workflowClose(args) {
+  const runId = requiredSafeId(args, "--run");
+  const state = requiredArgValue(args, "--state");
+  if (!workflowCloseStates.includes(state)) fail(`--state must be one of: ${workflowCloseStates.join(", ")}`);
+  const runDir = workflowRunDir(runId);
+  const runPath = path.join(runDir, "run.json");
+  const errors = [];
+  const schemas = await workflowSchemaValidators(errors);
+  const runData = await readWorkflowJson(runPath, schemas.get("workflow.run.schema.json"), errors);
+  if (runData && runData.run_id !== runId) errors.push(`run.json: run_id ${runData.run_id} does not match --run ${runId}`);
+  const { events } = await readWorkflowEvents(path.join(runDir, "events.ndjson"), schemas, errors, runId);
+  if (runData && runData.status !== "active" && runData.status !== state) {
+    errors.push(`workflow run is already ${runData.status}; it cannot be closed as ${state}`);
+  }
+  if (errors.length > 0) {
+    for (const error of errors) console.error(`ERROR: ${error}`);
+    process.exitCode = 1;
+    return;
+  }
+  if (runData.status === state && events.at(-1)?.role === "workflow-close") {
+    await writeWorkflowCurrent(runDir, runId, runData);
+    console.log(`workflow close: ok (already ${state})`);
+    return;
+  }
+
+  const fromCommand = runData.workflow_next_command ?? null;
+  runData.status = state;
+  runData.workflow_next_command = null;
+  await writeWorkflowFile(runPath, `${JSON.stringify(runData, null, 2)}\n`);
+  const eventHash = await appendWorkflowEvent(runDir, {
+    event_id: `workflow-close-${Date.now()}`,
+    run_id: runId,
+    round_id: runData.current_round,
+    role: "workflow-close",
+    from: fromCommand,
+    to: null,
+    timestamp: new Date().toISOString(),
+    summary: `Closed the run as ${state}.`,
+  });
+  await writeWorkflowCurrent(runDir, runId, runData);
+  console.log(`workflow close: ok (${state})`);
+  console.log(`event_hash: ${eventHash}`);
 }
 
 async function workflowDoctor(args) {
@@ -76,18 +165,22 @@ async function workflowDoctor(args) {
   }
   await validateWorkflowPatchManifests(runDir, schemas.get("workflow.patch.schema.json"), errors);
 
-  // The run ledger is the source of truth for routing. If the most recent
-  // recorded transition advanced the route, run.json.workflow_next_command must
-  // match it; otherwise the next-command pointer is lagging the accepted ledger
-  // (e.g. a role wrote its artifact but `workflow apply` never synced run.json).
+  // apply writes run.json and its event together, so a mismatch means run.json was
+  // edited by hand or an apply did not finish. An artifact that was never applied
+  // changes neither file and passes this check.
   if (runData && lastTransition && runData.status === "active") {
     const ledgerNext = runData.workflow_next_command ?? null;
     const transitionTo = lastTransition.to ?? null;
     if (ledgerNext !== transitionTo) {
       errors.push(
-        `run.json.workflow_next_command (${JSON.stringify(ledgerNext)}) lags the latest transition in events.ndjson (to=${JSON.stringify(transitionTo)}); run \`agent-surface workflow apply\` after the owning role to advance the ledger`,
+        `run.json.workflow_next_command (${JSON.stringify(ledgerNext)}) does not match the latest transition in events.ndjson (to=${JSON.stringify(transitionTo)}); run.json changed outside a completed \`agent-surface workflow apply\``,
       );
     }
+  }
+  // close writes run.json before its event, so a terminal run whose last event is not
+  // the close was interrupted; rerunning the same close appends the missing event.
+  if (runData && runData.status !== "active" && events.at(-1)?.role !== "workflow-close") {
+    errors.push(`run.json is ${runData.status} but events.ndjson ends without its close event; rerun \`agent-surface workflow close --run ${runId} --state ${runData.status}\``);
   }
 
   if (errors.length > 0) {
@@ -99,6 +192,10 @@ async function workflowDoctor(args) {
   console.log(`workflow doctor: ok (${path.relative(process.cwd(), runDir)})`);
 }
 
+// apply checks schemas, owner, run_id, an active run, boss provenance of task IDs,
+// and bucket coherence. It trusts the caller for the rest: one writer at a time (concurrent
+// applies lose events), only the current round's artifact for the role run.json
+// routes to, and a run_state_update that matches the artifact's verdict.
 async function workflowApply(args) {
   const role = requiredArgValue(args, "--role");
   const runId = requiredSafeId(args, "--run");
@@ -127,6 +224,7 @@ async function workflowApply(args) {
   if (runData && runData.run_id !== runId) {
     errors.push(`run.json: run_id ${runData.run_id} does not match --run ${runId}`);
   }
+  if (runData && runData.status !== "active") errors.push(`workflow run is ${runData.status}; apply needs an active run`);
   if (artifact && (artifact.run_id !== runId || artifact.workflow?.run_id !== runId)) {
     errors.push(`artifact run_id does not match --run ${runId}`);
   }
@@ -202,12 +300,7 @@ async function workflowApply(args) {
     timestamp: new Date().toISOString(),
     summary: `Applied ${role} state update.`,
   });
-  await writeWorkflowFile(path.join(path.dirname(runDir), "current.json"), `${JSON.stringify({
-    schema_version: "workflow.current.v1",
-    run_id: runData.status === "active" ? runId : null,
-    workflow_dir: runData.status === "active" ? path.relative(process.cwd(), runDir) : null,
-    updated_at: new Date().toISOString(),
-  }, null, 2)}\n`);
+  await writeWorkflowCurrent(runDir, runId, runData);
 
   console.log(`workflow apply: ok (${role})`);
   console.log(`run: ${path.relative(process.cwd(), runPath)}`);
@@ -535,7 +628,9 @@ async function workflowPatchEnd(args) {
   const postTreeHash = await buildWorktreeTree(manifest.filescope);
   const patch = gitOutput(["diff", "--binary", "--full-index", manifest.pre_tree_hash, postTreeHash, "--", ...manifest.filescope]);
   const nameStatus = gitOutput(["diff", "--name-status", manifest.pre_tree_hash, postTreeHash, "--", ...manifest.filescope]);
-  const changedFiles = parseNameStatusFiles(nameStatus);
+  const changedFiles = parseNameStatusFiles(
+    gitNulFields(["diff", "--name-status", "-z", manifest.pre_tree_hash, postTreeHash, "--", ...manifest.filescope]),
+  );
   const patchHash = `sha256:${sha256(patch)}`;
   const updated = {
     ...manifest,
@@ -556,6 +651,9 @@ async function workflowPatchEnd(args) {
   console.log(`changed_files: ${changedFiles.length}`);
 }
 
+// Checks the patch file hash, that the --file paths still build post_tree_hash,
+// `git diff --check`, and `git apply --check` on pre_tree_hash. It does not prove the
+// patch reproduces post_tree_hash or that files outside the --file paths are unchanged.
 async function workflowPatchVerify(args) {
   const context = workflowPatchContext(args);
   const manifest = await readPatchManifest(context.manifestPath);
@@ -631,7 +729,7 @@ async function readPatchManifest(file) {
 }
 
 async function buildWorktreeTree(filescope) {
-  const files = await gitLines(["ls-files", "--cached", "--others", "--exclude-standard", "--", ...filescope]);
+  const files = gitNulFields(["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...filescope]);
   const indexPath = path.join(await mkdtemp(path.join(os.tmpdir(), "agent-surface-index-")), "index");
   const env = { ...process.env, GIT_INDEX_FILE: indexPath };
 
@@ -640,7 +738,14 @@ async function buildWorktreeTree(filescope) {
     for (const file of files) {
       if (!isSafeRelativePath(file)) fail(`unsafe git path: ${file}`);
       const absolute = path.join(process.cwd(), file);
-      const fileStat = await stat(absolute).catch(() => null);
+      const fileStat = await lstat(absolute).catch(() => null);
+      // A link is stored as git stores one: its target path, mode 120000. Hashing the
+      // path itself would read the target's bytes, possibly from outside the repository.
+      if (fileStat?.isSymbolicLink()) {
+        const link = gitOutput(["hash-object", "-w", "--stdin"], env, await readlink(absolute, { encoding: "buffer" })).trim();
+        gitOutput(["update-index", "--add", "--cacheinfo", `120000,${link},${file}`], env);
+        continue;
+      }
       if (!fileStat?.isFile()) continue;
       const blob = gitOutput(["hash-object", "-w", "--", file], env).trim();
       const mode = fileStat.mode & 0o111 ? "100755" : "100644";
@@ -676,23 +781,45 @@ async function verifyPatchApplies(preTreeHash, patchPath) {
   }
 }
 
-function parseNameStatusFiles(text) {
+// `--name-status -z` fields: a status, then two paths for a rename or copy, else one.
+function parseNameStatusFiles(fields) {
   const files = [];
-  for (const line of text.split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    const parts = line.split(/\t+/);
-    files.push(...parts.slice(1));
+  for (let index = 0; index < fields.length;) {
+    const pathCount = /^[RC]/.test(fields[index]) ? 2 : 1;
+    files.push(...fields.slice(index + 1, index + 1 + pathCount));
+    index += 1 + pathCount;
   }
-  return uniqueStrings(files.filter(Boolean));
+  return uniqueStrings(files);
 }
 
 function workflowRunDir(runId) {
+  if (runId === "current.json") fail("current.json is reserved for the active-run pointer");
   return path.join(process.cwd(), ".agent-surface", "workflows", runId);
 }
 
+// The run current.json names, or null when it names none or cannot be read.
+async function workflowCurrentRunId(workflowsDir) {
+  try {
+    const runId = JSON.parse(await readFile(path.join(workflowsDir, "current.json"), "utf8"))?.run_id;
+    return typeof runId === "string" && safeIdPattern.test(runId) && runId !== "current.json" ? runId : null;
+  } catch {
+    return null;
+  }
+}
+
+async function workflowRunStatus(runId) {
+  try {
+    return JSON.parse(await readFile(path.join(workflowRunDir(runId), "run.json"), "utf8"))?.status ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const safeIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/;
+
 function requiredSafeId(args, name) {
   const value = requiredArgValue(args, name);
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(value)) fail(`unsafe ${name}: ${value}`);
+  if (!safeIdPattern.test(value)) fail(`unsafe ${name}: ${value}`);
   return value;
 }
 
@@ -710,6 +837,21 @@ async function appendWorkflowEvent(runDir, event) {
   };
   await writeWorkflowFile(eventsPath, `${await readFileIfExists(eventsPath) ?? ""}${JSON.stringify(fullEvent)}\n`);
   return eventHash;
+}
+
+// current.json names the run only while it is active. A run that stops being active
+// clears the pointer only when the pointer names it.
+async function writeWorkflowCurrent(runDir, runId, runData) {
+  if (runData.status !== "active") {
+    const pointed = await workflowCurrentRunId(path.dirname(runDir));
+    if (pointed && pointed !== runId) return;
+  }
+  await writeWorkflowFile(path.join(path.dirname(runDir), "current.json"), `${JSON.stringify({
+    schema_version: "workflow.current.v1",
+    run_id: runData.status === "active" ? runId : null,
+    workflow_dir: runData.status === "active" ? path.relative(process.cwd(), runDir) : null,
+    updated_at: new Date().toISOString(),
+  }, null, 2)}\n`);
 }
 
 async function writeWorkflowFile(file, contents) {
