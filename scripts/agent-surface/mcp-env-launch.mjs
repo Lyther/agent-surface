@@ -53,11 +53,12 @@ export function expandHome(target, homedir = os.homedir()) {
 }
 
 // dotenv precedence: a value already present in the ambient environment WINS over the file, so an
-// operator-exported secret is never shadowed by a stale file entry.
+// operator-exported secret is never shadowed by a stale file entry. An empty ambient value is unset,
+// as the install's credential plan counts it, so it cannot mask a configured file value.
 export function mergedEnv(base, fileValues) {
   const out = { ...base };
   for (const [key, value] of Object.entries(fileValues)) {
-    if (!(key in out)) out[key] = value;
+    if (!(key in out) || out[key] === "") out[key] = value;
   }
   return out;
 }

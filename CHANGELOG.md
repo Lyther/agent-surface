@@ -93,6 +93,7 @@ Notable changes to agent-surface and its first-party MCP services. Format: [Keep
 
 ### Fixed
 
+- **An empty environment variable no longer masks a saved credential** - the install plan counted an empty ambient variable as unset and the `.env` value as configured, but the MCP launcher kept the empty value, so the server started without its key. The launcher now treats an empty value as unset too.
 - **Workflow capture stays inside the checkout** - when a tracked directory was replaced by a link elsewhere, `workflow patch` read the file through the link into the patch, or failed on the link; it now records the link as git does. `workflow apply` also refuses an artifact that only links into the run directory.
 - **`run` evidence redaction and timeout** - a password holding an escaped quote inside twice-serialized JSON kept the part after that quote, and an `Authorization` header printed as an array kept its whole token; both are now redacted. A command that ignored SIGTERM held `run --timeout` until it exited on its own and left no evidence; the timeout now ends it with SIGKILL.
 - **MCP merges drop a stale remote transport** - merging a rendered stdio server into an entry that still held `url`, `headers`, `bearer_token_env_var` or a similar remote key kept both, and Codex 0.166 refused the whole config (`url is not supported for stdio`); those keys are now dropped while the entry's other settings stay.
