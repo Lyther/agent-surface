@@ -3,199 +3,104 @@ name: boot-concept
 description: "Research and write the concept-zero high-level design for a project."
 ---
 
-## OBJECTIVE
+## Objective
 
-Create or update `docs/context/concept-zero.md`, the canonical concept-level HLD for a new or existing project. `docs/architecture.md` and `docs/roadmap.md` should be derived from this document by `arch-roadmap`, not invented in parallel.
+Create or update `docs/context/concept-zero.md`, the canonical concept-level HLD for a new or existing project. It answers: what problem is solved, for whom, what success and unacceptable failure look like, what the system must and must not do, which existing products, OSS projects, standards, papers, protocols, managed services, and reference implementations already cover the problem, which concept is selected and why, what remains uncertain before detailed architecture, and what credible path leads to real production use.
 
-The concept HLD answers:
-
-- what problem is being solved;
-- for whom;
-- what success and unacceptable failure look like;
-- what the system must and must not do;
-- which existing products, OSS projects, standards, papers, protocols, managed services, and reference implementations already cover the problem;
-- which concept is selected and why;
-- what remains uncertain before detailed architecture;
-- what credible path exists to real production use.
-
-Do not write source code, detailed schemas, endpoint-by-endpoint APIs, migration files, UI mockups, or task-level implementation plans. Capture the concept, the evidence, and the decision.
+Capture the concept, the evidence, and the decision. Write no source code, detailed schemas, endpoint-level APIs, migrations, UI mockups, or task-level plans, and present screenshots, snippets, scaffolds, or API schemas as concept work only when they are existing evidence. Never create `docs/architecture.md` or `docs/roadmap.md`; `arch-roadmap` derives them from this document.
 
 ## Modes
 
 - `boot-concept check`: read-only inventory of existing context, evidence gaps, contradictions, and whether a credible concept HLD can be written.
-- `boot-concept run`: write or update `docs/context/concept-zero.md`; write `docs/context/concept-zero-research.md` only when the evidence ledger is too large for the main document.
-- Bare `boot-concept`: perform the check first, then proceed with `run` when the inputs are coherent enough. If product intent is ambiguous, state a working assumption and continue unless the next step would lock in the wrong product.
+- `boot-concept run`: write or update `docs/context/concept-zero.md`; add `docs/context/concept-zero-research.md` only when the evidence ledger would dominate the main document.
+- Bare `boot-concept`: check first, then run when the inputs are coherent enough. When product intent is ambiguous, state a working assumption and continue unless the next step would lock in the wrong product.
 
-## Decision Standard
+## Authority
 
-Act as a product-minded principal architect and research lead. Be skeptical, but do not inflate process. The best concept-zero document is dense enough to prevent bad architecture and small enough to stay read.
+Be skeptical without inflating process: the document should be dense enough to prevent bad architecture and small enough to stay read. You may narrow implementation scope to preserve the core outcome and production path, and recommend adoption, adaptation, procurement, partnership, or research instead of custom development. Never silently change the target problem, users, hard constraints, legal obligations, or explicit user decisions. Research, challenge, and recommend one direction instead of handing the user an unfiltered option list; ask only when alternatives represent different product intent that evidence cannot resolve.
 
-You may narrow implementation scope to preserve the core outcome and production path. You may recommend adoption, adaptation, procurement, partnership, or research instead of custom development.
-
-You may not silently change the target problem, users, hard constraints, legal obligations, or explicit user decisions. Do not ask the user to choose from an unfiltered option list. Research, challenge, and recommend one direction. Ask only when alternatives represent different product intent and evidence cannot resolve the choice.
-
-## Inputs
-
-Use:
+## Input
 
 1. The user brief, goals, constraints, corrections, and explicit exclusions.
 2. Existing `docs/context/`, `docs/design/`, `docs/research/`, `docs/adr/`, and project-specific equivalents.
 3. Prior concepts, PRDs, architecture docs, roadmaps, reviews, ADRs, benchmark notes, incident notes, and feasibility reports.
-4. Repository evidence when implementation already exists: manifests, tests, CI, schemas, package managers, deployment config, APIs, data models, and runtime boundaries.
+4. Repository evidence when implementation exists: manifests, tests, CI, schemas, package managers, deployment config, APIs, data models, and runtime boundaries.
 5. Authoritative external research.
 
-Detect concept-HLD equivalents by content, not just name. However, the preferred output filename is always `docs/context/concept-zero.md` unless the project has a stronger established convention.
+Detect concept-HLD equivalents by content, not name; still write `docs/context/concept-zero.md` unless the project has a stronger established convention.
 
-## Truth and Evidence Model
+## Labels
 
-Label material statements when the distinction matters.
-
-| Label | Meaning |
-|---|---|
-| `FACT` | Supported by repository evidence, authoritative docs, or cited research. |
-| `USER_DECISION` | Explicitly chosen by the user or project authority. |
-| `INFERENCE` | Derived from facts with stated reasoning. |
-| `ASSUMPTION` | Necessary working premise that remains unverified. |
-| `PROPOSAL` | Selected or candidate design choice for future implementation. |
-| `OPEN_QUESTION` | Decision or fact still unresolved. |
-| `INVALIDATED` | Prior claim or option contradicted by evidence. |
-
-Never invent users, requirements, metrics, legal obligations, performance, maintenance status, repo state, production readiness, or implementation status. A polished statement is not proof.
+Label material statements when the distinction matters: `FACT` (repository evidence, authoritative docs, or cited research), `USER_DECISION` (chosen by the user or project authority), `INFERENCE` (derived from facts, reasoning stated), `ASSUMPTION` (unverified working premise), `PROPOSAL` (selected or candidate design choice), `OPEN_QUESTION` (unresolved), `INVALIDATED` (contradicted by evidence). Never invent users, requirements, metrics, benchmarks, user research, legal obligations or analysis, performance, maintenance status, repository state, production readiness, or implementation status.
 
 ## Principles
 
-- Problem before architecture: define users, outcomes, scope, and failure modes before selecting technology.
-- Evidence before commitment: verify current tool/service/library status, license, compatibility, limits, and operating model before relying on it.
-- Adopt or adapt before build: prefer maintained OSS, standards, protocols, managed services, and reference implementations unless custom work is the differentiating product or lower-risk route.
-- Minimum sufficient concept: select the smallest coherent system that can create real user value and survive production constraints.
-- Less is more: reject microservices, event buses, custom auth, bespoke billing, custom databases, multi-region deployment, heavy governance, and large framework stacks unless a named driver requires them.
-- Trade-offs over checklists: optimize the few architecture characteristics that matter most, and make the trade-offs explicit.
-- Adversarial revision: challenge the first plausible concept before selecting it.
-- Reversibility and learning: defer expensive irreversible choices when a small spike or staged rollout can resolve uncertainty.
-- No fake production path: every critical capability needs a credible real implementation, data, integration, deployment, support, and cost route.
+- Define users, outcomes, scope, and failure modes before selecting technology.
+- Select the smallest coherent system that creates real user value and survives production constraints; reject microservices, event buses, custom auth, bespoke billing, custom databases, multi-region deployment, heavy governance, and large framework stacks unless a named driver requires them. When a static site, CLI, local script, or single-process service suffices, say so.
+- Optimize the few architecture characteristics that matter most and make the trade-offs explicit.
+- Defer expensive irreversible choices when a small spike or staged rollout can resolve the uncertainty.
+- Give every critical capability a credible real implementation, data, integration, deployment, support, and cost route.
 
-## Research Policy
+## Research
 
-Research all claims and choices that can materially alter feasibility, architecture, cost, user access, schedule, legal posture, or operations.
+Research every claim and choice that can materially change feasibility, architecture, cost, user access, schedule, legal posture, or operations. Source order: official standards, specifications, vendor docs, project repositories, release notes, datasets, protocol docs, and primary product material; maintainer examples, reference implementations, and migration guides; peer-reviewed papers and author-maintained implementations; reproducible independent evaluations; secondary analysis for context only.
 
-Use this source order:
+For current tools and services, verify the latest relevant release, maintenance state, platform support, documented limits, pricing or cost shape when relevant, license, compatibility, operating model, and ecosystem health. For OSS, check whether it can be used directly, wrapped, extended through supported APIs, or only forked. Stop when each critical capability has at least one credible route, materially different approaches are represented, more sources no longer change the decision, and known gaps are explicit; never research just to add citations.
 
-1. Official standards, specifications, vendor docs, project repositories, release notes, datasets, protocol docs, and primary product material.
-2. Maintainer-authored examples, reference implementations, and migration guides.
-3. Peer-reviewed papers and author-maintained implementations.
-4. Reproducible independent evaluations.
-5. Secondary analysis for context only.
+## Procedure
 
-For current tools and services, verify the latest relevant release, maintenance state, platform support, documented limits, pricing/cost shape when relevant, license, and ecosystem health. For OSS, check whether the project can be used directly, wrapped, extended through supported APIs, or only forked.
+1. Frame:
+   - Inventory context documents, repository evidence, and external research needs.
+   - State the problem in product language, without implementation vocabulary.
+   - Identify users, operators, administrators, buyers, developers, affected external parties, and excluded audiences.
+   - Separate goals, non-goals, constraints, preferences, assumptions, and open questions.
+   - Define unacceptable outcomes: user exclusion, data loss, unbounded cost, unsafe behavior, operational fragility, lock-in, or dependence on a nonexistent capability.
+   - Write a glossary for overloaded domain terms.
 
-Stop research when each critical capability has at least one credible route, materially different approaches are represented, additional sources no longer change the decision, and known gaps are explicit. Do not continue research just to increase citation count.
+   If inputs contradict each other on user, problem, or a hard constraint, record the conflict and proceed on a stated working interpretation only when that is safe and reversible.
+2. Plan research across the applicable categories only:
+   - Problem and user evidence: current workflow, pain, failure cost, access constraints, devices, localization, bandwidth, data sensitivity.
+   - Comparable systems: commercial products, internal systems, OSS projects, reference architectures, failed approaches, adoption barriers.
+   - OSS prior art: maintenance, license, governance, contributors, security posture, documentation, extension points, migration or replacement path.
+   - Technical literature: assumptions, datasets, metrics, hardware, reproduction, source availability, domain mismatch, maintained implementation route.
+   - Standards and ecosystem: protocols, formats, accessibility, platform policy, regulatory obligations, interoperability.
+   - Production feasibility: data sources, integrations, deployment environments, compute, storage, support model, cost drivers, failure modes.
+3. Record evidence in a concise table in `docs/context/concept-zero.md`, or in `docs/context/concept-zero-research.md` linked from it when the table would dominate. Every important dependency, service, standard, model, dataset, protocol, and paper needs enough evidence to justify adoption, adaptation, rejection, or a spike.
 
-## Protocol
+   | ID | Claim / question | Source | Date / version | Finding | Confidence | Impact |
+   |---|---|---|---|---|---|---|
+   | `E-01` | ... | official docs / repo / paper | ... | ... | high / medium / low | ... |
 
-### 0. Inventory and Frame
+4. Capture architecture-significant requirements before candidate designs. Make quality scenarios concrete enough to test later; when no precise number is known, use the best current threshold and mark it `ASSUMPTION` or `SPIKE_REQUIRED`.
 
-1. Inventory context documents, current repo evidence, and external research needs.
-2. Write the problem statement in product language, without implementation vocabulary.
-3. Identify users, operators, administrators, buyers, developers, affected external parties, and excluded audiences.
-4. Separate goals, non-goals, constraints, preferences, assumptions, and open questions.
-5. Define unacceptable outcomes: user exclusion, data loss, unbounded cost, unsafe behavior, operational fragility, lock-in, or dependence on a nonexistent capability.
-6. Create a glossary for overloaded domain terms.
+   | ID | Type | Statement | Evidence | Notes |
+   |---|---|---|---|---|
+   | `G-01` | goal | ... | ... | ... |
+   | `N-01` | non-goal | ... | ... | ... |
+   | `C-01` | constraint | ... | ... | ... |
+   | `Q-01` | quality scenario | stimulus -> response -> measure | ... | ... |
 
-Framing gate: if inputs contradict on user, problem, or hard constraint, record the conflict and proceed with a stated working interpretation only when it is safe and reversible.
+5. Map prior art as a landscape, not a shopping list:
 
-### 1. Build the Research Plan
+   | Capability | Existing route | Adopt / adapt / build | Evidence | Rejection / risk |
+   |---|---|---|---|---|
+   | ... | OSS / standard / service / paper | ... | ... | ... |
 
-Cover only applicable categories:
+   Default to adopting maintained OSS, standards, protocols, managed services, and reference implementations. Build custom only when the capability is the product differentiator; available routes are incompatible, abandoned, unsafe, legally unusable, or more complex than implementing it; the project needs a narrow wrapper rather than a general platform; or a spike shows custom work is cheaper and less risky.
+6. Generate two or three materially different concepts, including the simplest credible one, unless only one credible path exists. For each: user-facing experience and main workflow; system boundary and external dependencies; major subsystems and data flow at HLD level; adopted OSS, services, and standards; what is intentionally not built; production path and operating model; the strongest risk and how to falsify it.
+7. Challenge the candidates, then revise them, dropping weak concepts kept for symmetry:
+   - What makes this concept fail in its first real deployment?
+   - Which component is overkill for the first release?
+   - Which existing OSS, service, or standard makes custom work unnecessary?
+   - Which claimed dependency is unmaintained, unavailable, incompatible, or too expensive?
+   - Which quality attribute is optimized without user or business evidence?
+   - Which production blocker hides as "future work"?
+   - Which simpler concept preserves the core outcome?
+8. Select one concept and state why: goals it satisfies, non-goals and deferred scope, adopted, adapted, and built capabilities, unresolved assumptions and spikes, intentionally accepted risk and debt, rejected alternatives, and triggers that would reopen the decision.
 
-- Problem and user evidence: current workflow, pain, failure cost, access constraints, devices, localization, bandwidth, data sensitivity.
-- Comparable systems: commercial products, internal systems, OSS projects, reference architectures, failed approaches, adoption barriers.
-- OSS prior art: maintenance, license, governance, contributors, security posture, documentation, extension points, migration/replacement path.
-- Technical literature: assumptions, datasets, metrics, hardware, reproduction, source availability, domain mismatch, maintained implementation route.
-- Standards and ecosystem constraints: protocols, formats, accessibility, platform policy, regulatory obligations, interoperability.
-- Production feasibility: data sources, integrations, deployment environments, compute, storage, support model, cost drivers, failure modes.
+## Template
 
-### 2. Record Evidence
-
-Keep a concise evidence table in `docs/context/concept-zero.md`. If the table would dominate the document, create `docs/context/concept-zero-research.md` and link it from the main HLD.
-
-| ID | Claim / question | Source | Date / version | Finding | Confidence | Impact |
-|---|---|---|---|---|---|---|
-| `E-01` | ... | official docs / repo / paper | ... | ... | high / medium / low | ... |
-
-Every important dependency, service, standard, model, dataset, protocol, and paper must have enough evidence to justify adoption, adaptation, rejection, or a spike.
-
-### 3. Define Requirements and Quality Scenarios
-
-Capture architecture-significant requirements before candidate designs.
-
-| ID | Type | Statement | Evidence | Notes |
-|---|---|---|---|---|
-| `G-01` | goal | ... | ... | ... |
-| `N-01` | non-goal | ... | ... | ... |
-| `C-01` | constraint | ... | ... | ... |
-| `Q-01` | quality scenario | stimulus -> response -> measure | ... | ... |
-
-Quality scenarios should be concrete enough to test later. Use a best current threshold when a precise number is not yet known, and mark it as `ASSUMPTION` or `SPIKE_REQUIRED`.
-
-### 4. Research Prior Art and Adopt/Adapt/Build
-
-Create a landscape, not a shopping list.
-
-| Capability | Existing route | Adopt / adapt / build | Evidence | Rejection / risk |
-|---|---|---|---|---|
-| ... | OSS / standard / service / paper | ... | ... | ... |
-
-Default to adoption. Use custom build only when:
-
-- the capability is the product differentiator;
-- available routes are incompatible, abandoned, unsafe, legally unusable, or more complex than implementation;
-- the project needs a narrow wrapper rather than a general platform;
-- a spike shows custom work is cheaper and less risky.
-
-### 5. Generate Candidate Concepts
-
-Produce two or three materially different concepts unless only one credible path exists. Include the simplest credible concept.
-
-For each candidate, state:
-
-- user-facing experience and main workflow;
-- system boundary and external dependencies;
-- major subsystems and data flow at HLD level;
-- adopted OSS/services/standards;
-- what is intentionally not built;
-- production path and operating model;
-- strongest risk and how to falsify it.
-
-### 6. Challenge and Revise
-
-Before selection, ask:
-
-- What makes this concept fail in the first real deployment?
-- Which component is overkill for the first release?
-- Which existing OSS/service/standard makes custom work unnecessary?
-- Which claimed dependency is unmaintained, unavailable, incompatible, or too expensive?
-- Which quality attribute is being optimized without user or business evidence?
-- Which risk is hidden as "future work" but blocks production?
-- Which simpler concept preserves the core outcome?
-
-Revise the candidates. Do not keep weak concepts for symmetry.
-
-### 7. Select the Concept
-
-Pick one concept and explain why. Include:
-
-- selected concept;
-- goals it satisfies;
-- non-goals and deferred scope;
-- adopted/adapted/built capabilities;
-- unresolved assumptions and spikes;
-- risk/debt accepted intentionally;
-- alternatives rejected;
-- triggers that would reopen the decision.
-
-## `docs/context/concept-zero.md` Template
-
-Use this structure unless an established project format is stronger.
+Use this structure for `docs/context/concept-zero.md` unless an established project format is stronger. State the selected concept early and show evidence after it; prefer tables where they replace prose; keep sections short when the decision is simple, since empty template ceremony is worse than a concise documented decision.
 
 ```markdown
 # Concept Zero
@@ -264,22 +169,6 @@ The smallest production-shaped release that proves the concept with real data, r
 Decisions, quality scenarios, risks, and spikes that `arch-roadmap` must carry forward into `docs/architecture.md` and `docs/roadmap.md`.
 ```
 
-## Output Rules
+## Report
 
-- High information density beats length. Use tables when they reduce prose.
-- Do not over-design small projects. If a static site, CLI, local script, or single-process service satisfies the concept, say so.
-- Do not require every section to be long. Empty template ceremony is worse than a concise documented decision.
-- Do not bury the recommendation after pages of options. State the selected concept early and show evidence after it.
-- Do not invent benchmarks, user research, production status, or legal analysis.
-- Do not present screenshots, code snippets, generated scaffolds, or API schemas as concept work unless they are existing evidence.
-- Do not create `architecture.md` or `roadmap.md`; hand off to `arch-roadmap`.
-- If no write is safe, produce a check report with exact blockers and how a human can unblock them.
-
-## Completion Report
-
-Final response must include:
-
-- Changed: full paths to written files.
-- Checks: commands or scenario checks run as `passed`, `failed`, or `not run`.
-- Blockers: unresolved issues only, including whether human input is required and exactly how to unblock.
-- Next command: normally `arch-roadmap` when `concept-zero.md` is complete.
+If no write is safe, produce a check report with the exact blockers and how a human can unblock them. Otherwise report Changed (full paths to the written files), Checks (commands or scenarios as `passed`, `failed`, or `not run`), Blockers (unresolved issues, whether a human must act, and the unblock path), and the next command, normally `arch-roadmap` once `concept-zero.md` is complete.

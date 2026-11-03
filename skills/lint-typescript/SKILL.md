@@ -3,75 +3,53 @@ name: lint-typescript
 description: "Apply strict TypeScript engineering rules before code is accepted."
 ---
 
-## §0 META: YOU WILL BE AUDITED
+## Procedure
 
-You are generating TypeScript code that will be **reviewed line-by-line by a hostile auditor** who assumes you are lazy, incompetent, and lying until proven otherwise.
+1. Identify the `.ts`/`.tsx` files touched or under review.
+2. Apply the TypeScript policy in `rules/13-typescript.mdc` (agent-surface source; it may be rendered to the current host) together with the repository's configured linters and formatters. No `any`, `@ts-ignore`, loosened compiler settings, or unhandled Promises. If a constraint cannot be met, stop and name the blocker.
+3. When `.tsx` or React UI changed, review it before the toolchain gates:
+   - Stack: follow the repo's existing router, data-fetching layer, component library, theme tokens, test runner, and build tool. Add no Modern.js, Arco, Semi, VisActor, TanStack Query, Redux, Zustand, Tailwind, or other UI dependency unless the repo already uses it or the task requires it and its risk was researched.
+   - Intent: product UI follows the product stack; admin and ops consoles use dense list/detail/action patterns with existing Arco/Semi or repo-native primitives where present.
+   - Typed contracts: table rows, filter params, detail payloads, action request/response shapes, and route params are typed from API contracts or validated schemas; no `any` table records or untyped JSON response plumbing.
+   - State: URL/search params hold shareable table state, server-state tools or route loaders hold remote data, component state holds only transients; never duplicate server data into global stores.
+   - States: render loading, error, empty, partial-data, permission-denied, and success states; destructive or irreversible actions need confirmation and visible pending and failure states.
+   - Accessibility and tests: prefer semantic queries; add stable selectors only where they improve diagnosis of table rows, action buttons, and status fields; keyboard and focus behavior survives drawers, modals, and table actions.
+   - Visuals: use design-system tokens and components, not ad hoc colors, spacing, button styles, or one-off table renderers; internal tools stay dense and scannable, not marketing pages.
+4. Run the toolchain gates:
 
-TypeScript exists to prevent JavaScript's chaos. If your code requires `any`, `@ts-ignore`, or loose compiler settings, you're doing it wrong.
+   ```bash
+   npm run typecheck   # or the repository's equivalent scripts (rules/13-typescript.mdc)
+   npm run lint
+   npm run format:check
+   npm test
+   ```
 
-**If you cannot meet these constraints, STOP IMMEDIATELY and explain what is blocking you. Do not produce garbage and hope it passes.**
+5. Report in the format below.
 
-## PROCEDURE
-
-1. **Identify scope**: Determine which `.ts`/`.tsx` files were touched or are under review.
-2. **Apply language rules**: The TypeScript policy is in `rules/13-typescript.mdc` in agent-surface source and may be rendered to the current host. Apply it together with the repository's configured linters and formatters.
-3. **Frontend/Admin UI pass**: If `.tsx`/React UI changed, run this additional review before toolchain gates:
-   - **Stack preservation**: Verify the implementation follows the repo's existing router, data-fetching layer, component library, theme tokens, test runner, and build tool. Do not introduce Modern.js, Arco, Semi, VisActor, TanStack Query, Redux, Zustand, Tailwind, or another UI dependency unless the repo already uses it or the dependency change is task-required and risk-researched.
-   - **Intent fit**: Product UI follows the product stack; admin/ops console UI follows dense list/detail/action patterns and uses existing Arco/Semi or repo-native primitives where present.
-   - **Typed contracts**: Table rows, filter params, detail payloads, action request/response shapes, and route params are typed from API contracts or validated schemas. No `any` table records or untyped JSON response plumbing.
-   - **State topology**: URL/search params hold shareable table state; server-state tools or route loaders hold remote data; component state holds only transients. Do not duplicate server data into global stores.
-   - **Component quality**: Loading, error, empty, partial-data, permission-denied, and success states are rendered. Destructive or irreversible actions require confirmation and visible pending/failure states.
-   - **Accessibility and testing**: Prefer semantic queries in tests. Add stable selectors only where they improve diagnosis for table rows, action buttons, and status fields. Keyboard/focus behavior must survive drawers, modals, and table actions.
-   - **Visual consistency**: Use design-system tokens/components instead of ad hoc colors, spacing, button styles, or one-off table renderers. Internal tools should be dense and scannable, not marketing pages.
-4. **Run toolchain gates**:
-
-```bash
-npx tsc --noEmit
-npx eslint .
-npx vitest run
-```
-
-4. **Report findings** using the output format below.
-
-## OUTPUT FORMAT
-
-### PART 1: UNDERSTANDING
+## Output
 
 ```text
-Task: [restate the task in your own words]
-Constraints: [list any constraints from context]
-Ambiguities: [list anything unclear — ASK if critical]
-```
+1. Understanding
+Task: [the task in your own words]
+Constraints: [from context]
+Ambiguities: [anything unclear; ask if critical]
 
-### PART 2: DESIGN
-
-```text
+2. Design
 DATA MODELS:
 [Zod schemas for boundaries]
 [TypeScript types/interfaces for internal]
-
 ERROR STRATEGY:
 [Error classes and handling]
-
 DEPENDENCIES:
 [Each package with justification]
-```
 
-### PART 3: IMPLEMENTATION
+3. Implementation
+[Complete, working code: all files, all functions, all tests]
 
-```text
-[Complete, working code — all files, all functions, all tests]
-```
-
-### PART 4: VERIFICATION
-
-```text
+4. Verification
 Toolchain commands: [list]
-tsc --noEmit: [PASS/FAIL]
-eslint: [PASS or specific issues]
-vitest: [PASS with count]
+typecheck: [PASS/FAIL]
+lint: [PASS or specific issues]
+format:check: [PASS/FAIL]
+test: [PASS with count]
 ```
-
-## ENFORCEMENT REMINDER
-
-**You are being watched.** Every `any`, every `@ts-ignore`, every unhandled Promise will be traced back to your negligence. Do it right or don't do it at all.

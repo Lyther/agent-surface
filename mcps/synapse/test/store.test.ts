@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
+import { readOrCreateToken } from "../src/bootstrap.js";
 import { FakeClock } from "../src/clock.js";
 import type { CompactMemory, FullMemory, RecallQuery } from "../src/contract.js";
 import { resolveProjectRef } from "../src/namespace.js";
@@ -194,6 +195,98 @@ test("redaction strips secrets on ingest", () => {
     assert.ok(w.redactions >= 1);
     const full = store.get({ projectDbPath: P, agentId: "a", ids: [w.id] });
     assert.doesNotMatch((full[0] as FullMemory).content, /ABCDEFGHIJKLMNOPQRSTUVWX/);
+  } finally { cleanup(); }
+});
+
+test("redaction covers prefixed keys, JSON/YAML quoting, Basic auth and URL credentials", () => {
+  const redactor = createRedactor();
+  const basic = Buffer.from("fake-user:fake-pass-0006").toString("base64");
+  const cases: [string, string][] = [
+    ["DB_PASSWORD=FakeDbPassword0001", "FakeDbPassword0001"],
+    ["export SYNAPSE_TOKEN=FakeSynapseToken0002", "FakeSynapseToken0002"],
+    ["client_secret=FakeClientSecret0003", "FakeClientSecret0003"],
+    ['{"token": "FakeJsonToken0004"}', "FakeJsonToken0004"],
+    ["password: 'fake yaml pass 0005'", "fake yaml pass 0005"],
+    [`curl -H "Authorization: Basic ${basic}"`, basic],
+    ["postgres://fakeuser:FakeUrlPass0007@db.example.invalid/app", "FakeUrlPass0007"],
+  ];
+  for (const [input, secret] of cases) {
+    const out = redactor.redact(input);
+    assert.ok(!out.text.includes(secret), `${input} -> ${out.text}`);
+    assert.equal(out.count, 1, `one redaction for ${input}`);
+  }
+  assert.equal(redactor.redact("DB_PASSWORD=FakeDbPassword0001").text, "DB_PASSWORD=[REDACTED]", "the key stays readable");
+  assert.equal(redactor.redact("postgres://fakeuser:FakeUrlPass0007@db.example.invalid/app").text, "postgres://[REDACTED]@db.example.invalid/app");
+  assert.equal(redactor.redact("clone ssh://git@github.com/org/repo.git via http://localhost:4319/mcp").count, 0, "a URL without a password is untouched");
+  for (const [input, secret] of [
+    ["AWS_SECRET_ACCESS_KEY=FakeAwsSecret0009", "FakeAwsSecret0009"],
+    ["dbPassword: FakeCamelPass0010", "FakeCamelPass0010"],
+    ["DB_PASSWORD=Fake$ymbol!Pass11", "Fake$ymbol!Pass11"],
+  ] as [string, string][]) assert.ok(!redactor.redact(input).text.includes(secret), input);
+  for (const prose of ['{"url":"http://localhost:8080","owner":"dev@example.invalid"}', "the token: string field", "secretary: abcdefghijkl"]) {
+    assert.equal(redactor.redact(prose).text, prose, `untouched: ${prose}`);
+  }
+  for (const flood of ["a-".repeat(32000), "a_".repeat(32000)]) {
+    const started = Date.now();
+    redactor.redact(flood);
+    assert.ok(Date.now() - started < 1000, "redaction stays linear on a long hyphenated run");
+  }
+});
+
+test("remember redacts tags and counts those redactions", () => {
+  const { store, P, cleanup } = setup();
+  try {
+    const w = store.remember({ projectDbPath: P, agentId: "a", content: "rotated the staging credential", tags: ["ops", "token=FakeTagToken0008"] });
+    assert.equal(w.redactions, 1);
+    assert.deepEqual(store.get({ projectDbPath: P, agentId: "a", ids: [w.id] })[0]?.tags, ["ops", "token=[REDACTED]"]);
+    assert.equal(store.recall(recall(P, { query: "FakeTagToken0008" })).results.length, 0, "the raw tag value is not FTS-indexed");
+  } finally { cleanup(); }
+});
+
+test("forget purges a superseded record without corrupting the FTS index", () => {
+  const { store, P, cleanup } = setup();
+  try {
+    const old = store.remember({ projectDbPath: P, agentId: "a", content: "staging deploy reads vault path alpha" });
+    const next = store.remember({ projectDbPath: P, agentId: "a", content: "staging deploy reads vault path beta", supersedes: old.id });
+    assert.ok(store.forget({ projectDbPath: P, agentId: "a", id: old.id, reason: "leaked path" }));
+    const db = new DatabaseSync(P);
+    try {
+      db.exec("INSERT INTO memory_fts(memory_fts) VALUES('integrity-check')");
+      const row = db.prepare("SELECT content,status FROM memory WHERE id=?").get(old.id) as { content: string; status: string };
+      assert.equal(row.content, "[REDACTED: leaked path]");
+      assert.equal(row.status, "redacted");
+    } finally { db.close(); }
+    assert.deepEqual(store.recall(recall(P, { query: "vault" })).results.map((r) => r.id), [next.id]);
+  } finally { cleanup(); }
+});
+
+test("the data directory is narrowed to its owner", { skip: process.platform === "win32" }, () => {
+  const { store, dir, P, cleanup } = setup();
+  const tokenDir = mkdtempSync(join(tmpdir(), "synapse-tok-"));
+  try {
+    chmodSync(dir, 0o755);
+    chmodSync(tokenDir, 0o755);
+    store.remember({ projectDbPath: P, agentId: "a", content: "first write opens the project DB" });
+    readOrCreateToken(tokenDir);
+    assert.equal(statSync(dir).mode & 0o777, 0o700, "store DB directory");
+    assert.equal(statSync(tokenDir).mode & 0o777, 0o700, "bootstrap token directory");
+  } finally { cleanup(); rmSync(tokenDir, { recursive: true, force: true }); }
+});
+
+test("query recall pages through every match by following the cursor", () => {
+  const { store, P, cleanup } = setup();
+  try {
+    for (let i = 0; i < 3; i++) store.remember({ projectDbPath: P, agentId: "a", content: `paging match ${i}` });
+    let page = store.recall(recall(P, { query: "paging", limit: 2 }));
+    assert.equal(page.results.length, 2);
+    assert.equal(page.truncated, true);
+    const seen = new Set(page.results.map((r) => r.id));
+    for (let guard = 0; page.truncated && guard < 10; guard++) {
+      page = store.recall(recall(P, { query: "paging", limit: 2, since: page.cursor }));
+      for (const r of page.results) seen.add(r.id);
+    }
+    assert.equal(page.truncated, false, "paging terminates");
+    assert.equal(seen.size, 3, "the match the first page left out is reachable through the cursor");
   } finally { cleanup(); }
 });
 

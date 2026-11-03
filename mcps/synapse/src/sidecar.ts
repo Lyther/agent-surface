@@ -19,7 +19,7 @@ import { readOrCreateToken, removeDiscovery, writeDiscovery } from "./bootstrap.
 import { SystemClock } from "./clock.js";
 import { CONTRACT_VERSION, SERVER_INSTRUCTIONS, type IStore } from "./contract.js";
 import { deriveAgentId } from "./identity.js";
-import { hashKey, projectKey } from "./namespace.js";
+import { hashKey } from "./namespace.js";
 import { createRedactor } from "./redactor.js";
 import { GLOBAL_CHANNEL, Store } from "./store.js";
 import { buildToolSet, type SessionCtx } from "./tools.js";
@@ -104,8 +104,12 @@ export async function createSidecar(opts: SidecarOptions): Promise<SidecarHandle
     // SESSION a unique id (never the shared sidecar pid) so locks/provenance stay distinct.
     const explicit = h("x-synapse-agent");
     const agentId = explicit ? deriveAgentId(explicit, h("x-synapse-client")) : `anon-${randomUUID().slice(0, 8)}`;
+    // Locks belong to the bridge process that names itself; several bridges may share an agent id.
+    const instance = h("x-synapse-instance")?.replace(/[^A-Za-z0-9-]+/g, "").slice(0, 64);
+    // The bridge already resolved this key (git root, root URI or namespace); re-resolving it here
+    // would apply the shared sidecar's own env and cwd to every session.
     const key = h("x-synapse-project");
-    return { agentId, projectDbPath: join(dbDir, `${hashKey(key ? projectKey(key) : "default")}.sqlite`) };
+    return { agentId, lockOwner: instance ? `${agentId}#${instance}` : agentId, projectDbPath: join(dbDir, `${hashKey(key || "default")}.sqlite`) };
   };
 
   function newSession(ctx: SessionCtx): StreamableHTTPServerTransport {
@@ -199,7 +203,15 @@ export async function createSidecar(opts: SidecarOptions): Promise<SidecarHandle
 }
 
 // ---- entrypoint ------------------------------------------------------------
+// Session routing is each bridge's business. An autostarted sidecar inherits the electing bridge's
+// env, and projectKey()/git would apply it to every session's cross-project refs.
+const SESSION_ENV = new Set(["SYNAPSE_NAMESPACE", "SYNAPSE_PROJECT", "SYNAPSE_AGENT_ID", "SYNAPSE_ROOTS", "SYNAPSE_URL"]);
+
 async function main(): Promise<void> {
+  for (const k of Object.keys(process.env)) {
+    const name = k.toUpperCase();
+    if (SESSION_ENV.has(name) || name.startsWith("GIT_")) delete process.env[k];
+  }
   const dbDir = process.env["SYNAPSE_DB_DIR"] ?? join(homedir(), ".synapse");
   const token = process.env["SYNAPSE_TOKEN"] ?? readOrCreateToken(dbDir);
   const port = process.env["SYNAPSE_PORT"] ? Number(process.env["SYNAPSE_PORT"]) : 4319;

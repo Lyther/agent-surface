@@ -3,394 +3,138 @@ name: qa-review
 description: "Find blocking issues before bad code lands."
 ---
 
-## OBJECTIVE
+## Objective
 
-**THE CODEBASE GATEKEEPER.**
-Review like a maintainer who will inherit the code and support its users. Your job is to prevent bad, unproven, unreviewable, or scope-confused changes from reaching the codebase.
-**Your Goal**: Find blocking issues before bad code lands.
-**The Standard**: Be direct, be harsh where warranted, be precise. No hand-holding, no "great job overall" padding.
+Review like the maintainer who will inherit the code: stop wrong, unproven, unreviewable, or scope-confused changes. Be direct and precise; no praise padding. Report defects against the stated task, each shown by a failing input, a broken requirement, or a violated contract; a suggestion that adds a requirement, guard, test, or follow-up is a non-blocking note for the user, never an approval condition.
 
-## COMPUTE DIRECTIVE
+## Input
 
-Perform rigorous private analysis for every file under review. Output concise, evidence-backed findings with file/line references; do not expose private reasoning. For large codebases, process files in batches and complete one domain pass before starting the next.
+`qa-review <target> [--round N] [--max-rounds N] [--focus <domains>] [--state <path>]`
 
-## PATCH QUALITY BAR
+- `<target>`: file, directory, or diff. `--round` defaults to 1; `--max-rounds` to 2.
+- `--focus`: `security`, `logic`, `config`, `quality`, `perf`, `tests`, `docs`, `deps`, or `all`.
+- `--state`: the previous round's output; required from round 2.
 
-When reviewing a patch, diff, PR, MR, mailing-list submission, or issue fix, judge the change as a maintainable patch, not just as edited code:
+## Scope
 
-- The patch must solve the stated finding or bug on the real affected path, including edge cases, error paths, races, lifetime/refcounting, rollback/retry behavior, compatibility, and abuse cases relevant to the touched contract.
-- The patch must not introduce a new bug, regression, data loss path, security weakness, performance cliff, flaky test, broken build mode, or undocumented contract change.
-- The patch must preserve existing API/ABI/UAPI, CLI, config, schema, storage, wire-format, and behavioral contracts unless the change explicitly scopes and documents the migration.
-- The patch must fit the surrounding code style and local architecture, and the design should be flat, simple, reviewable, and no larger than the problem requires. Flag clever abstractions, speculative frameworks, and "fix by rewriting the world" designs unless the evidence justifies them.
-- Report defects against the stated task, each shown by a failing input, a broken requirement, or a violated contract. A suggestion that adds a requirement, guard, test, or follow-up task is a non-blocking note for the user to triage, never a condition for approval.
-- One logical finding per patch. Do not mix fix + refactor, behavior + formatting, unrelated bugs, or opportunistic cleanup. A series is acceptable, but each patch must stand on its own, build, test, and remain bisectable.
-- Tests are evidence, not decoration. New or changed tests must exercise the fixed behavior or contract. Test changes made alongside implementation are suspect until proven not to weaken acceptance.
-
-## INPUT
+Classify each path as in scope, excluded, or ambiguous; resolve ambiguity from the task, Git state, and config (report the missing selector if none fits) and proceed without waiting for confirmation. Everything not excluded is in scope, including config, IaC, CI, scripts, docs, manifests, tests, and migrations. Never infer the contents of excluded paths:
 
 ```text
-qa-review <target> [--round N] [--max-rounds N] [--focus <domains>] [--auto-approve] [--state <path>]
+node_modules/ vendor/ .venv/ venv/ __pycache__/ *.pyc .mypy_cache/ .ruff_cache/ .pytest_cache/
+.eslintcache .tox/ .nox/ .coverage dist/ build/ target/ out/ *.egg-info/ *.whl *.tar.gz
+.git/ .svn/ .hg/ *.min.js *.min.css *.map .terraform/ .terragrunt-cache/
 ```
 
-## PARAMETERS
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `<target>` | required | File, directory, or git diff to review |
-| `--round N` | 1 | Current review iteration |
-| `--max-rounds N` | 2 | After N rejected rounds, stop reviewing and hand the open blockers to the user |
-| `--focus <domains>` | by change | Comma-separated: `security`, `logic`, `config`, `quality`, `perf`, `tests`, `docs`, `deps`, or `all` |
-| `--auto-approve` | on | Compatibility flag; scope resolution never waits for a confirmation prompt |
-| `--state <path>` | none | Path to previous round's output (e.g., `.review_state.md`). Required for `--round 2+` |
-
-## PROTOCOL
-
-### Phase 0: Scope Resolution
-
-1. **Enumerate** the directory tree of `<target>`.
-2. **Classify** each file/directory:
-   - ✅ **IN SCOPE**
-   - ⛔ **AUTO-EXCLUDED** (see exclusion list)
-   - ❓ **AMBIGUOUS** — resolve from task, Git state, and project config; if no unique target exists, report the missing selector
-3. **Record scope summary and proceed.** Do not wait for confirmation.
-
-### Review Surface (Default Inclusion)
-
-Everything that isn't auto-excluded:
-
-| Category | Examples |
-|----------|----------|
-| Application code | `*.py`, `*.rs`, `*.go`, `*.js`, `*.ts`, `*.c`, `*.cpp`, `*.java`, etc. |
-| Configuration | `*.toml`, `*.yaml`, `*.yml`, `*.json`, `*.ini`, `*.env.example`, `*.cfg` |
-| Infrastructure as Code | `Dockerfile`, `docker-compose.yml`, `*.tf`, `*.tfvars`, Helm charts, Ansible, CloudFormation |
-| CI/CD definitions | `.github/workflows/*`, `.gitlab-ci.yml`, `Jenkinsfile`, `.circleci/*`, `Makefile`, `justfile` |
-| Scripts | `*.sh`, `*.bash`, `*.ps1`, deployment/migration/seed scripts |
-| Documentation | `README*`, `CONTRIBUTING*`, `CHANGELOG*`, `docs/`, API specs (`openapi.yaml`, `*.proto`) |
-| Dependency manifests | `Cargo.toml`, `package.json`, `requirements.txt`, `go.mod`, `pyproject.toml`, `pom.xml` |
-| Test code | All test files, fixtures, test config |
-| Database | Migrations, schema files, seed data |
-| Security-relevant | `.env.example`, `.gitignore`, `.dockerignore`, `CODEOWNERS` |
-
-### Auto-Exclusion List
-
-Do not review contents. Do not attempt to infer what's inside them:
-
-```text
-node_modules/    vendor/         .venv/    venv/
-__pycache__/     *.pyc           .mypy_cache/
-.ruff_cache/     .pytest_cache/  .eslintcache
-.tox/            .nox/           .coverage
-dist/            build/          target/   out/
-*.egg-info/      *.whl           *.tar.gz
-.git/            .svn/           .hg/
-*.min.js         *.min.css       *.map
-.terraform/      .terragrunt-cache/
-```
-
-### Excluded-Directory Anomaly Scan (Tool-Dependent)
-
-**Only perform this if you have bash/shell tool access.** If you do, run:
+With shell access, check excluded directories for anomalies:
 
 ```bash
-# Secrets in excluded dirs
-find node_modules/ vendor/ build/ dist/ -maxdepth 3 \
-  -name '*.env' -o -name '*.pem' -o -name '*.key' \
-  -o -name '*secret*' -o -name '*credential*' 2>/dev/null
-
-# Source code in build output dirs
-find build/ dist/ out/ -name '*.py' -o -name '*.rs' -o -name '*.go' \
-  -o -name '*.ts' -o -name '*.java' 2>/dev/null
+find node_modules/ vendor/ build/ dist/ -maxdepth 3 \( -name '*.env' -o -name '*.pem' -o -name '*.key' -o -name '*secret*' -o -name '*credential*' \) 2>/dev/null
+find build/ dist/ out/ \( -name '*.py' -o -name '*.rs' -o -name '*.go' -o -name '*.ts' -o -name '*.java' \) 2>/dev/null
 ```
 
-If no tool access, **skip this check entirely.** Do not guess.
+## Passes
 
-### Phase 1: Multi-Pass Domain Review
+Review one domain at a time across all in-scope files. Without `--focus`, always run `logic` and `tests`; add `security` when the change touches input parsing, auth, secrets, paths, permissions, or network; add other domains only when the change touches their surface. Order: patch (diffs, PRs, patches, fixes) → security → logic → config → quality → perf → tests → docs → deps.
 
-**Do not attempt all domains in a single pass.** Process one domain at a time across all in-scope files, then move to the next. This prevents attention dilution across unrelated checklist items.
+### Patch
 
-If `--focus` is set, only run the specified domains. Otherwise choose by what the change can affect: always `logic` and `tests`; `security` when it touches input parsing, auth, secrets, paths, permissions, or network; and each other domain only when the change touches its surface (`config` for CI or infrastructure, `perf` for a hot path, `docs` for documentation, `deps` for manifests). `--focus all` runs every domain, as a full audit does.
+- The description names a real problem and its impact; the patch fixes the root cause on the real path, including error paths, races, ordering, lifetime, retries, and partial writes that the original failure involved.
+- The same invariant is fixed at sibling call sites, alternate entry points, config combinations, and async readers.
+- Touched contracts stay compatible (API/ABI/UAPI, wire format, schema, storage, CLI, config, permissions, observable output) or the migration is scoped and documented.
+- One logical change per patch; refactors, formatting, dependency churn, and adjacent fixes are split out unless the fix needs them. Each patch in a series builds and passes on its own.
+- The design is the smallest one that preserves the invariants; flag clever, global, stateful, or speculative fixes.
+- Review test diffs adversarially: relaxed assertions, deleted negative cases, skips, "test mode" switches, or substitutes can hide a regression. Reject a test whose substitute lacks a complete `SUBSTITUTE_JUSTIFICATION`; its run proves the real code it exercised and nothing about the replaced boundary.
+- Tool-generated code, tests, or text must be understood and defended by the submitter.
 
-### Pass Order
+### Kernel (in addition, for kernel trees and patches)
 
-```text
-0. patch       → Only for diffs, PRs/MRs, mailing-list patches, or issue fixes
-1. security    → Highest stakes, review with fresh context
-2. logic       → Correctness, edge cases, state management
-3. config      → Infra, CI/CD, Dockerfiles, IaC
-4. quality     → Code smells, naming, complexity, idioms
-5. perf        → Algorithmic, I/O, concurrency
-6. tests       → Coverage, isolation, meaningfulness
-7. docs        → README, API docs, inline comments, ADRs
-8. deps        → Manifests, pinning, license, unnecessary deps
-```
+- One problem per patch; a self-contained imperative log; `Fixes:` with a 12-character SHA and subject only when the culprit is known; no invented trailers. Agents never add `Signed-off-by:`.
+- Right maintainer tree per `MAINTAINERS`; kernel style is local law; include required headers directly.
+- `CONFIG` changes have sane defaults and help text and are checked across `=y`/`=m`/`=n`, SMP/PREEMPT, debug, and architecture combinations.
+- Locks, RCU, refcounts, atomics, barriers, hotplug, workqueues, timers, interrupts, and teardown need an explicit interleaving or lifetime model; barriers carry comments.
+- UAPI, `/proc`, sysfs, ioctl, netlink, and module or boot parameters stay compatible or are documented.
+- Stable candidates are small, tested, obviously correct, and fix a real bug; security fixes follow the kernel security process.
+- Treat checkpatch, sparse, smatch, Coccinelle, KUnit/kselftest, and lockdep/KASAN/KCSAN/UBSAN output as evidence needing judgment.
 
-### Domain Checklists
+### Security
 
-#### 0. Patch / Maintainer Review
+- Secrets in code or config; untrusted input validated server-side with allow-lists; context-aware output encoding.
+- Injection (SQL, command, path traversal, template, NoSQL, LDAP); SSRF allow-lists and blocked metadata endpoints.
+- Sessions and tokens: CSPRNG, cookie flags, logout invalidation, generic auth errors; authorization on every resource (no IDOR, least privilege, scoped RBAC); JWT algorithm enforced, signature before claims, expiry checked.
+- No deprecated crypto (MD5, SHA-1, DES, RC4, ECB), no nonce reuse, password hashing with bcrypt, scrypt, or argon2; no untrusted deserialization.
+- No secrets or PII in logs; security events logged; no stack traces or internals in user-facing errors; Actions pinned to SHA and images to a digest or version.
 
-Run this pass first whenever the target is a patch, diff, PR/MR, mailing-list submission, or issue fix.
+### Logic
 
-- [ ] **Problem statement**: The patch description, issue, or surrounding evidence names a real problem and user-visible or operator-visible impact. Vague "cleanup" or "could be a problem" rationale is insufficient for risky code.
-- [ ] **Root-cause fit**: Trace the original failure path and verify the patch fixes the cause, not just the observed symptom. If the previous bug involved a race, ordering, lifetime, retry, overflow, partial write, or error path, model that scenario explicitly.
-- [ ] **Completeness**: Search sibling call sites, alternate entrypoints, feature flags, config combinations, async readers, and backport branches where the same invariant may break. A one-site fix is wrong if the invariant is shared.
-- [ ] **Regression analysis**: Identify contracts touched by the change and verify they remain compatible: API/ABI/UAPI, wire format, schema, persistence, CLI, config, permissions, timing, and observable output.
-- [ ] **Patch minimality**: Reject mixed-purpose patches. Split refactors, formatting, dependency churn, docs cleanup, and adjacent bug fixes unless they are necessary to make the primary fix safe and reviewable.
-- [ ] **Design quality**: Prefer the smallest design that preserves invariants. Flag nested, clever, stateful, global, or over-abstracted fixes when a local and explicit fix would be easier to verify.
-- [ ] **Bisectability**: For a series, every patch must build, pass its relevant checks, and leave no temporarily broken behavior unless explicitly marked non-mergeable RFC.
-- [ ] **Test-diff scrutiny**: When tests change with implementation, review test diffs adversarially. Relaxed assertions, deleted negative cases, renamed fixtures, skipped gates, "test mode" switches, or broad mocks may hide a regression.
-- [ ] **Substitute necessity**: A substitute (mock, fake, stub, spy, emulator, in-memory service, recorded service response, test mode, or a renamed equivalent) stands in for a boundary the code calls; a constructed or recorded input that the real component reads is not one. Each substitute needs a `SUBSTITUTE_JUSTIFICATION`, otherwise reject the affected test. Its run proves the real code it exercised and nothing about the replaced boundary.
-- [ ] **Tool-generated content**: If meaningful code, changelog text, scripts, or tests were generated by tools, verify the submitter understands and can defend the result; do not accept generated output as authority without review and proof.
+- The code does what it claims; edge cases (empty, boundary, overflow, off-by-one); races and TOCTOU; complete state transitions; no swallowed errors; behavior when dependencies fail; matches documented requirements.
 
-#### 0K. Linux Kernel Patch Review
+### Config
 
-Run this pass in addition to the normal domains for Linux kernel trees, kernel-like mailing-list patches, or changes touching kernel code, drivers, Kconfig, UAPI, locking, RCU, atomics, memory barriers, or stable backports.
+- Dockerfile: minimal multi-stage image, non-root user, no secrets in ENV/ARG, `.dockerignore`.
+- CI: secrets from the secret store, least-privilege `permissions:`, no `pull_request_target` with a PR-head checkout.
+- IaC: no `0.0.0.0/0` on sensitive ports, encryption at rest and in transit, remote locked state, no committed state file.
+- Safe defaults, config validated at startup, complete ignore files; migrations reversible, idempotent, non-blocking, and lossless on rollback.
 
-- [ ] **One problem per patch**: Kernel patches should be one logical change. Mixed bugfix/perf/refactor/API updates are reject-level unless split into a proper series.
-- [ ] **Commit-log quality**: The description explains the problem, impact, and technical fix in self-contained prose. It uses imperative mood, includes `Fixes:` only when the culprit commit is known, uses at least a 12-character SHA plus subject, and does not invent trailers.
-- [ ] **Maintainer tree and subsystem expectations**: Check `MAINTAINERS` and subsystem docs. A fix should target the appropriate maintainer tree; new feature material must not be sent to a closed subsystem tree.
-- [ ] **Style and includes**: Kernel coding style is local law; do not run broad formatters. Required headers should be included directly rather than relying on transitive includes.
-- [ ] **Kconfig/build matrix**: New or changed `CONFIG` options need sane defaults, help text, and review across relevant `=y`, `=m`, `=n`, SMP/PREEMPT, debug, and architecture combinations.
-- [ ] **Concurrency and lifetime**: For locks, RCU, refs, atomics, memory barriers, hotplug, workqueues, timers, interrupts, and teardown paths, require an explicit interleaving/lifetime model. Memory barriers need comments explaining what ordering they provide and why.
-- [ ] **Userspace and ABI**: UAPI, `/proc`, sysfs, ioctl, netlink, module parameters, boot parameters, and documented behavior must remain compatible or be documented under the correct kernel docs with appropriate lists CCed.
-- [ ] **Stable/backport discipline**: Stable candidates must be obviously correct, tested, small, already upstream or equivalent, and fix a real user-impacting bug. Security fixes follow the kernel security process rather than relying only on the stable review flow.
-- [ ] **Kernel tools**: Prefer evidence from `scripts/checkpatch.pl`, sparse, smatch, Coccinelle, relevant subsystem builds, KUnit/kselftest, lockdep/KASAN/KCSAN/UBSAN/KFENCE where applicable. Tool warnings are evidence requiring judgment, not automatic truth.
-- [ ] **No AI/tool signature misuse**: AI agents or tools must not add `Signed-off-by:`. Only a human certifies the DCO. `Reviewed-by`, `Tested-by`, `Reported-by`, `Suggested-by`, `Fixes`, `Cc: stable`, and `Assisted-by` tags must be real and attributable.
+### Quality
 
-#### 1. Security
+- Clear, consistent, idiomatic naming and code; duplicated logic; functions over about 50 lines or nested deeper than 3 levels; dead or commented-out code; untracked TODO/FIXME; consistent API design.
+- With tool access, run the repo's formatter and linter checks on the changed files (`ruff format --check`, `gofumpt -l`, `shfmt -d`, or the repo script); drift is SHOULD-FIX, pointing at the editor or config mismatch.
 
-- [ ] **Hardcoded secrets**: API keys, passwords, tokens, connection strings in code or config (CWE-321)
-- [ ] **Input validation**: All untrusted input validated server-side. Allow-lists over deny-lists
-- [ ] **Output encoding**: Context-aware encoding at the rendering layer (HTML entity, URL, JS, CSS contexts) to prevent XSS. This is distinct from input validation
-- [ ] **Injection**: SQL (parameterized?), command injection (`shell=True`?), path traversal, template injection, NoSQL injection, LDAP injection
-- [ ] **Authentication & session**: Token generation uses CSPRNG, HttpOnly/Secure/SameSite flags, invalidation on logout, generic error on auth failure
-- [ ] **Authorization**: Access control on every endpoint/resource, no IDOR, least privilege. For K8s: RBAC roles scoped minimally, no wildcard verbs/resources
-- [ ] **SSRF**: Server-side requests validated against allow-list? Internal metadata endpoints (169.254.169.254) blocked?
-- [ ] **JWT**: Algorithm explicitly enforced (no `alg: none` bypass)? Signature verified before claims? Expiry checked?
-- [ ] **Cryptography**: No deprecated algorithms (MD5, SHA-1, DES, RC4). Proper IV/nonce (no reuse). No ECB mode. Key derivation uses bcrypt/scrypt/argon2, not raw hash
-- [ ] **Deserialization**: No untrusted deserialization (pickle, Java ObjectInputStream, `yaml.load()` without SafeLoader)
-- [ ] **Logging**: No secrets/PII in logs. Auth failures and authz violations logged with timestamp/user/action/outcome. Log entries sanitized (CWE-117)
-- [ ] **Error disclosure**: No stack traces, internal paths, or system details in user-facing responses
-- [ ] **Supply chain**: GitHub Actions pinned to SHA (not `@latest`/`@main`). Docker base images pinned to digest or specific version tag
+### Perf
 
-#### 2. Logic & Correctness
+- N+1 queries, missing indexes, unbounded collections or queries, large or leaked allocations, lock contention, blocking async, avoidable quadratic algorithms, bloated runtime images.
 
-- [ ] Does the code do what it claims to do?
-- [ ] Edge cases: null/empty inputs, boundary values, integer overflow, off-by-one
-- [ ] Race conditions, TOCTOU, thread safety
-- [ ] State management: state transitions valid and complete?
-- [ ] Error paths: every error handled, not swallowed?
-- [ ] Business logic matches documented requirements?
-- [ ] Failure modes: what happens when external dependencies are down?
+### Tests
 
-#### 3. Configuration & Infrastructure
+- Critical paths, edge cases, and error paths covered by meaningful assertions; isolated (no order dependence, shared mutable state, or flaky external calls); names that say what failed; run in CI.
 
-- [ ] **Dockerfile**: Minimal base image? Multi-stage build? Non-root USER? No secrets in ENV/ARG? `.dockerignore` present?
-- [ ] **CI/CD pipelines**: Secrets via secrets manager (not hardcoded in YAML)? Actions pinned to SHA? `permissions:` block set to least privilege? No `pull_request_target` with checkout of PR head?
-- [ ] **IaC**: Security groups not `0.0.0.0/0` on sensitive ports? Encryption at rest/in transit? State file NOT committed? Remote state with locking?
-- [ ] **Environment config**: `.env` not committed? Defaults are safe (not permissive)? Config validated at startup?
-- [ ] **`.gitignore`/`.dockerignore`**: Complete and correct?
-- [ ] **Database migrations**: Reversible? Idempotent? Non-blocking index creation? No data loss on rollback?
+### Docs
 
-#### 4. Code Quality & Practices
+- README, API docs, and changelog match the change; comments explain why; license present.
 
-- [ ] Naming: descriptive, consistent, language-idiomatic
-- [ ] DRY: duplicated logic that should be extracted?
-- [ ] Complexity: functions >50 lines? Deep nesting >3 levels? Obviously complex control flow?
-- [ ] Dead code, commented-out code, TODO/FIXME without issue tracking
-- [ ] Language idioms: code written in the style of the language, or fighting it?
-- [ ] API design: consistent naming, proper HTTP methods, sensible status codes, pagination
-- [ ] **Formatter/lint drift**: does the staged diff match the repo's gate? If you have tool access, run the repository-defined formatter/linter checks on the changed files (for example `ruff format --check` + `ruff check`, `gofumpt -l`, `shfmt -d`, or a checked-in lint/format script). Drift (wrong line length, reordered imports, re-indented shell from a mis-set editor) is a 🟡 SHOULD-FIX — flag it and point at the editor/config mismatch, not just the file.
+### Deps
 
-#### 5. Performance
+- Pinned versions and a committed lockfile; no leftover, unnecessary, or vendored-instead-of-managed dependencies.
+- With shell access, run `npm audit`, `pip audit`, or `cargo audit` and report the real output; never invent CVEs or metrics.
 
-- [ ] N+1 queries, missing indexes, full table scans
-- [ ] Unbounded collections: can a list/query grow without limit?
-- [ ] Memory: large allocations, retained references, missing cleanup
-- [ ] Concurrency: lock contention, unnecessary serialization, async that blocks
-- [ ] Algorithm complexity: obviously quadratic or worse where better is possible?
-- [ ] Container: unnecessary build dependencies in runtime image? Layer caching considered?
+## Severity
 
-#### 6. Testing
+| Level | Meaning | Verdict |
+|---|---|---|
+| 🔴 REJECT-BLOCKING | security vulnerability, correctness bug, data-loss risk, committed secret | any one rejects |
+| 🟡 SHOULD-FIX | smell, error handling, config, or test gap with no demonstrated failure | author fixes or declines in one line |
+| 🔵 NIT | style, readability, minor docs | never blocks |
 
-- [ ] Critical paths covered?
-- [ ] Tests are meaningful (not `assert True`)?
-- [ ] Edge cases and error paths tested?
-- [ ] Test isolation: no order dependency, no shared mutable state, no flaky external calls
-- [ ] Test naming: can you tell what failed from the name?
-- [ ] CI integration: tests run in pipeline? Quality gate exists?
+## Rounds
 
-#### 7. Documentation
-
-- [ ] README: accurately describes setup, deps, usage, deployment?
-- [ ] API documentation matches implementation?
-- [ ] Changelog updated for user-facing changes?
-- [ ] Complex logic has inline comments explaining *why*, not *what*?
-- [ ] License file present and correct?
-
-#### 8. Dependencies
-
-- [ ] Versions pinned (not floating `^`, `~`, `*`)?
-- [ ] Lock file present and committed?
-- [ ] No unnecessary deps (leftover from removed features)?
-- [ ] No vendored copies that should be package-managed?
-
-**Tool-gated checks (only if you have bash/tool access):**
-
-- [ ] `npm audit` / `pip audit` / `cargo audit` — run if available, report actual output. **Do not fabricate CVE numbers or vulnerability data from memory.**
-- [ ] Lock file freshness: `stat` the lock file, compare to manifest modification time
-- [ ] Cyclomatic complexity: run `radon` (Python), `gocyclo` (Go), `rust-code-analysis` (Rust) if available. Otherwise flag obviously complex functions by inspection, do not invent metrics
-
-## SEVERITY CLASSIFICATION
-
-| Level | Label | Meaning | Verdict Impact |
-|-------|-------|---------|----------------|
-| 🔴 | REJECT-BLOCKING | Security vuln, correctness bug, data loss risk, committed secrets | Any one = REJECTED |
-| 🟡 | SHOULD-FIX | Code smells, error handling, config, or test gaps with no demonstrated failure; unsafe Dockerfile | Won't block; the author fixes it or pushes back in one line |
-| 🔵 | NIT | Style, readability, minor docs gaps | Won't block alone |
-
-## STATE MANAGEMENT
-
-### Round 1
-
-After completing the review, emit a `STATE BLOCK` at the end of your output:
+End every round with a state block that `--state` can load:
 
 ```text
 <!-- STATE_START
-{round}: 1
-{verdict}: REJECTED
-{findings}:
-  - id: F001
-    severity: red
-    file: src/auth.rs
-    line: 42
-    summary: Hardcoded JWT secret
-  - id: F002
-    severity: yellow
-    file: Dockerfile
-    line: 7
-    summary: Running as root
+round: 1
+verdict: REJECTED
+findings:
+  - {id: F001, severity: red, file: src/auth.rs, line: 42, summary: Hardcoded JWT secret}
 STATE_END -->
 ```
 
-This block is machine-readable and can be saved to `--state` path for subsequent rounds.
+From round 2, `--state` is required; without it, stop with an error instead of guessing prior findings. Mark each prior finding fixed, not fixed, or regressed; scan new and changed files; name the systemic cause when a category recurs. After `--max-rounds` rejected rounds, start no new round: list the open 🔴 findings with their failing inputs and ask the user to accept, rework once more, or re-scope.
 
-### Round 2+
+## Output
 
-**Requires `--state <path>`.** If `--state` is not provided and `--round` > 1, emit an error:
-
-```text
-ERROR: --round 2 requires --state <path> pointing to Round 1 output.
-Cannot compare against previous findings without explicit state.
-Refusing to hallucinate prior review results.
-```
-
-When state IS provided:
-
-1. Parse the STATE BLOCK from the provided file
-2. Diff-first: for each prior finding, mark ✅ Fixed / ❌ Not fixed / 🔄 Regressed
-3. Scan new/modified files against relevant domain checklists
-4. Root cause analysis if same category recurs across rounds
-5. Debugging guidance: reasoning chain, reproduction steps, mental model correction
-
-## STOP RULE (--max-rounds reached)
-
-Do not start another round. List the open 🔴 findings with their failing inputs and ask the user to decide: accept with known issues, rework once more, or re-scope.
-
-## OUTPUT FORMAT
-
-Write each finding as one concise progression: state what is wrong, explain its concrete impact, and finish with the specific remediation. Keep it as natural prose; do not add `Wrong`, `Impact`, or `Fix` labels.
+Write each finding as one sentence chain: the defect, its concrete impact, and the specific fix.
 
 ```markdown
-## /review Round {N} — {ACCEPTED | REJECTED}
-
-**Scope:** {files reviewed, count}
-**Pass:** {which domain pass(es) completed}
-**Summary:** {one-line verdict}
+## qa-review Round {N} — {ACCEPTED | REJECTED}
+Scope: {files, count} · Passes: {domains} · Summary: {one line}
 
 ### 🔴 REJECT-BLOCKING
-- **[F001]** [{file}:{line}] {defect, concrete impact, and specific remediation}
-
+- [F001] {file}:{line} {defect, impact, fix}
 ### 🟡 SHOULD-FIX
-- **[F002]** [{file}:{line}] {defect, concrete impact, and specific remediation}
-
 ### 🔵 NIT
-- **[F003]** [{file}:{line}] {defect, concrete impact, and specific remediation}
+### Delta (round 2+): | ID | Prior finding | Status | Notes |
 
----
-
-### [Round 2+ Only] Delta
-| ID | Prior Finding | Status | Notes |
-|----|---|---|---|
-| F001 | Hardcoded JWT secret | ✅ | Moved to env var |
-| F002 | Root Dockerfile | ❌ | Still no USER directive |
-
-### [Round 2+ Only] Root Cause Analysis
-{Only if same category recurs: systemic pattern identification}
-
-<!-- STATE_START
-...
-STATE_END -->
+<!-- STATE_START … STATE_END -->
 ```
 
-## WORKFLOW MODES
-
-### Interactive (default)
-
-```text
-User:      /review .
-Assistant: [Phase 0: resolved scope summary] → proceeds
-Assistant: [Phase 1: multi-pass review] → Findings + STATE BLOCK
-User:      /review . --round 2 --state .review_state.md
-Assistant: [Delta + new scan] → Findings + STATE BLOCK
-```
-
-### Headless / Agentic
-
-```text
-User/Agent: /review . --auto-approve
-Assistant:  [Skip Phase 0, straight to multi-pass review] → Findings + STATE BLOCK
-Agent:      [saves STATE BLOCK to .review_state.md]
-Agent:      [applies fixes]
-Agent:      /review . --round 2 --auto-approve --state .review_state.md
-```
-
-### Single-file quick check
-
-```text
-User: /review src/auth.rs --focus security --auto-approve
-```
-
-## CAPABILITY BOUNDARIES
-
-**What this review CAN do:**
-
-- Pattern-match known vulnerability signatures in code
-- Identify logic errors, missing validation, bad practices by inspection
-- Flag suspicious config, Dockerfile issues, CI/CD misconfig
-- Spot obviously complex functions, duplicated code, dead code
-- Check dependency manifest hygiene (pinning, unnecessary deps)
-
-**What this review CANNOT do without tool access:**
-
-- Query live CVE databases — do not fabricate CVE IDs
-- Measure actual cyclomatic complexity — flag by inspection, don't invent numbers
-- Check lock file freshness — requires `stat`
-- Scan excluded directories — requires `find`/`grep`
-- Run tests or verify they pass — requires execution
-- Verify runtime behavior (actual entropy, timing, etc.)
-
-If a check requires tool access you don't have, **skip it silently.** Do not pretend.
-
-## DISTRIBUTION
-
-This canonical skill is emitted to each runtime's native Agent Skills root. It is not duplicated into command surfaces on hosts that already support skills.
-
-## EXAMPLES
-
-```text
-qa-review .
-qa-review . --auto-approve
-qa-review src/ --focus security,config
-qa-review . --round 2 --state .review_state.md
-qa-review . --round 2 --state .review_state.md --max-rounds 2 --focus security,deps --auto-approve
-```
+Without shell access, skip tool-gated checks and say so; never pretend they ran.

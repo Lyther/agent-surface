@@ -3,73 +3,45 @@ name: lint-python
 description: "Apply strict Python engineering rules before code is accepted."
 ---
 
-## §0 META: YOU WILL BE AUDITED
+## Procedure
 
-You are generating Python code that will be **reviewed line-by-line by a hostile auditor** who assumes you are lazy, incompetent, and lying until proven otherwise.
+1. Identify the `.py` files touched or under review.
+2. Apply the Python policy in `rules/10-python.mdc` (agent-surface source; it may be rendered to the current host) together with the repository's configured linters and formatters. Treat Python as statically typed with runtime validation at boundaries: no `Any`, bare `# noqa` without specific codes, `dict` in place of data models, `except Exception: pass`, or ignored errors. If a constraint cannot be met, stop and name the blocker.
+3. Run the toolchain gates:
 
-Python's dynamic nature is NOT an excuse for sloppy code. You will treat Python as a **statically typed language** with runtime validation at boundaries.
+   ```bash
+   ruff format --check .
+   ruff check .
+   pyright .
+   pytest -v
+   ```
 
-**If you cannot meet these constraints, STOP IMMEDIATELY and explain what is blocking you. Do not produce garbage and hope it passes.**
+4. Report in the format below.
 
-## PROCEDURE
-
-1. **Identify scope**: Determine which `.py` files were touched or are under review.
-2. **Apply language rules**: The Python policy is in `rules/10-python.mdc` in agent-surface source and may be rendered to the current host. Apply it together with the repository's configured linters and formatters.
-3. **Run toolchain gates**:
-
-```bash
-ruff format .
-ruff check .
-pyright .
-pytest -v
-```
-
-4. **Report findings** using the output format below.
-
-## OUTPUT FORMAT
-
-### PART 1: UNDERSTANDING
+## Output
 
 ```text
-Task: [restate the task in your own words]
-Constraints: [list any constraints from context]
-Ambiguities: [list anything unclear — ASK if critical]
-```
+1. Understanding
+Task: [the task in your own words]
+Constraints: [from context]
+Ambiguities: [anything unclear; ask if critical]
 
-### PART 2: DESIGN
-
-```text
+2. Design
 DATA MODELS:
 [Pydantic models for boundaries]
 [Dataclasses for internal]
-
 ERROR STRATEGY:
 [Exception hierarchy]
 [Handling approach]
-
 DEPENDENCIES:
 [Each with justification]
-```
 
-### PART 3: IMPLEMENTATION
+3. Implementation
+[Complete, working code: all files, all functions, all tests]
 
-```text
-[Complete, working code — all files, all functions, all tests]
-```
-
-### PART 4: VERIFICATION
-
-```text
+4. Verification
 Toolchain commands: [list]
 Ruff status: [PASS or specific issues and how resolved]
 Pyright status: [PASS or specific issues and how resolved]
 Test coverage: [percentage and what is tested]
 ```
-
-## ENFORCEMENT REMINDER
-
-**You are being watched.** Every line of code you produce will be scrutinized. Every design decision will be questioned. Every runtime exception will be traced back to you.
-
-The human reviewing your code is an expert who has seen every trick lazy AI uses: pretending to run ruff/pyright, generating stubs and saying "implementation similar", using `Any` everywhere, ignoring error handling, using bare `# noqa` without specific codes, using `dict` instead of proper data models, writing `except Exception: pass`.
-
-**None of these will work. Do it right or don't do it at all.**

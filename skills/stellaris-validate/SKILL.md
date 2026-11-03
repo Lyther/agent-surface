@@ -3,57 +3,40 @@ name: stellaris-validate
 description: "Catch Stellaris mod failures before launch."
 ---
 
-## OBJECTIVE
+## Objective
 
-**THE INSPECTOR**: Catch Stellaris-mod failures before launch: encoding, namespaces, scope, and performance landmines.
+Catch Stellaris mod failures before launch: encoding, namespaces, scope, and performance landmines. BOM violations and bracket imbalance are P0 hard failures.
 
-## PROTOCOL
+## 1. Inputs
 
-### Phase 1: Inputs (Ask for paths)
+Ask the user for the mod repo root (contains `src/`), the Stellaris user dir for logs (usually `~/Documents/Paradox Interactive/Stellaris/`), and the target namespace prefix `[NS]`. If paths aren't provided, stop and ask; never guess.
 
-Ask user for:
+## 2. Encoding and Localisation (Hard Failures)
 
-1. Mod repo root (contains `src/`).
-2. Stellaris user dir (for logs): usually `~/Documents/Paradox Interactive/Stellaris/`.
-3. Target namespace prefix `[NS]`.
+- Every `.yml` under `src/localisation/**` is UTF-8 with BOM.
+- Each file starts with `l_english:` (or the language-appropriate `l_x:`).
+- Keys are `[NS]_...:0 "..."`, never missing `:0`.
 
-### Phase 2: Encoding & Localisation (Hard Failures)
+## 3. Script Integrity (Silent Crashes)
 
-1. **BOM Law**:
-    - Every `.yml` under `src/localisation/**` must be **UTF-8 with BOM**.
-2. **Header Law**:
-    - File must start with `l_english:` (or language-appropriate `l_x:`).
-3. **Key Law**:
-    - Keys must be `[NS]_...:0 "..."` (no missing `:0`).
+- If a file crashes load with no clear error, assume `{}` imbalance first.
+- Reject any `“ ”` and `‘ ’` in `.txt/.gui/.yml`.
+- If a file contains `*_event = { ... }`, require `namespace = [NS]` near the top.
 
-### Phase 3: Script Integrity (Silent Crashes)
+## 4. Namespace Hygiene
 
-1. **Bracket Balance**:
-    - If a file crashes load with no clear error, assume `{}` imbalance first.
-2. **Curly Quotes**:
-    - Reject any `“ ”` and `‘ ’` in `.txt/.gui/.yml`.
-3. **Event Namespace**:
-    - If file contains `*_event = { ... }`, require `namespace = [NS]` near top.
+- Events use `id = [NS].###`; flags, variables, modifiers, and localisation keys use `[NS]_...`.
+- For a tweak, prefer `z_[NS]_*.txt` soft overrides over overwriting vanilla filenames.
 
-### Phase 4: Namespace Hygiene (Compatibility)
+## 5. Performance
 
-1. **IDs & Keys**:
-    - Events: `id = [NS].###`
-    - Flags/variables/modifiers/localisation keys: `[NS]_...`
-2. **Soft Overrides**:
-    - If the feature is a tweak, prefer `z_[NS]_*.txt` over overwriting vanilla filenames.
+- Reject `any_pop` / `every_pop` / `every_ship` under frequent `on_actions` (daily/monthly) and redesign; anything O(N) in a pulse becomes event-driven.
+- Order triggers cheapest to most expensive and short-circuit early.
 
-### Phase 5: Performance Kill-Switch
-
-1. **BANNED HOT PATH**:
-    - `any_pop` / `every_pop` / `every_ship` under frequent `on_actions` (daily/monthly) → reject and redesign.
-2. **Fail Fast**:
-    - Order triggers cheapest-to-expensive; short-circuit early.
-
-## OUTPUT FORMAT
+## Output
 
 ```markdown
-## ✅ STELLARIS VALIDATION REPORT: [Mod Name] ([NS])
+## STELLARIS VALIDATION REPORT: [Mod Name] ([NS])
 
 ### Encoding
 - [ ] localisation BOM ok
@@ -71,9 +54,3 @@ Ask user for:
 ### Performance
 - [ ] no pop/ship iterators on daily/monthly hooks
 ```
-
-## EXECUTION RULES
-
-1. **No Guessing**: If paths aren’t provided, stop and ask.
-2. **Hard Fail**: BOM violations and bracket imbalance are P0.
-3. **Perf > Clever**: If it’s O(N) in a pulse, redesign to event-driven.

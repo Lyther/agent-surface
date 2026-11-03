@@ -3,126 +3,70 @@ name: boot-new
 description: "Bootstrap the smallest runnable project structure that fits the product goal, stack, and requested maturity."
 ---
 
-## OBJECTIVE
+## Objective
 
-Create or repair a project scaffold without preloading it with speculative architecture, tooling, policy, or operational machinery.
+Create or repair a project scaffold that supports the first real end-to-end behavior and the next development step, without speculative architecture, tooling, policy, or operational machinery.
 
-The result must support the first real end-to-end behavior and the next development step. It is not a checklist for every technology the project may eventually need.
+## Input
 
-## MODES
-
-```text
-boot-new [check|run]
-  [--maturity prototype|mvp|core|usable|production|business|auto]
-```
+`boot-new [check|run] [--maturity prototype|mvp|core|usable|production|business|auto]`
 
 - `check`: inspect and return the smallest coherent scaffold plan without writing.
 - `run`: apply the plan, build the first runnable slice, and verify it.
+- A bare invocation runs `check` first.
 
-A bare invocation runs `check` first. Existing projects preserve their proven stack and conventions; this workflow does not migrate technology for taste.
+Resolve from the request and repository: the product outcome and first user journey; maturity level and claims; language, framework, package manager, and deployment target; data, integration, platform, licensing, and compatibility constraints; the expected entry point and acceptance command; files or local state that must stay untouched. Use `ops-ask` only when a missing answer materially changes those decisions, never for facts in manifests, lockfiles, code, or authoritative docs.
 
-## INPUT CONTRACT
+## Maturity
 
-Resolve from the request and repository:
+The scaffold for each maturity level:
 
-- product outcome and first user journey;
-- maturity level and claims;
-- language, framework, package manager, and deployment target;
-- data, integration, platform, licensing, and compatibility constraints;
-- expected entry point and acceptance command;
-- files or local state that must remain untouched.
+- Prototype: one executable path that resolves the named uncertainty, a minimal manifest, and run instructions; no CI, deployment, plugin system, compatibility layer, editor workspace, or extensive docs unless the experiment needs them; explicitly disposable, no production claim.
+- MVP: one complete primary journey on real components; standard manifest and lockfile, focused tests, basic errors and data integrity, `.gitignore`, concise run instructions; one simple configuration path; CI or packaging only when needed to deliver; defer scale, extensibility, secondary workflows, and enterprise controls.
+- Core: cohesive domain boundaries, stable central interfaces, deterministic build and test commands, and the persistence and integrations the core contract requires; no peripheral shell or operational platform unless it is part of the core.
+- Usable: complete primary journeys, understandable errors, recovery, accessibility, configuration, user and operator docs, plus the packaging and maintenance commands regular use needs.
+- Production: deployment, migration, rollback, observability, recovery, resource limits, security controls, and performance evidence derived from the real environment, data, threat model, and SLOs; no generic checklist substitutes for those inputs.
+- Business or regulated: tenancy, audit, compliance, governance, support, and organizational controls only as the actual business or regulatory contract requires, never because the project may become commercial.
 
-Use `ops-ask` only when a missing answer materially changes those decisions. Do not ask for facts available in manifests, lockfiles, existing code, or authoritative documentation.
+## Procedure
 
-## MATURITY SHAPE
+1. Inspect manifests, lockfiles, source layout, build scripts, CI, ignores, docs, and Git status, and identify the ecosystem's normal project shape.
+2. Choose the minimum structure: every directory and file has a current producer, consumer, or execution role; create no empty architecture, roadmap, context, scripts, assets, or test directories for future use.
+3. Reuse the stack and ecosystem conventions; research an existing library before hand-building established parsing, protocol, scheduling, storage, security, physics, or domain logic.
+4. Keep one dependency manifest, one configuration path, one primary entry point, and one command per routine action.
+5. Scaffold enough product code for the first vertical slice to execute observable behavior, not just folders and configuration.
+6. Verify from a clean invocation through the documented install, build, test, and run path that applies to the maturity level.
 
-### Prototype
+Baseline, applicable items only:
 
-- One executable path that resolves the named uncertainty.
-- Minimal dependency manifest and run instructions.
-- No CI, deployment, plugin system, compatibility layer, editor workspace, or extensive docs unless the experiment requires them.
-- Explicitly disposable; no production claim.
+- the ecosystem-standard manifest and lockfile;
+- source and test files the first slice needs;
+- `.gitignore` for generated output, local tooling, credentials, real environment files, private keys, and platform debris;
+- `.env.example` when environment configuration exists, with names and dummy values only;
+- a concise `README.md`: purpose, prerequisites, run command, test command, current limits;
+- an explicit license when distribution requires one.
 
-### MVP
+Initialize Git only for a new unversioned project when version control is part of the requested setup.
 
-- One complete primary user journey using real components available to the project.
-- Standard manifest and lockfile, focused tests, basic errors and data integrity, `.gitignore`, and concise run instructions.
-- One simple configuration path. Add CI or packaging only when needed to deliver the MVP.
-- Defer scale, extensibility, secondary workflows, and enterprise controls.
-
-### Core
-
-- Cohesive domain boundaries and stable central interfaces.
-- Deterministic build and test commands.
-- Persistence and integrations required by the core contract.
-- No peripheral product shell or operational platform unless it is part of the core.
-
-### Usable
-
-- Complete primary journeys, understandable errors, recovery, accessibility, configuration, and operator/user documentation.
-- Packaging and routine maintenance commands needed for regular use.
-
-### Production
-
-- Deployment, migration, rollback, observability, recovery, resource limits, security controls, and performance evidence derived from the real environment, data, threat model, and SLOs.
-- No generic production checklist can substitute for those inputs.
-
-### Business or Regulated
-
-- Tenancy, audit, compliance, governance, support, and organizational controls required by the actual business or regulatory contract.
-- Do not add them merely because the project may become commercial.
-
-## SCAFFOLD METHOD
-
-1. **Inspect the environment.** Read manifests, lockfiles, source layout, build scripts, CI, ignores, docs, and current status. Identify the ecosystem's normal project shape.
-2. **Choose the minimum structure.** Every proposed directory and file must have a current producer, consumer, or execution role. Do not create empty architecture, roadmap, context, scripts, assets, or test directories for future use.
-3. **Reuse the stack.** Prefer repository and ecosystem conventions. Research an existing library before hand-building established parsing, protocol, scheduling, storage, security, physics, or domain logic.
-4. **Define one source of truth.** Use one dependency manifest, one configuration path, one primary entry point, and one command per routine action.
-5. **Create the first vertical slice.** Scaffold enough product code to execute observable behavior, not only folders and configuration.
-6. **Verify from a clean invocation.** Run the documented install/build/test/run path applicable to the maturity level.
-
-## REQUIRED BASELINE
-
-Add only applicable items:
-
-- ecosystem-standard manifest and lockfile;
-- source and test files needed by the first slice;
-- `.gitignore` for generated output, local tooling, credentials, and platform debris;
-- `.env.example` when environment configuration exists, containing names and dummy values only;
-- concise `README.md` with purpose, prerequisites, run command, test command, and current limits;
-- explicit license when distribution requires one.
-
-Initialize Git only if this is a new unversioned project and version control is part of the requested setup. Preserve staged, unstaged, ignored, and untracked work in existing repositories.
-
-## TOOLING RULES
+## Tooling
 
 - Use the repository's package manager and pinned tools.
-- Add one formatter/linter path only when the project has selected and gated it. Do not install overlapping formatters, import organizers, or generic pre-commit suites.
-- Add CI when remote integration, collaboration, publication, or the maturity contract requires it. CI should call the same local commands, not define a second build.
-- Add editor or agent configuration only when the user requests it or the repository already owns it. User-local overlays remain untracked.
-- Add scripts only for repeatable project workflows that cannot be expressed clearly through the ecosystem's normal commands.
-- Do not add databases, caches, queues, services, containers, monorepos, microservices, frontend shells, or cloud resources without a current requirement.
+- Add one formatter/linter path only when the project has selected and gated it; never overlapping formatters, import organizers, or generic pre-commit suites.
+- Add CI when remote integration, collaboration, publication, or the maturity contract requires it, calling the same local commands rather than defining a second build.
+- Add editor or agent configuration only when the user asks or the repository already owns it; user-local overlays stay untracked.
+- Add scripts only for repeatable workflows the ecosystem's normal commands cannot express clearly.
+- Add no database, cache, queue, service, container, monorepo, microservice, frontend shell, or cloud resource without a current requirement.
+- Validate external input and preserve data integrity at the real trust boundaries, and match controls to reachable threats and maturity, keeping P0 requirements for auth, authorization, cryptography, payments, destructive effects, and sensitive data.
 
-## SECURITY AND DATA
+## Existing Projects
 
-- Never commit secrets; ignore real environment files and private keys.
-- Validate external inputs and preserve data integrity at the actual trust boundaries.
-- Match controls to reachable threats and maturity while preserving P0 requirements for auth, authorization, cryptography, payments, destructive effects, and sensitive data.
-- Missing credentials or services make the affected live proof `BLOCKED`; they do not justify fake integration.
+- Preserve the proven stack and conventions; never migrate technology for taste or relocate files to match this skill.
+- Preserve staged, unstaged, ignored, and untracked work, and stronger established checks and controls.
+- Remove or replace stale scaffold only when ownership and behavior are proven.
+- Route broad accumulated cleanup to `ops-clean`, and intentional architecture or behavior changes to the relevant `arch-*` or `dev-*` workflow.
+- For an `ops-nuke` respawn, the approved respawn contract overrides the historical layout; the old implementation is reference evidence, not a template.
 
-## EXISTING PROJECTS
-
-For an existing tree:
-
-- do not relocate files merely to match this command;
-- preserve stronger established checks and controls;
-- remove or replace stale scaffold only when ownership and behavior are proven;
-- route broad accumulated cleanup to `ops-clean`;
-- route intentional architecture or behavior changes to the relevant `arch-*` or `dev-*` workflow.
-
-For an `ops-nuke` respawn, the approved respawn contract overrides historical layout. The old implementation remains reference evidence, not a template to copy.
-
-## OUTPUT
+## Output
 
 ```markdown
 ## Scaffold Contract
@@ -150,6 +94,4 @@ For an `ops-nuke` respawn, the approved respawn contract overrides historical la
 - Evidence required before adding it:
 ```
 
-## COMPLETION
-
-`COMPLETE` requires the scaffold and first vertical slice to run through the documented entry point with the applicable real components. A directory tree, generated boilerplate, or green substitute-backed test alone is not completion.
+`COMPLETE` requires the scaffold and first vertical slice to run through the documented entry point with the applicable real components; a directory tree, generated boilerplate, or green substitute-backed test is not completion. Missing credentials or services make the affected live proof `BLOCKED`, never a reason for fake integration.

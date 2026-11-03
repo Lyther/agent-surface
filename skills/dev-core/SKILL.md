@@ -3,13 +3,11 @@ name: dev-core
 description: "Implement the smallest runnable architectural spine after an independent RED spec, then stop before feature breadth."
 ---
 
-## OBJECTIVE
+## Objective
 
-Turn an accepted architecture and independently authored RED spec into one production-shaped vertical slice. Prove the real entry point, central ownership, and required dependency or data path without building the remaining product around them.
+Turn an accepted architecture and an independently authored RED spec into one production-shaped vertical slice that proves the real entry point, central ownership, and required dependency or data path, without building the rest of the product around them. Use it for architecture-heavy work where an early implementation decision shapes later development; skip it for localized features, routine fixes, and mature code paths with established ownership and boundaries.
 
-`dev-core` is for architecture-heavy work where an early implementation decision will shape later development. Skip it for localized features, routine fixes, and mature code paths whose ownership and boundaries are already established.
-
-## POSITION IN THE DEVELOPMENT PATH
+## Position
 
 ```text
 arch-roadmap  (family A)
@@ -19,11 +17,9 @@ arch-roadmap  (family A)
   -> dev-feature (family A at proportionate effort, or family C)
 ```
 
-The family labels are relative roles, not fixed vendors. Prefer a different model family for `dev-spec` so it can challenge family A's assumptions. Model diversity reduces correlated blind spots; it does not replace requirement-derived expectations, independent oracles, or real execution.
+Families are relative roles, not vendors. Prefer a different model family for `dev-spec` so it challenges family A's assumptions; diversity reduces correlated blind spots but never replaces requirement-derived expectations, independent oracles, or real execution. Use a frontier model at `xhigh` by default when the runtime supports it and `max` only for unusually hard or expensive-to-reverse decisions; otherwise use the highest validated effort available. Report the actual model and effort, or `unknown`, never assumed compliance.
 
-Assign a frontier model at `xhigh` by default when the runtime supports it. Reserve `max` for unusually hard or expensive-to-reverse decisions. If neither level is available, use the highest validated available effort and report the actual model and effort; report unknown values rather than claiming compliance.
-
-## INPUT GATE
+## Input Gate
 
 Require:
 
@@ -32,37 +28,28 @@ Require:
 - a RED test set scoped to the first runnable core slice;
 - the current maturity target and the real entry point to exercise.
 
-The first `dev-spec` must not pre-install a full future feature suite that `dev-core` is intentionally not meant to satisfy. If normal repository gates would remain red after the core slice, return to `dev-spec` and narrow the executable contract. Later feature slices may repeat `dev-spec` before `dev-feature`.
+The first `dev-spec` must not pre-install a future feature suite that `dev-core` is not meant to satisfy: if normal repository gates would stay red after the core slice, return to `dev-spec` to narrow the executable contract. Later feature slices may repeat `dev-spec` before `dev-feature`.
 
-## CONTRACT
+## Rules
 
-- Treat the accepted spec and its RED tests as immutable. Implement against them; do not weaken, broaden, delete, skip, or rewrite them.
-- If the spec is materially wrong or contradicts the accepted architecture, stop and return the conflict to `dev-spec` or `ops-ask`.
-- Preserve the repository stack, existing dependencies, and established local patterns unless the accepted architecture explicitly changes them.
-- Use real production paths. No placeholder functions, TODO implementations, fake dependencies, or scaffolding that only compiles.
+- Treat the accepted spec and its RED tests as immutable: implement against them and never weaken, broaden, delete, skip, or rewrite them. If the spec is materially wrong or contradicts the accepted architecture, stop and return the conflict to `dev-spec` or `ops-ask`.
+- Keep the repository stack, dependencies, and local patterns unless the accepted architecture explicitly changes them.
+- Use real production paths: no placeholder functions, TODO implementations, fake dependencies, or scaffolding that only compiles.
 - Preserve unrelated dirty work.
 
-## CORE METHOD
+## Procedure
 
-1. **Load only the governing evidence.** Read the accepted architecture boundaries, the roadmap's first vertical slice, the RED spec, the real entry point, and the smallest set of affected files.
-2. **Reuse before construction.** Search the repository, framework, standard library, and installed dependencies for the required capability.
-3. **Choose the minimum spine.** Establish only the entry point, central domain owner, necessary side-effect boundary, and real dependency or data path required by the slice.
-4. **Implement the slice.** Make the selected journey run end to end. Add no extension point, provider layer, configuration axis, compatibility path, or background mechanism without a present requirement.
-5. **Prove it.** Make the focused RED test pass, run the cheapest relevant repository check, and exercise the real entry point with the real primary dependency when available.
-6. **Subtract once.** Remove any new layer, helper, state, or option that the proven slice does not exercise or need.
-7. **Stop.** Do not continue into feature breadth, secondary journeys, polish, generalized hardening, or a detailed implementation roadmap.
+1. Read only the governing evidence: architecture boundaries, the roadmap's first vertical slice, the RED spec, the real entry point, and the smallest set of affected files.
+2. Search the repository, framework, standard library, and installed dependencies for the capability before building it.
+3. Establish only the entry point, central domain owner, necessary side-effect boundary, and real dependency or data path the slice requires.
+4. Make the selected journey run end to end, adding no extension point, provider layer, configuration axis, compatibility path, or background mechanism without a present requirement.
+5. Make the focused RED test pass, run the cheapest relevant repository check, and exercise the real entry point with the real primary dependency when available.
+6. Subtract once: remove any new layer, helper, state, or option the proven slice does not exercise or need.
+7. Stop. Out of scope: feature breadth, secondary journeys, polish, generalized hardening, optional integrations, second providers, plugin systems, hypothetical callers, compatibility or migration machinery without a current consumer, production, enterprise, scale, observability, or security systems beyond the stated maturity and threat model, exhaustive edge suites, comprehensive docs, cleanup outside the slice, and detailed instructions for implementing the remaining features.
 
-## OUT OF SCOPE
+## Output
 
-- Optional integrations, second providers, plugin systems, and hypothetical callers.
-- Broad compatibility or migration machinery without a current consumer.
-- Production, enterprise, scale, observability, or security systems not required by the stated maturity and threat model.
-- Exhaustive edge suites, comprehensive documentation, and cleanup outside the core slice.
-- Detailed instructions for how another worker should implement the remaining features.
-
-## HANDOFF
-
-Pause after the core slice passes. Return only the minimum durable handoff:
+Pause after the core slice passes and return only this handoff:
 
 ```markdown
 ## Core Slice

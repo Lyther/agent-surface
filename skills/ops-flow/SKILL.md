@@ -3,46 +3,37 @@ name: ops-flow
 description: "Route work to direct, standard, reviewed, orchestrated, release, audit, parallel, or shipping paths using risk, ambiguity, proof, and parallelism."
 ---
 
-## OBJECTIVE
+## Objective
 
-Choose the lightest execution path that preserves correctness and required proof.
+Choose the lightest execution path that preserves correctness and the required proof; multi-agent orchestration must earn its coordination cost. `ops-flow` classifies and routes; it does not implement, review, or ship. Prefer repository evidence over the user's or agent's estimate of task size.
 
-IRON LAW: MULTI-AGENT ORCHESTRATION MUST EARN ITS COORDINATION COST.
+## Input
 
-`ops-flow` classifies and routes. It does not implement, review, or ship. Prefer repository evidence over the user's or agent's estimate of task size.
-
-## INPUT
-
-```text
-ops-flow [goal]
-  [--risk low|medium|high|critical|auto]
-  [--mode direct|standard|reviewed|orchestrated|release|audit|parallel|ship|auto]
-  [--autonomy low|normal|high]
-```
+`ops-flow [goal] [--risk low|medium|high|critical|auto] [--mode direct|standard|reviewed|orchestrated|release|audit|parallel|ship|auto] [--autonomy low|normal|high]`
 
 Defaults: `--risk auto --mode auto --autonomy normal`.
 
-## STEP 1: LOCATE THE TASK SHAPE
+## 1. Locate the Task Shape
 
-When running inside `agent-surface`, load both live procedure catalogs first:
+Inside `agent-surface`, load both live procedure catalogs first:
 
 ```bash
 node scripts/agent-surface.mjs skills --json
 node scripts/agent-surface.mjs commands --json
 ```
 
-Answer these questions from the request and repository:
+Answer from the request and repository:
 
-1. Is the requested result an edit, an investigation, a release claim, or publication?
-2. Is the behavior already specified, or does product/architecture intent remain ambiguous?
-3. Does the change touch authentication, authorization, cryptography, payments, secrets, migrations, production data, deployment, security findings, dependency or release gates, or destructive behavior?
-4. Does acceptance require a real external dependency, built artifact, clean-room install, deployment, or live service?
+1. Is the result an edit, an investigation, a release claim, or publication?
+2. Is the behavior specified, or is product or architecture intent ambiguous?
+3. Does it touch authentication, authorization, cryptography, payments, secrets, migrations, production data, deployment, security findings, dependency or release gates, or destructive behavior?
+4. Does acceptance need a real external dependency, built artifact, clean-room install, deployment, or live service?
 5. Are there at least two writable workstreams with disjoint files, generated outputs, lockfiles, migrations, ports, databases, and fixtures?
-6. What is the smallest deterministic check that can reject an incorrect result?
+6. What is the smallest deterministic check that can reject a wrong result?
 
-Do not infer parallelism from the number of checklist items. A sequential dependency chain has parallel width one.
+Parallel width comes from independent workstreams, not checklist length; a sequential dependency chain has width one.
 
-## STEP 2: CHOOSE ONE EXECUTION PROFILE
+## 2. Choose One Profile
 
 | Profile | Use when | Runtime shape | Evidence |
 | --- | --- | --- | --- |
@@ -55,16 +46,14 @@ Do not infer parallelism from the number of checklist items. A sequential depend
 | `parallel` | Independent read-only exploration or competing proposals; no shared writer state | Bounded swarm/subagents; one owner consolidates | Per-probe evidence; not a merge verdict |
 | `ship` | Accepted changes only need commit, push, release, or deployment | Route-specific shipping workflow | Publication/deployment result |
 
-Routing defaults:
-
-- A small cross-file change is usually `standard`, not automatically orchestrated.
+- A small cross-file change is usually `standard`.
 - High or critical risk requires `reviewed`; it does not by itself require multiple writers or BOSS.
-- Choose `orchestrated` only when isolation or durable long-run state creates measurable leverage.
-- Choose `release` only after the implementation candidate is stable enough to freeze.
+- Choose `orchestrated` only when isolation or durable long-run state creates measurable leverage; never use BOSS merely because a task has several steps, and never give overlapping files or sequential tasks to multiple writers.
+- Choose `release` only once the candidate is stable enough to freeze; never generate release-grade provenance for an unstable intermediate patch.
 - Use `parallel` freely for read-only discovery, but keep one writer unless filescope isolation is proven.
 - If a formal run is already active, run `workflow-doctor` before starting another route.
 
-## STEP 3: SELECT THE NEXT WORKFLOW
+## 3. Select the Next Workflow
 
 ```text
 direct/standard: dev-feature | dev-fix | dev-core | dev-chore | dev-refactor
@@ -76,7 +65,7 @@ parallel:        ops-swarm
 ship:            ship-commit | ship-artifact | ship-cicd | ship-release | ship-deploy
 ```
 
-Use `workflow-boss` only inside an admitted `orchestrated` or `release` run, or when the user explicitly requests formal decomposition.
+Use `workflow-boss` only inside an admitted `orchestrated` or `release` run, or when the user explicitly requests formal decomposition. Do not turn every QA helper into a serial phase.
 
 For architecture-heavy development with an accepted roadmap, prefer the staged path:
 
@@ -87,7 +76,7 @@ arch-roadmap (family A)
   -> dev-feature (family A at lower effort, or family C)
 ```
 
-Repeat `dev-spec` for later behavior slices when independent specification adds value. Skip `dev-core` when the architecture and central ownership already exist.
+Repeat `dev-spec` for later behavior slices when independent specification adds value. Skip `dev-core` when the architecture and central ownership already exist, and never route a localized feature or bug through it merely because a stronger model is available.
 
 For brownfield fixes, prefer a compact contract:
 
@@ -98,13 +87,11 @@ Must remain unchanged:
 Acceptance checks:
 ```
 
-Use architecture commands only when the answer would materially change the implementation.
+Use architecture commands only when the answer would materially change the implementation. Before choosing a provider, prove the runtime can read, edit when authorized, run checks, and materialize the required output. Workflow artifacts, agent messages, and model diversity are not product progress.
 
-## READINESS CLAIMS
+## Readiness Claims
 
-Claims such as `stable`, `production-ready`, `release-ready`, `deployment-ready`, `E2E passed`, `100% implemented`, or `all features supported` require `release` profile evidence.
-
-Use the relevant ladder, not every command mechanically:
+`stable`, `production-ready`, `release-ready`, `deployment-ready`, `E2E passed`, `100% implemented`, or `all features supported` require `release` profile evidence; green unit tests alone never satisfy it. Use the relevant rungs of this ladder, not every command mechanically:
 
 ```text
 dev-spec / verify-test
@@ -115,13 +102,9 @@ dev-spec / verify-test
   -> verify-readiness
 ```
 
-Green unit tests alone cannot satisfy a release profile.
+## Autonomy
 
-## AUTONOMY
-
-`low` and `normal` are opt-ins to more asking. `high` is the distribution's standing policy and must not
-re-add stops that policy already removed: destructive commands, secret use, deployment, publishing, and
-other outward-facing effects are authorized when they are part of the requested scope.
+`low` and `normal` opt in to more asking. `high` is the distribution's standing policy: it must not re-add stops that policy removed, so destructive, secret-using, deploying, publishing, and other outward-facing steps within the requested scope proceed.
 
 ```text
 low:    ask before assumptions, dependencies, risky commands, or protected files
@@ -132,7 +115,7 @@ high:   proceed through the requested scope, including destructive, credential-u
         live evidence, or work that is outside the scope actually requested
 ```
 
-## OUTPUT
+## Output
 
 Return exactly one routing object:
 
@@ -155,14 +138,4 @@ Return exactly one routing object:
 }
 ```
 
-For `orchestrated`, `parallel_width` must be at least 2 or `why` must name the long-running state-management need. For `reviewed`, set `independent_review=true` and `max_rework_cycles` to 1 or 2. For `release`, set `real_acceptance=true`.
-
-## ANTI-PATTERNS
-
-- Do not use a BOSS merely because a task has several steps.
-- Do not create multiple writers for overlapping files or sequential tasks.
-- Do not turn every QA helper into a serial phase.
-- Do not generate release-grade provenance for an unstable intermediate patch.
-- Do not choose a provider before proving the runtime can read, edit when authorized, run checks, and materialize the required output.
-- Do not count workflow artifacts, agent messages, or model diversity as product progress.
-- Do not route a localized feature or bug through `dev-core` merely because a stronger model is available.
+For `orchestrated`, `parallel_width` is at least 2 or `why` names the long-running state-management need. For `reviewed`, set `independent_review=true` and `max_rework_cycles` to 1 or 2. For `release`, set `real_acceptance=true`.

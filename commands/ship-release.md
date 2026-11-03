@@ -6,94 +6,44 @@ description: "Prepare and publish release artifacts through gated steps."
 
 ## OBJECTIVE
 
-**THE HISTORIAN.**
-You do not decide what goes into a release. The Git history and the verified artifact do.
-**Your Goal**: Translate commit history into a SemVer, a changelog, and a release record that points to the exact shipped bits.
-**The Law**: If a changelog entry cannot be tied to a real artifact, it is theater.
+Translate commit history into a SemVer version, a changelog, and a release record that points to the exact shipped bits. Git history and the verified artifact decide what goes into a release; a changelog entry that cannot be tied to a real artifact is theater.
 
-## PROTOCOL
+## Rules
 
-### Phase 1: SemVer Calculus
+1. Never cut a release from uncommitted state.
+2. The version bump, release record, and tag belong together; a version number without artifact identity is not a release.
+3. Release tags are annotated and signed.
+4. If release notes, bundle names, or published assets do not match reality, stop and fix them before release.
+5. Pushing version commits and tags is irreversible distribution: verify the remote, branch, tag, and release identity, then complete the configured workflow without another confirmation prompt.
+6. Send release email, mailing-list, Slack/Discord, or webhook announcements only to channels named by the task or the established release workflow, never to unrelated recipients.
 
-*Math, not feelings.*
+## 1. Version
 
-1. **Analyze Commits Since the Last Tag**.
-2. **Calculate the Increment**:
-    - `fix:` -> patch
-    - `feat:` -> minor
-    - `BREAKING CHANGE:` or `feat!:` -> major
-3. **Skip Empty Releases**:
-    - If only meta work happened, skip the release or publish metadata-only notes if policy allows it.
-4. **Preconditions**:
-    - Main is green across source, artifact, bundle, and deployment gates.
-    - `ship-artifact` already produced a verified artifact, SBOM, provenance, signatures, and release manifest.
-    - All required proofs and staging checks passed for the exact digest / checksum being released.
-    - All commits and tags required by policy are signed and verified.
+1. Analyze commits since the last tag: `fix:` -> patch, `feat:` -> minor, `BREAKING CHANGE:` or `feat!:` -> major.
+2. If only meta work happened, skip the release, or publish metadata-only notes if policy allows it.
+3. Require that main is green across source, artifact, bundle, and deployment gates; `ship-artifact` already produced a verified artifact, SBOM, provenance, signatures, and release manifest; all required proofs and staging checks passed for the exact digest or checksum being released; and all commits and tags required by policy are signed and verified.
 
-### Phase 2: Changelog Generation
+## 2. Changelog
 
-*Summarize impact, not just commit text.*
+Prepend the new entry to `CHANGELOG.md`, grouped by intent (Features, Fixes, Performance, Security, Reverts, Breaking changes) and summarizing impact, not just commit text. Call out migrations, rollback notes, config changes, and bundle or installer changes. Link issues and PRs when they exist, and add compare links.
 
-1. **Group by Intent**:
-    - Features
-    - Fixes
-    - Performance
-    - Security
-    - Reverts
-    - Breaking changes
-2. **Call Out Operator / User Impact**:
-    - Migrations
-    - Rollback notes
-    - Config changes
-    - Bundle / installer changes
-3. **Format**:
-    - Prepend the new entry to `CHANGELOG.md`
-    - Link issues / PRs when they exist
-    - Add compare links
+## 3. Bump and Seal
 
-### Phase 3: Version Bump & Seal
+1. Bump the version files (`package.json`, `Cargo.toml`, `pyproject.toml`, or equivalent) and regenerate lockfiles or manifests if required.
+2. Commit the version files, lockfiles, and changelog entry together, so the tag points at the release state.
+3. Create a signed annotated tag (`v1.2.3`) on that commit.
+4. Create the release record for the tagged commit: Git SHA, version, artifact digest or checksum, bundle checksum, SBOM location, provenance location, and changelog entry.
+5. Resolve and verify the target remote and branch, then push the version commit and tag together under durable full-execution consent. Respect protected-branch policy by using the repository's release branch or PR workflow.
 
-*Tag the history and freeze the identity.*
+## 4. Publish
 
-1. **Bump Version Files**:
-    - `package.json`, `Cargo.toml`, `pyproject.toml`, or equivalent.
-2. **Regenerate Lockfiles / Manifests if Required**.
-3. **Create the Release Record**:
-    - Git SHA
-    - Version
-    - Artifact digest or checksum
-    - Bundle checksum
-    - SBOM location
-    - Provenance location
-    - Changelog entry
-4. **Create a Signed Annotated Tag**:
-    - `v1.2.3`
-5. **Push the Version Commit and Tag Together** — Resolve and verify the target remote/branch, then publish both under durable full-execution consent. Respect protected-branch policy by using the repository's release branch or PR workflow.
+1. Attach images, binaries, or installers; `SHA256SUMS`; signatures; SBOM; provenance or attestations; and the release manifest or record.
+2. Publish to ecosystems carefully: npm with provenance, PyPI with trusted publishing or signatures, crates.io with verified metadata.
+3. After release, download the published assets and verify their digest or checksum matches the release record; verify the live deployment or release channel reports the same version or SHA when applicable; and monitor error rate and rollback indicators for the first release window.
 
-### Phase 4: Publish the Release
+## Output
 
-*Publish the thing people can actually verify.*
-
-1. **Attach Evidence**:
-    - Images / binaries / installers
-    - `SHA256SUMS`
-    - Signatures
-    - SBOM
-    - Provenance / attestations
-    - Release manifest / release record
-2. **Publish to Ecosystems Carefully**:
-    - npm with provenance
-    - PyPI with trusted publishing / signatures
-    - crates.io with verified metadata
-3. **Post-Release Checks**:
-    - Download the published assets
-    - Verify digest / checksum matches the release record
-    - Verify live deployment or release channel reports the same version / SHA when applicable
-    - Monitor error rate and rollback indicators for the first release window
-
-## OUTPUT FORMAT
-
-**The Changelog Update**
+The changelog update:
 
 ```markdown
 ## [1.2.0] - 2024-05-21
@@ -112,13 +62,3 @@ You do not decide what goes into a release. The Git history and the verified art
 - artifact: `ghcr.io/OWNER/IMAGE@sha256:...`
 - bundle_sha256: `...`
 ```
-
-## EXECUTION RULES
-
-1. **NO DIRTY WORKSPACE**: Do not cut releases from uncommitted state.
-2. **ATOMICITY**: The version bump, release record, and tag belong together.
-3. **SIGNED TAGS**: Release tags must be annotated and signed.
-4. **NO RELEASE WITHOUT ARTIFACT IDENTITY**: Version numbers alone are not enough.
-5. **NO DOC / BUNDLE DRIFT**: If release notes, bundle names, or published assets do not match reality, stop and fix them before release.
-6. **PUBLISH THE CONFIGURED RELEASE**: Pushing tags and version commits is irreversible distribution. Verify the remote, branch, tag, and release identity, then complete the configured workflow without another confirmation prompt.
-7. **BOUND ANNOUNCEMENTS**: Send release email, mailing-list, Slack/Discord, or webhook announcements only to channels named by the task or established release workflow. Do not broadcast to unrelated recipients.

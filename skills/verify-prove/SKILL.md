@@ -3,126 +3,60 @@ name: verify-prove
 description: "Prove shipped bits under real user journeys, robustness, and adversary pressure."
 ---
 
-## OBJECTIVE
+## Objective
 
-Prove the exact bits a user or cluster will run — not a repo demo.
+Prove the exact bits a user or cluster will run, not a repository demo: artifact identity, clean-room install, real journeys, outcomes in the world, robustness, UX adequacy, and adversary resistance. `verify-test` proves the suite; hand suite discrimination to `verify-coverage` and claim certification to `verify-readiness`.
 
-`verify-test` proves the suite. `verify-prove` proves artifact identity, clean-room install, real journeys, outcomes in the world, robustness, UX adequacy, and adversary resistance on the shipped thing.
+HTTP 200 or exit 0 on a happy path is smoke, never "E2E" or "production-level proof". PASS requires all of:
 
-## CORE RULE
+- frozen identity of the shipped artifact (digest or checksum), not a mutable tag;
+- clean-room boot from that artifact, with no source-tree or hidden dev-cache dependency;
+- real user or host entry points for every journey claimed in scope;
+- real implementation, dependencies, data paths, and external effects throughout every evidence-bearing journey, with no substitute under any label or test name (`06-test-policy`);
+- verified environment outcomes (database, file, config, process state), not agent or UI narration;
+- robustness and adversary checks relevant to the claim; they are in scope by default, and excluding them narrows the claim;
+- multi-trial evidence when the path is nondeterministic.
 
-HTTP 200 / exit 0 on a happy path is smoke, not proof.
+FAIL when identity is ambiguous, the flow needs the checkout, a required path is substituted, outcomes went unchecked, or Critical/High robustness or adversary gaps remain in scope.
 
-PASS requires all of:
+## Input
 
-- Frozen identity of the shipped artifact (digest/checksum), not a mutable tag.
-- Clean-room boot from that artifact (no source-tree or hidden dev cache dependency).
-- Real user/host entry points for every journey claimed in scope.
-- Real implementation, dependencies, data paths, and external effects throughout every evidence-bearing journey; no substitutes under any label.
-- Environment outcomes verified (DB/file/config/process state), not agent or UI narration alone.
-- Robustness and adversary checks relevant to the claim — not optional footnotes.
-- Multi-trial evidence when the path is nondeterministic.
+- The claimed journeys and the support-matrix slice under proof.
+- The artifact: image digest, binary checksum, bundle hash, generated-output identity, installer, or installed service path.
+- The real dependencies required (services, credentials, hosts); a missing one is `BLOCKED`, never guessed.
+- Prior `verify-coverage` or `verify-test` evidence when the suite is part of the trust story.
 
-FAIL if identity is ambiguous, the flow needs the checkout to work, a required path is substituted, outcomes were not checked, or Critical/High robustness/adversary gaps remain in scope.
+## Procedure
 
-## INPUTS
+1. Freeze identity: record the Git SHA, version or build string, image digest or binary/bundle checksum, and schema, protocol, or mode IDs when applicable. Reject mutable references (`latest`, floating branch installs). If the artifact, bundle, or manifest does not exist, stop with FAIL or `BLOCKED`.
+2. Clean room: install, unpack, or boot only from the shipped artifact in a fresh environment with no mounted source tree, developer caches, or local overrides users would not have. Gate on readiness or health signals, never fixed sleeps alone. A flow that works only with the checkout is FAIL. Inventory every component, dependency, data source, and external effect in each journey; any substitute makes that journey non-E2E and ineligible for PASS.
+3. Real journeys: define each as a user-visible goal, not an internal API tour. Name the persona and goal (e.g. "operator installs MCP and sees tools in host"), invoke the real entry point (CLI, installer, UI, MCP client, HTTP API as customers use it), and grade UX with this rubric; transport success alone fails a UX claim.
 
-- Claimed journeys and support matrix slice under proof.
-- Artifact: image digest, binary checksum, bundle hash, generated output identity, installer, or installed service path.
-- Real dependencies required (services, credentials, hosts). Missing → `BLOCKED`, not guessed.
-- Prior `verify-coverage` / `verify-test` evidence when the suite is part of the trust story.
+   | UX check | Pass means |
+   |---|---|
+   | Goal completed | user-visible success state reached |
+   | Feedback honest | errors are actionable; no false success |
+   | No dead ends | the required next step is available or clearly blocked |
+   | No privileged leakage | no secrets or internal paths in user-facing output |
+   | Time bound | completes within the stated requirement, or fails visibly instead of hanging |
 
-## PROTOCOL
+   Give every supported mode, engine, version, or exporter in the claimed scope at least one journey. A product-like claim needs at least the primary happy path, one failure path with honest feedback, and one recovery, retry, or restart path when lifecycle is claimed.
+4. Outcomes: verify real backing state (rows, blobs, queues, manifests, merged config keys); logs, traces, and metrics for this version only, with secrets redacted; required bundle files present and forbidden ones absent (source tree, fixtures as production, prompt leakage, debug secrets). Grade the environment; agent self-reports and marketing copy are untrusted.
+5. Live identity: confirm the running system matches the frozen record (digest, version, checksum, config family); a green journey on the wrong bits is FAIL.
+6. Robustness, using readiness probes and explicit deadlines rather than fixed sleeps:
 
-### Phase 1: Freeze Identity
+   | Check | Requirement |
+   |---|---|
+   | Concurrency | 2-5 parallel critical-path operations; zero correctness failures |
+   | Dependency fault | timeout, down, or denied dependency yields controlled failure, not corruption or false success |
+   | Restart / upgrade | when install or service lifecycle is claimed, restart or upgrade works or is `BLOCKED` with reason |
+   | Idempotency / replay | where claimed, replay does not double-apply destructive effects |
+   | Resource pressure | short bounded stress relevant to the claim; optional only when the claim excludes it |
 
-1. Record git SHA, version/build string, image digest or binary/bundle checksum, schema/protocol/mode IDs when applicable.
-2. Reject mutable references (`latest`, floating branch installs) as proof identity.
-3. If the bundle/manifest/artifact does not exist, stop with FAIL or BLOCKED.
+7. Adversary: assume a hostile user or compromised tool path, on the exact task-authorized target (local, staging, or production) with bounded effects and rollback where applicable. When the surface accepts untrusted input, tools, or configs, cover at least: an authorization negative (a disallowed action is denied); injection, path, or merge abuse relevant to the product (config clobber, path escape, prompt or tool exfiltration); secrets absent from logs, errors, MCP memory, and generated user configs; and one domain-specific abuse case that would look healthy if only exit codes were checked. If the legal or engagement scope excludes adversary testing, mark these `BLOCKED` and claim no security or production readiness for them.
+8. Trials: for models, races, or other nondeterminism run N trials (default at least 3; 1 may suffice for a fully deterministic path) and report passes out of N. A flaky journey is FAIL until stabilized or excluded from the claim.
 
-### Phase 2: Artifact-First Clean Room
-
-1. Install/unpack/boot only from the shipped artifact.
-2. Fresh environment: no mounted source tree, no developer caches, no local override files that users would not have.
-3. Wait on readiness/health signals — no fixed sleeps as the sole gate.
-4. If the flow only works with the repo checkout, mark FAIL.
-5. Inventory every component, dependency, data source, and external effect in the journey. Any mock, fake, fixture, stub, spy, emulator, in-memory replacement, monkeypatch, recorded/synthetic response, sandbox imitation, test mode, or renamed equivalent makes the journey non-E2E and ineligible for PASS.
-
-### Phase 3: Real Journeys (User Experience)
-
-Define journeys as user-visible goals, not internal API tours.
-
-For each journey in scope:
-
-1. Name the persona and goal (e.g. “operator installs MCP and sees tools in host”).
-2. Invoke the real entry point (CLI, installer, UI, MCP client, HTTP API as customers use it).
-3. Assert UX adequacy with an explicit rubric — not only transport success:
-
-| UX check | Pass means |
-|----------|------------|
-| Goal completed | User-visible success state achieved |
-| Feedback honest | Errors are actionable; no false success |
-| No dead ends | Required next step is available or clearly blocked |
-| No privileged leakage | Secrets/internal paths not shown in user-facing output |
-| Time bound | Completes within the time the requirement states, or fails visibly instead of hanging |
-
-4. Cover the real matrix: every supported mode/engine/version/exporter claimed in this prove scope needs at least one journey.
-
-Minimum journey set for a product-like claim (adapt to domain):
-
-- Primary happy path (core value).
-- At least one failure path with honest user feedback.
-- At least one recovery/retry or restart path when lifecycle is claimed.
-
-### Phase 4: Outcome Evidence (World State)
-
-Passing responses are not enough.
-
-1. Persistence: verify real backing state (rows, blobs, queues, manifests, merged config keys).
-2. Runtime: logs/traces/metrics for this version only; redact secrets.
-3. Bundle: required files present; forbidden files absent (source tree, fixtures-as-prod, prompt leakage, debug secrets).
-4. Treat agent/self-report and marketing copy as untrusted. Grade the environment.
-
-### Phase 5: Live Identity Check
-
-Confirm the running system matches the frozen record (digest, version, checksum, config family). A green journey on the wrong bits is FAIL.
-
-### Phase 6: Robustness
-
-Run breakage the user will hit:
-
-| Check | Requirement |
-|-------|-------------|
-| Concurrency | 2–5 parallel critical-path operations; zero correctness failures |
-| Dependency fault | Timeout/down/denied dependency yields controlled failure, not corruption or false success |
-| Restart / upgrade | If install/service lifecycle is claimed, restart or upgrade path works or is BLOCKED with reason |
-| Idempotency / replay | Where claimed, replay does not double-apply destructive effects |
-| Resource pressure | Short bounded stress relevant to the claim (optional only if claim excludes it) |
-
-Fixed sleeps are not robustness proof. Prefer readiness probes and explicit deadlines.
-
-### Phase 7: Adversary Challenge
-
-Assume a hostile user or compromised tool path. Use the exact task-authorized target, whether local, staging, or production, with bounded effects and rollback where applicable.
-
-Minimum set when the surface can accept untrusted input, tools, or configs:
-
-1. AuthZ negative: disallowed action denied.
-2. Injection / path / merge abuse relevant to the product (e.g. config clobber, path escape, prompt/tool exfil).
-3. Secret exposure: secrets do not appear in logs, errors, MCP memory, or generated user configs.
-4. One domain-specific abuse case that would look “healthy” if only exit codes were checked.
-
-If the task's legal/engagement scope excludes adversary testing, mark those items `BLOCKED` and do not claim security or production readiness for them.
-
-### Phase 8: Multi-Trial When Needed
-
-If the path uses models, races, or other nondeterminism:
-
-- Run N trials (default ≥3 for nondeterministic; 1 may suffice for fully deterministic).
-- Report pass count / N, not a single lucky PASS.
-- A flaky journey is FAIL until stabilized or excluded from the claim.
-
-## OUTPUT FORMAT
+## Output
 
 ```markdown
 # PROOF COMPLETE
@@ -162,14 +96,3 @@ If the path uses models, races, or other nondeterminism:
 ## Verdict
 PASS|FAIL|BLOCKED
 ```
-
-## HARD RULES
-
-1. Artifact or clean installed bits only — repo checkout demos are not prove PASS.
-2. No mutable tags as identity.
-3. Outcome over transcript: world state must match the journey claim.
-4. UX rubric is mandatory for user-facing journeys; transport success alone is FAIL for UX claims.
-5. Robustness and adversary phases are in-scope by default; excluding them requires narrowing the claim.
-6. Do not call smoke “E2E” or “production-level proof.”
-7. A suite or file named `e2e_test`, `integration`, `real`, or `live` is not real proof when any required path is substituted. Missing prerequisites are `BLOCKED`.
-8. Hand suite discrimination to `verify-coverage`; hand claim certification to `verify-readiness`.

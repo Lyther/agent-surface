@@ -1,6 +1,6 @@
 # arch-diagram research basis
 
-Companion reference for `arch-diagram`. The findings behind its decision standard, trace and dataflow
+Companion reference for `arch-diagram`. The findings behind its evidence, trace and dataflow
 contracts, tool selection and visual system, with their primary sources. The rules themselves are in
 `SKILL.md`.
 

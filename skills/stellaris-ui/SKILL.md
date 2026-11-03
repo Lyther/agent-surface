@@ -3,27 +3,29 @@ name: stellaris-ui
 description: "Design and implement robust Stellaris mod user interfaces."
 ---
 
-## OBJECTIVE
+## Objective
 
-**THE ARTIFICER**: Design and Implement safe, robust User Interfaces.
-**Philosophy**: Stellaris UI is brittle. Use **Event Window Hijacking** for menus (Safe) and **Scripted GUIs** for logic (Robust). Distinguish between **Visual Assets** (`.gfx`) and **Layout Logic** (`.gui`).
+Design and implement safe, robust Stellaris user interfaces. Stellaris UI is brittle: use event window hijacking for menus (safe) and scripted GUIs for logic (robust), and keep visual assets (`.gfx`) separate from layout logic (`.gui`).
 
-## PROTOCOL
+## Rules
 
-### Phase 1: Architecture Selection
+1. Never hardcode X/Y > 1080 without `orientation`.
+2. Every window name starts with `[NS]_`.
+3. A button that modifies game state must be an `effectButtonType`. Standard `buttonType` is hardcoded to engine functions; never use it for custom logic.
 
-**Action**: Choose the integration method based on "Risk vs Control".
+## 1. Architecture
 
-| Strategy | Mechanism | Use Case | Risk |
+Choose the integration method by risk versus control:
+
+| Strategy | Mechanism | Use case | Risk |
 | :--- | :--- | :--- | :--- |
-| **A. Event Hijack (Green)** | Trigger an event with `diplomatic_title`. Map a custom `.gui` window to it. | Story Choices, Shops. | **Zero** (Native flow). |
-| **B. The Smart Button (Yellow)** | Inject a `containerWindowType` with an `effectButtonType` into a Vanilla view (e.g., `planet_view`). | Context Actions. | **Low** (Self-managing). |
-| **C. The Dashboard (Orange)** | A floating `containerWindowType` toggled by a `scripted_gui`. | Managers, Global Tools. | **Medium** (Needs open/close logic). |
+| A. Event hijack (green) | Trigger an event with `diplomatic_title`; map a custom `.gui` window to it. | Story choices, shops | Zero (native flow) |
+| B. Smart button (yellow) | Inject a `containerWindowType` with an `effectButtonType` into a vanilla view (e.g. `planet_view`). | Context actions | Low (self-managing) |
+| C. Dashboard (orange) | A floating `containerWindowType` toggled by a `scripted_gui`. | Managers, global tools | Medium (needs open/close logic) |
 
-### Phase 2: Asset Registration (`.gfx`)
+## 2. Assets (`.gfx`)
 
-**Constraint**: All sprites must be registered. Buttons need 3 frames (Rest, Hover, Click).
-**Action**: Create `src/interface/[NS]_icons.gfx`.
+Register every sprite in `src/interface/[NS]_icons.gfx`; buttons need 3 frames (rest, hover, click):
 
 ```pdx
 spriteTypes = {
@@ -38,25 +40,13 @@ spriteTypes = {
 
 ```
 
-### Phase 3: Layout Definition (`.gui`)
+## 3. Layout (`.gui`)
 
-**Constraint**: Use `effectButtonType` for script interaction. Standard `buttonType` is hardcoded to engine functions.
-**Action**: Create `src/interface/[NS]_view.gui`.
+In `src/interface/[NS]_view.gui`, always anchor with `orientation` and `origo` (pivot): `center` / `center` for modals, `upper_left` for lists and sidebars. Script interaction uses `effectButtonType` { `effect = "my_scripted_effect"` }.
 
-1. **Anchoring**: Always use `orientation` and `origo` (Pivot).
+## 4. Logic Bridge (`scripted_guis`)
 
-* `center` / `center`: Modals.
-* `upper_left`: Lists/Sidebars.
-
-2. **Interaction**:
-
-* **BANNED**: `buttonType` for custom logic.
-* **REQUIRED**: `effectButtonType` { `effect = "my_scripted_effect"` }.
-
-### Phase 4: The Logic Bridge (`scripted_guis`)
-
-**Context**: Define *when* the UI updates and *what* data it sees.
-**File**: `src/common/scripted_guis/[NS]_guis.txt`.
+Define when the UI updates and what data it sees in `src/common/scripted_guis/[NS]_guis.txt`:
 
 ```pdx
 [NS]_main_gui_logic = {
@@ -68,7 +58,7 @@ spriteTypes = {
 
 ```
 
-## OUTPUT TEMPLATE (`.gui`)
+## Output Template (`.gui`)
 
 ```pdx
 guiTypes = {
@@ -121,9 +111,3 @@ guiTypes = {
 }
 
 ```
-
-## EXECUTION RULES
-
-1. **Resolution Safety**: Never hardcode X/Y > 1080 without `orientation`.
-2. **Naming Authority**: All window names MUST start with `[NS]_`.
-3. **Interaction Rule**: If a button modifies game state, it **MUST** be an `effectButtonType`.

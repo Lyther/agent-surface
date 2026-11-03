@@ -3,47 +3,34 @@ name: stellaris-uplink
 description: "Ingest and cross-reference Stellaris reference data."
 ---
 
-## OBJECTIVE
+## Objective
 
-**THE SCIENCE OFFICER**: Ingest "Gold Standard" Vanilla data and cross-reference with the Syntax Submodule and Reference Mods.
-**Philosophy**: Never guess syntax. Read the Engine's source code (Vanilla) and the specific Reference Mod (ID 281990) before writing a single line.
+Before writing a single line, ingest gold-standard vanilla data and cross-reference it with the syntax submodule and reference mods. Never guess syntax: vanilla outranks the reference mod (ID 281990), which outranks the wiki.
 
-## PROTOCOL
+## Rules
 
-### Phase 1: Target Acquisition
+1. Read with absolute paths, but refer to relative paths (`common/...`) in conversation.
+2. Always state the input scope explicitly (e.g. `root = country`).
 
-**Input**: User Feature Request (e.g., "I want a Colossus that turns planets into Food").
+## 1. Target Acquisition
 
-1. **Load Configuration**:
-    - Read `.cursor/mod-context.json` to acquire `stellaris_game_path` and `workshop_path`.
-2. **Identify Vanilla Prototype**:
-    - **Heuristic**: Find the closest existing mechanic.
-    - **Action**: Search `[stellaris_game_path]/common` or `events`.
-    - **Target**: Read `00_[feature].txt` first. This is the "Gold Standard" for structure.
-3. **Consult Reference Mod (ID 281990)**:
-    - **Action**: If the feature is complex, check `[workshop_path]/content/281990/[ModID]` (if available/configured).
-    - **Goal**: See how other modders solved the specific problem (e.g., "How did they hook the UI?").
+For a feature request (e.g. "I want a Colossus that turns planets into Food"):
 
-### Phase 2: Syntax & Feasibility Verification
+1. Read `.cursor/mod-context.json` for `stellaris_game_path` and `workshop_path`.
+2. Find the closest existing mechanic in `[stellaris_game_path]/common` or `events`, reading `00_[feature].txt` first as the gold standard for structure.
+3. For a complex feature, check `[workshop_path]/content/281990/[ModID]` (if available and configured) to see how other modders solved the specific problem, e.g. how they hooked the UI.
 
-**Input**: Triggers/Effects found in Phase 1.
+## 2. Syntax and Feasibility
 
-1. **Consult Submodule**:
-    - **Source**: `ref/syntax_docs` (Stellaris Syntax List).
-    - **Action**: Use `rg` (ripgrep) on the submodule for triggers/effects found in Vanilla.
-    - **Critical Check**: Verify **Scope Compatibility** (e.g., "Does `create_army` work in `planet` scope?").
-2. **Web Intelligence (Gap Fill)**:
-    - **Condition**: If logic seems hardcoded or "too magical" (e.g., War, Peace, Pathfinding).
-    - **Search 1 (Wiki)**: `site:stellaris.paradoxwikis.com [Keyword] conditions`
-    - **Search 2 (Forum)**: `site:forum.paradoxplaza.com [Keyword] hardcoded`
-    - **Goal**: Confirm if `common/defines` limits exist or if it requires C++ access.
+1. Search `ref/syntax_docs` (the Stellaris syntax list) with `rg` for the triggers and effects found in vanilla, and verify scope compatibility (e.g. does `create_army` work in `planet` scope?).
+2. When logic seems hardcoded or "too magical" (war, peace, pathfinding), search `site:stellaris.paradoxwikis.com [Keyword] conditions` and `site:forum.paradoxplaza.com [Keyword] hardcoded` to confirm whether `common/defines` limits exist or the change requires C++ access.
 
-### Phase 3: The Context Report
+## Output
 
-**Output**: A concise "Feasibility & Risk" report in Markdown.
+A concise feasibility and risk report in Markdown:
 
 ```markdown
-## 🔬 CONTEXT REPORT: [Feature Name]
+## CONTEXT REPORT: [Feature Name]
 
 ### 1. Vanilla Prototype
 - **File**: `common/[folder]/00_[file].txt`
@@ -58,9 +45,3 @@ description: "Ingest and cross-reference Stellaris reference data."
 - **Recommended Path**: [e.g., "Create common/scripted_effects/my_effect.txt and hook to on_tech_researched"]
 
 ```
-
-## EXECUTION RULES
-
-1. **Path Hygiene**: Use absolute paths for reading, but refer to relative paths (`common/...`) in conversation.
-2. **Reference Priority**: Vanilla > Reference Mod > Wiki > Hallucination.
-3. **Scope Discipline**: Always explicitly state the Input Scope (e.g., `root = country`).
