@@ -8,9 +8,10 @@ import path from "node:path";
 import { PassThrough, Writable } from "node:stream";
 import {
   collectMissingRequired, CredentialPromptCancelled, credentialStatus, ensureSecretIgnored,
-  envExampleContent, envValueLiteral, formatMissingCredentialError, missingRequiredKeys, promptHidden,
+  envExampleContent, envValueLiteral, formatEnvOnlyWarning, formatMissingCredentialError, missingRequiredKeys, promptHidden,
   readEnvFile, resolveEnvFilePath, secretIgnorePatterns, writeEnvExample, writeEnvValues,
 } from "../../scripts/agent-surface/credentials.mjs";
+import { status as cliStatus } from "../lib/helpers.mjs";
 
 const dir = mkdtempSync(path.join(tmpdir(), "as-credentials-"));
 try {
@@ -59,6 +60,36 @@ try {
   assert.match(err, /\/proj\/\.env/);
   assert.doesNotMatch(err, /from-file|from-env/, "error text never leaks values");
   assert.equal(formatMissingCredentialError([], "/proj/.env"), null, "no missing required → no error");
+
+  // ---- a key only this shell supplies gets one plan warning naming the env file ----
+  // The launcher reads the env file, so a host started from the Dock or another GUI, which does not
+  // inherit the installing shell's environment, launches the server without such a key.
+  assert.deepEqual(osint.envOnly, ["HIBP_API_KEY"], "a key satisfied only by the process env is env-only");
+  const envOnly = (fileValues, processEnv) => credentialStatus(
+    [["svc", { credentials: { required: [{ name: "REQ_KEY" }], optional: [{ name: "OPT_KEY" }] } }]],
+    { fileValues, processEnv },
+  );
+  assert.equal(
+    formatEnvOnlyWarning(envOnly({ OPT_KEY: "file" }, { REQ_KEY: "shell", OPT_KEY: "shell" }), "/proj/.env"),
+    "REQ_KEY is set only in this shell's environment, which a host started from the Dock or another GUI does not inherit; add it to /proj/.env",
+  );
+  assert.match(formatEnvOnlyWarning(envOnly({}, { REQ_KEY: "shell", OPT_KEY: "shell" }), "/proj/.env"), /^OPT_KEY, REQ_KEY are set only .*; add them to \/proj\/\.env$/);
+  assert.equal(formatEnvOnlyWarning(envOnly({ REQ_KEY: "file", OPT_KEY: "file" }, {}), "/proj/.env"), null, "keys in the file need no warning");
+
+  // The plan prints it: an env-only key warns, the same key in the env file does not.
+  {
+    const home = path.join(dir, "plan-home");
+    const dest = path.join(dir, "plan-proj");
+    await mkdir(home, { recursive: true });
+    await mkdir(dest, { recursive: true });
+    const plan = () => cliStatus(["install", "--target", "droid", "--dest", dest, "--category", "mcps", "--service", "openosint", "--dry-run"], {
+      env: { PATH: process.env.PATH, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: path.join(home, ".config"), XDG_DATA_HOME: path.join(home, ".local", "share"), SHODAN_API_KEY: "from-shell" },
+    }).stdout;
+    const warning = `  warning: SHODAN_API_KEY is set only in this shell's environment, which a host started from the Dock or another GUI does not inherit; add it to ${path.join(dest, ".env")}`;
+    assert.ok(plan().split("\n").includes(warning), "an env-only key is named in the plan");
+    await writeFile(path.join(dest, ".env"), "SHODAN_API_KEY=from-file\n");
+    assert.doesNotMatch(plan(), /warning: .*set only in this shell's environment/, "a key the env file holds draws no warning");
+  }
 
   // ---- value encoding round-trips ---------------------------------------
   assert.equal(envValueLiteral("abc123-._/:@=+"), "abc123-._/:@=+", "token charset stays bare");

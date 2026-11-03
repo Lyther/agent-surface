@@ -179,6 +179,40 @@ try {
     assert.equal(count(repeat.out, /^ {2}wrote: 0$/gm), 2, "a repeat install writes nothing");
   }
 
+  // Step 3 for config routes: Claude Code and Copilot share a project's .mcp.json. One owner's reset
+  // keeps a server the other still records there, in either order, the last owner's reset deletes it,
+  // and a joint reset by both deletes it in that run. fenjing is an opt-in server with no prerequisites.
+  {
+    const dest = path.join(scratch, "shared-config-ids");
+    const servers = () => Object.keys(JSON.parse(read(dest, ".mcp.json")).mcpServers);
+    const records = (target) => manifest(dest, target)?.config_entries.find((entry) => entry.path === ".mcp.json")?.ids ?? [];
+    const optIn = (target) => {
+      const result = project(dest, target, ["--category", "mcps", "--service", "fenjing"]);
+      assert.equal(result.code, 0, result.out);
+    };
+    for (const [first, last] of [["claude-code", "copilot"], ["copilot", "claude-code"]]) {
+      rmSync(dest, { recursive: true, force: true });
+      optIn(first);
+      optIn(last);
+      const reset = project(dest, first);
+      assert.equal(reset.code, 0, reset.out);
+      assert.match(reset.out, new RegExp(`^ {2}\\.mcp\\.json MCP kept for other owners: fenjing \\(claimed by ${last}\\)$`, "m"));
+      assert.ok(servers().includes("fenjing"), `${first}'s reset keeps the server ${last} still records`);
+      assert.ok(!records(first).includes("fenjing") && records(last).includes("fenjing"), `${first} drops only its own record`);
+      const release = project(dest, last);
+      assert.equal(release.code, 0, release.out);
+      assert.match(release.out, /^ {2}\.mcp\.json MCP -= fenjing$/m);
+      assert.ok(!servers().includes("fenjing"), `${last}'s reset, the last owner's, deletes the server`);
+      assert.deepEqual(servers().sort(), ["grimoire", "synapse"]);
+    }
+    rmSync(dest, { recursive: true, force: true });
+    optIn("claude-code");
+    optIn("copilot");
+    const joint = install(["--target", "claude-code,copilot", "--scope", "project", "--dest", dest]);
+    assert.equal(joint.code, 0, joint.out);
+    assert.ok(!servers().includes("fenjing"), "two participants that both stop recording a server both delete it");
+  }
+
   // Every path several targets share renders identical bytes for one selection, so a joint plan
   // over all targets has no same-run conflict.
   for (const selection of [[], ["--category", "development"], ["--category", "rules"]]) {

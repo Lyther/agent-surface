@@ -91,11 +91,14 @@ export function argValues(args, name) {
   return values;
 }
 
-export function splitArgValues(values) {
-  return values
-    .flatMap((value) => value.split(","))
-    .map((value) => value.trim())
-    .filter(Boolean);
+// Every comma-separated value given to the named list options, in order. A value that names nothing
+// (`""`, `,`) fails instead of reading as the option left out: `--category ""` would otherwise run the
+// general install, which removes the opt-in categories installed earlier.
+export function splitArgValues(args, ...names) {
+  return names.flatMap((name) => argValues(args, name).flatMap((value) => {
+    const tokens = value.split(",").map((token) => token.trim()).filter(Boolean);
+    return tokens.length > 0 ? tokens : fail(`${name} ${JSON.stringify(value)} names no value; pass one or more comma-separated values`);
+  }));
 }
 
 export function requiredArgValue(args, name) {

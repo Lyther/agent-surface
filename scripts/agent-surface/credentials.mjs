@@ -60,7 +60,10 @@ export function credentialStatus(serviceEntries, { fileValues = {}, processEnv =
     });
     const req = split(required);
     const opt = split(optional);
-    status.push({ id, requiredSatisfied: req.satisfied, requiredMissing: req.missing, optionalSatisfied: opt.satisfied, optionalMissing: opt.missing });
+    // Satisfied only by this process's environment: the launcher reads the env file, so a host started
+    // outside this shell (from the Dock or another GUI) launches the server without these.
+    const envOnly = [...req.satisfied, ...opt.satisfied].map((k) => k.name).filter((name) => !present(name, fileValues, {}));
+    status.push({ id, requiredSatisfied: req.satisfied, requiredMissing: req.missing, optionalSatisfied: opt.satisfied, optionalMissing: opt.missing, envOnly });
   }
   return status;
 }
@@ -81,6 +84,14 @@ export function formatCredentialPlan(status) {
     lines.push(`  ${s.id}: ${parts.join("; ") || "keyless"}`);
   }
   return lines;
+}
+
+// One plan warning for every key only the installing shell supplies, naming the file to add it to.
+export function formatEnvOnlyWarning(status, envFilePath) {
+  const names = [...new Set(status.flatMap((s) => s.envOnly ?? []))].sort();
+  if (names.length === 0) return null;
+  const [verb, pronoun] = names.length === 1 ? ["is", "it"] : ["are", "them"];
+  return `${names.join(", ")} ${verb} set only in this shell's environment, which a host started from the Dock or another GUI does not inherit; add ${pronoun} to ${envFilePath}`;
 }
 
 export function formatMissingCredentialError(status, envFilePath) {
