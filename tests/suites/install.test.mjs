@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { parseJsonc, removeJsoncProperty } from "../../scripts/agent-surface/jsonc.mjs";
-import { mergeJsonMcpConfig } from "../../scripts/agent-surface/merge.mjs";
+import { mergeCodexMcpToml, mergeJsonMcpConfig, mergeYamlMcpConfig } from "../../scripts/agent-surface/merge.mjs";
 import { kimiCodeCursorSettingsPath, kimiCodeVsCodeSettingsPath, vsCodeUserRoot } from "../../scripts/agent-surface/roots.mjs";
 import { targets } from "../../scripts/agent-surface/targets.mjs";
 import {
@@ -33,6 +33,30 @@ import {
   const service = { path: "registry#a", mcp: { server: { type: "stdio", command: "c", args: [] } } };
   const rewritten = mergeJsonMcpConfig("{\"mcpServers\":{\"a\":{\"type\":\"stdio\",\"command\":\"c\",\"args\":[]}}}", "mcpServers", [["a", service]], ["a"]);
   assert.equal(parseJsonc(rewritten, "rewritten").mcpServers.a?.command, "c");
+}
+
+// A rendered stdio entry drops the keys that point it at a remote endpoint, in every config family:
+// Codex 0.166 refuses a server holding both `url` and `command` ("url is not supported for stdio").
+// The entry's other settings stay.
+{
+  const service = { path: "registry#synapse", mcp: { server: { type: "stdio", command: "synapse-bridge", args: [] } } };
+  const codex = TOML.parse(mergeCodexMcpToml(
+    "[mcp_servers.synapse]\nurl = \"http://127.0.0.1:4319/mcp\"\nbearer_token_env_var = \"SYNAPSE_TOKEN\"\nstartup_timeout_sec = 20\n",
+    [["synapse", service]],
+  )).mcp_servers.synapse;
+  assert.deepEqual({ ...codex }, { command: "synapse-bridge", args: [], startup_timeout_sec: 20 });
+  const json = parseJsonc(mergeJsonMcpConfig(
+    "{\"mcpServers\":{\"synapse\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4319/mcp\",\"headers\":{\"X-Trace\":\"1\"},\"disabled\":false}}}",
+    "mcpServers",
+    [["synapse", service]],
+  ), "json").mcpServers.synapse;
+  assert.deepEqual(json, { type: "stdio", command: "synapse-bridge", args: [], disabled: false });
+  const goose = parseYaml(mergeYamlMcpConfig(
+    "extensions:\n  synapse:\n    type: sse\n    uri: http://127.0.0.1:4319/mcp\n    description: keep\n",
+    "goose-extensions",
+    [["synapse", service]],
+  )).extensions.synapse;
+  assert.deepEqual(goose, { type: "stdio", description: "keep", name: "synapse", cmd: "synapse-bridge", args: [], enabled: true, timeout: 300 });
 }
 
 // Live installs here wire credentialed MCP servers, which write the shared env launcher into HOME.

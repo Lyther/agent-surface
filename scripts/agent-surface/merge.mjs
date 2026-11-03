@@ -160,7 +160,9 @@ export function mergeJsonMcpConfig(
       // An id removed above is rewritten whole, as the TOML and YAML merges do.
       const existing = Object.hasOwn(current, id) && !removeIds.includes(id) ? current[id] : undefined;
       for (const [subpath, value] of ownedEntryEdits(existing, JSON.parse(JSON.stringify(server)))) {
-        content = setJsoncPath(content, [key, id, ...subpath], value);
+        content = value === undefined
+          ? removeJsoncProperty(content, [key, id, ...subpath])
+          : setJsoncPath(content, [key, id, ...subpath], value);
       }
     }
   }
@@ -203,19 +205,28 @@ function mergePlainObjects(current, owned, prefix = "") {
   return merged;
 }
 
+// Every renderer writes a stdio entry. A kept key that points the entry at a remote endpoint, or a
+// `type` the renderer does not set, contradicts the rendered command: Codex 0.166 refuses the whole
+// config ("url is not supported for stdio"). Those keys go; the entry's other settings stay.
+const TRANSPORT_KEYS = ["type", "url", "httpUrl", "serverUrl", "uri", "headers", "http_headers", "env_http_headers", "bearer_token_env_var"];
+const staleTransportKeys = (current, rendered) => TRANSPORT_KEYS.filter((key) => Object.hasOwn(current, key) && !Object.hasOwn(rendered, key));
+
 // An owned server entry carries the keys agent-surface renders, and every other key it holds stays
-// (CONTRIBUTING: the compiler owns only the keys it writes); env merges by variable the same way. A
-// malformed entry is replaced whole.
+// (CONTRIBUTING: the compiler owns only the keys it writes) except a stale transport key; env merges
+// by variable the same way. A malformed entry is replaced whole.
 function ownedServerEntry(current, rendered) {
   if (!isPlainObject(current)) return rendered;
+  const kept = { ...current };
+  for (const key of staleTransportKeys(current, rendered)) delete kept[key];
   const env = isPlainObject(current.env) && isPlainObject(rendered.env) ? { env: { ...current.env, ...rendered.env } } : {};
-  return { ...current, ...rendered, ...env };
+  return { ...kept, ...rendered, ...env };
 }
 
-// The same rule as [subpath, value] edits; an equal value is no edit, so an unchanged entry keeps its bytes.
+// The same rule as [subpath, value] edits; an equal value is no edit, so an unchanged entry keeps its
+// bytes, and an undefined value removes the key.
 function ownedEntryEdits(current, rendered) {
   if (!isPlainObject(current)) return [[[], rendered]];
-  const edits = [];
+  const edits = staleTransportKeys(current, rendered).map((key) => [[key], undefined]);
   for (const [name, value] of Object.entries(rendered)) {
     if (name === "env" && isPlainObject(value) && isPlainObject(current.env)) {
       for (const [variable, setting] of Object.entries(value)) {
@@ -300,6 +311,7 @@ export function mergeYamlMcpConfig(text, format, entries, removeIds = []) {
     }
     // Only a changed rendered key is set, so the entry's other keys and comments stay as they are.
     const current = entry.toJSON();
+    for (const key of staleTransportKeys(current, rendered)) entry.delete(key);
     for (const [name, value] of Object.entries(rendered)) {
       if (!sameJson(current[name], value)) entry.set(name, document.createNode(value));
     }
