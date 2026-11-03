@@ -175,7 +175,7 @@ function detectPython(python, { homedir, env, platform, siblings }) {
 // it is missing/unsatisfied (null when nothing here can install it). `siblings` are this service's
 // EARLIER prerequisite detections (registry order is dependency order), so a dependent can ask an
 // already-resolved tool where it keeps its environments instead of guessing per-platform layouts.
-export function detectPrerequisite(prereq, { platform = PLATFORM, homedir = os.homedir(), env = process.env } = {}, siblings = null) {
+export function detectPrerequisite(prereq, { platform = PLATFORM, homedir = os.homedir(), env = process.env, execPath = process.execPath } = {}, siblings = null) {
   const detect = prereq.detect ?? {};
   const declaresPath = (detect.paths?.length ?? 0) > 0 || Boolean(detect.command);
   let resolvedPath = null;
@@ -184,14 +184,18 @@ export function detectPrerequisite(prereq, { platform = PLATFORM, homedir = os.h
     if (isExecutableFile(abs, platform, env)) { resolvedPath = abs; break; }
   }
   if (!resolvedPath && detect.command) resolvedPath = whichSync(detect.command, { platform, env });
+  // The Node runtime itself is also the Node running this CLI, which the MCP shims pin, so a PATH
+  // without node (a GUI or minimal shell) still has a runtime and no recipe installs another.
+  const nodeItself = detect.command === "node";
+  if (!resolvedPath && nodeItself && isExecutableFile(execPath, platform, env)) resolvedPath = execPath;
   const pathOk = declaresPath ? resolvedPath !== null : true;
 
   let nodeActual = null;
   let nodeOk = true;
   if (detect.node) {
-    // Prefer the resolved runtime binary; fall back to the CLI's own Node when the floor is on Node
-    // itself and no separate path resolved.
-    const probe = resolvedPath && /node(\.exe)?$/.test(resolvedPath) ? resolvedPath : whichSync("node", { platform, env });
+    // Prefer the resolved runtime binary, the CLI's own Node when the floor is on Node itself and PATH
+    // has none; a tool such as npx runs on PATH's node.
+    const probe = resolvedPath && (nodeItself || /node(\.exe)?$/.test(resolvedPath)) ? resolvedPath : whichSync("node", { platform, env });
     nodeActual = probe ? binaryVersion(probe) : null;
     nodeOk = satisfiesFloor(nodeActual, detect.node);
   }
