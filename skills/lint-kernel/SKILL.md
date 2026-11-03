@@ -58,7 +58,8 @@ Otherwise say no kernel lint applies and use the repository's own C tooling.
    - Have a fresh agent or reviewer review the patch without the earlier context; if the design survives only with the backstory, it is not ready.
    - For each `(input × concurrent-op)` quadrant no test reaches, state in the patch why and how you verified it by inspection.
    - If an earlier version went public, write the vN changelog as a real diff of the design.
-7. Before reporting, apply `references/finding-discipline.md`: each issue needs concrete evidence on at least one execution path, style points are capped and held to a higher bar than correctness, and you never assert authorship or comment on a disclosure trailer. Report in the Output format.
+7. Read a subsystem CI reply (patchwork, `bluez.test.bot`) per check. A crash inside the userspace test harness, such as a sanitizer report from BlueZ `src/shared/`, is not a kernel finding, but every test after it never ran against the patch: check whether unrelated series fail the same way, then rerun the full suite locally on a harness revision without the breakage before calling those tests passed.
+8. Before reporting, apply `references/finding-discipline.md`: each issue needs concrete evidence on at least one execution path, style points are capped and held to a higher bar than correctness, and you never assert authorship or comment on a disclosure trailer. Report in the Output format.
 
 Never push to a branch named `master`, `main`, `linus`, or `next`.
 
@@ -146,7 +147,7 @@ Trailers, in this order with no blank lines between:
 
 - `Fixes: <12-hex> ("oneline")` for bug fixes. Verify the SHA exists and is reachable from the base you actually target (often a subsystem tree; `origin/master` is not universal). Non-ancestry is a lead (unfetched tree, rebased or cherry-picked history), not proof the tag is wrong; report `MISS` without a tree to check.
 - `Reported-by:`, `Closes:`, `Link:` only with real attribution; prefer lore.kernel.org URLs for `Link:`.
-- `Cc: <stable@vger.kernel.org> # 5.14.x` only when a backport is intended. The single version already means "and newer", so a trailing `+` is redundant, and an absent annotation is not a defect when `Fixes:` implies the range. Honor `Cc: <stable+noautosel@kernel.org> # reason`. For an unpublished vulnerability use `stable@kernel.org`, after reading `references/submission-policy.md`: it protects one channel and does not make the mail private.
+- `Cc: <stable@vger.kernel.org> # 5.14.x` only when a backport is intended. A `Fixes:` naming a commit in a released kernel needs that decision made explicitly: without the `Cc:`, Greg's patch bot asks for a resend and the fix reaches no older release; to keep it out of stable, add `Cc: <stable+noautosel@kernel.org> # reason`, where the reason is mandatory. The single version already means "and newer", so a trailing `+` is redundant, and an absent annotation is not a defect when `Fixes:` implies the range. Give each prerequisite its own line, `Cc: <stable@vger.kernel.org> # 5.7.x: <12-hex>: <subject>`; when a subsystem's gitlint caps line length (Bluetooth CI: 80 columns), shorten the subject, never the SHA. For an unpublished vulnerability use `stable@kernel.org`, after reading `references/submission-policy.md`: it protects one channel and does not make the mail private.
 - `Reviewed-by:`, `Tested-by:`, `Acked-by:` only when real; never invent one.
 - `Assisted-by: LLM [tools]` when a tool helped: the literal `LLM`, then any specialized analysis tools used (e.g. `Assisted-by: LLM coccinelle sparse`), never an agent or model name. Placing it directly above `Signed-off-by:` is this skill's convention, not upstream's (`references/submission-policy.md`).
 - `Signed-off-by:` is mandatory (DCO 1.1, `git commit -s`) and certified by a human; an agent never adds it.
@@ -181,7 +182,7 @@ Claims blocked by the above: [conclusions left unsupported]
 Subject:      [subsystem: imperative short description]
 Sign-off:     [Signed-off-by present? yes/no; human-certified]
 Fixes:        [hex: subject; present? yes/no/n-a; ancestor check PASS/MISS]
-Cc stable:    [yes # 6.1.x / no / n-a]
+Cc stable:    [yes # 6.1.x / noautosel # reason / no / n-a]
 Assisted-by:  [LLM <tools> / n-a]
 Other tags:   [Reported-by, Reviewed-by, Tested-by, Acked-by; real ones only]
 Trailer corrections needed: [report only; never rewrite]

@@ -89,6 +89,7 @@ Notable changes to agent-surface and its first-party MCP services. Format: [Keep
 - **README** rewritten lean (203 → ~100 lines); the full target matrix moved to `docs/reference/targets.md`.
 - **Full-access policy ownership** - Kilo and OpenCode full installs replace the complete permission object with wildcard allow while preserving unrelated top-level settings; category-only MCP installs do not alter host-wide permission or sharing controls.
 - **Node floor raised to 20.12** - the installer's credential resolution uses the built-in `util.parseEnv`; `engines.node` now declares `>=20.12.0` to match (Node 18 is EOL and was already untested in CI).
+- **`lint-kernel` stable and CI guidance** - a `Fixes:` naming a commit in a released kernel now needs an explicit stable decision (`Cc: stable`, or `stable+noautosel` with a reason), since Greg's patch bot otherwise asks for a resend; stable prerequisite lines keep their SHA and shorten the subject to fit a subsystem gitlint limit; and a crash inside a subsystem CI's test harness counts as tests that never ran, not as a pass or a kernel finding.
 
 ### Fixed
 
