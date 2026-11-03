@@ -22,7 +22,7 @@ Realtime: agents `subscribe` to `synapse://project/<ns>/changes`; on a peer's wr
 ```sh
 npm install && npm run build
 npm test            # store + live-HTTP sidecar + S-01 realtime + bridge autostart
-node install.mjs    # link bins into ~/.local/bin, then deploy + start the sidecar service
+node install.mjs    # link bins into ~/.local/bin (the bridge autostarts the sidecar)
 ```
 
 Point any MCP host at the **bridge** (stdio). It needs no token, URL, or env — it discovers or autostarts the shared sidecar (lock-elected single instance), reading `~/.synapse/{sidecar.json,token}` (mode 600):
@@ -32,20 +32,20 @@ Point any MCP host at the **bridge** (stdio). It needs no token, URL, or env —
 { "mcpServers": { "synapse": { "command": "~/.local/bin/synapse-bridge" } } }
 ```
 
-Optional env overrides: `SYNAPSE_AGENT_ID` (provenance label), `SYNAPSE_PROJECT` (pin a repo root), `SYNAPSE_ROOTS=ignore` (skip MCP roots; see below), `SYNAPSE_URL`/`SYNAPSE_TOKEN`/`SYNAPSE_PORT`/`SYNAPSE_DB_DIR`.
+Optional env overrides: `SYNAPSE_AGENT_ID` (provenance label; locks belong to one bridge process, so sessions sharing it still hold separate leases, and a crashed bridge's leases expire with their TTL, 30 minutes by default), `SYNAPSE_PROJECT` (pin a repo root), `SYNAPSE_ROOTS=ignore` (skip MCP roots; see below), `SYNAPSE_URL`+`SYNAPSE_TOKEN` (set both or neither), `SYNAPSE_PORT`/`SYNAPSE_DB_DIR`.
 
 ### Project routing
 
-The namespace resolves as: **`SYNAPSE_PROJECT`** (a path) → else the **git root of the bridge's working directory** → else `default`. Hosts spawn the stdio bridge with the open workspace as cwd, so the git-root default isolates projects automatically; set `SYNAPSE_PROJECT` only for hosts that launch outside the repo or to force a specific root. A host that advertises MCP roots routes by its first root instead, and a failed or timed-out `roots/list` stops the bridge rather than guess from cwd. FastMCP's multi-server proxy advertises roots it cannot serve outside a request, so the installer sets `SYNAPSE_ROOTS=ignore` only on hosts verified to start the bridge in the workspace: OpenHands, where the key is the launch directory (a session whose `OPENHANDS_WORK_DIR` names another directory needs `SYNAPSE_PROJECT`), and Deep Agents Code project installs not rooted at the home directory. Any other non-empty value stops the bridge. A direct HTTP session (no bridge) that omits the `x-synapse-project` header falls into the shared `default` namespace — always send it.
+The namespace resolves as: **`SYNAPSE_PROJECT`** (a path) → else the **git root of the bridge's working directory** → else `default`. Hosts spawn the stdio bridge with the open workspace as cwd, so the git-root default isolates projects automatically; set `SYNAPSE_PROJECT` only for hosts that launch outside the repo or to force a specific root. A host that advertises MCP roots routes by its first root instead, and a failed or timed-out `roots/list` stops the bridge rather than guess from cwd. FastMCP's multi-server proxy advertises roots it cannot serve outside a request, so the installer sets `SYNAPSE_ROOTS=ignore` only on hosts verified to start the bridge in the workspace: OpenHands, where the key is the launch directory (a session whose `OPENHANDS_WORK_DIR` names another directory needs `SYNAPSE_PROJECT`), and Deep Agents Code project installs not rooted at the home directory. Any other non-empty value stops the bridge. A direct HTTP session (no bridge) that omits the `x-synapse-project` header falls into the shared `default` namespace — always send it, as the canonical git-root realpath a bridge would send, because the sidecar uses the key as-is.
 
 ## Distribution
 
 `synapse` ships through the agent-surface registry as a **first-party MCP** (no submodule pin):
 
-1. **`npm run install:synapse`** (repo root) builds synapse, links `synapse-bridge`/`synapse-sidecar` into `~/.local/bin`, and deploys + starts the always-on sidecar `launchd` service (`RunAtLoad`+`KeepAlive`, [deploy/launchd/local.synapse.plist](deploy/launchd/local.synapse.plist)). Re-running redistributes the latest build and restarts the service; the token + databases under `~/.synapse` persist. `SYNAPSE_SKIP_SERVICE=1` installs only the binaries (the bridge still autostarts the sidecar lazily). **Linux**: the always-on service is macOS-only; on Linux the supported mode is **lazy-start** — the bridge autostarts the lock-elected sidecar on demand, so no service is needed. For an always-on sidecar, an optional reference systemd *user* unit is provided at [deploy/systemd/synapse-sidecar.service](deploy/systemd/synapse-sidecar.service).
-2. **`agent-surface build` / `install`** writes or safely merges the first-party `synapse` stdio entry into all 23 generated MCP hosts. The authoritative per-host path and format matrix is [docs/reference/targets.md](../../docs/reference/targets.md); tests derive coverage from the same registry instead of duplicating a static host list here.
+1. **`npm run install:synapse`** (repo root) builds synapse and links `synapse-bridge`/`synapse-sidecar` into `~/.local/bin`; the token + databases under `~/.synapse` persist. There is no service on any platform: the first bridge autostarts the lock-elected sidecar and later bridges reuse it. On macOS the installer boots out and deletes the `local.synapse` launchd agent earlier versions deployed, which raced autostart for the port.
+2. **`agent-surface build` / `install`** writes or safely merges the first-party `synapse` stdio entry into all 25 generated MCP hosts. The authoritative per-host path and format matrix is [docs/reference/targets.md](../../docs/reference/targets.md); tests derive coverage from the same registry instead of duplicating a static host list here.
 3. **External or secret-bearing MCPs** remain opt-in — any non-first-party MCP service renders only when explicitly requested with `--category mcps --service <id>` or an equivalent reviewed install.
-4. **Update** = re-run step 1 (rebuild + service restart) and step 2 (regenerate or merge configs).
+4. **Update** = re-run step 1 (rebuild) and step 2 (regenerate or merge configs). Step 1 stops the running sidecar; open bridges elect one from the new build on their next call.
 
 ### Coverage boundary
 
@@ -56,7 +56,7 @@ Antigravity desktop and DSH intentionally have no generated Synapse route. Use t
 - **Local only**: sidecar binds `127.0.0.1`, validates `Origin`/`Host` (DNS-rebinding), requires a **bearer** token (random, persisted mode 600). No network/public surface. SDK pinned `>=1.24.0` (DNS-rebind advisory).
 - **Identity is provenance, not auth**: auto-derived per session; cooperative single-user trust. It does **not** defend against a hostile same-user process — that's out of scope for a local dev tool.
 - **Stored content is untrusted data**, returned as quoted JSON and never as instructions; tool descriptions are static. Agents must treat recalled memory as evidence, never commands (poisoning defense — see MINJA).
-- **No secrets**: ingest redaction strips Bearer/`sk-…`/`gh…`/`glpat`/AWS/GCP/JWT patterns; no transcript auto-capture. DB + token + discovery files are mode 600.
+- **No secrets**: ingest redaction strips Bearer/Basic auth, `sk-…`/`gh…`/`glpat`/AWS/GCP/JWT patterns, `key=secret` pairs (prefixed or JSON/YAML-quoted keys) and URL credentials from content and tags; no transcript auto-capture. The data directory is owner-only (mode 700, an owner-only ACL on Windows); DB + token + discovery files are mode 600.
 - **Isolation is physical**: one SQLite file per canonical git-root hash + one global file. A project cannot read another's file unless an agent **explicitly names it** (`memory_recall({project})`, read-only IDs and target-project cursor).
 - **Do not store**: secrets, raw tool output/transcripts, PII, speculation. Keep records compact.
 

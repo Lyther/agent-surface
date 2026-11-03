@@ -23,7 +23,7 @@ node scripts/agent-surface.mjs install --target claude-code --scope user --allow
 npm run install:mcps               # build + link the Synapse/Grimoire binaries the wired MCP configs point at
 ```
 
-The `install` step wires each host's MCP *config* to point at `~/.local/bin/synapse-bridge` and `~/.local/bin/grimoire-server`, and when either binary is missing it builds and links it through the registry recipe before writing any config. `npm run install:mcps` is the manual path: run it to rebuild the binaries (and redeploy the Synapse sidecar service) after pulling MCP changes.
+The `install` step wires each host's MCP *config* to point at `~/.local/bin/synapse-bridge` and `~/.local/bin/grimoire-server`, and when either binary is missing it builds and links it through the registry recipe before writing any config. `npm run install:mcps` is the manual path: run it to rebuild the binaries after pulling MCP changes.
 
 ## What it does
 
@@ -93,7 +93,7 @@ Built from `mcps/`, installed once, then auto-wired (non-destructive merge) into
 - **Synapse** — shared multi-agent memory + file-lock coordination.
 - **Grimoire** — read-only, just-in-time retrieval over large Agent-Skill packs (`anthropic-cybersecurity-skills`, `rev-skills`, and `hack-skills`) so the model searches instead of loading those catalogs at startup.
 
-`install` provisions both before it wires anything: a missing binary is built and linked into `~/.local/bin` by the same run that merges each server into every host's MCP config, so one command is enough. (Synapse also deploys its sidecar service on macOS; Linux and Windows use its lazy autostart.) `npm run install:mcps` still builds them directly, and `npm run install:synapse` / `install:grimoire` build just one. Details: [mcps/synapse/README.md](mcps/synapse/README.md), [mcps/grimoire/README.md](mcps/grimoire/README.md).
+`install` provisions both before it wires anything: a missing binary is built and linked into `~/.local/bin` by the same run that merges each server into every host's MCP config, so one command is enough. (Synapse needs no service: its bridge autostarts the shared sidecar on first use.) `npm run install:mcps` still builds them directly, and `npm run install:synapse` / `install:grimoire` build just one. Details: [mcps/synapse/README.md](mcps/synapse/README.md), [mcps/grimoire/README.md](mcps/grimoire/README.md).
 
 ## Workflow kernel (optional)
 

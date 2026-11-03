@@ -21,12 +21,17 @@ function dbDirOf(dbDir?: string): string {
 export function projectKey(cwd: string, override?: string): string {
   const ov = override ?? process.env["SYNAPSE_NAMESPACE"];
   if (ov && ov.trim()) return ov.trim();
-  let root = cwd;
+  return canonicalRoot(cwd);
+}
+
+/** Git root realpath of a directory, else its realpath, else the path as given. */
+export function canonicalRoot(dir: string): string {
+  let root = dir;
   try {
     root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-      cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"],
-    }).trim() || cwd;
-  } catch { /* not a git repo → use cwd */ }
+      cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"],
+    }).trim() || dir;
+  } catch { /* not a git repo → use dir */ }
   try { root = realpathSync(root); } catch { /* path may not resolve */ }
   return root;
 }
