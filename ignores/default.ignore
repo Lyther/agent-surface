@@ -15,9 +15,7 @@
 *.pfx
 **/credentials.json
 **/secrets/
-**/secrets.json
-**/secrets.y*ml
-**/secrets.toml
+**/secrets.*
 **/service-account*.json
 .netrc
 id_rsa
