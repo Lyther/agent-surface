@@ -10,7 +10,8 @@ import {
   type MemoryForgetArgs, type MemoryGetArgs, type MemoryRecallArgs, type MemoryRememberArgs,
 } from "./contract.js";
 
-export interface SessionCtx { agentId: string; projectDbPath: string }
+/** `agentId` is memory provenance; `lockOwner` (default: agentId) holds leases, one per bridge process. */
+export interface SessionCtx { agentId: string; projectDbPath: string; lockOwner?: string }
 export interface ToolSpec { name: string; description: string; inputSchema: Record<string, unknown> }
 export type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
 
@@ -26,6 +27,7 @@ export function toolSpecs(): ToolSpec[] {
 }
 
 export function buildToolSet(store: IStore, ctx: SessionCtx): { specs: ToolSpec[]; call: (name: string, rawArgs: unknown) => ToolResult } {
+  const lockOwner = ctx.lockOwner ?? ctx.agentId;
   const handlers: Record<string, (a: unknown) => ToolResult> = {
     memory_remember: (raw) => {
       const a = raw as MemoryRememberArgs;
@@ -49,12 +51,12 @@ export function buildToolSet(store: IStore, ctx: SessionCtx): { specs: ToolSpec[
     },
     lock_acquire: (raw) => {
       const a = raw as LockAcquireArgs;
-      const r = store.acquire({ projectDbPath: ctx.projectDbPath, agentId: ctx.agentId, glob: a.glob, ttlMs: a.ttlMs ?? LIMITS.RESERVE_TTL_MS_DEFAULT });
+      const r = store.acquire({ projectDbPath: ctx.projectDbPath, agentId: lockOwner, glob: a.glob, ttlMs: a.ttlMs ?? LIMITS.RESERVE_TTL_MS_DEFAULT });
       return r.ok
         ? ok({ ok: true, glob: r.lock.glob, agentId: r.lock.agentId, expiresAt: r.lock.expiresAt })
         : ok({ ok: false, heldBy: r.heldBy, expiresAt: r.expiresAt, suggestion: `Held by ${r.heldBy} until ${new Date(r.expiresAt).toISOString()}. Pick other work or retry after it expires.` });
     },
-    lock_release: (raw) => ok({ ok: true, released: store.release({ projectDbPath: ctx.projectDbPath, agentId: ctx.agentId, glob: (raw as LockReleaseArgs).glob }).released }),
+    lock_release: (raw) => ok({ ok: true, released: store.release({ projectDbPath: ctx.projectDbPath, agentId: lockOwner, glob: (raw as LockReleaseArgs).glob }).released }),
     lock_list: (raw) => ok({ locks: store.listLocks({ projectDbPath: ctx.projectDbPath, globFilter: (raw as LockListArgs).globFilter }) }),
   };
 

@@ -82,9 +82,12 @@ export class Store implements IStore {
   remember(q: { projectDbPath: string; agentId: string; content: string; tags?: string[]; global?: boolean; supersedes?: Offset }): { id: Offset; ts: number; redactions: number } {
     const ts = this.clock.now();
     const { text, count } = this.redactor.redact(q.content);
+    let redactions = count;
+    // Tags are stored and FTS-indexed like content, so they pass through the same redactor.
+    const safeTags = q.tags?.map((t) => { const r = this.redactor.redact(t); redactions += r.count; return r.text; });
     const store: Scope = q.global ? "global" : "project";
     const db = this.dbFor(store, q.projectDbPath);
-    const tags = q.tags && q.tags.length ? JSON.stringify(q.tags) : null;
+    const tags = safeTags && safeTags.length ? JSON.stringify(safeTags) : null;
     const sup = q.supersedes ? decId(q.supersedes) : null;
     db.exec("BEGIN IMMEDIATE");
     try {
@@ -101,7 +104,7 @@ export class Store implements IStore {
       db.prepare("INSERT INTO memory_fts(rowid,content,tags) VALUES(?,?,?)").run(rowid, text, tags ?? "");
       db.exec("COMMIT");
       this.onCommit?.(store === "global" ? GLOBAL_CHANNEL : q.projectDbPath);
-      return { id: extId(store, rowid), ts, redactions: count };
+      return { id: extId(store, rowid), ts, redactions };
     } catch (e) { db.exec("ROLLBACK"); throw e; }
   }
 
@@ -117,14 +120,16 @@ export class Store implements IStore {
   /** forget/redact: drop from FTS and OVERWRITE the plaintext with a reason tombstone
    *  (real remediation for leaked secrets) while keeping the row for audit (id/ts/agent). */
   private redactRow(db: DatabaseSync, rowid: number, reason: string): void {
-    const row = db.prepare("SELECT content,tags FROM memory WHERE id=?").get(rowid) as unknown as
-      { content: string; tags: string | null } | undefined;
+    const row = db.prepare("SELECT content,tags,status FROM memory WHERE id=?").get(rowid) as unknown as
+      { content: string; tags: string | null; status: string } | undefined;
     if (!row) return;
     // `reason` is free-form and this is THE secret-remediation path, so an agent may name
     // the leaked value in it (e.g. "purge token sk-proj-..."). Scrub it through the same
     // ingest redactor before persisting so forget never re-leaks the secret it removes.
     const safeReason = this.redactor.redact(reason).text;
-    db.prepare("INSERT INTO memory_fts(memory_fts,rowid,content,tags) VALUES('delete',?,?,?)").run(rowid, row.content, row.tags ?? "");
+    // Only a live row is still indexed: markSuperseded already deleted it, and external-content
+    // FTS5 reports a second delete of the same rowid as a malformed database.
+    if (row.status === "live") db.prepare("INSERT INTO memory_fts(memory_fts,rowid,content,tags) VALUES('delete',?,?,?)").run(rowid, row.content, row.tags ?? "");
     db.prepare("UPDATE memory SET content=?, tags=NULL, status='redacted' WHERE id=?").run(`[REDACTED: ${safeReason}]`, rowid);
   }
 
@@ -144,10 +149,10 @@ export class Store implements IStore {
   // ---- reads ---------------------------------------------------------------
   recall(q: RecallQuery): RecallResult {
     const primaryDb: DatabaseSync | null = q.project ? this.crossDb(q.project) : this.rwDb(q.projectDbPath);
-    // A query-less recall that carries a cursor is a forward drain: page the project
-    // ASCending so delivered rows form a contiguous block above `since` and the cursor
-    // can advance without ever skipping the sub-window (id-DESC + MAX(id) would strand it).
-    const incremental = !q.query && q.since !== undefined;
+    // A recall that carries a cursor, with or without a query, is a forward drain: page the
+    // project ASCending by id so delivered rows form a contiguous block above `since` and the
+    // cursor can advance without ever skipping the sub-window (DESC/rank + MAX(id) would strand it).
+    const incremental = q.since !== undefined;
     const sources: { db: DatabaseSync | null; store: Scope; since: number }[] = [
       { db: primaryDb, store: "project", since: q.since ?? 0 },
       { db: this.globalDb(), store: "global", since: 0 }, // global always re-scanned (low churn)
@@ -159,8 +164,10 @@ export class Store implements IStore {
     let projectScannedMax = q.since ?? 0; // drain: highest project id the SQL returned (safe to skip past)
     for (const s of sources) {
       if (!s.db) continue;
-      const order = incremental && s.store === "project" ? "asc" : "desc";
-      const rows = q.query ? this.searchRows(s.db, q.query, s.since, q.limit, q.tags) : this.recentRows(s.db, s.since, q.limit, order, q.tags);
+      const drain = incremental && s.store === "project";
+      const rows = q.query
+        ? this.searchRows(s.db, q.query, s.since, q.limit, drain ? "asc" : "rank", q.tags)
+        : this.recentRows(s.db, s.since, q.limit, drain ? "asc" : "desc", q.tags);
       if (rows.length >= q.limit) sourceCapped = true; // more rows may remain beyond this page
       if (s.store === "project") {
         projectCapped = rows.length >= q.limit;
@@ -173,16 +180,16 @@ export class Store implements IStore {
           : { row: r.row, store: s.store, ...(readOnly ? { readOnly } : {}) });
       }
     }
-    // search → bm25 relevance; drain → project rows first in ascending id (so a byte cut
-    // drops the newest-in-page and the cursor stays a no-skip floor); browse → newest first
+    // drain → project rows first in ascending id (so a byte cut drops the newest-in-page and
+    // the cursor stays a no-skip floor); search → bm25 relevance; browse → newest first
     // by ts, which is the only field comparable across the separate project and global DBs
     // (raw rowids are per-DB sequences and would let the larger DB crowd out the other).
-    if (q.query) {
-      hits.sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0) || b.row.ts - a.row.ts || b.row.id - a.row.id);
-    } else if (incremental) {
+    if (incremental) {
       hits.sort((a, b) =>
         (a.store === b.store ? 0 : a.store === "project" ? -1 : 1)
         || (a.store === "project" ? a.row.id - b.row.id : b.row.ts - a.row.ts || b.row.id - a.row.id));
+    } else if (q.query) {
+      hits.sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0) || b.row.ts - a.row.ts || b.row.id - a.row.id);
     } else {
       hits.sort((a, b) => b.row.ts - a.row.ts || b.row.id - a.row.id);
     }
@@ -221,16 +228,20 @@ export class Store implements IStore {
     const browseCursor = primaryDb
       ? (primaryDb.prepare("SELECT COALESCE(MAX(id),0) AS m FROM memory").get() as unknown as { m: number }).m
       : 0;
-    return { results, truncated: truncated || sourceCapped, cursor: browseCursor };
+    // A truncated ranked page is not a contiguous id block, so MAX(id) would skip the matches it
+    // left out; cursor 0 makes the follow-up an ascending drain over every match instead.
+    const pageTruncated = truncated || sourceCapped;
+    return { results, truncated: pageTruncated, cursor: q.query && pageTruncated ? 0 : browseCursor };
   }
 
-  private searchRows(db: DatabaseSync, query: string, since: number, limit: number, tags?: string[]): RowHit[] {
+  private searchRows(db: DatabaseSync, query: string, since: number, limit: number, order: "rank" | "asc", tags?: string[]): RowHit[] {
+    // `order` is an internal literal (never user input): ASC drains forward from a cursor.
     const tf = tagFilter(tags);
     const rows = db.prepare(
       `SELECT m.id,m.ts,m.agent_id,m.content,m.tags,m.supersedes,m.status, bm25(memory_fts) AS rank
        FROM memory_fts JOIN memory m ON m.id=memory_fts.rowid
        WHERE memory_fts MATCH ? AND m.status='live' AND m.id > ? ${tf.sql}
-       ORDER BY rank LIMIT ?`,
+       ORDER BY ${order === "asc" ? "m.id ASC" : "rank"} LIMIT ?`,
     ).all(ftsQuery(query), since, ...tf.params, limit) as unknown as (MemoryRow & { rank: number })[];
     return rows.map((r) => ({ row: r, rank: r.rank }));
   }

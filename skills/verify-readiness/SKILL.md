@@ -65,7 +65,7 @@ If no design/security pass was run, readiness-critical claims default to `NOT_RU
 Write the claim in one sentence. Rewrite as a measurable support matrix.
 
 - Bad: `Synapse is production-ready.`
-- Good: `Synapse is production-ready for local macOS user installs through synapse-bridge, launchd sidecar, and generated MCP configs for the verified targets listed below.`
+- Good: `Synapse is production-ready for local macOS user installs through synapse-bridge, its autostarted sidecar, and generated MCP configs for the verified targets listed below.`
 
 Classify each matrix item: `supported` | `unsupported` | `deferred` | `blocked`.
 

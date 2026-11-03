@@ -12,6 +12,7 @@ import {
   CallToolRequestSchema, ListResourcesRequestSchema, ListToolsRequestSchema, ReadResourceRequestSchema,
   ResourceListChangedNotificationSchema, ResourceUpdatedNotificationSchema, SubscribeRequestSchema, UnsubscribeRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -19,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { ensureSidecar } from "./bootstrap.js";
 import { CONTRACT_VERSION, SERVER_INSTRUCTIONS } from "./contract.js";
-import { projectKey } from "./namespace.js";
+import { canonicalRoot, projectKey } from "./namespace.js";
 
 // Deprecated compatibility: Cline and Cursor answer roots/list with raw absolute paths
 // instead of file:// URIs. The SDK's typed listRoots() validates the strict result
@@ -36,12 +37,15 @@ export interface BridgeOptions {
   projectKeyValue?: string;
   downstream?: Transport;
   negotiationTimeoutMs?: number;
+  /** Re-elect the local sidecar when the current one stops answering (zero-config only). */
+  rediscover?: () => Promise<{ url: string; token: string }>;
 }
 
 /**
- * Resolve the project key for isolation. Precedence (highest wins), all funnelled
- * through `projectKey()` so the override contract is single-sourced:
- *   1. `SYNAPSE_PROJECT` env / opts.projectKeyValue (bridge-level override)
+ * Resolve the project key for isolation. The sidecar uses the result as-is, so it must be
+ * canonical here. Precedence (highest wins):
+ *   1. `SYNAPSE_PROJECT` env / opts.projectKeyValue (bridge-level override), canonicalized
+ *      to its git root realpath like a cwd
  *   2. `SYNAPSE_NAMESPACE` env (namespace-level override, honoured inside projectKey)
  *   3. the host's first MCP root (file:// URI), so a host that launches the bridge
  *      outside the workspace still isolates to the right project (P4.3)
@@ -54,10 +58,9 @@ async function resolveProjectKey(server: Server, fallbackCwd: string, timeoutMs:
   // Validated first, so a bad value fails startup even when an explicit project wins below.
   const skipRoots = ignoresRoots(process.env["SYNAPSE_ROOTS"]);
   const explicit = override ?? process.env["SYNAPSE_PROJECT"];
-  // An explicit bridge override wins outright and is resolved/hashed by projectKey (which
-  // also honours SYNAPSE_NAMESPACE when no explicit override is supplied). Single-sourcing
-  // here keeps the override contract consistent across bridge and namespace callers.
-  if (explicit && explicit.trim()) return projectKey(explicit, explicit);
+  // An explicit project wins outright, even over SYNAPSE_NAMESPACE (which projectKey honours
+  // below), and gets the same git-root canonicalization a cwd gets.
+  if (explicit && explicit.trim()) return canonicalRoot(explicit.trim());
   // FastMCP's multi-server proxy advertises roots but answers roots/list with an error
   // outside a request, so its hosts can never negotiate roots. The installer opts out only
   // for hosts verified to start this bridge in the workspace, where cwd is the project.
@@ -121,17 +124,29 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
   // not surface as an unhandled rejection. The thrown error from startBridge is the real
   // signal; this just prevents a stray process warning in embedded/test callers.
   upstreamReady.catch(() => { });
-  // Sidecar restarts (install.mjs redistribution) empty the session map; the first call
+  // A sidecar restart (crash or manual stop) empties the session map; the first call
   // after a restart then fails HTTP 400 "no valid session". Policy: re-initialize the
   // upstream session once and retry the request once. Concurrent callers share one
   // reconnect; a second failure propagates (sidecar down or token changed).
+  // A sidecar that is gone (crash, upgrade) refuses connections: a zero-config bridge then
+  // re-runs the election, which starts a new sidecar from the installed build, and reconnects.
   let reconnecting: Promise<void> | undefined;
+  let upstreamUrl = opts.url;
   const isInvalidSession = (e: unknown): boolean =>
     e instanceof Error && (e as { code?: unknown }).code === 400 && e.message.includes("no valid session");
-  const reconnectUpstream = (): Promise<void> => {
+  const isUnreachable = (e: unknown): boolean => {
+    const code = (e as { cause?: { code?: unknown } } | undefined)?.cause?.code;
+    return e instanceof Error && (code === "ECONNREFUSED" || code === "ECONNRESET" || /fetch failed|ECONNREFUSED/.test(e.message));
+  };
+  const reconnectUpstream = (rediscover: boolean): Promise<void> => {
     if (!reconnecting) {
       reconnecting = (async () => {
         await client.close().catch(() => { });
+        if (rediscover && opts.rediscover) {
+          const d = await opts.rediscover();
+          upstreamUrl = d.url;
+          headers.Authorization = `Bearer ${d.token}`;
+        }
         await connectUpstream();
       })().finally(() => { reconnecting = undefined; });
     }
@@ -142,8 +157,9 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
       try {
         return await fn();
       } catch (err) {
-        if (!isInvalidSession(err)) throw err;
-        await reconnectUpstream();
+        const unreachable = Boolean(opts.rediscover) && isUnreachable(err);
+        if (!unreachable && !isInvalidSession(err)) throw err;
+        await reconnectUpstream(unreachable);
         return fn();
       }
     });
@@ -173,11 +189,14 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
     // always send identity: this bridge process is per host-client, so its pid is a
     // stable distinct fallback when SYNAPSE_AGENT_ID is unset (fixes shared-pid collisions).
     "x-synapse-agent": opts.agentId ?? `agent-${process.pid}`,
+    // Locks belong to this bridge, not to its agent id, which several sessions may share.
+    // Fixed for the bridge's life, so a re-initialized upstream session keeps its leases.
+    "x-synapse-instance": randomUUID(),
   };
 
   const connectUpstream = async (): Promise<void> => {
     client = new Client({ name: "synapse-bridge", version: CONTRACT_VERSION });
-    await client.connect(new StreamableHTTPClientTransport(new URL(opts.url), { requestInit: { headers } }));
+    await client.connect(new StreamableHTTPClientTransport(new URL(upstreamUrl), { requestInit: { headers } }));
     client.setNotificationHandler(ResourceUpdatedNotificationSchema, (n) => { void server.sendResourceUpdated(n.params); });
     client.setNotificationHandler(ResourceListChangedNotificationSchema, () => { void server.sendResourceListChanged(); });
   };
@@ -213,14 +232,23 @@ async function main(): Promise<void> {
   const dbDir = process.env["SYNAPSE_DB_DIR"] ?? join(homedir(), ".synapse");
   let url = process.env["SYNAPSE_URL"];
   let token = process.env["SYNAPSE_TOKEN"];
+  // Never mix an explicit endpoint with the local sidecar: a lone URL would receive the local
+  // token, and a lone token would be sent to a sidecar it does not belong to.
+  if (Boolean(url) !== Boolean(token)) {
+    throw new Error("SYNAPSE_URL and SYNAPSE_TOKEN must be set together (or both left unset to use the local sidecar)");
+  }
   if (!url || !token) {
     // zero-config: discover or autostart the shared sidecar
     const port = process.env["SYNAPSE_PORT"] ? Number(process.env["SYNAPSE_PORT"]) : undefined;
     const d = await ensureSidecar(dbDir, port);
-    url = url ?? d.url;
-    token = token ?? d.token;
+    url = d.url;
+    token = d.token;
   }
   const opts: BridgeOptions = { url, token, downstream: new StdioServerTransport(hostInput, process.stdout) };
+  if (!process.env["SYNAPSE_URL"]) {
+    const port = process.env["SYNAPSE_PORT"] ? Number(process.env["SYNAPSE_PORT"]) : undefined;
+    opts.rediscover = () => ensureSidecar(dbDir, port);
+  }
   const agent = process.env["SYNAPSE_AGENT_ID"];
   if (agent) opts.agentId = agent;
   const proj = process.env["SYNAPSE_PROJECT"];

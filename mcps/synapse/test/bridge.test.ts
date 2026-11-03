@@ -6,6 +6,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { ResourceUpdatedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -76,8 +77,8 @@ test("bridge: proxies tools/list + tools/call AND forwards realtime resources/up
 });
 
 test("bridge: reconnects upstream and retries after a sidecar restart", async () => {
-  // install.mjs redistribution kills and restarts the sidecar; the restarted sidecar has
-  // an empty session map. Existing bridges must re-initialize their upstream session
+  // A crashed or stopped sidecar comes back with an empty session map. Existing bridges
+  // must re-initialize their upstream session
   // instead of failing every subsequent call with "no valid session".
   const dir = mkdtempSync(join(tmpdir(), "synapse-restart-"));
   let sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
@@ -217,6 +218,70 @@ test("bridge: zero-config autostart boots the sidecar (no URL/token)", async () 
     await host.close().catch(() => { });
     if (sidecarPid) { try { process.kill(sidecarPid, "SIGTERM"); } catch { /* already gone */ } }
     await delay(300);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("bridge: SYNAPSE_URL and SYNAPSE_TOKEN must be set together", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "synapse-pair-"));
+  // A held election lock: a bridge that wrongly fell back to discovery would wait here, never spawn.
+  writeFileSync(join(dir, "sidecar.lock"), "held");
+  const base: Record<string, string> = { ...(process.env as Record<string, string>), SYNAPSE_DB_DIR: dir, SYNAPSE_PROJECT: PROJECT };
+  delete base["SYNAPSE_URL"];
+  delete base["SYNAPSE_TOKEN"];
+  const run = (env: Record<string, string>): Promise<{ code: number | null; stderr: string }> => new Promise((resolve, reject) => {
+    // stdin stays open, so only the startup check can end the process
+    const child = spawn(process.execPath, [bridgeJs], { env, stdio: ["pipe", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr.setEncoding("utf8").on("data", (d: string) => { stderr += d; });
+    const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error(`bridge still running: ${stderr}`)); }, 5000);
+    child.once("exit", (code) => { clearTimeout(timer); resolve({ code, stderr }); });
+  });
+  try {
+    const halves: Record<string, string>[] = [{ SYNAPSE_URL: "http://127.0.0.1:1/mcp" }, { SYNAPSE_TOKEN: TOKEN }];
+    for (const half of halves) {
+      const r = await run({ ...base, ...half });
+      assert.equal(r.code, 1, `${Object.keys(half)[0]} alone fails startup`);
+      assert.match(r.stderr, /SYNAPSE_URL and SYNAPSE_TOKEN must be set together/);
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("bridge: sessions sharing SYNAPSE_AGENT_ID cannot release or overwrite each other's lock", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "synapse-locks-"));
+  const sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
+  const hosts: Client[] = [];
+  const open = async (name: string): Promise<Client> => {
+    const host = new Client({ name, version: "0.0.1" });
+    hosts.push(host);
+    await host.connect(new StdioClientTransport({
+      command: process.execPath,
+      args: [bridgeJs],
+      env: { ...(process.env as Record<string, string>), SYNAPSE_URL: sc.url, SYNAPSE_TOKEN: TOKEN, SYNAPSE_AGENT_ID: "shared-agent", SYNAPSE_PROJECT: PROJECT },
+    }));
+    return host;
+  };
+  const call = async <T>(host: Client, name: string, args: Record<string, unknown>): Promise<T> =>
+    JSON.parse((((await host.callTool({ name, arguments: args })) as { content: { text: string }[] }).content[0]!).text) as T;
+  try {
+    const a = await open("host-a");
+    const b = await open("host-b");
+    const held = await call<{ ok: boolean; agentId: string }>(a, "lock_acquire", { glob: "src/shared.ts" });
+    assert.equal(held.ok, true);
+    assert.match(held.agentId, /^shared-agent#/, "the lease names the agent and its bridge");
+    const taken = await call<{ ok: boolean; heldBy?: string }>(b, "lock_acquire", { glob: "src/shared.ts" });
+    assert.equal(taken.ok, false, "the same agent id in another bridge cannot overwrite the lease");
+    assert.equal(taken.heldBy, held.agentId);
+    const released = await call<{ released: boolean }>(b, "lock_release", { glob: "src/shared.ts" });
+    assert.equal(released.released, false, "nor release it");
+    const listed = await call<{ locks: { agentId: string }[] }>(b, "lock_list", {});
+    assert.deepEqual(listed.locks.map((l) => l.agentId), [held.agentId]);
+    const w = await call<{ agentId: string }>(a, "memory_remember", { content: "lock owner provenance check" });
+    assert.equal(w.agentId, "shared-agent", "memory provenance stays the agent id");
+    assert.equal((await call<{ released: boolean }>(a, "lock_release", { glob: "src/shared.ts" })).released, true);
+  } finally {
+    for (const h of hosts) await h.close().catch(() => { });
+    await sc.close();
     rmSync(dir, { recursive: true, force: true });
   }
 });

@@ -75,7 +75,7 @@ export const MemoryRememberInput = z.object({
 export const MemoryRecallInput = z.object({
   query: z.string().max(LIMITS.QUERY_MAX).optional()
     .describe("Full-text query (names, error text, decision keywords). Omit to list recent records (use with `since` for incremental sync)."),
-  since: Offset.optional().describe("Incremental cursor for THIS PROJECT. Pass the `cursor` from a prior recall to get the next page of project records with id > since, oldest-first, so repeated calls drain the full history without skipping any record. Omit it to list the newest records. Low-churn GLOBAL memory is always re-scanned (not filtered by `since`), so dedupe global ids you have already seen."),
+  since: Offset.optional().describe("Incremental cursor for THIS PROJECT. Pass the `cursor` from a prior recall to get the next page of project records (matching `query`, if given) with id > since, oldest-first, so repeated calls drain the full history without skipping any record. Omit it to list the newest or, with a query, the most relevant records. Low-churn GLOBAL memory is always re-scanned (not filtered by `since`), so dedupe global ids you have already seen."),
   tags: Tags.optional().describe("Restrict to records carrying all these tags."),
   limit: z.number().int().min(1).max(LIMITS.PAGE_LIMIT_MAX).optional().describe(`Max records (default ${LIMITS.PAGE_LIMIT_DEFAULT}).`),
   maxBytes: z.number().int().min(256).max(LIMITS.MAXBYTES_MAX).optional().describe(`Total UTF-8 byte budget for results (default ${LIMITS.MAXBYTES_DEFAULT}); recall stops once the whole serialized records would exceed it (at least one is always returned) so memory never floods your context.`),
