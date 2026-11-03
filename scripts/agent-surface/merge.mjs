@@ -5,8 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as TOML from "@decimalturn/toml-patch";
 import { isMap, isSeq, parseDocument, stringify as stringifyYaml } from "yaml";
-import { parseJsoncResult, setJsoncRootProperty } from "./jsonc.mjs";
-import { fail } from "./util.mjs";
+import { parseJsoncResult, removeJsoncProperty, setJsoncPath, setJsoncRootProperty } from "./jsonc.mjs";
+import { canonicalJson, fail } from "./util.mjs";
 
 export const YAML_MCP_FORMATS = new Set(["goose-extensions", "poolside-mcp"]);
 
@@ -152,10 +152,17 @@ export function mergeJsonMcpConfig(
   if (key !== null && (Object.hasOwn(parsed.value, key) || entries.length > 0 || removeIds.length > 0)) {
     const current = Object.hasOwn(parsed.value, key) ? parsed.value[key] : {};
     if (!isPlainObject(current)) throw new Error(`${key} must be an object`);
-    const next = { ...current };
-    for (const id of removeIds) delete next[id];
-    Object.assign(next, optionalServiceMcpServers(entries, format));
-    content = setJsoncRootProperty(content, key, next);
+    // Each owned entry is edited at its own path, so the servers and comments beside it keep their bytes.
+    for (const id of removeIds) {
+      if (Object.hasOwn(current, id)) content = removeJsoncProperty(content, [key, id]);
+    }
+    for (const [id, server] of Object.entries(optionalServiceMcpServers(entries, format))) {
+      // An id removed above is rewritten whole, as the TOML and YAML merges do.
+      const existing = Object.hasOwn(current, id) && !removeIds.includes(id) ? current[id] : undefined;
+      for (const [subpath, value] of ownedEntryEdits(existing, JSON.parse(JSON.stringify(server)))) {
+        content = setJsoncPath(content, [key, id, ...subpath], value);
+      }
+    }
   }
 
   const replacements = new Set(replaceRootProperties);
@@ -194,6 +201,35 @@ function mergePlainObjects(current, owned, prefix = "") {
       : value;
   }
   return merged;
+}
+
+// An owned server entry carries the keys agent-surface renders, and every other key it holds stays
+// (CONTRIBUTING: the compiler owns only the keys it writes); env merges by variable the same way. A
+// malformed entry is replaced whole.
+function ownedServerEntry(current, rendered) {
+  if (!isPlainObject(current)) return rendered;
+  const env = isPlainObject(current.env) && isPlainObject(rendered.env) ? { env: { ...current.env, ...rendered.env } } : {};
+  return { ...current, ...rendered, ...env };
+}
+
+// The same rule as [subpath, value] edits; an equal value is no edit, so an unchanged entry keeps its bytes.
+function ownedEntryEdits(current, rendered) {
+  if (!isPlainObject(current)) return [[[], rendered]];
+  const edits = [];
+  for (const [name, value] of Object.entries(rendered)) {
+    if (name === "env" && isPlainObject(value) && isPlainObject(current.env)) {
+      for (const [variable, setting] of Object.entries(value)) {
+        if (!sameJson(current.env[variable], setting)) edits.push([["env", variable], setting]);
+      }
+    } else if (!sameJson(current[name], value)) {
+      edits.push([[name], value]);
+    }
+  }
+  return edits;
+}
+
+function sameJson(left, right) {
+  return canonicalJson(left) === canonicalJson(right);
 }
 
 // These shapes have no env slot in the renderer, so env a service or host declares would be dropped.
@@ -256,7 +292,17 @@ export function mergeYamlMcpConfig(text, format, entries, removeIds = []) {
 
   for (const id of removeIds) servers.delete(id);
   for (const [id, service] of entries) {
-    servers.set(id, document.createNode(yamlMcpServer(format, id, service)));
+    const rendered = yamlMcpServer(format, id, service);
+    const entry = servers.get(id, true);
+    if (!isMap(entry)) {
+      servers.set(id, document.createNode(rendered));
+      continue;
+    }
+    // Only a changed rendered key is set, so the entry's other keys and comments stay as they are.
+    const current = entry.toJSON();
+    for (const [name, value] of Object.entries(rendered)) {
+      if (!sameJson(current[name], value)) entry.set(name, document.createNode(value));
+    }
   }
   return document.toString();
 }
@@ -293,7 +339,7 @@ export function mergeCodexMcpToml(text, entries, removeIds = [], rootProperties 
     const servers = config.mcp_servers ?? {};
     if (!isPlainObject(servers)) throw new Error("mcp_servers must be a table");
     for (const id of removeIds) delete servers[id];
-    Object.assign(servers, tomlMcpServers(entries));
+    for (const [id, server] of Object.entries(tomlMcpServers(entries))) servers[id] = ownedServerEntry(servers[id], server);
     if (Object.keys(servers).length === 0) delete config.mcp_servers;
     else config.mcp_servers = servers;
   }

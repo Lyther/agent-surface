@@ -143,6 +143,23 @@ try {
     assert.equal(nodeHigh.nodeOk, false);
     assert.ok(nodeHigh.recipe, "unsatisfied floor yields the install recipe");
 
+    // ---- the Node runtime itself, with no node on PATH ---------------------
+    // A GUI or minimal shell has no node on PATH, yet the CLI runs on a Node the MCP shims pin; an
+    // authorized install must not run the Node recipe (brew/apt/winget) for that runtime.
+    const noNodeEnv = { PATH: subdir };
+    assert.equal(whichSync("node", { env: noNodeEnv }), null, "this PATH holds no node");
+    const nodeRecipe = { [process.platform]: [{ run: ["brew", "install", "node"], source: "brew" }] };
+    const ownNode = detectPrerequisite({ id: "node-runtime", kind: "runtime", detect: { command: "node", node: ">=1.0.0" }, recipes: nodeRecipe }, { env: noNodeEnv });
+    assert.equal(ownNode.satisfied, true, "the CLI's own Node satisfies the runtime when PATH has none");
+    assert.equal(ownNode.resolvedPath, process.execPath);
+    assert.equal(ownNode.nodeActual, process.versions.node, "the floor is checked against that Node");
+    assert.equal(ownNode.recipe, null, "no Node recipe is selected");
+    const ownNodeLow = detectPrerequisite({ id: "node-runtime", kind: "runtime", detect: { command: "node", node: ">=999.0.0" }, recipes: nodeRecipe }, { env: noNodeEnv });
+    assert.equal(ownNodeLow.satisfied, false, "the CLI's own Node still has to meet the floor");
+    assert.ok(ownNodeLow.recipe);
+    const npxNoNode = detectPrerequisite({ id: "node-runtime", kind: "runtime", detect: { command: "npx", node: ">=1.0.0" }, recipes: nodeRecipe }, { env: noNodeEnv });
+    assert.equal(npxNoNode.satisfied, false, "npx runs on PATH's node, so the CLI's Node does not stand in for it");
+
     // ---- detection: Python modules in the tool's OWN interpreter ----------
     // An installed launcher must not mask missing library extras: probe the modules in the interpreter.
     const okPy = path.join(dir, "py-ok");
