@@ -4,11 +4,14 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { ResourceUpdatedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { CallToolRequestSchema, ListToolsRequestSchema, ResourceUpdatedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer, request as httpRequest } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -98,6 +101,70 @@ test("bridge: reconnects upstream and retries after a sidecar restart", async ()
     sc = await createSidecar({ token: TOKEN, port, dbDir: dir });
 
     assert.equal((await host.listTools()).tools.length, 7, "after restart: bridge re-initializes upstream and still serves 7 tools");
+  } finally { await host.close().catch(() => { }); await sc.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("bridge: concurrent calls caught by one reconnect all recover, each write applied once", async () => {
+  // The first call to fail after a restart reconnects, which closes the upstream client the others
+  // are still waiting on. Those calls must recover through the same reconnect, not fail "Connection closed".
+  const dir = mkdtempSync(join(tmpdir(), "synapse-concurrent-"));
+  let sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
+  const port = sc.port;
+  const host = new Client({ name: "host-concurrent", version: "0.0.1" });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [bridgeJs],
+    env: { ...(process.env as Record<string, string>), SYNAPSE_URL: sc.url, SYNAPSE_TOKEN: TOKEN, SYNAPSE_AGENT_ID: "concurrent-agent", SYNAPSE_PROJECT: PROJECT },
+  });
+  try {
+    await host.connect(transport);
+    await host.listTools();
+    await sc.close();
+    sc = await createSidecar({ token: TOKEN, port, dbDir: dir });
+
+    const writes = Array.from({ length: 6 }, (_, i) => host.callTool({ name: "memory_remember", arguments: { content: `concurrent marker ${i}` } }));
+    const lists = Array.from({ length: 6 }, () => host.listTools());
+    const settled = await Promise.allSettled([...writes, ...lists]);
+    const failures = settled.flatMap((s) => (s.status === "rejected" ? [String(s.reason)] : []));
+    assert.deepEqual(failures, [], "no call fails because another call's reconnect closed its client");
+    const recalled = parseResults(await host.callTool({ name: "memory_recall", arguments: { query: "concurrent marker" } }));
+    assert.equal(recalled.results.length, 6, "each write is stored exactly once");
+  } finally { await host.close().catch(() => { }); await sc.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("bridge: a call that arrives during a reconnect waits for it", async () => {
+  // The sidecar moves to a new port. The first call finds the old one unreachable and re-elects, and
+  // a slow election keeps that reconnect open; a call sent meanwhile must not use the closed client.
+  const dir = mkdtempSync(join(tmpdir(), "synapse-midreconnect-"));
+  let sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
+  const targetFile = join(dir, "rediscover.json");
+  writeFileSync(targetFile, JSON.stringify({ url: sc.url, token: TOKEN }));
+  const bridgeWithSlowRediscover = [
+    'import { readFileSync } from "node:fs";',
+    `import { startBridge } from ${JSON.stringify(pathToFileURL(bridgeJs).href)};`,
+    'const target = () => JSON.parse(readFileSync(process.env.SYNAPSE_TEST_TARGET, "utf8"));',
+    "const slowly = async () => { await new Promise((r) => setTimeout(r, 600)); return target(); };",
+    "await startBridge({ url: target().url, token: target().token, projectKeyValue: process.env.SYNAPSE_PROJECT, rediscover: slowly });",
+    'process.stdin.once("end", () => process.exit(0));',
+  ].join("\n");
+  const host = new Client({ name: "host-midreconnect", version: "0.0.1" });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: ["--input-type=module", "-e", bridgeWithSlowRediscover],
+    env: { ...(process.env as Record<string, string>), SYNAPSE_TEST_TARGET: targetFile, SYNAPSE_PROJECT: PROJECT },
+  });
+  try {
+    await host.connect(transport);
+    await host.listTools();
+    await sc.close();
+    sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
+    writeFileSync(targetFile, JSON.stringify({ url: sc.url, token: TOKEN }));
+
+    const first = host.listTools();
+    await delay(150);
+    const meanwhile = host.listTools();
+    const settled = await Promise.allSettled([first, meanwhile]);
+    assert.deepEqual(settled.map((s) => (s.status === "fulfilled" ? s.value.tools.length : String(s.reason))), [7, 7]);
   } finally { await host.close().catch(() => { }); await sc.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -379,6 +446,60 @@ test("bridge: a project path beyond Latin-1 routes to its own database", async (
     assert.equal(parseResults(await host.callTool({ name: "memory_recall", arguments: { query: "unicode project marker" } })).results.length, 1);
     assert.equal(existsSync(join(dir, `${hashKey("default")}.sqlite`)), false, "the key reached the sidecar instead of falling back to default");
   } finally { await host.close().catch(() => { }); await sc.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+// SUBSTITUTE_JUSTIFICATION
+// - replaces: a Synapse sidecar from a build before operation records and encoded project routing
+// - necessity: the assertion needs a sidecar that predates those features; this tree holds only the
+//   current sidecar, and building an earlier release inside a test is neither self-contained nor
+//   deterministic
+// - real-proof: start a sidecar built from bb71e16 and run this bridge with SYNAPSE_URL and
+//   SYNAPSE_TOKEN pointing at it; the bridge exits with this refusal and the sidecar's databases
+//   stay empty (run by hand, since the earlier build is not in this tree)
+async function earlierBuildSidecar(): Promise<{ url: string; requests: string[]; close: () => Promise<void> }> {
+  const requests: string[] = [];
+  const http = createHttpServer((req, res) => {
+    // Stateless, one MCP server per request: initialize gets the capabilities an earlier build
+    // advertised, and any call that reaches this sidecar is recorded.
+    const mcp = new Server({ name: "synapse", version: "0.4.0" }, { capabilities: { tools: {}, resources: { subscribe: true, listChanged: true } } });
+    mcp.setRequestHandler(ListToolsRequestSchema, () => { requests.push("tools/list"); return { tools: [] }; });
+    mcp.setRequestHandler(CallToolRequestSchema, () => { requests.push("tools/call"); return { content: [] }; });
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    void mcp.connect(transport).then(() => transport.handleRequest(req, res));
+  });
+  await new Promise<void>((resolve) => { http.listen(0, "127.0.0.1", resolve); });
+  const { port } = http.address() as AddressInfo;
+  return {
+    url: `http://127.0.0.1:${port}/mcp`,
+    requests,
+    close: () => new Promise<void>((resolve) => { http.closeAllConnections(); http.close(() => resolve()); }),
+  };
+}
+
+test("bridge: refuses a sidecar from an earlier build before serving any call", async () => {
+  // An earlier sidecar reads only the raw project header and keeps no operation records: serving
+  // through it would pool this project into the shared default database and apply a retried write twice.
+  const dir = mkdtempSync(join(tmpdir(), "synapse-earlier-"));
+  const project = join(dir, "项目");
+  mkdirSync(project);
+  const earlier = await earlierBuildSidecar();
+  const host = new Client({ name: "host-earlier", version: "0.0.1" });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [bridgeJs],
+    env: { ...(process.env as Record<string, string>), SYNAPSE_URL: earlier.url, SYNAPSE_TOKEN: TOKEN, SYNAPSE_PROJECT: project },
+    stderr: "pipe",
+  });
+  let stderr = "";
+  transport.stderr?.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+  try {
+    await host.connect(transport);
+    await assert.rejects(host.callTool({ name: "memory_remember", arguments: { content: "must not be written" } }));
+    const deadline = Date.now() + 2000;
+    while (!stderr.includes("earlier Synapse build") && Date.now() < deadline) await delay(25);
+    assert.match(stderr, /earlier Synapse build \(it lacks synapse\/operationId, synapse\/encodedProject\)/);
+    assert.deepEqual(earlier.requests, [], "no call reached the earlier sidecar");
+  } finally { await host.close().catch(() => { }); await earlier.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
 test("bridge: a reconnect restores the host's resource subscriptions", async () => {

@@ -524,3 +524,23 @@ test("a repeated operation id returns the recorded result and applies once, afte
     } finally { db.close(); }
   } finally { cleanup(); }
 });
+
+test("a retried write keeps the outcome it first settled on when that was a miss or a refusal", () => {
+  const { store, P, cleanup } = setup();
+  try {
+    // Record 1 does not exist yet, so this forget misses and this remember is refused.
+    const forget = { projectDbPath: P, agentId: "a", id: 1, reason: "stale", operationId: "op-forget-miss" };
+    assert.equal(store.forget(forget), null);
+    const remember = { projectDbPath: P, agentId: "a", content: "replacement", supersedes: 1, operationId: "op-remember-refused" };
+    assert.throws(() => store.remember(remember), /unknown supersedes id 1/);
+    // Another agent then writes record 1 before the lost responses are retried.
+    assert.equal(store.remember({ projectDbPath: P, agentId: "b", content: "written by another agent" }).id, 1);
+    assert.equal(store.forget(forget), null, "the retried forget still misses");
+    assert.throws(() => store.remember(remember), /unknown supersedes id 1/, "the retried remember is still refused");
+    assert.deepEqual(
+      store.get({ projectDbPath: P, agentId: "a", ids: [1] }).map((m) => [m.id, m.status, m.content]),
+      [[1, "live", "written by another agent"]],
+      "neither retry touched the record written since",
+    );
+  } finally { cleanup(); }
+});

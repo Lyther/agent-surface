@@ -54,7 +54,11 @@ export const GLOBAL_CHANNEL = "global";
 // The bridge reuses an operation id only for its single retry, sent right after it reconnects,
 // which takes at most one sidecar election (seconds). A day of records outlives that by far.
 const OPERATION_RETENTION_MS = 24 * 60 * 60 * 1000;
+// A refusal is recorded as an object under this key. No write result has the key, so a recorded
+// result, a JSON null included, is never read back as a refusal.
+const REFUSAL_KEY = "refusal";
 type AcquireResult = { ok: true; lock: LockRecord } | { ok: false; heldBy: string; expiresAt: number };
+type Settled<T> = { result: T; replayed: boolean } | { refused: SynapseInputError };
 
 export class Store implements IStore {
   private clock: IClock;
@@ -94,10 +98,7 @@ export class Store implements IStore {
     const db = this.dbFor(store, q.projectDbPath);
     const tags = safeTags && safeTags.length ? JSON.stringify(safeTags) : null;
     const sup = q.supersedes ? decId(q.supersedes) : null;
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      const prior = this.recorded<{ id: Offset; ts: number; redactions: number }>(db, q.operationId);
-      if (prior) { db.exec("COMMIT"); return prior; }
+    const { result, replayed } = this.write(db, q.operationId, () => {
       if (sup) {
         if (sup.store === "cross-project") throw new SynapseInputError("cross-project memory ids are read-only");
         if (sup.store !== store) throw new SynapseInputError(`supersedes id ${q.supersedes} belongs to ${sup.store} memory`);
@@ -109,12 +110,10 @@ export class Store implements IStore {
         .run(ts, q.agentId, text, tags, sup?.rowid ?? null);
       const rowid = Number(res.lastInsertRowid);
       db.prepare("INSERT INTO memory_fts(rowid,content,tags) VALUES(?,?,?)").run(rowid, text, tags ?? "");
-      const result = { id: extId(store, rowid), ts, redactions };
-      this.record(db, q.operationId, result);
-      db.exec("COMMIT");
-      this.onCommit?.(store === "global" ? GLOBAL_CHANNEL : q.projectDbPath);
-      return result;
-    } catch (e) { db.exec("ROLLBACK"); throw e; }
+      return { id: extId(store, rowid), ts, redactions };
+    });
+    if (!replayed) this.onCommit?.(store === "global" ? GLOBAL_CHANNEL : q.projectDbPath);
+    return result;
   }
 
   /** supersede: flip status + drop from FTS; CONTENT IS PRESERVED for history/audit. */
@@ -146,19 +145,14 @@ export class Store implements IStore {
     const d = decId(q.id);
     if (d.store === "cross-project") throw new SynapseInputError("cross-project memory ids are read-only");
     const db = this.dbFor(d.store, q.projectDbPath);
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      const prior = this.recorded<{ id: Offset; ts: number }>(db, q.operationId);
-      if (prior) { db.exec("COMMIT"); return prior; }
+    const { result, replayed } = this.write(db, q.operationId, () => {
       const exists = db.prepare("SELECT 1 FROM memory WHERE id=? AND status!='redacted'").get(d.rowid);
-      if (!exists) { db.exec("COMMIT"); return null; }
+      if (!exists) return null;
       this.redactRow(db, d.rowid, q.reason);
-      const result = { id: q.id, ts: this.clock.now() };
-      this.record(db, q.operationId, result);
-      db.exec("COMMIT");
-      this.onCommit?.(d.store === "global" ? GLOBAL_CHANNEL : q.projectDbPath);
-      return result;
-    } catch (e) { db.exec("ROLLBACK"); throw e; }
+      return { id: q.id, ts: this.clock.now() };
+    });
+    if (result && !replayed) this.onCommit?.(d.store === "global" ? GLOBAL_CHANNEL : q.projectDbPath);
+    return result;
   }
 
   // ---- reads ---------------------------------------------------------------
@@ -304,52 +298,74 @@ export class Store implements IStore {
   acquire(q: { projectDbPath: string; agentId: string; glob: string; ttlMs: number; operationId?: string }): AcquireResult {
     const now = this.clock.now();
     const db = this.rwDb(q.projectDbPath);
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      const prior = this.recorded<AcquireResult>(db, q.operationId);
-      if (prior) { db.exec("COMMIT"); return prior; }
+    const { result, replayed } = this.write<AcquireResult>(db, q.operationId, () => {
       db.prepare("DELETE FROM locks WHERE expires_at <= ?").run(now);
       const held = db.prepare("SELECT glob,agent_id,acquired_at,expires_at FROM locks WHERE glob=?").get(q.glob) as unknown as LockRow | undefined;
-      if (held && held.agent_id !== q.agentId) {
-        const denied: AcquireResult = { ok: false, heldBy: held.agent_id, expiresAt: held.expires_at };
-        this.record(db, q.operationId, denied);
-        db.exec("COMMIT");
-        return denied;
-      }
+      if (held && held.agent_id !== q.agentId) return { ok: false, heldBy: held.agent_id, expiresAt: held.expires_at };
       const expiresAt = now + q.ttlMs;
       db.prepare(
         "INSERT INTO locks(glob,agent_id,acquired_at,expires_at) VALUES(?,?,?,?) " +
         "ON CONFLICT(glob) DO UPDATE SET agent_id=excluded.agent_id, acquired_at=excluded.acquired_at, expires_at=excluded.expires_at",
       ).run(q.glob, q.agentId, now, expiresAt);
-      const granted: AcquireResult = { ok: true, lock: { glob: q.glob, agentId: q.agentId, acquiredAt: now, expiresAt } };
-      this.record(db, q.operationId, granted);
-      db.exec("COMMIT");
-      this.onCommit?.(q.projectDbPath);
-      return granted;
-    } catch (e) { db.exec("ROLLBACK"); throw e; }
+      return { ok: true, lock: { glob: q.glob, agentId: q.agentId, acquiredAt: now, expiresAt } };
+    });
+    if (result.ok && !replayed) this.onCommit?.(q.projectDbPath);
+    return result;
   }
 
   release(q: { projectDbPath: string; agentId: string; glob: string; operationId?: string }): { released: boolean } {
     const db = this.rwDb(q.projectDbPath);
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      const prior = this.recorded<{ released: boolean }>(db, q.operationId);
-      if (prior) { db.exec("COMMIT"); return prior; }
+    const { result, replayed } = this.write(db, q.operationId, () => {
       const res = db.prepare("DELETE FROM locks WHERE glob=? AND agent_id=?").run(q.glob, q.agentId);
-      const result = { released: Number(res.changes) > 0 };
-      this.record(db, q.operationId, result);
-      db.exec("COMMIT");
-      if (result.released) this.onCommit?.(q.projectDbPath);
-      return result;
-    } catch (e) { db.exec("ROLLBACK"); throw e; }
+      return { released: Number(res.changes) > 0 };
+    });
+    if (result.released && !replayed) this.onCommit?.(q.projectDbPath);
+    return result;
   }
 
   // ---- operation records: a retried write is answered, never applied twice --
-  /** The result first returned under this operation id, read inside the write's transaction. */
-  private recorded<T>(db: DatabaseSync, operationId: string | undefined): T | undefined {
+  /**
+   * Run one write in a BEGIN IMMEDIATE transaction under its operation id, and record what it settled
+   * on in the same transaction: a result, a miss (`null`), or a refusal the stored state decided. A
+   * retry after a lost response gets that answer even when the state has changed since.
+   */
+  private write<T>(db: DatabaseSync, operationId: string | undefined, apply: () => T): { result: T; replayed: boolean } {
+    let settled: Settled<T>;
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      settled = this.recorded<T>(db, operationId) ?? this.applyOnce(db, operationId, apply);
+      db.exec("COMMIT");
+    } catch (e) { db.exec("ROLLBACK"); throw e; }
+    if ("refused" in settled) throw settled.refused;
+    return settled;
+  }
+
+  private applyOnce<T>(db: DatabaseSync, operationId: string | undefined, apply: () => T): Settled<T> {
+    // A refusal commits its record, so whatever the write changed before refusing is undone first.
+    db.exec("SAVEPOINT apply");
+    let result: T;
+    try {
+      result = apply();
+    } catch (e) {
+      if (!(e instanceof SynapseInputError)) throw e;
+      db.exec("ROLLBACK TO apply");
+      db.exec("RELEASE apply");
+      this.record(db, operationId, { [REFUSAL_KEY]: e.message });
+      return { refused: e };
+    }
+    db.exec("RELEASE apply");
+    this.record(db, operationId, result);
+    return { result, replayed: false };
+  }
+
+  /** What the write first settled on under this operation id, read inside its transaction. */
+  private recorded<T>(db: DatabaseSync, operationId: string | undefined): Settled<T> | undefined {
     if (!operationId) return undefined;
     const row = db.prepare("SELECT result FROM operations WHERE id=?").get(operationId) as unknown as { result: string } | undefined;
-    return row ? JSON.parse(row.result) as T : undefined;
+    if (!row) return undefined;
+    const stored: unknown = JSON.parse(row.result);
+    const refusal = stored !== null && typeof stored === "object" ? (stored as Record<string, unknown>)[REFUSAL_KEY] : undefined;
+    return typeof refusal === "string" ? { refused: new SynapseInputError(refusal) } : { result: stored as T, replayed: true };
   }
 
   /** Stored in the same transaction as the write it describes, so both commit or neither does. */

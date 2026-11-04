@@ -174,6 +174,14 @@ export const OPERATION_META_KEY = "synapse/operationId";
 export const OPERATION_ID = /^[A-Za-z0-9-]{1,64}$/;
 
 /**
+ * What the sidecar advertises in its MCP `experimental` capabilities and a bridge requires before it
+ * serves a call: writes answered from their operation records, and the project read from the
+ * percent-encoded header. A sidecar from an earlier build has neither. A bridge using it would apply a
+ * retried write twice and route a project path beyond Latin-1 to the shared default database.
+ */
+export const SIDECAR_FEATURES = [OPERATION_META_KEY, "synapse/encodedProject"] as const;
+
+/**
  * The only seam to SQLite. ONE machine-wide store owns the global DB and lazily
  * opens each project's DB (routed by `projectDbPath`). Sole writer ⇒ notify fires
  * inline after commit.
