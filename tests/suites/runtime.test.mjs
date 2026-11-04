@@ -174,6 +174,13 @@ try {
     ["  'set-cookie': [\n    'prefs=[dark]; Path=/',\n    'session=sentinel-after-bracket'\n  ]", "  'set-cookie': [REDACTED]"],
     ['"{\\"password\\":\\"sentinel-escaped-json\\"}"', '"{\\"password\\":\\"[REDACTED]\\"}"'],
     ['{"Authorization": "Bearer sentinel-json-bearer"}', '{"Authorization": "Bearer [REDACTED]"}'],
+    // A value inside twice-serialized JSON keeps its own escaped quotes; the match ends at the closing one.
+    [JSON.stringify(JSON.stringify({ password: 'sentinel-"quoted"-tail' })), JSON.stringify(JSON.stringify({ password: "[REDACTED]" }))],
+    // A header printed as an array, here by indented JSON.
+    [JSON.stringify({ Authorization: ["Bearer sentinel-auth-array"] }, null, 2), JSON.stringify({ Authorization: ["Bearer [REDACTED]"] }, null, 2)],
+    // Every credential in a header array is removed; the run of them becomes one marker.
+    ["{ authorization: [ 'Bearer sentinel-first', 'Basic sentinel-second' ] }", "{ authorization: [ 'Bearer [REDACTED]' ] }"],
+    [JSON.stringify({ Authorization: ["Bearer sentinel-first", "Bearer sentinel-second"] }, null, 2), JSON.stringify({ Authorization: ["Bearer [REDACTED]"] }, null, 2)],
     ["status: ok", "status: ok"],
   ];
   const emitter = path.join(outputRedactionRoot, "emit.mjs");
@@ -199,11 +206,27 @@ try {
   ]);
   assert.equal(timedOut.status, 124, `${timedOut.stdout}${timedOut.stderr}`);
   const timeoutEvidence = JSON.parse(readFileSync(files(timeoutDest).find((file) => file.endsWith(".evidence.json")), "utf8"));
-  assert.equal(timeoutEvidence.signal, null, "the child handled SIGTERM and exited 0");
+  assert.equal(timeoutEvidence.signal, "SIGKILL", "a timeout kills the child, so its SIGTERM handler never runs");
   assert.equal(timeoutEvidence.timed_out, true);
   assert.equal(timeoutEvidence.exit_code, 124);
 } finally {
   rmSync(timeoutDest, { recursive: true, force: true });
+}
+
+// A child that ignores SIGTERM still ends at the timeout, and the run writes its evidence. The
+// harness timeout turns a regression into a failure instead of a hung suite.
+const ignoringDest = mkdtempSync(path.join(tmpdir(), "agent-surface-evidence-ignore-term-"));
+try {
+  const ignored = status([
+    "run", "--task", "T1", "--class", "read_only", "--timeout", "500", "--out", ignoringDest, "--",
+    process.execPath, "-e", "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);",
+  ], { timeout: 15000 });
+  assert.equal(ignored.status, 124, `${ignored.error?.code ?? ""}${ignored.stdout}${ignored.stderr}`);
+  const ignoredEvidence = JSON.parse(readFileSync(files(ignoringDest).find((file) => file.endsWith(".evidence.json")), "utf8"));
+  assert.equal(ignoredEvidence.timed_out, true);
+  assert.equal(ignoredEvidence.signal, "SIGKILL");
+} finally {
+  rmSync(ignoringDest, { recursive: true, force: true });
 }
 
 // tree_hash is HEAD's tree whatever the worktree holds; dirty records uncommitted changes.

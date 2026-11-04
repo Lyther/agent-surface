@@ -17,7 +17,7 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { readOrCreateToken, removeDiscovery, writeDiscovery } from "./bootstrap.js";
 import { SystemClock } from "./clock.js";
-import { CONTRACT_VERSION, SERVER_INSTRUCTIONS, type IStore } from "./contract.js";
+import { CONTRACT_VERSION, OPERATION_ID, OPERATION_META_KEY, SERVER_INSTRUCTIONS, type IStore } from "./contract.js";
 import { deriveAgentId } from "./identity.js";
 import { hashKey } from "./namespace.js";
 import { createRedactor } from "./redactor.js";
@@ -28,6 +28,10 @@ const GLOBAL_URI = "synapse://global/changes";
 const BODY_TOO_LARGE = Symbol("synapse:body-too-large");
 const projectUriFor = (projectDbPath: string): string => `synapse://project/${basename(projectDbPath).replace(/\.sqlite$/, "")}/changes`;
 const DEFAULT_COALESCE_MS = 50;
+const decodedHeader = (value: string | undefined): string | undefined => {
+  if (value === undefined) return undefined;
+  try { return decodeURIComponent(value); } catch { return undefined; }
+};
 
 /**
  * Leading+trailing-edge coalescer (per channel): the first commit fires immediately so
@@ -107,8 +111,9 @@ export async function createSidecar(opts: SidecarOptions): Promise<SidecarHandle
     // Locks belong to the bridge process that names itself; several bridges may share an agent id.
     const instance = h("x-synapse-instance")?.replace(/[^A-Za-z0-9-]+/g, "").slice(0, 64);
     // The bridge already resolved this key (git root, root URI or namespace); re-resolving it here
-    // would apply the shared sidecar's own env and cwd to every session.
-    const key = h("x-synapse-project");
+    // would apply the shared sidecar's own env and cwd to every session. It arrives percent-encoded,
+    // so any character survives; a bridge that predates that header sends only the raw form.
+    const key = decodedHeader(h("x-synapse-project-encoded")) ?? h("x-synapse-project");
     return { agentId, lockOwner: instance ? `${agentId}#${instance}` : agentId, projectDbPath: join(dbDir, `${hashKey(key || "default")}.sqlite`) };
   };
 
@@ -121,7 +126,10 @@ export async function createSidecar(opts: SidecarOptions): Promise<SidecarHandle
     );
     const tools = buildToolSet(store, ctx);
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: tools.specs }));
-    server.setRequestHandler(CallToolRequestSchema, async (req) => tools.call(req.params.name, req.params.arguments));
+    server.setRequestHandler(CallToolRequestSchema, async (req) => {
+      const operationId = req.params._meta?.[OPERATION_META_KEY];
+      return tools.call(req.params.name, req.params.arguments, typeof operationId === "string" && OPERATION_ID.test(operationId) ? operationId : undefined);
+    });
     server.setRequestHandler(ListResourcesRequestSchema, async () => ({
       resources: [
         { uri: projectUri, name: "project-changes", description: "Dirty-bit for this project's memory/locks. On update, re-pull via memory_recall({since}) / lock_list." },
@@ -162,7 +170,8 @@ export async function createSidecar(opts: SidecarOptions): Promise<SidecarHandle
     try {
       if (req.method === "GET" && (req.url === "/health" || (req.url ?? "").startsWith("/health?"))) {
         res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ ok: true, name: "synapse", version: CONTRACT_VERSION })); return;
+        // pid lets a stop step prove which process owns this address before it signals one.
+        res.end(JSON.stringify({ ok: true, name: "synapse", version: CONTRACT_VERSION, pid: process.pid })); return;
       }
       if (req.headers.authorization !== `Bearer ${opts.token}`) {
         res.writeHead(401, { "content-type": "application/json", "www-authenticate": 'Bearer realm="synapse"' });

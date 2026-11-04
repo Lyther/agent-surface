@@ -9,13 +9,14 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { ensureSidecar } from "../src/bootstrap.js";
+import { createSidecar } from "../src/sidecar.js";
 import { hashKey } from "../src/namespace.js";
 
 const TOKEN = "recovery-token-777";
@@ -239,6 +240,49 @@ test("a zero-config bridge re-elects a sidecar that died and retries the call", 
   } finally {
     await host.close().catch(() => { });
     if (lastPid) await stopPid(lastPid);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// The installer's stop step, run as the installer runs it: a separate Node process reading the record.
+const stopSidecarMjs = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "stop-sidecar.mjs");
+function runStop(dbDir: string): Promise<string> {
+  const code = `import { stopRunningSidecar } from ${JSON.stringify(pathToFileURL(stopSidecarMjs).href)}; await stopRunningSidecar(process.argv[1]);`;
+  const child = spawn(process.execPath, ["--input-type=module", "-e", code, dbDir], { stdio: ["ignore", "pipe", "pipe"] });
+  let output = "";
+  child.stdout!.on("data", (c: Buffer) => { output += c; });
+  child.stderr!.on("data", (c: Buffer) => { output += c; });
+  return new Promise((resolve) => child.once("exit", () => resolve(output)));
+}
+
+test("the installer's stop step signals no process when a different sidecar answers the record's address", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "synapse-stop-stale-"));
+  const sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
+  // Not a stand-in for the sidecar: this is the unrelated process a recycled pid would belong to.
+  const unrelated = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+  try {
+    writeFileSync(discoveryPath(dir), JSON.stringify({ pid: unrelated.pid, url: sc.url }));
+    await runStop(dir);
+    await delay(200);
+    assert.equal(unrelated.exitCode === null && unrelated.signalCode === null, true, "the unrelated process is still running");
+  } finally {
+    unrelated.kill("SIGKILL");
+    await sc.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the installer's stop step stops the sidecar its record names", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "synapse-stop-live-"));
+  const child = spawnSidecar(dir);
+  try {
+    await waitForSidecar(dir);
+    const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+    const output = await runStop(dir);
+    await exited;
+    assert.match(output, /stopped the running sidecar/);
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
     rmSync(dir, { recursive: true, force: true });
   }
 });

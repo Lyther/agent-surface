@@ -167,17 +167,24 @@ export interface RecallQuery {
 export interface RecallResult { results: (CompactMemory | FullMemory)[]; truncated: boolean; cursor: Offset }
 
 /**
+ * Request `_meta` key the bridge sets on every tools/call: one id per host request, sent again by
+ * its retry. A write records its result under the id, so a retry is answered, not reapplied.
+ */
+export const OPERATION_META_KEY = "synapse/operationId";
+export const OPERATION_ID = /^[A-Za-z0-9-]{1,64}$/;
+
+/**
  * The only seam to SQLite. ONE machine-wide store owns the global DB and lazily
  * opens each project's DB (routed by `projectDbPath`). Sole writer ⇒ notify fires
  * inline after commit.
  */
 export interface IStore {
-  remember(q: { projectDbPath: string; agentId: string; content: string; tags?: string[]; global?: boolean; supersedes?: Offset }): { id: Offset; ts: number; redactions: number };
+  remember(q: { projectDbPath: string; agentId: string; content: string; tags?: string[]; global?: boolean; supersedes?: Offset; operationId?: string }): { id: Offset; ts: number; redactions: number };
   recall(q: RecallQuery): RecallResult;
   get(q: { projectDbPath: string; agentId: string; ids: Offset[] }): FullMemory[];
-  forget(q: { projectDbPath: string; agentId: string; id: Offset; reason: string }): { id: Offset; ts: number } | null;
-  acquire(q: { projectDbPath: string; agentId: string; glob: string; ttlMs: number }): { ok: true; lock: LockRecord } | { ok: false; heldBy: string; expiresAt: number };
-  release(q: { projectDbPath: string; agentId: string; glob: string }): { released: boolean };
+  forget(q: { projectDbPath: string; agentId: string; id: Offset; reason: string; operationId?: string }): { id: Offset; ts: number } | null;
+  acquire(q: { projectDbPath: string; agentId: string; glob: string; ttlMs: number; operationId?: string }): { ok: true; lock: LockRecord } | { ok: false; heldBy: string; expiresAt: number };
+  release(q: { projectDbPath: string; agentId: string; glob: string; operationId?: string }): { released: boolean };
   listLocks(q: { projectDbPath: string; globFilter?: string }): LockRecord[];
   close(): void;
 }

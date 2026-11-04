@@ -42,10 +42,13 @@ export async function runEvidence(args) {
   const porcelain = spawnSync("git", ["status", "--porcelain"], { encoding: "utf8" });
   const dirty = porcelain.status === 0 ? porcelain.stdout !== "" : null;
   const started = Date.now();
+  // spawnSync sends one signal at the timeout and then waits for the child to exit, so a child that
+  // ignored SIGTERM held the run forever and no evidence was written. SIGKILL cannot be ignored.
   const result = spawnSync(command, commandArgs, {
     cwd: process.cwd(),
     encoding: "utf8",
     timeout: timeoutMs,
+    killSignal: "SIGKILL",
     maxBuffer: 64 * 1024 * 1024,
   });
   const durationMs = Date.now() - started;
@@ -135,19 +138,26 @@ function parseSecretOption(part) {
 }
 
 // Quoted values may hold spaces; escaped quotes stay inside them. \"…\" is a value inside a
-// JSON string that was serialized again.
-const SECRET_VALUE = String.raw`\\"[^"\r\n]*\\"|"(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'`;
+// JSON string that was serialized again: there each of the value's own escapes (\" \\ \n …)
+// reads as two backslashes plus the escaped character, so only a lone \" closes it.
+const SECRET_VALUE = String.raw`\\"(?:[^"\\\r\n]|\\\\(?:\\\\|\\"|[^"\\\r\n]))*\\"|"(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'`;
 // A key may close with a quote or an escaped quote before its separator: "password": or \"password\":.
 const KEY_END = String.raw`(?:\\?["'])?`;
 // A header printed as an array (Node's inspect, indented JSON) spans lines up to the `]`
 // that opens a line, so a `]` inside a value does not end it. Scanning whole lines, at
 // most 64, keeps many unclosed arrays linear; a one-line array falls to rest-of-line.
 const ARRAY_VALUE = String.raw`\[[ \t]*\r?\n(?:[^\n]*\n){0,64}?[ \t]*\]`;
+const CREDENTIAL = String.raw`(?:Bearer|Basic)\s+[^\s"'\\]+`;
 // Group 1 is kept, group 2 is the secret.
 const TEXT_REDACTIONS = [
   {
     name: "authorization-header",
-    pattern: new RegExp(String.raw`(Authorization${KEY_END}\s*:\s*${KEY_END}(?:Bearer|Basic)\s+)([^\s"'\\]+)`, "gi"),
+    // The value may open a header array, on one line (Node's inspect) or across lines (indented JSON);
+    // the secret runs through every further credential element of that array.
+    pattern: new RegExp(
+      String.raw`(Authorization${KEY_END}\s*:\s*(?:\[\s*)?${KEY_END}(?:Bearer|Basic)\s+)([^\s"'\\]+(?:${KEY_END}\s*,\s*${KEY_END}${CREDENTIAL})*)`,
+      "gi",
+    ),
   },
   {
     name: "cookie-header",

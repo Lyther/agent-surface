@@ -489,3 +489,38 @@ test("tags filter runs before the row limit: browse recall", () => {
     assert.equal(miss.results.length, 0, "every requested tag is required");
   } finally { cleanup(); }
 });
+
+test("a repeated operation id returns the recorded result and applies once, after a reopen too", () => {
+  const { clock, dir, store, P, cleanup } = setup();
+  try {
+    const remember = { projectDbPath: P, agentId: "a", content: "applied exactly once", operationId: "op-remember" };
+    const written = store.remember(remember);
+    assert.deepEqual(store.remember(remember), written, "a retried write answers with the first result");
+    const forget = { projectDbPath: P, agentId: "a", id: written.id, reason: "stale", operationId: "op-forget" };
+    const forgotten = store.forget(forget);
+    assert.ok(forgotten, "the first forget redacts the record");
+    assert.deepEqual(store.forget(forget), forgotten, "a retried forget is not reported as NOT_FOUND");
+    const acquire = { projectDbPath: P, agentId: "a", glob: "src/x.ts", ttlMs: 60_000, operationId: "op-acquire" };
+    const acquired = store.acquire(acquire);
+    const release = { projectDbPath: P, agentId: "a", glob: "src/x.ts", operationId: "op-release" };
+    const released = store.release(release);
+    assert.deepEqual(released, { released: true });
+    assert.deepEqual(store.release(release), released, "a retried release still reports the release");
+
+    // A restarted sidecar opens the same files, so the records answer its retries as well. Time moves
+    // on first, so an acquire that ran again would report a new lock and leave it held.
+    clock.advance(5_000);
+    const reopened = new Store({ clock, redactor: createRedactor(), dbDir: dir, globalDbPath: join(dir, "global.sqlite") });
+    try {
+      assert.deepEqual(reopened.remember(remember), written);
+      assert.deepEqual(reopened.forget(forget), forgotten);
+      assert.deepEqual(reopened.acquire(acquire), acquired);
+      assert.deepEqual(reopened.release(release), released);
+      assert.deepEqual(reopened.listLocks({ projectDbPath: P }), [], "a replayed acquire does not take back a released lock");
+    } finally { reopened.close(); }
+    const db = new DatabaseSync(P, { readOnly: true });
+    try {
+      assert.equal((db.prepare("SELECT COUNT(*) AS n FROM memory").get() as { n: number }).n, 1, "one row for one intended write");
+    } finally { db.close(); }
+  } finally { cleanup(); }
+});

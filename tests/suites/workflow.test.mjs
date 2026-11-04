@@ -604,6 +604,28 @@ assert.match(linkPatch, /^\+\.\.\/outside\.txt$/m);
 assert.doesNotMatch(linkPatch, /^\+outside$/m, "the link target's content is not in the patch");
 const untouchedLink = pathsPatch("begin", 3, "--file", "src");
 assert.equal(untouchedLink.status, 0, `${untouchedLink.stdout}${untouchedLink.stderr}`);
+// A tracked directory replaced by a link elsewhere is captured as git sees it, whether the scope
+// names the directory (T1) or the file (T2): a file reached through the link, here one named like
+// the tracked file, never enters the patch.
+const fileScope = (subcommand, ...rest) => status(
+  ["workflow", "patch", subcommand, "--run", "run-paths", "--round", "3", "--task", "T2", ...rest],
+  { cwd: pathsDest },
+);
+const fileScopeBegin = fileScope("begin", "--file", accentedFile);
+assert.equal(fileScopeBegin.status, 0, `${fileScopeBegin.stdout}${fileScopeBegin.stderr}`);
+const linkedDirTarget = mkdtempSync("/tmp/agent-surface-patch-outside-");
+writeFileSync(path.join(linkedDirTarget, "café-ü.txt"), "OUTSIDE_SENTINEL\n");
+rmSync(path.join(pathsDest, "src"), { recursive: true, force: true });
+symlinkSync(linkedDirTarget, path.join(pathsDest, "src"));
+for (const [task, step] of [["T2", (name) => fileScope(name)], ["T1", (name) => pathsPatch(name, 3)]]) {
+  for (const name of ["end", "verify"]) {
+    const result = step(name);
+    assert.equal(result.status, 0, `${task} ${name}: ${result.stdout}${result.stderr}`);
+  }
+  const patch = readFileSync(path.join(pathsDest, ".agent-surface", "workflows", "run-paths", "rounds", "round-003", "patches", `${task}.patch`), "utf8");
+  assert.doesNotMatch(patch, /OUTSIDE_SENTINEL/, task);
+}
+rmSync(linkedDirTarget, { recursive: true, force: true });
 rmSync(pathsDest, { recursive: true, force: true });
 
 // Boss and close write the ledger only through the CLI: init, a boss apply, then close.
@@ -637,6 +659,18 @@ const lifecycleBossText = `${JSON.stringify(lifecycleBoss, null, 2)}\n`;
 mkdirSync(path.join(lifecycleRunDir, "rounds", "round-000"), { recursive: true });
 writeFileSync(path.join(lifecycleRunDir, "rounds", "round-000", "boss.json"), lifecycleBossText);
 writeFileSync(path.join(lifecycleRunDir, "boss.json"), lifecycleBossText);
+// An artifact must live in the run directory itself, not behind a link to a file the run does not own.
+const externalBossDir = mkdtempSync("/tmp/agent-surface-external-boss-");
+writeFileSync(path.join(externalBossDir, "boss.json"), lifecycleBossText);
+symlinkSync(path.join(externalBossDir, "boss.json"), path.join(lifecycleRunDir, "rounds", "round-000", "linked-boss.json"));
+const linkedApply = lifecycle(
+  "apply", "--role", "workflow-boss", "--run", "run-fixture-001",
+  "--artifact", path.join(".agent-surface", "workflows", "run-fixture-001", "rounds", "round-000", "linked-boss.json"),
+);
+assert.notEqual(linkedApply.status, 0, "a linked artifact is refused");
+assert.match(linkedApply.stderr, /artifact must be inside the workflow run directory/);
+unlinkSync(path.join(lifecycleRunDir, "rounds", "round-000", "linked-boss.json"));
+rmSync(externalBossDir, { recursive: true, force: true });
 const lifecycleApply = lifecycle(
   "apply", "--role", "workflow-boss", "--run", "run-fixture-001",
   "--artifact", path.join(".agent-surface", "workflows", "run-fixture-001", "rounds", "round-000", "boss.json"),

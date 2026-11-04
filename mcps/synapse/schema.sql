@@ -32,3 +32,12 @@ CREATE TABLE IF NOT EXISTS locks (
   expires_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_locks_expiry ON locks(expires_at);
+
+-- A write's result keyed by the request's operation id, committed with the write itself, so a
+-- retried request is answered from here instead of being applied twice.
+CREATE TABLE IF NOT EXISTS operations (
+  id         TEXT    PRIMARY KEY,                 -- bridge-generated id, one per host request
+  result     TEXT    NOT NULL,                    -- JSON of the store result returned the first time
+  created_at INTEGER NOT NULL                     -- epoch ms; rows older than a day are pruned
+);
+CREATE INDEX IF NOT EXISTS idx_operations_created ON operations(created_at);

@@ -47,6 +47,15 @@ try {
   assert.equal(seen.fromFile, "file-value", "child receives a value only present in the env-file");
   assert.equal(seen.shared, "process-shared", "process env wins over the file at launch");
   assert.equal(seen.cwd, realpathSync(dir), "the launcher preserves the working directory (no cd)");
+  // An empty ambient value is unset, as the install's credential plan counts it, so the file value
+  // reaches the child instead of the empty string.
+  const emptyAmbient = spawnSync(process.execPath, [launcher, "--as-env-file", envPath, "--", process.execPath, "-e", probe], {
+    encoding: "utf8",
+    cwd: dir,
+    env: { ...process.env, SHARED: "" },
+  });
+  assert.equal(emptyAmbient.status, 0, emptyAmbient.stderr);
+  assert.equal(JSON.parse(emptyAmbient.stdout).shared, "file-shared", "an empty ambient value does not mask the file value");
 
   // ---- only the explicit --as-env-file is loaded (no implicit cwd search) --
   // A project .env in the working directory must NOT be picked up implicitly — the launcher loads

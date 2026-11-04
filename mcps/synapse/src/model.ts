@@ -38,6 +38,12 @@ CREATE TABLE IF NOT EXISTS locks (
   expires_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_locks_expiry ON locks(expires_at);
+CREATE TABLE IF NOT EXISTS operations (
+  id TEXT PRIMARY KEY,
+  result TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_operations_created ON operations(created_at);
 `;
 
 export interface MemoryRow {

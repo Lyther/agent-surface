@@ -21,7 +21,7 @@ Translate commit history into a SemVer version, a changelog, and a release recor
 
 1. Analyze commits since the last tag: `fix:` -> patch, `feat:` -> minor, `BREAKING CHANGE:` or `feat!:` -> major.
 2. If only meta work happened, skip the release, or publish metadata-only notes if policy allows it.
-3. Require that main is green across source, artifact, bundle, and deployment gates; `ship-artifact` already produced a verified artifact, SBOM, provenance, signatures, and release manifest; all required proofs and staging checks passed for the exact digest or checksum being released; and all commits and tags required by policy are signed and verified.
+3. Require that main is green across source, artifact, bundle, and deployment gates, and that all commits and tags required by policy are signed and verified.
 
 ## 2. Changelog
 
@@ -30,10 +30,11 @@ Prepend the new entry to `CHANGELOG.md`, grouped by intent (Features, Fixes, Per
 ## 3. Bump and Seal
 
 1. Bump the version files (`package.json`, `Cargo.toml`, `pyproject.toml`, or equivalent) and regenerate lockfiles or manifests if required.
-2. Commit the version files, lockfiles, and changelog entry together, so the tag points at the release state.
-3. Create a signed annotated tag (`v1.2.3`) on that commit.
-4. Create the release record for the tagged commit: Git SHA, version, artifact digest or checksum, bundle checksum, SBOM location, provenance location, and changelog entry.
-5. Resolve and verify the target remote and branch, then push the version commit and tag together under durable full-execution consent. Respect protected-branch policy by using the repository's release branch or PR workflow.
+2. Commit the version files, lockfiles, and changelog entry together; this commit is the release state.
+3. Build the artifact from that exact commit with `ship-artifact`: verified artifact, SBOM, provenance, signatures, and release manifest, with every required proof and staging check passed for its digest or checksum. An artifact built before the bump carries the previous version files and is not this release.
+4. Create a signed annotated tag (`v1.2.3`) on that commit.
+5. Create the release record for the tagged commit: Git SHA, version, artifact digest or checksum, bundle checksum, SBOM location, provenance location, and changelog entry.
+6. Resolve and verify the target remote and branch, then push the version commit and tag together under durable full-execution consent. Respect protected-branch policy by using the repository's release branch or PR workflow.
 
 ## 4. Publish
 
