@@ -143,6 +143,9 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
   };
   // Closing a client rejects every request still waiting on it with ConnectionClosed.
   const isConnectionClosed = (e: unknown): boolean => e instanceof McpError && e.code === ErrorCode.ConnectionClosed;
+  // A failed reconnect leaves no usable client, so the next call reconnects before it uses one. A running
+  // bridge then recovers by itself once the cause is gone: a refused sidecar stopped, a down one back.
+  let upstreamBroken = false;
   const reconnectUpstream = (rediscover: boolean): Promise<void> => {
     if (!reconnecting) {
       reconnecting = (async () => {
@@ -154,7 +157,10 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
         }
         await connectUpstream();
         for (const uri of subscriptions) await client.subscribeResource({ uri });
-      })().finally(() => { reconnecting = undefined; });
+      })().then(
+        () => { upstreamBroken = false; },
+        (err: unknown) => { upstreamBroken = true; throw err; },
+      ).finally(() => { reconnecting = undefined; });
     }
     return reconnecting;
   };
@@ -163,6 +169,7 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
       // A reconnect has already closed the client it replaces, so a call that arrives during one waits
       // for it and shares its outcome, as the calls that joined it do.
       if (reconnecting) await reconnecting;
+      if (upstreamBroken) await reconnectUpstream(true);
       const used = client;
       try {
         return await fn();
@@ -233,7 +240,7 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
     const missing = SIDECAR_FEATURES.filter((feature) => !(feature in advertised));
     if (missing.length > 0) {
       await client.close().catch(() => { });
-      throw new Error(`the sidecar at ${upstreamUrl} is from an earlier Synapse build (it lacks ${missing.join(", ")}); stop it, then restart Synapse in this host so its bridge starts a sidecar from the installed build`);
+      throw new Error(`the sidecar at ${upstreamUrl} is from an earlier Synapse build (it lacks ${missing.join(", ")}); stop it so a sidecar from the installed build takes its place, and restart Synapse in this host if this bridge has exited`);
     }
     client.setNotificationHandler(ResourceUpdatedNotificationSchema, (n) => { void server.sendResourceUpdated(n.params); });
     client.setNotificationHandler(ResourceListChangedNotificationSchema, () => { void server.sendResourceListChanged(); });

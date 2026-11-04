@@ -168,6 +168,43 @@ test("bridge: a call that arrives during a reconnect waits for it", async () => 
   } finally { await host.close().catch(() => { }); await sc.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("bridge: after a refused reconnect, the next call reconnects once a current sidecar is back", async () => {
+  // The election after a sidecar loss finds one without the features, so that reconnect is refused.
+  // Once a current sidecar takes its place, the running bridge must recover on its next call instead of
+  // failing every call until the host restarts it.
+  const dir = mkdtempSync(join(tmpdir(), "synapse-refused-reconnect-"));
+  let sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
+  const targetFile = join(dir, "rediscover.json");
+  writeFileSync(targetFile, JSON.stringify({ url: sc.url, token: TOKEN }));
+  const bridgeWithRediscover = [
+    'import { readFileSync } from "node:fs";',
+    `import { startBridge } from ${JSON.stringify(pathToFileURL(bridgeJs).href)};`,
+    'const target = () => JSON.parse(readFileSync(process.env.SYNAPSE_TEST_TARGET, "utf8"));',
+    "await startBridge({ url: target().url, token: target().token, projectKeyValue: process.env.SYNAPSE_PROJECT, rediscover: async () => target() });",
+    'process.stdin.once("end", () => process.exit(0));',
+  ].join("\n");
+  const host = new Client({ name: "host-refused-reconnect", version: "0.0.1" });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: ["--input-type=module", "-e", bridgeWithRediscover],
+    env: { ...(process.env as Record<string, string>), SYNAPSE_TEST_TARGET: targetFile, SYNAPSE_PROJECT: PROJECT },
+  });
+  const refused = await sidecarWithoutFeatures();
+  try {
+    await host.connect(transport);
+    await host.listTools();
+    await sc.close();
+    writeFileSync(targetFile, JSON.stringify({ url: refused.url, token: TOKEN }));
+    await assert.rejects(host.listTools(), /earlier Synapse build/);
+
+    await refused.close();
+    sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
+    writeFileSync(targetFile, JSON.stringify({ url: sc.url, token: TOKEN }));
+    assert.equal((await host.listTools()).tools.length, 7, "the next call reconnected to the current sidecar");
+    assert.deepEqual(refused.requests, [], "no call reached the refused sidecar");
+  } finally { await host.close().catch(() => { }); await refused.close(); await sc.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("bridge: exits when its stdio host disconnects", async () => {
   const dir = mkdtempSync(join(tmpdir(), "synapse-eof-"));
   const sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
