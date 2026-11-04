@@ -449,18 +449,18 @@ test("bridge: a project path beyond Latin-1 routes to its own database", async (
 });
 
 // SUBSTITUTE_JUSTIFICATION
-// - replaces: a Synapse sidecar from a build before operation records and encoded project routing
-// - necessity: the assertion needs a sidecar that predates those features; this tree holds only the
-//   current sidecar, and building an earlier release inside a test is neither self-contained nor
-//   deterministic
-// - real-proof: start a sidecar built from bb71e16 and run this bridge with SYNAPSE_URL and
-//   SYNAPSE_TOKEN pointing at it; the bridge exits with this refusal and the sidecar's databases
-//   stay empty (run by hand, since the earlier build is not in this tree)
-async function earlierBuildSidecar(): Promise<{ url: string; requests: string[]; close: () => Promise<void> }> {
+// - replaces: the Synapse sidecar, with a real MCP server (SDK Server over Streamable HTTP) that
+//   advertises none of SIDECAR_FEATURES
+// - necessity: the assertion needs a sidecar without those features, and the sidecar this tree builds
+//   always advertises them, so no real instance at this commit can be in that state
+// - real-proof: by hand, start a sidecar built from bb71e16, which advertises neither feature, and run
+//   this bridge with SYNAPSE_URL and SYNAPSE_TOKEN pointing at it: the bridge exits with this refusal
+//   and that sidecar's databases stay empty. The test below proves the bridge's check only.
+async function sidecarWithoutFeatures(): Promise<{ url: string; requests: string[]; close: () => Promise<void> }> {
   const requests: string[] = [];
   const http = createHttpServer((req, res) => {
-    // Stateless, one MCP server per request: initialize gets the capabilities an earlier build
-    // advertised, and any call that reaches this sidecar is recorded.
+    // Stateless, one MCP server per request: initialize advertises tools and resources but none of
+    // SIDECAR_FEATURES, and any call that reaches this sidecar is recorded.
     const mcp = new Server({ name: "synapse", version: "0.4.0" }, { capabilities: { tools: {}, resources: { subscribe: true, listChanged: true } } });
     mcp.setRequestHandler(ListToolsRequestSchema, () => { requests.push("tools/list"); return { tools: [] }; });
     mcp.setRequestHandler(CallToolRequestSchema, () => { requests.push("tools/call"); return { content: [] }; });
@@ -476,18 +476,18 @@ async function earlierBuildSidecar(): Promise<{ url: string; requests: string[];
   };
 }
 
-test("bridge: refuses a sidecar from an earlier build before serving any call", async () => {
+test("bridge: refuses a sidecar without the features it relies on, before serving any call", async () => {
   // An earlier sidecar reads only the raw project header and keeps no operation records: serving
   // through it would pool this project into the shared default database and apply a retried write twice.
   const dir = mkdtempSync(join(tmpdir(), "synapse-earlier-"));
   const project = join(dir, "项目");
   mkdirSync(project);
-  const earlier = await earlierBuildSidecar();
+  const upstream = await sidecarWithoutFeatures();
   const host = new Client({ name: "host-earlier", version: "0.0.1" });
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [bridgeJs],
-    env: { ...(process.env as Record<string, string>), SYNAPSE_URL: earlier.url, SYNAPSE_TOKEN: TOKEN, SYNAPSE_PROJECT: project },
+    env: { ...(process.env as Record<string, string>), SYNAPSE_URL: upstream.url, SYNAPSE_TOKEN: TOKEN, SYNAPSE_PROJECT: project },
     stderr: "pipe",
   });
   let stderr = "";
@@ -498,8 +498,8 @@ test("bridge: refuses a sidecar from an earlier build before serving any call", 
     const deadline = Date.now() + 2000;
     while (!stderr.includes("earlier Synapse build") && Date.now() < deadline) await delay(25);
     assert.match(stderr, /earlier Synapse build \(it lacks synapse\/operationId, synapse\/encodedProject\)/);
-    assert.deepEqual(earlier.requests, [], "no call reached the earlier sidecar");
-  } finally { await host.close().catch(() => { }); await earlier.close(); rmSync(dir, { recursive: true, force: true }); }
+    assert.deepEqual(upstream.requests, [], "no call reached that sidecar");
+  } finally { await host.close().catch(() => { }); await upstream.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
 test("bridge: a reconnect restores the host's resource subscriptions", async () => {
