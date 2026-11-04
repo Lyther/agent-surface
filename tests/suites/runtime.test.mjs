@@ -178,6 +178,9 @@ try {
     [JSON.stringify(JSON.stringify({ password: 'sentinel-"quoted"-tail' })), JSON.stringify(JSON.stringify({ password: "[REDACTED]" }))],
     // A header printed as an array, here by indented JSON.
     [JSON.stringify({ Authorization: ["Bearer sentinel-auth-array"] }, null, 2), JSON.stringify({ Authorization: ["Bearer [REDACTED]"] }, null, 2)],
+    // Every credential in a header array is removed; the run of them becomes one marker.
+    ["{ authorization: [ 'Bearer sentinel-first', 'Basic sentinel-second' ] }", "{ authorization: [ 'Bearer [REDACTED]' ] }"],
+    [JSON.stringify({ Authorization: ["Bearer sentinel-first", "Bearer sentinel-second"] }, null, 2), JSON.stringify({ Authorization: ["Bearer [REDACTED]"] }, null, 2)],
     ["status: ok", "status: ok"],
   ];
   const emitter = path.join(outputRedactionRoot, "emit.mjs");

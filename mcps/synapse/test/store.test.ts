@@ -507,13 +507,16 @@ test("a repeated operation id returns the recorded result and applies once, afte
     assert.deepEqual(released, { released: true });
     assert.deepEqual(store.release(release), released, "a retried release still reports the release");
 
-    // A restarted sidecar opens the same files, so the records answer its retries as well.
+    // A restarted sidecar opens the same files, so the records answer its retries as well. Time moves
+    // on first, so an acquire that ran again would report a new lock and leave it held.
+    clock.advance(5_000);
     const reopened = new Store({ clock, redactor: createRedactor(), dbDir: dir, globalDbPath: join(dir, "global.sqlite") });
     try {
       assert.deepEqual(reopened.remember(remember), written);
       assert.deepEqual(reopened.forget(forget), forgotten);
       assert.deepEqual(reopened.acquire(acquire), acquired);
       assert.deepEqual(reopened.release(release), released);
+      assert.deepEqual(reopened.listLocks({ projectDbPath: P }), [], "a replayed acquire does not take back a released lock");
     } finally { reopened.close(); }
     const db = new DatabaseSync(P, { readOnly: true });
     try {

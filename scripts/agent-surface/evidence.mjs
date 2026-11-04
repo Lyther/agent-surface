@@ -147,12 +147,17 @@ const KEY_END = String.raw`(?:\\?["'])?`;
 // that opens a line, so a `]` inside a value does not end it. Scanning whole lines, at
 // most 64, keeps many unclosed arrays linear; a one-line array falls to rest-of-line.
 const ARRAY_VALUE = String.raw`\[[ \t]*\r?\n(?:[^\n]*\n){0,64}?[ \t]*\]`;
+const CREDENTIAL = String.raw`(?:Bearer|Basic)\s+[^\s"'\\]+`;
 // Group 1 is kept, group 2 is the secret.
 const TEXT_REDACTIONS = [
   {
     name: "authorization-header",
-    // The value may open a header array, on one line (Node's inspect) or across lines (indented JSON).
-    pattern: new RegExp(String.raw`(Authorization${KEY_END}\s*:\s*(?:\[\s*)?${KEY_END}(?:Bearer|Basic)\s+)([^\s"'\\]+)`, "gi"),
+    // The value may open a header array, on one line (Node's inspect) or across lines (indented JSON);
+    // the secret runs through every further credential element of that array.
+    pattern: new RegExp(
+      String.raw`(Authorization${KEY_END}\s*:\s*(?:\[\s*)?${KEY_END}(?:Bearer|Basic)\s+)([^\s"'\\]+(?:${KEY_END}\s*,\s*${KEY_END}${CREDENTIAL})*)`,
+      "gi",
+    ),
   },
   {
     name: "cookie-header",
