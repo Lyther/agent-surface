@@ -1,59 +1,50 @@
 # ops-swarm runtime launch shapes
 
-Companion reference for `ops-swarm`. Read it once a packet has a runtime and a model, and while probing
-providers, whose records use the shape at the end. The rule that a packet must name its runtime before
-launch is in `SKILL.md`; this file records how each host runs one packet, how far it may write, and how
-it fans out.
+Companion reference for `ops-swarm`. Read it once a packet has a runtime and a model, and while probing providers, whose records use the shape at the end. The rule that a packet must name its runtime before launch is in `SKILL.md`; this file records how each host runs one packet, how far it may write, and how it fans out.
 
-These shapes track host CLIs and change with them; re-read the host's help before use. The
-full-autonomy commands that qualify a runtime are in `workflow-runtime`. A swarm packet takes the least
-permission its question needs.
+These shapes track host CLIs and change with them; check the installed version, login, model access, and current help before use. Reuse current access evidence instead of repeating probes. The full-autonomy commands that qualify a runtime are in `workflow-runtime`. A swarm packet takes the least permission its question needs.
 
 ## One packet per launch
 
-Give research, analysis, and critic packets a read-only launch. Give a writing packet its own worktree
-and only the autonomy its write scope needs.
+Give research, analysis, and critic packets a read-only launch. Give a writing packet its own worktree and only the autonomy its write scope needs.
 
 | Runtime | Read-only packet | Writing packet changes | Native fan-out |
 |---|---|---|---|
 | Droid | `droid exec --cwd "$repo" -m "$model" -r "$effort" -o stream-json "$packet"` (read-only by default) | add `--auto low` for edits or `--auto medium` for installs, builds, and local git; `--cwd "$repo"` already places it in the packet's worktree, so do not add `-w`, which would create a second one | Custom droids through the Task tool, at `--auto high` only; `--mission` |
 | Codex | `codex exec -m "$model" -c "model_reasoning_effort=\"$effort\"" -C "$repo" -s read-only --ephemeral --json "$packet"` | `-s workspace-write` instead of `-s read-only` | Subagents spawned by the parent session |
 | Claude Code | `claude -p "$packet" --model "$model" --permission-mode plan --output-format json` | `--permission-mode acceptEdits` instead of `plan`, plus one `--allowedTools` prefix rule per verification command, such as `"Bash(npm test:*)"`, since `-p` cannot approve other shell commands | Agent tool or agent teams |
-| Grok Build | none verified: `--permission-mode plan` is not shown to block shell writes | `grok --cwd "$repo" -m "$model" --reasoning-effort "$effort" --permission-mode dontAsk --allow "$rule" -p "$packet" --output-format json --max-turns "$turns"`, with one `--allow` per tool the packet needs, such as `Read`, `Grep`, `Edit`, and each verification command, because `dontAsk` silently denies everything else; never `bypassPermissions`, which also permits `git push` | `.grok/agents` roles (1.0.46 or later) |
-| Cursor Agent | none verified: `--mode ask` is reported to still run shell commands | `cursor-agent -p --force --workspace "$repo" --model "$model" --output-format json "$packet"`; `--force` allows commands unless explicitly denied | not verified |
-| Kimi Code | none: `--plan` cannot be combined with `-p`, and prompt mode runs tool calls automatically | `kimi -m "$model" -p "$packet" --output-format stream-json`, started inside the packet's worktree | not verified |
+| Grok Build | qualify read-only controls in the current build; `--permission-mode plan` alone is not proof | `grok --cwd "$repo" -m "$model" --reasoning-effort "$effort" --permission-mode dontAsk --allow "$rule" -p "$packet" --output-format json --max-turns "$turns"`, with one `--allow` per tool the packet needs, such as `Read`, `Grep`, `Edit`, and each verification command, because `dontAsk` silently denies everything else; never `bypassPermissions`, which also permits `git push` | `.grok/agents` roles (1.0.46 or later) |
+| Cursor Agent | qualify read-only controls in the current build; `--mode ask` alone is not proof | `cursor-agent -p --force --workspace "$repo" --model "$model" --output-format json "$packet"`; `--force` allows commands unless explicitly denied | check current runtime |
+| Kimi Code | check current permission rules; `--plan` cannot be combined with `-p`, and prompt mode runs tool calls automatically | `kimi -m "$model" -p "$packet" --output-format stream-json`, started inside the packet's worktree | check current runtime |
 | Kilo CLI | `kilo run --dir "$repo" --model "$model" --variant "$effort" --agent ask --format json "$packet"` | `--auto --agent code` instead of `--agent ask` | Task tool or `@agent-name` subagents |
-| DSH | none verified | `dsh --profile headless "$packet"` | not verified |
+| DSH | qualify the selected profile's permissions | `dsh --profile headless "$packet"` | check current runtime |
 
-`$repo` is the packet's own worktree. Claude Code, Kimi, and DSH take no directory flag, so start them
-from inside it. Record the model that ran, as `runtime-catalog.md` describes, in the packet's
-`probe_ref`.
+`$repo` is the packet's own worktree. Claude Code, Kimi, and DSH take no directory flag, so start them from inside it. Record the selected model and any model identity returned by the runtime in the packet's `probe_ref`; an unresolved alias is not an exact model identity.
 
-Grok, Cursor, Kimi, and DSH have no verified read-only launch, so never assign them research,
-analysis, or critic packets; give them only packets that may write, each in a disposable worktree.
-Claude Code's `plan` mode blocked a shell write in a 2026-10-15 probe; Kilo's `ask` agent is
-unverified while its CLI is blocked.
+A read-only packet needs read-only controls verified for the selected runtime and configuration. When those controls are unqualified, use a qualified runtime or qualify them before assignment; keep the result with the run evidence.
 
-A worktree does not stop host reads, network access, pushes, or deploys, and a forbidden-actions list
-in the prompt is not an authorization boundary. Deny those with the runtime's own controls, such as
-Claude Code's `--disallowedTools`, Grok's `--deny`, Droid's `block` rules, Kimi's
-`[[permission.rules]]` deny rules (which prompt mode still honors), or Cursor's `--sandbox enabled`.
-Launch a runtime whose controls are unverified, such as DSH, without push or deploy credentials.
+A worktree does not stop host reads, network access, pushes, or deploys, and a forbidden-actions list in the prompt is not an authorization boundary. Deny those with the runtime's own controls, such as Claude Code's `--disallowedTools`, Grok's `--deny`, Droid's `block` rules, Kimi's `[[permission.rules]]` deny rules (which prompt mode still honors), or Cursor's `--sandbox enabled`. Launch a runtime whose controls are unverified, such as DSH, without push or deploy credentials.
 
-An untrusted target, such as an outside repository, web page, or artifact, can inject instructions into
-any packet. Read-only modes still read files and the environment, verification commands such as
-`npm test` run the checkout's own scripts with your identity, and the model's output leaves the host.
-Run every packet over an untrusted target, whatever its runtime or role, in an isolated container or VM
-with a scrubbed home and environment, no credentials, and restricted network.
+An untrusted target, such as an outside repository, web page, or artifact, can inject instructions into any packet. Read-only modes still read files and the environment, verification commands such as `npm test` run the checkout's own scripts with your identity, and the model's output leaves the host. Run every packet over an untrusted target, whatever its runtime or role, in an isolated container or VM with a scrubbed home and environment, no credentials, and restricted network.
 
-When the driver's own subagent or agent-manager tool can select the model, isolate the packet, and
-return its artifact, use it instead of a headless subprocess. Launch a subprocess when the packet needs
-another provider family or a capability the native tool lacks.
+When the driver's own subagent or agent-manager tool can select the model, isolate the packet, and return its artifact, use it instead of a headless subprocess. Launch a subprocess when the packet needs another provider family or a capability the native tool lacks.
+
+## Context controls
+
+Take the suggested window from [runtime-catalog.md](runtime-catalog.md), apply the runtime's native control, and record the effective value. Compaction thresholds may reserve headroom or be clamped to model capacity; they are not spending caps. Preserve unrelated model, effort, permission, and subagent settings.
+
+| Runtime | Control |
+|---|---|
+| Claude Code | `--autocompact 500k` or `--autocompact 1m`; saved per-model windows use `modelSettings.<canonical-model-id>.autoCompactWindow` in settings from 2.1.288. Check `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, which takes precedence. |
+| Droid | `droid exec --settings <overlay.json>` with `compactionTokenLimitPerModel` keyed by model ID. This sets the compaction trigger and is clamped to the model's input limit. |
+| Grok Build | Set `context_window` in the selected `[model."<id>"]` configuration. The model's compaction percentage still applies. Read current help before assuming a per-launch override exists. |
+| Cursor Agent | `--model '<id>[context=<supported-value>]'` where the current catalog supports that parameter and value; do not invent a context choice. |
+
+References: [Claude model configuration](https://code.claude.com/docs/en/model-config#context-window-and-auto-compaction), [Droid settings](https://docs.factory.com/droid-cli/settings#context-and-compaction), [Grok settings](https://docs.x.ai/build/settings/reference), [Cursor CLI parameters](https://cursor.com/docs/cli/reference/parameters). For other runtimes, read current help and settings before applying an override. Native configuration readback proves loading; a long-context run is needed to prove when compaction occurs.
 
 ## Worker-led packets
 
-Assign a worker lead only on a runtime whose fan-out the probe confirmed, and name that mechanism in the
-prompt. A generic "use subagents" instruction is not an assignment.
+Assign a worker lead only on a runtime whose fan-out the probe confirmed, and name that mechanism in the prompt. A generic "use subagents" instruction is not an assignment.
 
 ```text
 Runtime: <runtime and version from the probe>.
@@ -75,7 +66,7 @@ Return one summary with changed files, evidence, blockers, residual risk, and th
 Droid:
 
 - `droid exec` is read-only by default. `--auto low|medium|high` widens it step by step; `--skip-permissions-unsafe` bypasses every check and belongs only in a disposable environment.
-- The Task tool that runs custom droids (`.factory/droids/`, which agent-surface installs) is allowed only at `--auto high` or `--skip-permissions-unsafe` in 0.241.1, and `--auto high` also permits pushes and deploys, which neither a worktree nor the prompt can stop. Before running a Droid lead, add `block` rules for push and deploy commands to Droid's command permission rules and confirm each by running, for example, `droid rules check --command 'git push'` from `$repo`, the directory the lead runs in, so the check reads the same settings the lead will; without them, keep Droid packets single-agent.
+- Confirm the current permissions required for the Task tool and custom droids (`.factory/droids/`, which agent-surface installs). When they require `--auto high`, that mode also permits pushes and deploys, which neither a worktree nor the prompt can stop. Before running a Droid lead, add `block` rules for push and deploy commands to Droid's command permission rules and confirm each by running, for example, `droid rules check --command 'git push'` from `$repo`, the directory the lead runs in, so the check reads the same settings the lead will; without them, keep Droid packets single-agent.
 - `--mission` hands orchestration to Droid: it starts its own workers (`--worker-model`) and validators (`--validator-model`) and auto-approves their proposals, and it requires `--auto high`. Use it only with the same `block` rules in place and when the packet's whole write scope is isolated, and treat its validation as packet-internal evidence, not the swarm's verifier.
 
 Kilo:
@@ -93,8 +84,7 @@ Others:
 
 ## Provider adapter record
 
-One record per probed provider, whether or not the swarm selects it. A failed or skipped probe stays in
-the ledger as evidence instead of being dropped.
+One record per probed provider, whether or not the swarm selects it. A failed or skipped probe stays in the ledger as evidence instead of being dropped.
 
 ```json
 {
@@ -103,7 +93,7 @@ the ledger as evidence instead of being dropped.
   "role": "worker|critic|judge|synthesizer",
   "capabilities": ["tools", "web", "long-context"],
   "privacy": "local|private|external",
-  "launch_shape": "native_subagent|native_agent_manager|headless_cli|ollama_launch|ollama_api|other",
+  "launch_shape": "native_subagent|native_agent_manager|headless_cli|api|other",
   "observed_latency": "fast|medium|slow|unknown",
   "probe_command": "redacted command or null",
   "probe_result": "ok|failed|skipped",
