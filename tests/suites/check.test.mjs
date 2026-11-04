@@ -27,9 +27,12 @@ import {
   files,
   hasLocalOpsServerSkill,
   MAX_CAPTURE_BYTES,
+  ownTempRoot,
   root,
   run, status,
 } from "../lib/helpers.mjs";
+
+const ownTmp = ownTempRoot("check");
 
 function countExt(dir, exts) {
   return files(path.join(root, dir)).filter((file) => exts.some((ext) => file.endsWith(ext))).length;
@@ -325,11 +328,12 @@ try {
   rmSync(consumerRoot, { recursive: true, force: true });
 }
 
-const escapeVictim = "/tmp/agent-surface-build-escape-victim";
+const escapeVictim = ownTmp("build-escape-victim");
 rmSync(escapeVictim, { recursive: true, force: true });
 mkdirSync(escapeVictim, { recursive: true });
 writeFileSync(path.join(escapeVictim, "keep.txt"), "keep\n");
-const unsafeBuild = status(["build", "--target", "../../agent-surface-build-escape-victim"]);
+// The target resolves from dist/ to this victim on every machine; the build must refuse it by name.
+const unsafeBuild = status(["build", "--target", path.relative(path.join(root, "dist"), escapeVictim)]);
 assert.notEqual(unsafeBuild.status, 0);
 assert.match(`${unsafeBuild.stdout}${unsafeBuild.stderr}`, /unsafe build target/);
 assert.equal(existsSync(path.join(escapeVictim, "keep.txt")), true);

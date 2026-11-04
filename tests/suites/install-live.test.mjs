@@ -3,7 +3,9 @@ import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
-import { run, status, useDisposableHome } from "../lib/helpers.mjs";
+import { ownTempRoot, run, status, useDisposableHome } from "../lib/helpers.mjs";
+
+const ownTmp = ownTempRoot("install-live");
 
 // Live installs here wire credentialed MCP servers, which write the shared env launcher into HOME.
 const disposableHome = useDisposableHome();
@@ -36,7 +38,7 @@ for (const target of [
   "windsurf",
   "zed",
 ]) {
-  const targetDest = `/tmp/agent-surface-${target}-live`;
+  const targetDest = ownTmp(`${target}-live`);
   rmSync(targetDest, { recursive: true, force: true });
   try {
     const installArgs = ["install", "--target", target, "--dest", targetDest];

@@ -172,6 +172,15 @@ export function disposableCheckout({ linkSubmodules = false } = {}) {
   };
 }
 
+// A suite keeps every fixture path under one temporary root that only this run owns. A fixed path
+// such as /tmp/agent-surface-evidence is shared by every checkout and every TMPDIR, so concurrent runs
+// deleted each other's fixtures. The root is removed when the run exits; the call returns a path maker.
+export function ownTempRoot(suite) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), `agent-surface-${suite}-`));
+  process.once("exit", () => rmSync(dir, { recursive: true, force: true }));
+  return (...parts) => path.join(dir, ...parts);
+}
+
 // An install that wires a wrapped MCP server writes the shared env launcher into $HOME/.local/bin
 // and its launcher module into $HOME/.local/share/agent-surface. A suite that runs such installs calls this
 // first: HOME points at a disposable home with the operator's provisioned binaries and uv tool
