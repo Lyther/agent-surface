@@ -7,12 +7,13 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { ResourceUpdatedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { createServer as createHttpServer } from "node:http";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer as createHttpServer, request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { hashKey } from "../src/namespace.js";
 import { createSidecar } from "../src/sidecar.js";
 
 const TOKEN = "bridge-token-xyz";
@@ -284,4 +285,138 @@ test("bridge: sessions sharing SYNAPSE_AGENT_ID cannot release or overwrite each
     await sc.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// SUBSTITUTE_JUSTIFICATION
+// - substitute: `lossy`, a local HTTP proxy that forwards the bridge's first memory_remember to the
+//   real sidecar and drops the connection once the sidecar has answered
+// - replaces: delivery of that one HTTP response between the bridge and the sidecar
+// - necessity: a write that commits and then loses its response needs a crash or a network loss at
+//   an exact moment, which the real sidecar and network cannot produce deterministically
+// - real-option: real `createSidecar` instances serve every request, including the retry
+// - proof-limit: proves the retry is answered from the committed record, not how often real
+//   connections drop
+// - real-proof: "a zero-config bridge re-elects a sidecar that died and retries the call" in
+//   recovery.test.ts drives the same retry path through a real crash
+test("bridge: a write whose response was lost is answered from its record by a restarted sidecar", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "synapse-lost-"));
+  let sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
+  const targetFile = join(dir, "rediscover.json");
+  writeFileSync(targetFile, JSON.stringify({ url: sc.url, token: TOKEN }));
+  let dropped = false;
+  const lossy = createHttpServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => chunks.push(c));
+    req.on("end", () => {
+      const body = Buffer.concat(chunks);
+      const lose = !dropped && body.includes("memory_remember");
+      if (lose) dropped = true;
+      const upstreamUrl = new URL(req.url ?? "/mcp", sc.url);
+      const upstream = httpRequest(upstreamUrl, { method: req.method, headers: { ...req.headers, host: upstreamUrl.host } }, (response) => {
+        if (!lose) { res.writeHead(response.statusCode ?? 502, response.headers); response.pipe(res); return; }
+        response.resume();
+        // The sidecar committed and answered. The bridge sees only a dropped connection, and its
+        // retry reaches a restarted sidecar on the same database.
+        response.on("end", () => {
+          void (async () => {
+            await sc.close();
+            sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
+            writeFileSync(targetFile, JSON.stringify({ url: sc.url, token: TOKEN }));
+            res.destroy();
+          })();
+        });
+      });
+      upstream.on("error", () => res.destroy());
+      upstream.end(body);
+    });
+  });
+  await new Promise<void>((resolve) => lossy.listen(0, "127.0.0.1", resolve));
+  const address = lossy.address();
+  const proxyUrl = `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}/mcp`;
+  const bridgeWithRediscover = [
+    'import { readFileSync } from "node:fs";',
+    `import { startBridge } from ${JSON.stringify(pathToFileURL(bridgeJs).href)};`,
+    'const target = () => JSON.parse(readFileSync(process.env.SYNAPSE_TEST_TARGET, "utf8"));',
+    "await startBridge({ url: process.env.SYNAPSE_TEST_PROXY, token: target().token, projectKeyValue: process.env.SYNAPSE_PROJECT, rediscover: async () => target() });",
+    'process.stdin.once("end", () => process.exit(0));',
+  ].join("\n");
+  const host = new Client({ name: "host-lost-response", version: "0.0.1" });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: ["--input-type=module", "-e", bridgeWithRediscover],
+    env: { ...(process.env as Record<string, string>), SYNAPSE_TEST_PROXY: proxyUrl, SYNAPSE_TEST_TARGET: targetFile, SYNAPSE_PROJECT: PROJECT },
+  });
+  try {
+    await host.connect(transport);
+    const reply = JSON.parse((((await host.callTool({ name: "memory_remember", arguments: { content: "one durable write whose response was lost" } })) as { content: { text: string }[] }).content[0]!).text) as { id: number };
+    assert.equal(dropped, true, "premise: the first response was dropped after the sidecar answered");
+    const stored = parseResults(await host.callTool({ name: "memory_recall", arguments: { query: "response was lost", mode: "full" } })).results as { id: number }[];
+    assert.equal(stored.length, 1, "the retried write was not applied a second time");
+    assert.equal(stored[0]!.id, reply.id, "the retry returned the committed record");
+  } finally {
+    await host.close().catch(() => { });
+    lossy.closeAllConnections();
+    await new Promise<void>((resolve) => lossy.close(() => resolve()));
+    await sc.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("bridge: a project path beyond Latin-1 routes to its own database", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "synapse-unicode-"));
+  const project = join(dir, "项目");
+  mkdirSync(project);
+  const sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir });
+  const host = new Client({ name: "host-unicode", version: "0.0.1" });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [bridgeJs],
+    env: { ...(process.env as Record<string, string>), SYNAPSE_URL: sc.url, SYNAPSE_TOKEN: TOKEN, SYNAPSE_PROJECT: project },
+  });
+  try {
+    await host.connect(transport);
+    await host.callTool({ name: "memory_remember", arguments: { content: "unicode project marker" } });
+    assert.equal(parseResults(await host.callTool({ name: "memory_recall", arguments: { query: "unicode project marker" } })).results.length, 1);
+    assert.equal(existsSync(join(dir, `${hashKey("default")}.sqlite`)), false, "the key reached the sidecar instead of falling back to default");
+  } finally { await host.close().catch(() => { }); await sc.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("bridge: a reconnect restores the host's resource subscriptions", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "synapse-resubscribe-"));
+  let sc = await createSidecar({ token: TOKEN, port: 0, dbDir: dir, coalesceMs: 0 });
+  const port = sc.port;
+  const host = new Client({ name: "host-resubscribe", version: "0.0.1" });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [bridgeJs],
+    env: { ...(process.env as Record<string, string>), SYNAPSE_URL: sc.url, SYNAPSE_TOKEN: TOKEN, SYNAPSE_PROJECT: PROJECT },
+  });
+  const got: string[] = [];
+  const write = async (content: string): Promise<void> => {
+    const writer = new Client({ name: "writer", version: "0.0.1" });
+    await writer.connect(new StreamableHTTPClientTransport(new URL(sc.url), {
+      requestInit: { headers: { Authorization: `Bearer ${TOKEN}`, "x-synapse-agent": "writer", "x-synapse-project": PROJECT } },
+    }));
+    try { await writer.callTool({ name: "memory_remember", arguments: { content } }); } finally { await writer.close(); }
+  };
+  const waitFor = async (count: number): Promise<void> => {
+    const start = Date.now();
+    while (got.length < count && Date.now() - start < 4000) await delay(50);
+  };
+  try {
+    await host.connect(transport);
+    host.setNotificationHandler(ResourceUpdatedNotificationSchema, (n) => { got.push(n.params.uri); });
+    const uri = (await host.listResources()).resources.find((r) => r.uri.includes("/project/"))!.uri;
+    await host.subscribeResource({ uri });
+    await write("before the restart");
+    await waitFor(1);
+    assert.equal(got.length, 1, "premise: the subscription delivers before the restart");
+
+    await sc.close();
+    sc = await createSidecar({ token: TOKEN, port, dbDir: dir, coalesceMs: 0 });
+    await host.listTools();
+    await write("after the reconnect");
+    await waitFor(2);
+    assert.equal(got.length, 2, "the subscription survives the reconnect without the host subscribing again");
+  } finally { await host.close().catch(() => { }); await sc.close(); rmSync(dir, { recursive: true, force: true }); }
 });

@@ -26,12 +26,12 @@ export function toolSpecs(): ToolSpec[] {
   }));
 }
 
-export function buildToolSet(store: IStore, ctx: SessionCtx): { specs: ToolSpec[]; call: (name: string, rawArgs: unknown) => ToolResult } {
+export function buildToolSet(store: IStore, ctx: SessionCtx): { specs: ToolSpec[]; call: (name: string, rawArgs: unknown, operationId?: string) => ToolResult } {
   const lockOwner = ctx.lockOwner ?? ctx.agentId;
-  const handlers: Record<string, (a: unknown) => ToolResult> = {
-    memory_remember: (raw) => {
+  const handlers: Record<string, (a: unknown, operationId?: string) => ToolResult> = {
+    memory_remember: (raw, operationId) => {
       const a = raw as MemoryRememberArgs;
-      const r = store.remember({ projectDbPath: ctx.projectDbPath, agentId: ctx.agentId, content: a.content, tags: a.tags, global: a.global, supersedes: a.supersedes });
+      const r = store.remember({ projectDbPath: ctx.projectDbPath, agentId: ctx.agentId, content: a.content, tags: a.tags, global: a.global, supersedes: a.supersedes, operationId });
       return ok({ id: r.id, ts: r.ts, agentId: ctx.agentId, redactions: r.redactions });
     },
     memory_recall: (raw) => {
@@ -44,32 +44,32 @@ export function buildToolSet(store: IStore, ctx: SessionCtx): { specs: ToolSpec[
       return ok({ results: r.results, truncated: r.truncated, cursor: r.cursor });
     },
     memory_get: (raw) => ok({ records: store.get({ projectDbPath: ctx.projectDbPath, agentId: ctx.agentId, ids: (raw as MemoryGetArgs).ids }) }),
-    memory_forget: (raw) => {
+    memory_forget: (raw, operationId) => {
       const a = raw as MemoryForgetArgs;
-      const r = store.forget({ projectDbPath: ctx.projectDbPath, agentId: ctx.agentId, id: a.id, reason: a.reason });
+      const r = store.forget({ projectDbPath: ctx.projectDbPath, agentId: ctx.agentId, id: a.id, reason: a.reason, operationId });
       return r ? ok({ id: r.id, ts: r.ts, status: "redacted" }) : fail("NOT_FOUND", `no live memory with id ${a.id}`);
     },
-    lock_acquire: (raw) => {
+    lock_acquire: (raw, operationId) => {
       const a = raw as LockAcquireArgs;
-      const r = store.acquire({ projectDbPath: ctx.projectDbPath, agentId: lockOwner, glob: a.glob, ttlMs: a.ttlMs ?? LIMITS.RESERVE_TTL_MS_DEFAULT });
+      const r = store.acquire({ projectDbPath: ctx.projectDbPath, agentId: lockOwner, glob: a.glob, ttlMs: a.ttlMs ?? LIMITS.RESERVE_TTL_MS_DEFAULT, operationId });
       return r.ok
         ? ok({ ok: true, glob: r.lock.glob, agentId: r.lock.agentId, expiresAt: r.lock.expiresAt })
         : ok({ ok: false, heldBy: r.heldBy, expiresAt: r.expiresAt, suggestion: `Held by ${r.heldBy} until ${new Date(r.expiresAt).toISOString()}. Pick other work or retry after it expires.` });
     },
-    lock_release: (raw) => ok({ ok: true, released: store.release({ projectDbPath: ctx.projectDbPath, agentId: lockOwner, glob: (raw as LockReleaseArgs).glob }).released }),
+    lock_release: (raw, operationId) => ok({ ok: true, released: store.release({ projectDbPath: ctx.projectDbPath, agentId: lockOwner, glob: (raw as LockReleaseArgs).glob, operationId }).released }),
     lock_list: (raw) => ok({ locks: store.listLocks({ projectDbPath: ctx.projectDbPath, globFilter: (raw as LockListArgs).globFilter }) }),
   };
 
   return {
     specs: toolSpecs(),
-    call(name, rawArgs) {
+    call(name, rawArgs, operationId) {
       const tool = (TOOLS as Record<string, { input: { safeParse: (v: unknown) => { success: boolean; data?: unknown; error?: { issues: { message: string }[] } } } }>)[name];
       const handler = handlers[name];
       if (!tool || !handler) return fail("INVALID_INPUT", `unknown tool: ${name}`);
       const parsed = tool.input.safeParse(rawArgs ?? {});
       if (!parsed.success) return fail("INVALID_INPUT", (parsed.error?.issues ?? []).map((i) => i.message).join("; ") || "invalid arguments");
       try {
-        return handler(parsed.data);
+        return handler(parsed.data, operationId);
       } catch (error) {
         if (error instanceof SynapseInputError) return fail("INVALID_INPUT", error.message);
         if (error instanceof SynapsePayloadError) return fail("PAYLOAD_TOO_LARGE", error.message);

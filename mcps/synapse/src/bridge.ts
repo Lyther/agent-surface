@@ -19,7 +19,7 @@ import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { ensureSidecar } from "./bootstrap.js";
-import { CONTRACT_VERSION, SERVER_INSTRUCTIONS } from "./contract.js";
+import { CONTRACT_VERSION, OPERATION_META_KEY, SERVER_INSTRUCTIONS } from "./contract.js";
 import { canonicalRoot, projectKey } from "./namespace.js";
 
 // Deprecated compatibility: Cline and Cursor answer roots/list with raw absolute paths
@@ -132,6 +132,9 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
   // re-runs the election, which starts a new sidecar from the installed build, and reconnects.
   let reconnecting: Promise<void> | undefined;
   let upstreamUrl = opts.url;
+  // Subscriptions live in the upstream session, which a reconnect replaces, so the ones the host
+  // still holds are made again there; otherwise its change notifications stop without an error.
+  const subscriptions = new Set<string>();
   const isInvalidSession = (e: unknown): boolean =>
     e instanceof Error && (e as { code?: unknown }).code === 400 && e.message.includes("no valid session");
   const isUnreachable = (e: unknown): boolean => {
@@ -148,6 +151,7 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
           headers.Authorization = `Bearer ${d.token}`;
         }
         await connectUpstream();
+        for (const uri of subscriptions) await client.subscribeResource({ uri });
       })().finally(() => { reconnecting = undefined; });
     }
     return reconnecting;
@@ -164,11 +168,24 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
       }
     });
   server.setRequestHandler(ListToolsRequestSchema, () => whenUpstream(() => client.listTools()));
-  server.setRequestHandler(CallToolRequestSchema, (req) => whenUpstream(() => client.callTool(req.params)));
+  // One operation id per host request, sent again by the retry in whenUpstream: a write the sidecar
+  // committed before the connection failed is answered from its record instead of applied twice.
+  server.setRequestHandler(CallToolRequestSchema, (req) => {
+    const params = { ...req.params, _meta: { ...req.params._meta, [OPERATION_META_KEY]: randomUUID() } };
+    return whenUpstream(() => client.callTool(params));
+  });
   server.setRequestHandler(ListResourcesRequestSchema, () => whenUpstream(() => client.listResources()));
   server.setRequestHandler(ReadResourceRequestSchema, (req) => whenUpstream(() => client.readResource(req.params)));
-  server.setRequestHandler(SubscribeRequestSchema, (req) => whenUpstream(() => client.subscribeResource(req.params)));
-  server.setRequestHandler(UnsubscribeRequestSchema, (req) => whenUpstream(() => client.unsubscribeResource(req.params)));
+  server.setRequestHandler(SubscribeRequestSchema, (req) => whenUpstream(async () => {
+    const result = await client.subscribeResource(req.params);
+    subscriptions.add(req.params.uri);
+    return result;
+  }));
+  server.setRequestHandler(UnsubscribeRequestSchema, (req) => whenUpstream(async () => {
+    const result = await client.unsubscribeResource(req.params);
+    subscriptions.delete(req.params.uri);
+    return result;
+  }));
   await server.connect(downstream);
   let projectKeyValue: string;
   try {
@@ -185,7 +202,11 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${opts.token}`,
-    "x-synapse-project": projectKeyValue,
+    // A header value is a byte string, so a key with a character past U+00FF (a "项目" directory)
+    // made fetch refuse every request. The encoded header carries any key; the raw one still goes,
+    // when it can, to sidecars that read only it.
+    "x-synapse-project-encoded": encodeURIComponent(projectKeyValue),
+    ...([...projectKeyValue].every((char) => char.charCodeAt(0) <= 0xff) ? { "x-synapse-project": projectKeyValue } : {}),
     // always send identity: this bridge process is per host-client, so its pid is a
     // stable distinct fallback when SYNAPSE_AGENT_ID is unset (fixes shared-pid collisions).
     "x-synapse-agent": opts.agentId ?? `agent-${process.pid}`,

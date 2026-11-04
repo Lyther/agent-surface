@@ -12,9 +12,22 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertNodeFloor, binEntries, installAndBuild } from "../../scripts/agent-surface/mcp-build.mjs";
 import { pinnedNodePath, writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
+import { stopRunningSidecar } from "./stop-sidecar.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const manifest = JSON.parse(readFileSync(path.join(here, "package.json"), "utf8"));
+
+// bootout can return before launchd has removed the job: an install saw it still loaded while it
+// was gone about a second later. So look again for up to two seconds before calling it loaded.
+const UNLOAD_CHECKS = 10;
+const UNLOAD_CHECK_INTERVAL_MS = 200;
+function stillLoaded(job) {
+  for (let check = 0; check < UNLOAD_CHECKS; check += 1) {
+    if (spawnSync("launchctl", ["print", job], { stdio: "ignore" }).status !== 0) return false;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, UNLOAD_CHECK_INTERVAL_MS);
+  }
+  return true;
+}
 
 // Earlier installs deployed a KeepAlive launchd agent that raced the bridge's autostart for the port.
 // The plist goes only once the job is unloaded, so a failed bootout is retried by the next install.
@@ -23,36 +36,12 @@ function retireLaunchdAgent() {
   if (process.platform !== "darwin" || !existsSync(plist)) return;
   const job = `gui/${process.getuid()}/local.synapse`;
   spawnSync("launchctl", ["bootout", job], { stdio: "ignore" });
-  if (spawnSync("launchctl", ["print", job], { stdio: "ignore" }).status === 0) {
+  if (stillLoaded(job)) {
     console.warn(`WARNING: ${job} is still loaded; run \`launchctl bootout ${job}\`, then rerun this install`);
     return;
   }
   rmSync(plist, { force: true });
   console.log(`retired the local.synapse launchd agent (${plist}); the bridge autostarts the sidecar`);
-}
-
-// A running sidecar keeps serving the old build until it exits. Stop it, but only when the recorded
-// pid is alive and its address answers as synapse, so a recycled pid is never signalled; open bridges
-// then elect a sidecar from this build on their next call.
-async function stopRunningSidecar() {
-  const dbDir = process.env.SYNAPSE_DB_DIR ?? path.join(os.homedir(), ".synapse");
-  let discovery;
-  try { discovery = JSON.parse(readFileSync(path.join(dbDir, "sidecar.json"), "utf8")); } catch { return; }
-  const { pid, url } = discovery ?? {};
-  if (!Number.isInteger(pid) || pid <= 0 || typeof url !== "string") return;
-  try { process.kill(pid, 0); } catch { return; }
-  try {
-    const res = await fetch(`${url.replace(/\/mcp$/, "")}/health`, { signal: AbortSignal.timeout(1000) });
-    if (!res.ok || (await res.json())?.name !== "synapse") return;
-  } catch { return; }
-  try {
-    process.kill(pid, "SIGTERM");
-  } catch (error) {
-    // ESRCH: it exited after the health check, so there is nothing left to stop.
-    if (error.code !== "ESRCH") console.warn(`WARNING: could not stop the running sidecar (pid ${pid}, ${error.code}); stop it so bridges start one from this build`);
-    return;
-  }
-  console.log(`stopped the running sidecar (pid ${pid}); the next bridge call starts one from this build`);
 }
 
 assertNodeFloor("synapse");
