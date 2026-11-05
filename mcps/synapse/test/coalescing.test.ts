@@ -1,8 +1,8 @@
 // P4.2: dirty-bit coalescing. A burst of writes to one channel must collapse into a
 // bounded number of `resources/updated` notifications (leading edge + one trailing),
 // not one notification per write. The correctness floor (cursor pull) is unaffected;
-// this bounds host churn on high-frequency writers. Uses a real sidecar with a small
-// coalesce window and counts notifications delivered to a subscribed session.
+// this bounds host churn on high-frequency writers. Uses a real sidecar and counts the
+// notifications delivered to a subscribed session.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { ResourceUpdatedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -15,7 +15,11 @@ import { createSidecar, type SidecarHandle } from "../src/sidecar.js";
 
 const TOKEN = "coalesce-token-p42";
 const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-interface RememberOut { id: number; agentId: string; redactions: number }
+interface RememberOut { id: number; ts: number; agentId: string; redactions: number }
+// The coalescer re-arms its window on every commit, so a burst stays within one window only while no
+// gap between commits reaches the window. This one is wide enough that only a stalled run leaves such
+// a gap, and the test measures the gaps itself, so a stall fails the precondition, not the coalescing.
+const BURST_WINDOW_MS = 1000;
 function parse<T>(r: unknown): T {
   const content = (r as { content?: { type: string; text: string }[] }).content;
   if (!content || !content[0]) throw new Error("no content in tool result");
@@ -33,7 +37,7 @@ async function connect(url: string, agent: string, project: string): Promise<Cli
 
 test("P4.2: a burst of writes collapses into bounded notifications (coalescing)", async () => {
   const dir = mkdtempSync(join(tmpdir(), "synapse-coal-"));
-  const sc: SidecarHandle = await createSidecar({ token: TOKEN, port: 0, dbDir: dir, coalesceMs: 40 });
+  const sc: SidecarHandle = await createSidecar({ token: TOKEN, port: 0, dbDir: dir, coalesceMs: BURST_WINDOW_MS });
   try {
     const sub = await connect(sc.url, "subscriber", "/tmp/projCoalesce");
     const writer = await connect(sc.url, "writer", "/tmp/projCoalesce");
@@ -45,11 +49,14 @@ test("P4.2: a burst of writes collapses into bounded notifications (coalescing)"
 
     // BURST: 20 rapid writes to the same project channel. Without coalescing this would
     // produce ~20 notifications; with leading+trailing coalescing it produces at most 2.
+    const commits: number[] = [];
     for (let i = 0; i < 20; i++) {
-      parse<RememberOut>(await writer.callTool({ name: "memory_remember", arguments: { content: `burst fact #${i}` } }));
+      commits.push(parse<RememberOut>(await writer.callTool({ name: "memory_remember", arguments: { content: `burst fact #${i}` } })).ts);
     }
+    const widestGap = Math.max(...commits.slice(1).map((ts, i) => ts - commits[i]!));
+    assert.ok(widestGap < BURST_WINDOW_MS, `precondition: no gap between burst commits reached the window (widest ${widestGap} ms)`);
     // allow the trailing-edge window to flush
-    await delay(120);
+    await delay(BURST_WINDOW_MS + 200);
 
     assert.ok(got.length >= 1, "at least the leading-edge notification arrived");
     assert.ok(got.length <= 2, `burst collapsed to <=2 notifications (got ${got.length}), not one-per-write`);

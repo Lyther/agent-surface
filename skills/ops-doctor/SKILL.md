@@ -5,7 +5,7 @@ description: "Run a health check on the agent-surface repository and local gener
 
 ## Objective
 
-Diagnose whether `agent-surface` is internally consistent and whether the local generated surfaces match the current compiler model. This check is read-only: report drift; never fix issues, edit files, install surfaces, delete files, prune branches, or repair docs. Prefer repo scripts over ad hoc validators, and record failed probes separately from missing evidence.
+Diagnose whether `agent-surface` is internally consistent and whether the local generated surfaces match the current compiler model. Report drift; never fix issues, edit files, install surfaces, delete files, prune branches, or repair docs. The check is read-only except for the build and test effects of `--depth full` listed in §7. Prefer repo scripts over ad hoc validators, and record failed probes separately from missing evidence.
 
 ## Input
 
@@ -87,7 +87,13 @@ For each manifest, verify that the JSON parses, that `target` matches the manife
 
 ## 7. Full Verification
 
-For `--depth full`, run these sequentially, never in parallel, because `npm test` and `build` both rewrite `dist/`. That gitignored build output is the only thing this depth writes in the checkout; nothing tracked changes:
+For `--depth full`, run these sequentially, never in parallel, because `npm test` and `build` both rewrite `dist/`. Nothing tracked changes, but this depth writes:
+
+- the build output, in the gitignored `dist/`;
+- temporary git worktrees that the tests add under the system temp directory and register in this repository, then remove;
+- a `git worktree prune` after the tests, which also drops the record of any other worktree whose directory no longer exists.
+
+The commands:
 
 ```bash
 npm test

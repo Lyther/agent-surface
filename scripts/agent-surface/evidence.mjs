@@ -43,7 +43,8 @@ export async function runEvidence(args) {
   const dirty = porcelain.status === 0 ? porcelain.stdout !== "" : null;
   const started = Date.now();
   // spawnSync sends one signal at the timeout and then waits for the child to exit, so a child that
-  // ignored SIGTERM held the run forever and no evidence was written. SIGKILL cannot be ignored.
+  // ignored SIGTERM held the run forever and no evidence was written. SIGKILL cannot be ignored. It
+  // reaches only that child: a process the child started is not tracked and can outlive the run.
   const result = spawnSync(command, commandArgs, {
     cwd: process.cwd(),
     encoding: "utf8",

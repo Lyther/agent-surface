@@ -4,7 +4,9 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { canonicalJson, sha256 } from "../../scripts/agent-surface/util.mjs";
-import { root, status } from "../lib/helpers.mjs";
+import { ownTempRoot, root, status } from "../lib/helpers.mjs";
+
+const ownTmp = ownTempRoot("workflow");
 
 
 /*
@@ -16,7 +18,7 @@ SUBSTITUTE_JUSTIFICATION
 - proof-limit: these fixtures prove validator discrimination only; they do not prove host process supervision, runtime scheduling, or end-to-end workflow completion
 - real-proof: BLOCKED: requires a bounded live workflow launched through each supported host with independently observed process and artifact state
 */
-const workflowDest = "/tmp/agent-surface-workflow";
+const workflowDest = ownTmp("workflow");
 rmSync(workflowDest, { recursive: true, force: true });
 const workflowRunDir = path.join(workflowDest, ".agent-surface", "workflows", "run-fixture-001");
 mkdirSync(workflowRunDir, { recursive: true });
@@ -159,7 +161,7 @@ assert.match(
 rmSync(forgedBossDir, { recursive: true, force: true });
 writeFileSync(path.join(workflowRunDir, "run.json"), `${JSON.stringify(transitionedRun, null, 2)}\n`);
 
-const bossTransitionDest = "/tmp/agent-surface-workflow-boss-transition";
+const bossTransitionDest = ownTmp("workflow-boss-transition");
 rmSync(bossTransitionDest, { recursive: true, force: true });
 const bossTransitionRunDir = path.join(bossTransitionDest, ".agent-surface", "workflows", "run-fixture-001");
 const bossTransitionRoundOneDir = path.join(bossTransitionRunDir, "rounds", "round-001");
@@ -220,7 +222,7 @@ assert.equal(nextBossDoctor.status, 0, `${nextBossDoctor.stdout}${nextBossDoctor
 rmSync(bossTransitionDest, { recursive: true, force: true });
 
 // Partial boss run_state must not wipe omitted buckets (Object.hasOwn merge).
-const partialBossDest = "/tmp/agent-surface-workflow-partial-boss-run-state";
+const partialBossDest = ownTmp("workflow-partial-boss-run-state");
 rmSync(partialBossDest, { recursive: true, force: true });
 const partialBossRunDir = path.join(partialBossDest, ".agent-surface", "workflows", "run-fixture-001");
 const partialBossRoundOneDir = path.join(partialBossRunDir, "rounds", "round-001");
@@ -274,7 +276,7 @@ assert.deepEqual(partialBossRun.deferred_task_ids, []);
 assert.deepEqual(partialBossRun.closed_task_ids, []);
 rmSync(partialBossDest, { recursive: true, force: true });
 
-const foreignRunDest = "/tmp/agent-surface-workflow-foreign-run";
+const foreignRunDest = ownTmp("workflow-foreign-run");
 rmSync(foreignRunDest, { recursive: true, force: true });
 const foreignRunDir = path.join(foreignRunDest, ".agent-surface", "workflows", "run-fixture-001");
 mkdirSync(foreignRunDir, { recursive: true });
@@ -383,7 +385,7 @@ assert.match(`${futureOutputDoctor.stdout}${futureOutputDoctor.stderr}`, /materi
 assert.match(`${futureOutputDoctor.stdout}${futureOutputDoctor.stderr}`, /without materialized output/);
 rmSync(futureOutputPath, { force: true });
 
-const symlinkEscapeRoot = mkdtempSync("/tmp/agent-surface-monitor-escape-");
+const symlinkEscapeRoot = mkdtempSync(ownTmp("monitor-escape-"));
 writeFileSync(path.join(symlinkEscapeRoot, "external.json"), '{"event":"outside"}\n');
 symlinkSync(symlinkEscapeRoot, path.join(workflowRunDir, "escaped-monitor"));
 const symlinkEscapeMonitor = structuredClone(workflowMonitor);
@@ -493,7 +495,7 @@ assert.notEqual(invalidBlockedDoctor.status, 0);
 assert.match(`${invalidBlockedDoctor.stdout}${invalidBlockedDoctor.stderr}`, /worker\.json/);
 rmSync(workflowDest, { recursive: true, force: true });
 
-const patchDest = "/tmp/agent-surface-patch";
+const patchDest = ownTmp("patch");
 rmSync(patchDest, { recursive: true, force: true });
 mkdirSync(path.join(patchDest, "src"), { recursive: true });
 execFileSync("git", ["init"], { cwd: patchDest, encoding: "utf8" });
@@ -567,7 +569,7 @@ assert.match(`${badPatchDoctor.stdout}${badPatchDoctor.stderr}`, /applies_cleanl
 rmSync(patchDest, { recursive: true, force: true });
 
 // git quotes non-ASCII paths in line output, and hashing a symlink stores its target's bytes.
-const pathsDest = "/tmp/agent-surface-patch-paths";
+const pathsDest = ownTmp("patch-paths");
 rmSync(pathsDest, { recursive: true, force: true });
 mkdirSync(path.join(pathsDest, "src"), { recursive: true });
 execFileSync("git", ["init"], { cwd: pathsDest, encoding: "utf8" });
@@ -613,7 +615,7 @@ const fileScope = (subcommand, ...rest) => status(
 );
 const fileScopeBegin = fileScope("begin", "--file", accentedFile);
 assert.equal(fileScopeBegin.status, 0, `${fileScopeBegin.stdout}${fileScopeBegin.stderr}`);
-const linkedDirTarget = mkdtempSync("/tmp/agent-surface-patch-outside-");
+const linkedDirTarget = mkdtempSync(ownTmp("patch-outside-"));
 writeFileSync(path.join(linkedDirTarget, "café-ü.txt"), "OUTSIDE_SENTINEL\n");
 rmSync(path.join(pathsDest, "src"), { recursive: true, force: true });
 symlinkSync(linkedDirTarget, path.join(pathsDest, "src"));
@@ -629,7 +631,7 @@ rmSync(linkedDirTarget, { recursive: true, force: true });
 rmSync(pathsDest, { recursive: true, force: true });
 
 // Boss and close write the ledger only through the CLI: init, a boss apply, then close.
-const lifecycleDest = "/tmp/agent-surface-workflow-lifecycle";
+const lifecycleDest = ownTmp("workflow-lifecycle");
 rmSync(lifecycleDest, { recursive: true, force: true });
 mkdirSync(lifecycleDest, { recursive: true });
 const lifecycleGit = (...args) => execFileSync("git", [
@@ -660,7 +662,7 @@ mkdirSync(path.join(lifecycleRunDir, "rounds", "round-000"), { recursive: true }
 writeFileSync(path.join(lifecycleRunDir, "rounds", "round-000", "boss.json"), lifecycleBossText);
 writeFileSync(path.join(lifecycleRunDir, "boss.json"), lifecycleBossText);
 // An artifact must live in the run directory itself, not behind a link to a file the run does not own.
-const externalBossDir = mkdtempSync("/tmp/agent-surface-external-boss-");
+const externalBossDir = mkdtempSync(ownTmp("external-boss-"));
 writeFileSync(path.join(externalBossDir, "boss.json"), lifecycleBossText);
 symlinkSync(path.join(externalBossDir, "boss.json"), path.join(lifecycleRunDir, "rounds", "round-000", "linked-boss.json"));
 const linkedApply = lifecycle(

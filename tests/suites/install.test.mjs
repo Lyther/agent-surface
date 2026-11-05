@@ -16,10 +16,13 @@ import {
   hasLocalOpsServerSkill,
   installClineExtension,
   MAX_CAPTURE_BYTES,
+  ownTempRoot,
   root,
   run, status,
   useDisposableHome,
 } from "../lib/helpers.mjs";
+
+const ownTmp = ownTempRoot("install");
 
 // Removing a managed server deletes only that entry and its comma; the user's comments around it stay.
 {
@@ -63,7 +66,7 @@ import {
 const disposableHome = useDisposableHome();
 
 function dryRun(target, extra = []) {
-  return run(["install", "--target", target, "--dest", `/tmp/agent-surface-${target}`, ...extra, "--dry-run"]);
+  return run(["install", "--target", target, "--dest", ownTmp(target), ...extra, "--dry-run"]);
 }
 
 function planHas(plan, patterns, label) {
@@ -135,7 +138,7 @@ planHas(clinePlan, [
 ], "cline");
 planLacks(clinePlan, [/cline_mcp_settings\.json MCP/], "cline");
 
-const clineUserMcpDest = "/tmp/agent-surface-cline-user-mcp";
+const clineUserMcpDest = ownTmp("cline-user-mcp");
 rmSync(clineUserMcpDest, { recursive: true, force: true });
 installClineExtension(clineUserMcpDest, ["Code"]);
 const clineUserMcpPlan = run([
@@ -174,7 +177,7 @@ planLacks(kimiCodePlan, [/\.kimi-code\/config\.toml/], "kimi-code project");
 planHas(dryRun("kimi-code", ["--scope", "user"]), [/config\.toml default_permission_mode := "auto"/], "kimi-code user");
 {
   // An earlier project install left a .kimi-code/config.toml; a new one neither rewrites nor removes it.
-  const dest = mkdtempSync("/tmp/agent-surface-kimi-project-config-");
+  const dest = mkdtempSync(ownTmp("kimi-project-config-"));
   try {
     const legacy = path.join(dest, ".kimi-code", "config.toml");
     mkdirSync(path.dirname(legacy), { recursive: true });
@@ -295,7 +298,7 @@ if (hasLocalOpsServerSkill) {
 }
 
 const mixedCategory = status([
-  "install", "--target", "codex", "--dest", "/tmp/agent-surface-mixed-category",
+  "install", "--target", "codex", "--dest", ownTmp("mixed-category"),
   "--category", "external,cybersecurity", "--dry-run",
 ]);
 assert.notEqual(mixedCategory.status, 0);
@@ -307,7 +310,7 @@ assert.match(mixedCategory.stderr, /asset categories cannot be mixed with output
 // development"), and a misspelled sibling was accepted rather than reported. Each case below
 // therefore asserts a NON-ZERO exit — a silently broadened install is the failure mode.
 const rejects = (flag, value, sibling) => {
-  const result = status(["install", "--target", flag === "--target" ? value : "codex", "--dest", "/tmp/agent-surface-all-combo", ...(flag === "--category" ? ["--category", value] : []), "--dry-run"]);
+  const result = status(["install", "--target", flag === "--target" ? value : "codex", "--dest", ownTmp("all-combo"), ...(flag === "--category" ? ["--category", value] : []), "--dry-run"]);
   assert.notEqual(result.status, 0, `${flag} ${value} is rejected rather than silently broadened: ${result.stdout}`);
   assert.match(result.stderr, new RegExp(`${flag} all cannot be combined with ${sibling}`), `${flag} ${value} names the conflicting sibling: ${result.stderr}`);
 };
@@ -322,15 +325,15 @@ rejects("--target", "all,codx", "codx");
 for (const [flag, value, extra = []] of [
   ["--category", ""], ["--category", ","], ["--categories", " , "], ["--target", ""], ["--runtime", ","], ["--service", "", ["--category", "mcps"]],
 ]) {
-  const result = status(["install", ...(flag === "--target" ? [] : ["--target", "codex"]), "--dest", "/tmp/agent-surface-empty-selector", flag, value, ...extra, "--dry-run"]);
+  const result = status(["install", ...(flag === "--target" ? [] : ["--target", "codex"]), "--dest", ownTmp("empty-selector"), flag, value, ...extra, "--dry-run"]);
   assert.equal(result.status, 1, `${flag} ${JSON.stringify(value)} is rejected: ${result.stdout}`);
   assert.ok(result.stderr.includes(`ERROR: ${flag} ${JSON.stringify(value)} names no value; pass one or more comma-separated values`), result.stderr);
   assert.doesNotMatch(result.stdout, /^target: /m, "nothing is planned");
 }
 // Standalone `all` keeps its documented meaning on both selectors: the general full sync.
-const standaloneCategory = status(["install", "--target", "codex", "--dest", "/tmp/agent-surface-all-standalone", "--category", "all", "--dry-run"]);
+const standaloneCategory = status(["install", "--target", "codex", "--dest", ownTmp("all-standalone"), "--category", "all", "--dry-run"]);
 assert.equal(standaloneCategory.status, 0, `--category all alone still performs the general sync: ${standaloneCategory.stderr}`);
-const noCategory = status(["install", "--target", "codex", "--dest", "/tmp/agent-surface-all-standalone", "--dry-run"]);
+const noCategory = status(["install", "--target", "codex", "--dest", ownTmp("all-standalone"), "--dry-run"]);
 assert.equal(standaloneCategory.stdout, noCategory.stdout, "--category all alone plans exactly what omitting --category plans");
 
 const kiroDevelopmentPlan = dryRun("kiro", ["--category", "development"]);
@@ -344,7 +347,7 @@ planHas(kiroPlan, [
   /\.kiro\/settings\/mcp\.json MCP \+= grimoire, synapse/,
 ], "kiro");
 
-const geminiPlan = status(["install", "--target", "gemini-cli", "--dest", "/tmp/agent-surface-gemini", "--dry-run"]);
+const geminiPlan = status(["install", "--target", "gemini-cli", "--dest", ownTmp("gemini"), "--dry-run"]);
 assert.notEqual(geminiPlan.status, 0);
 assert.match(`${geminiPlan.stdout}${geminiPlan.stderr}`, /unsupported install target: gemini-cli/);
 
@@ -390,7 +393,7 @@ try {
 // --category mcps across all targets must succeed; non-MCP hosts report non-applicable.
 {
   const mcpsAllPlan = run(["install", "--target", "all", "--scope", "user", "--allow-scope-root", "--category", "mcps", "--dry-run"], {
-    env: { ...process.env, HOME: "/tmp/agent-surface-mcps-all-home" },
+    env: { ...process.env, HOME: ownTmp("mcps-all-home") },
   });
   assert.match(mcpsAllPlan, /MCP \+= grimoire, synapse/);
 }
@@ -398,14 +401,14 @@ try {
 const dshStatus = status(["install", "--target", "dsh", "--scope", "user", "--allow-scope-root", "--category", "mcps", "--dry-run"]);
 assert.notEqual(dshStatus.status, 0);
 const piMcpPlan = run(["install", "--target", "pi", "--scope", "user", "--allow-scope-root", "--category", "mcps", "--dry-run"], {
-  env: { ...process.env, HOME: "/tmp/agent-surface-mcps-all-home" },
+  env: { ...process.env, HOME: ownTmp("mcps-all-home") },
 });
 assert.match(piMcpPlan, /\.pi\/agent\/mcp\.json MCP \+= grimoire, synapse/);
 
 // Codex keeps manual workflows non-implicit in the shared Agent Skills root.
 // Other targets may own the same compatibility file, but Codex must not create
 // a second discoverable copy under its private skill root.
-const sharedRootHome = "/tmp/agent-surface-shared-root-home";
+const sharedRootHome = ownTmp("shared-root-home");
 rmSync(sharedRootHome, { recursive: true, force: true });
 const sharedManualRel = path.join(".agents", "skills", "ops-nuke", "SKILL.md");
 const sharedManualPath = path.join(sharedRootHome, sharedManualRel);
@@ -440,7 +443,7 @@ rmSync(sharedRootHome, { recursive: true, force: true });
 // - proof-limit: does not prove a particular host discovers the installed skill
 // - real-proof: BLOCKED until an optional pack publishes a revision that removes a skill; rerun against that revision pair
 // Strict-sync: prune managed skills that are no longer generated.
-const syncDest = "/tmp/agent-surface-strict-sync";
+const syncDest = ownTmp("strict-sync");
 rmSync(syncDest, { recursive: true, force: true });
 const ghostRel = path.join(".factory", "skills", "ghost-descoped-skill", "SKILL.md");
 const ghostPath = path.join(syncDest, ghostRel);
@@ -586,7 +589,7 @@ SUBSTITUTE_JUSTIFICATION
 // - real-option: the production all-target installer and filesystem are used; only the old profile state is seeded
 // - proof-limit: proves owned file/config cleanup, not VSCodium runtime behavior
 // - real-proof: a full user-scope distribution on a machine carrying the prior manifest
-const retiredVscodiumDest = "/tmp/agent-surface-retired-vscodium";
+const retiredVscodiumDest = ownTmp("retired-vscodium");
 rmSync(retiredVscodiumDest, { recursive: true, force: true });
 run(["install", "--target", "vscode", "--scope", "user", "--dest", retiredVscodiumDest]);
 run(["install", "--target", "kilo", "--scope", "user", "--dest", retiredVscodiumDest]);
@@ -675,7 +678,7 @@ for (const route of [retiredGeminiMcpRel, retiredGrokMcpRel]) {
 }
 rmSync(retiredVscodiumDest, { recursive: true, force: true });
 
-const liveDest = "/tmp/agent-surface-live";
+const liveDest = ownTmp("live");
 rmSync(liveDest, { recursive: true, force: true });
 const liveInstall = run(["install", "--target", "cline", "--dest", liveDest]);
 assert.match(liveInstall, /^installed:$/m);
@@ -698,7 +701,7 @@ assert.match(readFileSync(path.join(liveDest, ".cline", "agents", "boss.yaml"), 
 assert.equal(existsSync(path.join(liveDest, ".cline", "skills", "karpathy-guidelines", "SKILL.md")), false);
 rmSync(liveDest, { recursive: true, force: true });
 
-const kimiCodeDest = "/tmp/agent-surface-kimi-code-live";
+const kimiCodeDest = ownTmp("kimi-code-live");
 rmSync(kimiCodeDest, { recursive: true, force: true });
 const kimiCodeVsCodeSettings = path.join(
   kimiCodeDest,
@@ -756,7 +759,7 @@ rmSync(kimiCodeDest, { recursive: true, force: true });
 
 // An existing file no manifest in the install root claims is an operator's file: the install
 // refuses before writing anything instead of overwriting it (contract Migration step 2).
-const unmanagedDest = "/tmp/agent-surface-unmanaged";
+const unmanagedDest = ownTmp("unmanaged");
 rmSync(unmanagedDest, { recursive: true, force: true });
 mkdirSync(path.join(unmanagedDest, ".clinerules", "workflows"), { recursive: true });
 writeFileSync(path.join(unmanagedDest, ".clinerules", "workflows", "ops-nuke.md"), "local workflow\n");
@@ -767,7 +770,7 @@ assert.equal(readFileSync(path.join(unmanagedDest, ".clinerules", "workflows", "
 assert.equal(existsSync(path.join(unmanagedDest, ".agent-surface", "cline-manifest.json")), false);
 rmSync(unmanagedDest, { recursive: true, force: true });
 
-const liveStaleDest = "/tmp/agent-surface-live-stale";
+const liveStaleDest = ownTmp("live-stale");
 rmSync(liveStaleDest, { recursive: true, force: true });
 run(["install", "--target", "cline", "--dest", liveStaleDest]);
 const liveStaleFile = path.join(liveStaleDest, ".clinerules", "workflows", "removed.md");
@@ -789,7 +792,7 @@ assert.equal(existsSync(liveStaleFile), false);
 assert.equal(existsSync(path.join(liveStaleDest, ".agent-surface", "backups")), false);
 rmSync(liveStaleDest, { recursive: true, force: true });
 
-const missingStaleDest = "/tmp/agent-surface-missing-stale";
+const missingStaleDest = ownTmp("missing-stale");
 rmSync(missingStaleDest, { recursive: true, force: true });
 run(["install", "--target", "cline", "--dest", missingStaleDest]);
 const missingStaleManifestPath = path.join(missingStaleDest, ".agent-surface", "cline-manifest.json");
@@ -807,7 +810,7 @@ assert.match(missingStaleInstall, /^installed:$/m);
 assert.match(missingStaleInstall, /removed stale: 0/);
 rmSync(missingStaleDest, { recursive: true, force: true });
 
-const scopeRootDest = "/tmp/agent-surface-scope-root";
+const scopeRootDest = ownTmp("scope-root");
 rmSync(scopeRootDest, { recursive: true, force: true });
 mkdirSync(scopeRootDest, { recursive: true });
 const scopeRootInstall = run(["install", "--target", "cline", "--scope", "project", "--allow-scope-root"], { cwd: scopeRootDest });
@@ -824,7 +827,7 @@ const invalidScope = status(["install", "--target", "cline", "--scope", "workspa
 assert.notEqual(invalidScope.status, 0);
 assert.match(invalidScope.stderr, /unsupported install scope/);
 
-const userScopeHome = "/tmp/agent-surface-user-scope-home";
+const userScopeHome = ownTmp("user-scope-home");
 rmSync(userScopeHome, { recursive: true, force: true });
 mkdirSync(userScopeHome, { recursive: true });
 installClineExtension(userScopeHome);
@@ -908,7 +911,7 @@ assert.doesNotMatch(openhandsUserScope.stdout, /workflow-boss|references\/rules\
 assert.match(openhandsUserScope.stdout, /\.openhands\/mcp\.json MCP \+= grimoire, synapse/);
 rmSync(userScopeHome, { recursive: true, force: true });
 
-const kiloIgnoreDest = "/tmp/agent-surface-kilo-ignore-proj";
+const kiloIgnoreDest = ownTmp("kilo-ignore-proj");
 rmSync(kiloIgnoreDest, { recursive: true, force: true });
 mkdirSync(kiloIgnoreDest, { recursive: true });
 const kiloProjectScope = status(["install", "--target", "kilo", "--dest", kiloIgnoreDest, "--scope", "project", "--dry-run"]);
@@ -916,7 +919,7 @@ assert.equal(kiloProjectScope.status, 0, `${kiloProjectScope.stdout}${kiloProjec
 assert.match(kiloProjectScope.stdout, /\.kilocodeignore <- ignores\/default\.ignore/);
 rmSync(kiloIgnoreDest, { recursive: true, force: true });
 
-const invalidKiloDest = "/tmp/agent-surface-kilo-invalid";
+const invalidKiloDest = ownTmp("kilo-invalid");
 rmSync(invalidKiloDest, { recursive: true, force: true });
 mkdirSync(invalidKiloDest, { recursive: true });
 writeFileSync(path.join(invalidKiloDest, "kilo.jsonc"), "{\"instructions\":\"bad\"}\n");
@@ -928,7 +931,7 @@ assert.equal(existsSync(path.join(invalidKiloDest, "AGENTS.md")), false);
 assert.equal(existsSync(path.join(invalidKiloDest, ".agent-surface", "kilo-manifest.json")), false);
 rmSync(invalidKiloDest, { recursive: true, force: true });
 
-const existingKiloDest = "/tmp/agent-surface-kilo-existing";
+const existingKiloDest = ownTmp("kilo-existing");
 rmSync(existingKiloDest, { recursive: true, force: true });
 mkdirSync(existingKiloDest, { recursive: true });
 writeFileSync(
@@ -973,7 +976,7 @@ assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/14-shell\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/14-lang-shell\.md"/);
 rmSync(existingKiloDest, { recursive: true, force: true });
 
-const inlineKiloDest = "/tmp/agent-surface-kilo-inline";
+const inlineKiloDest = ownTmp("kilo-inline");
 rmSync(inlineKiloDest, { recursive: true, force: true });
 mkdirSync(inlineKiloDest, { recursive: true });
 // A project-scope `./rules/<name>.md` entry names the project's own file, so it stays.
@@ -995,7 +998,7 @@ rmSync(inlineKiloDest, { recursive: true, force: true });
 // Kilo resolves a relative user-config instruction against the project directory, so the
 // `./rules/<rule>.md` entries earlier user installs wrote never loaded ~/.config/kilo/rules
 // (Kilo CLI 7.8.8). A user install swaps them for home paths and keeps the operator's own entries, a home-path one included.
-const kiloUserMigrationRoot = "/tmp/agent-surface-kilo-user-migration";
+const kiloUserMigrationRoot = ownTmp("kilo-user-migration");
 rmSync(kiloUserMigrationRoot, { recursive: true, force: true });
 mkdirSync(path.join(kiloUserMigrationRoot, ".config", "kilo"), { recursive: true });
 writeFileSync(path.join(kiloUserMigrationRoot, ".config", "kilo", "kilo.jsonc"), `${JSON.stringify({
@@ -1029,7 +1032,7 @@ rmSync(kiloUserMigrationRoot, { recursive: true, force: true });
 // command directly (no shell), so a literal "~" is never expanded → ENOENT on launch.
 // dist/build keeps "~" (portable, reproducible); install resolves it against $HOME.
 const mcpAbsBin = (name) => path.join(os.homedir(), ".local", "bin", name);
-const mcpAbsDest = "/tmp/agent-surface-mcp-abs";
+const mcpAbsDest = ownTmp("mcp-abs");
 rmSync(mcpAbsDest, { recursive: true, force: true });
 run(["install", "--target", "droid", "--scope", "user", "--category", "mcps", "--dest", mcpAbsDest]);
 const droidMcpAbs = JSON.parse(readFileSync(path.join(mcpAbsDest, ".factory", "mcp.json"), "utf8"));
@@ -1038,7 +1041,7 @@ assert.equal(droidMcpAbs.mcpServers.synapse.command, mcpAbsBin("synapse-bridge")
 assert.doesNotMatch(droidMcpAbs.mcpServers.grimoire.command, /^~/, "install MCP command must not contain a literal ~");
 rmSync(mcpAbsDest, { recursive: true, force: true });
 
-const existingCursorMcpDest = "/tmp/agent-surface-cursor-existing-mcp";
+const existingCursorMcpDest = ownTmp("cursor-existing-mcp");
 rmSync(existingCursorMcpDest, { recursive: true, force: true });
 mkdirSync(path.join(existingCursorMcpDest, ".cursor"), { recursive: true });
 writeFileSync(
@@ -1052,7 +1055,7 @@ assert.equal(mergedCursorMcp.mcpServers.synapse.command, path.join(os.homedir(),
 assert.equal(Object.hasOwn(mergedCursorMcp.mcpServers, "agentmemory"), false);
 rmSync(existingCursorMcpDest, { recursive: true, force: true });
 
-const ownedCursorMcpDest = "/tmp/agent-surface-cursor-owned-mcp";
+const ownedCursorMcpDest = ownTmp("cursor-owned-mcp");
 rmSync(ownedCursorMcpDest, { recursive: true, force: true });
 mkdirSync(path.join(ownedCursorMcpDest, ".cursor"), { recursive: true });
 mkdirSync(path.join(ownedCursorMcpDest, ".agent-surface"), { recursive: true });
@@ -1100,7 +1103,7 @@ SUBSTITUTE_JUSTIFICATION
 - real-proof: `agy plugin validate`, `agy plugin install`, and `agy plugin list` against the real staged plugin
 */
 {
-  const dest = mkdtempSync("/tmp/agent-surface-antigravity-route-handoff-");
+  const dest = mkdtempSync(ownTmp("antigravity-route-handoff-"));
   const oldRoute = path.join("config", "plugins", "agent-surface", "mcp_config.json");
   const currentRoute = path.join("antigravity-cli", "plugins", "agent-surface", "mcp_config.json");
   const oldConfigPath = path.join(dest, oldRoute);
@@ -1165,7 +1168,7 @@ SUBSTITUTE_JUSTIFICATION
 - real-proof: BLOCKED: requires an actual pre-migration profile; unblock by snapshotting one and authorizing migration of the isolated copy
 */
 for (const scope of ["user", "project"]) {
-  const obsoleteClineMcpDest = `/tmp/agent-surface-cline-obsolete-mcp-route-${scope}`;
+  const obsoleteClineMcpDest = ownTmp(`cline-obsolete-mcp-route-${scope}`);
   rmSync(obsoleteClineMcpDest, { recursive: true, force: true });
   mkdirSync(path.join(obsoleteClineMcpDest, ".cline"), { recursive: true });
   mkdirSync(path.join(obsoleteClineMcpDest, ".agent-surface"), { recursive: true });
@@ -1279,7 +1282,7 @@ for (const scope of ["user", "project"]) {
   }
 }
 
-const existingOpenHandsMcpDest = "/tmp/agent-surface-openhands-existing-mcp";
+const existingOpenHandsMcpDest = ownTmp("openhands-existing-mcp");
 rmSync(existingOpenHandsMcpDest, { recursive: true, force: true });
 mkdirSync(path.join(existingOpenHandsMcpDest, ".openhands"), { recursive: true });
 writeFileSync(
@@ -1298,8 +1301,8 @@ rmSync(existingOpenHandsMcpDest, { recursive: true, force: true });
 {
   // Deep Agents Code starts trusted project servers in the session directory and user-level ones in
   // its server's work directory, so only the project config opts Synapse out of roots routing.
-  const projectDest = mkdtempSync("/tmp/agent-surface-deepagents-project-mcp-");
-  const userDest = mkdtempSync("/tmp/agent-surface-deepagents-user-mcp-");
+  const projectDest = mkdtempSync(ownTmp("deepagents-project-mcp-"));
+  const userDest = mkdtempSync(ownTmp("deepagents-user-mcp-"));
   try {
     run(["install", "--target", "deepagents", "--scope", "project", "--dest", projectDest]);
     run(["install", "--target", "deepagents", "--scope", "user", "--dest", userDest]);
@@ -1321,7 +1324,7 @@ rmSync(existingOpenHandsMcpDest, { recursive: true, force: true });
   }
 }
 
-const existingCodexMcpDest = "/tmp/agent-surface-codex-existing-mcp";
+const existingCodexMcpDest = ownTmp("codex-existing-mcp");
 rmSync(existingCodexMcpDest, { recursive: true, force: true });
 
 mkdirSync(path.join(existingCodexMcpDest, ".codex"), { recursive: true });
@@ -1404,7 +1407,7 @@ const mergeFixtures = [
   },
 ];
 for (const fx of mergeFixtures) {
-  const dest = mkdtempSync(`/tmp/agent-surface-${fx.target}-merge-`);
+  const dest = mkdtempSync(ownTmp(`${fx.target}-merge-`));
   try {
     mkdirSync(path.join(dest, path.dirname(fx.rel)), { recursive: true });
     writeFileSync(path.join(dest, fx.rel), `${JSON.stringify(fx.pre, null, 2)}\n`);
@@ -1463,7 +1466,7 @@ for (const fx of [
     },
   },
 ]) {
-  const dest = mkdtempSync(`/tmp/agent-surface-${fx.target}-policy-`);
+  const dest = mkdtempSync(ownTmp(`${fx.target}-policy-`));
   try {
     mkdirSync(path.join(dest, path.dirname(fx.rel)), { recursive: true });
     writeFileSync(path.join(dest, fx.rel), `${JSON.stringify(fx.seed, null, 2)}\n`);
@@ -1475,7 +1478,7 @@ for (const fx of [
 }
 
 {
-  const dest = mkdtempSync("/tmp/agent-surface-opencode-policy-");
+  const dest = mkdtempSync(ownTmp("opencode-policy-"));
   try {
     const configPath = path.join(dest, ".opencode", "opencode.json");
     mkdirSync(path.dirname(configPath), { recursive: true });
@@ -1495,7 +1498,7 @@ for (const fx of [
 }
 
 {
-  const dest = mkdtempSync("/tmp/agent-surface-kiro-policy-");
+  const dest = mkdtempSync(ownTmp("kiro-policy-"));
   try {
     mkdirSync(path.join(dest, ".kiro", "settings"), { recursive: true });
     const permissionsPath = path.join(dest, ".kiro", "settings", "permissions.yaml");
@@ -1519,7 +1522,7 @@ for (const fx of [
 }
 
 {
-  const dest = mkdtempSync("/tmp/agent-surface-grok-policy-");
+  const dest = mkdtempSync(ownTmp("grok-policy-"));
   try {
     mkdirSync(path.join(dest, ".grok"), { recursive: true });
     writeFileSync(path.join(dest, ".grok", "config.toml"), '[ui]\ntheme = "keep"\npermission_mode = "ask"\n\n[profile.default]\nmodel = "keep"\n');
@@ -1536,7 +1539,7 @@ for (const fx of [
 }
 
 {
-  const dest = mkdtempSync("/tmp/agent-surface-trae-project-agents-");
+  const dest = mkdtempSync(ownTmp("trae-project-agents-"));
   try {
     run(["install", "--target", "trae", "--scope", "project", "--dest", dest]);
     assert.equal(existsSync(path.join(dest, ".trae", "agents", "boss.md")), false);
@@ -1553,7 +1556,7 @@ for (const fx of [
 }
 
 {
-  const dest = mkdtempSync("/tmp/agent-surface-trae-user-config-");
+  const dest = mkdtempSync(ownTmp("trae-user-config-"));
   try {
     mkdirSync(path.join(dest, ".trae"), { recursive: true });
     const configPath = path.join(dest, ".trae", "traecli.toml");
@@ -1589,7 +1592,7 @@ SUBSTITUTE_JUSTIFICATION
 - real-proof: credentialed Claude Code and Copilot project runs are separate acceptance scenarios
 */
 {
-  const dest = mkdtempSync("/tmp/agent-surface-claude-copilot-project-");
+  const dest = mkdtempSync(ownTmp("claude-copilot-project-"));
   try {
     run(["install", "--target", "claude-code,copilot", "--scope", "project", "--dest", dest]);
     const mcp = JSON.parse(readFileSync(path.join(dest, ".mcp.json"), "utf8"));
@@ -1608,7 +1611,7 @@ for (const fx of [
   { target: "goose", scope: "user", rel: ".config/goose/config.yaml", seed: "extensions:\n  synapse: [\n", error: /invalid YAML/ },
   { target: "kiro", scope: "user", rel: ".kiro/settings/permissions.yaml", seed: "rules: {}\n", error: /rules must be a sequence/ },
 ]) {
-  const dest = mkdtempSync("/tmp/agent-surface-invalid-config-");
+  const dest = mkdtempSync(ownTmp("invalid-config-"));
   try {
     const file = path.join(dest, fx.rel);
     mkdirSync(path.dirname(file), { recursive: true });
@@ -1627,7 +1630,7 @@ for (const fx of [
 // Inserting into a compact JSONC root preserves comments rather than normalizing
 // the whole object through JSON.stringify.
 {
-  const dest = mkdtempSync("/tmp/agent-surface-qoder-compact-comment-");
+  const dest = mkdtempSync(ownTmp("qoder-compact-comment-"));
   try {
     const configPath = path.join(dest, ".qoder", "settings.json");
     mkdirSync(path.dirname(configPath), { recursive: true });
@@ -1647,7 +1650,7 @@ for (const fx of [
 // YAML MCP merge (Goose extensions) is non-destructive + idempotent: preserves the user's
 // provider/model, sibling extensions, and comments; adds grimoire+synapse; re-merge is a no-op.
 {
-  const dest = mkdtempSync("/tmp/agent-surface-goose-yaml-");
+  const dest = mkdtempSync(ownTmp("goose-yaml-"));
   try {
     mkdirSync(path.join(dest, ".config", "goose"), { recursive: true });
     const seed = "# my goose config\nGOOSE_PROVIDER: openrouter\nother:\n  keep: true\nextensions:\n  developer:\n    name: developer\n    type: builtin\n    enabled: true\n";
@@ -1725,7 +1728,7 @@ SUBSTITUTE_JUSTIFICATION
     },
   ];
   for (const fx of fixtures) {
-    const dest = mkdtempSync(`/tmp/agent-surface-${fx.target}-owned-keys-`);
+    const dest = mkdtempSync(ownTmp(`${fx.target}-owned-keys-`));
     try {
       mkdirSync(path.dirname(path.join(dest, fx.rel)), { recursive: true });
       mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
@@ -1749,7 +1752,7 @@ SUBSTITUTE_JUSTIFICATION
 
 // A host config is replaced through a temporary file and keeps its mode, so a private one stays private.
 if (process.platform !== "win32") {
-  const dest = mkdtempSync("/tmp/agent-surface-config-mode-");
+  const dest = mkdtempSync(ownTmp("config-mode-"));
   try {
     const file = path.join(dest, ".mcp.json");
     writeFileSync(file, `${JSON.stringify({ mcpServers: { existing: { command: "local-existing" } } }, null, 2)}\n`, { mode: 0o600 });
@@ -1763,7 +1766,7 @@ if (process.platform !== "win32") {
 }
 
 {
-  const dest = mkdtempSync("/tmp/agent-surface-codex-full-");
+  const dest = mkdtempSync(ownTmp("codex-full-"));
   try {
     run(["install", "--target", "codex", "--dest", dest]);
     const config = readFileSync(path.join(dest, ".codex", "config.toml"), "utf8");

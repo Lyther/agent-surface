@@ -5,9 +5,11 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { GRIMOIRE_SCHEMA_VERSION } from "../../scripts/agent-surface/doctor.mjs";
-import { files, root, run, status } from "../lib/helpers.mjs";
+import { files, ownTempRoot, root, run, status } from "../lib/helpers.mjs";
 
-const evidenceDest = "/tmp/agent-surface-evidence";
+const ownTmp = ownTempRoot("runtime");
+
+const evidenceDest = ownTmp("evidence");
 rmSync(evidenceDest, { recursive: true, force: true });
 const evidenceRun = run([
   "run",
@@ -112,7 +114,7 @@ const argvRedactionCases = [
 ];
 
 for (const testCase of argvRedactionCases) {
-  const dest = `/tmp/agent-surface-arg-secret-${testCase.name.replace(/\W+/g, "-")}`;
+  const dest = ownTmp(`arg-secret-${testCase.name.replace(/\W+/g, "-")}`);
   rmSync(dest, { recursive: true, force: true });
   try {
     const output = run([
@@ -259,7 +261,7 @@ try {
   rmSync(dirtyOut, { recursive: true, force: true });
 }
 
-const fullConsentClassDest = "/tmp/agent-surface-full-consent-class";
+const fullConsentClassDest = ownTmp("full-consent-class");
 rmSync(fullConsentClassDest, { recursive: true, force: true });
 const fullConsentClass = status([
   "run",

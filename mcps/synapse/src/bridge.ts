@@ -9,7 +9,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
-  CallToolRequestSchema, ListResourcesRequestSchema, ListToolsRequestSchema, ReadResourceRequestSchema,
+  CallToolRequestSchema, ErrorCode, ListResourcesRequestSchema, ListToolsRequestSchema, McpError, ReadResourceRequestSchema,
   ResourceListChangedNotificationSchema, ResourceUpdatedNotificationSchema, SubscribeRequestSchema, UnsubscribeRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { randomUUID } from "node:crypto";
@@ -19,7 +19,7 @@ import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { ensureSidecar } from "./bootstrap.js";
-import { CONTRACT_VERSION, OPERATION_META_KEY, SERVER_INSTRUCTIONS } from "./contract.js";
+import { CONTRACT_VERSION, OPERATION_META_KEY, SERVER_INSTRUCTIONS, SIDECAR_FEATURES } from "./contract.js";
 import { canonicalRoot, projectKey } from "./namespace.js";
 
 // Deprecated compatibility: Cline and Cursor answer roots/list with raw absolute paths
@@ -141,6 +141,11 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
     const code = (e as { cause?: { code?: unknown } } | undefined)?.cause?.code;
     return e instanceof Error && (code === "ECONNREFUSED" || code === "ECONNRESET" || /fetch failed|ECONNREFUSED/.test(e.message));
   };
+  // Closing a client rejects every request still waiting on it with ConnectionClosed.
+  const isConnectionClosed = (e: unknown): boolean => e instanceof McpError && e.code === ErrorCode.ConnectionClosed;
+  // A failed reconnect leaves no usable client, so the next call reconnects before it uses one. A running
+  // bridge then recovers by itself once the cause is gone: a refused sidecar stopped, a down one back.
+  let upstreamBroken = false;
   const reconnectUpstream = (rediscover: boolean): Promise<void> => {
     if (!reconnecting) {
       reconnecting = (async () => {
@@ -152,18 +157,30 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
         }
         await connectUpstream();
         for (const uri of subscriptions) await client.subscribeResource({ uri });
-      })().finally(() => { reconnecting = undefined; });
+      })().then(
+        () => { upstreamBroken = false; },
+        (err: unknown) => { upstreamBroken = true; throw err; },
+      ).finally(() => { reconnecting = undefined; });
     }
     return reconnecting;
   };
   const whenUpstream = <T>(fn: () => Promise<T>): Promise<T> =>
     upstreamReady.then(async () => {
+      // A reconnect has already closed the client it replaces, so a call that arrives during one waits
+      // for it and shares its outcome, as the calls that joined it do.
+      if (reconnecting) await reconnecting;
+      if (upstreamBroken) await reconnectUpstream(true);
+      const used = client;
       try {
         return await fn();
       } catch (err) {
+        // A reconnect that another call started closes the client this call was waiting on; this call
+        // then recovers through that same reconnect instead of failing with "Connection closed".
+        const replaced = reconnecting !== undefined || client !== used;
         const unreachable = Boolean(opts.rediscover) && isUnreachable(err);
-        if (!unreachable && !isInvalidSession(err)) throw err;
-        await reconnectUpstream(unreachable);
+        if (!(replaced && isConnectionClosed(err)) && !unreachable && !isInvalidSession(err)) throw err;
+        // A call whose client was already replaced retries on the new one without reconnecting again.
+        if (reconnecting !== undefined || client === used) await reconnectUpstream(unreachable);
         return fn();
       }
     });
@@ -218,6 +235,13 @@ export async function startBridge(opts: BridgeOptions): Promise<{ server: Server
   const connectUpstream = async (): Promise<void> => {
     client = new Client({ name: "synapse-bridge", version: CONTRACT_VERSION });
     await client.connect(new StreamableHTTPClientTransport(new URL(upstreamUrl), { requestInit: { headers } }));
+    // Checked on every connect, a reconnect included, before any call goes through (SIDECAR_FEATURES).
+    const advertised = client.getServerCapabilities()?.experimental ?? {};
+    const missing = SIDECAR_FEATURES.filter((feature) => !(feature in advertised));
+    if (missing.length > 0) {
+      await client.close().catch(() => { });
+      throw new Error(`the sidecar at ${upstreamUrl} is from an earlier Synapse build (it lacks ${missing.join(", ")}); stop it so a sidecar from the installed build takes its place, and restart Synapse in this host if this bridge has exited`);
+    }
     client.setNotificationHandler(ResourceUpdatedNotificationSchema, (n) => { void server.sendResourceUpdated(n.params); });
     client.setNotificationHandler(ResourceListChangedNotificationSchema, () => { void server.sendResourceListChanged(); });
   };

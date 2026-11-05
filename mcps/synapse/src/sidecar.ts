@@ -17,7 +17,7 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { readOrCreateToken, removeDiscovery, writeDiscovery } from "./bootstrap.js";
 import { SystemClock } from "./clock.js";
-import { CONTRACT_VERSION, OPERATION_ID, OPERATION_META_KEY, SERVER_INSTRUCTIONS, type IStore } from "./contract.js";
+import { CONTRACT_VERSION, OPERATION_ID, OPERATION_META_KEY, SERVER_INSTRUCTIONS, SIDECAR_FEATURES, type IStore } from "./contract.js";
 import { deriveAgentId } from "./identity.js";
 import { hashKey } from "./namespace.js";
 import { createRedactor } from "./redactor.js";
@@ -122,7 +122,13 @@ export async function createSidecar(opts: SidecarOptions): Promise<SidecarHandle
     const subscribed = new Set<string>();
     const server = new Server(
       { name: "synapse", version: CONTRACT_VERSION },
-      { capabilities: { tools: {}, resources: { subscribe: true, listChanged: true } }, instructions: SERVER_INSTRUCTIONS },
+      {
+        capabilities: {
+          tools: {}, resources: { subscribe: true, listChanged: true },
+          experimental: Object.fromEntries(SIDECAR_FEATURES.map((feature) => [feature, {}])),
+        },
+        instructions: SERVER_INSTRUCTIONS,
+      },
     );
     const tools = buildToolSet(store, ctx);
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: tools.specs }));

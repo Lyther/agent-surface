@@ -286,3 +286,23 @@ test("the installer's stop step stops the sidecar its record names", async () =>
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("the installer's stop step warns, and signals nothing, when the recorded sidecar does not answer", { skip: process.platform === "win32" && "no SIGSTOP on Windows" }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), "synapse-stop-stuck-"));
+  const child = spawnSidecar(dir);
+  try {
+    await waitForSidecar(dir);
+    // A stopped process keeps its listening socket but answers nothing: a real sidecar that is stuck.
+    process.kill(child.pid!, "SIGSTOP");
+    const output = await runStop(dir);
+    process.kill(child.pid!, "SIGCONT");
+    assert.match(output, /did not answer \/health/);
+    // A signal sent while the sidecar was stopped would be delivered once it continued.
+    await delay(300);
+    assert.equal(child.exitCode === null && child.signalCode === null, true, "the sidecar was not signalled");
+  } finally {
+    try { process.kill(child.pid!, "SIGCONT"); } catch { /* it already exited */ }
+    if (child.exitCode === null) child.kill("SIGKILL");
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

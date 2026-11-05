@@ -5,6 +5,9 @@ import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+// A sidecar that answers at all answers /health within milliseconds; this only bounds a stuck one.
+const HEALTH_TIMEOUT_MS = 1000;
+
 export async function stopRunningSidecar(dbDir = process.env.SYNAPSE_DB_DIR ?? path.join(os.homedir(), ".synapse")) {
   let discovery;
   try { discovery = JSON.parse(readFileSync(path.join(dbDir, "sidecar.json"), "utf8")); } catch { return; }
@@ -13,9 +16,16 @@ export async function stopRunningSidecar(dbDir = process.env.SYNAPSE_DB_DIR ?? p
   try { process.kill(pid, 0); } catch { return; }
   let health;
   try {
-    const res = await fetch(`${url.replace(/\/mcp$/, "")}/health`, { signal: AbortSignal.timeout(1000) });
+    const res = await fetch(`${url.replace(/\/mcp$/, "")}/health`, { signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS) });
     health = res.ok ? await res.json() : undefined;
-  } catch { return; }
+  } catch (error) {
+    // Nothing listening at the address means no sidecar is left to stop. A process that holds the address
+    // but does not answer may be a stuck sidecar whose pid cannot be proven, so it is left alone and reported.
+    if (error?.name === "TimeoutError") {
+      console.warn(`WARNING: the sidecar at ${url} did not answer /health within ${HEALTH_TIMEOUT_MS} ms, so nothing was stopped; stop the running Synapse sidecar so bridges start one from this build`);
+    }
+    return;
+  }
   if (health?.name !== "synapse") return;
   // A stale record can name a recycled pid while a different sidecar answers its address, so only the
   // process that reports this pid as its own is signalled.
