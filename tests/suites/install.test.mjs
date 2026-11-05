@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { parseJsonc, removeJsoncValue } from "../../scripts/agent-surface/jsonc.mjs";
 import { mergeCodexMcpToml, mergeJsonMcpConfig, mergeYamlMcpConfig } from "../../scripts/agent-surface/merge.mjs";
-import { mergeSynapseHook, planSynapseHook, synapseHookCommand, synapseHookStatus } from "../../scripts/agent-surface/synapse-hook.mjs";
+import { writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
+import { mergeSynapseHook, planSynapseHook, synapseHookCommand, synapseHookLauncher, synapseHookStatus } from "../../scripts/agent-surface/synapse-hook.mjs";
 import { kimiCodeCursorSettingsPath, kimiCodeVsCodeSettingsPath, vsCodeUserRoot } from "../../scripts/agent-surface/roots.mjs";
 import { targets } from "../../scripts/agent-surface/targets.mjs";
 import {
@@ -1363,6 +1365,7 @@ rmSync(existingCodexMcpDest, { recursive: true, force: true });
 // alone when the server is pruned.
 {
   const hookCommand = synapseHookCommand();
+  const hook = { launcher: synapseHookLauncher(), command: hookCommand };
   const synapseEntry = { matcher: "*", hooks: [{ type: "command", command: hookCommand }] };
   const userPostToolUse = { matcher: "Edit", hooks: [{ type: "command", command: "format-on-edit" }] };
   const userPreToolUse = { matcher: "*", hooks: [{ type: "command", command: "guard" }] };
@@ -1447,7 +1450,7 @@ rmSync(existingCodexMcpDest, { recursive: true, force: true });
     `{"hooks":{"PostToolUse":[{"matcher":"Bash","hooks":[${userHook},${ourHook}]}]}}`,
     `{"hooks":{"PostToolUse":[{"matcher":"Bash","hooks":[${ourHook},${userHook},${ourHook}]}]}}`,
   ]) {
-    const removed = mergeSynapseHook(oneLine, ["hooks", "PostToolUse"], hookCommand, false, "settings.json");
+    const removed = mergeSynapseHook(oneLine, ["hooks", "PostToolUse"], hook, false, "settings.json");
     assert.deepEqual(parseJsonc(removed, "one-line removal"), { hooks: { PostToolUse: [userGroup] } }, oneLine);
   }
 
@@ -1460,8 +1463,94 @@ rmSync(existingCodexMcpDest, { recursive: true, force: true });
   rmSync(brokenDroidHome, { recursive: true, force: true });
 
   // Hook keys of the wrong type stop the install instead of being overwritten.
-  assert.throws(() => mergeSynapseHook('{"hooks": []}', ["hooks", "PostToolUse"], hookCommand, true, "settings.json"), /hooks must be an object/);
-  assert.throws(() => mergeSynapseHook('{"hooks": {"PostToolUse": {}}}', ["hooks", "PostToolUse"], hookCommand, true, "settings.json"), /hooks\.PostToolUse must be an array/);
+  assert.throws(() => mergeSynapseHook('{"hooks": []}', ["hooks", "PostToolUse"], hook, true, "settings.json"), /hooks must be an object/);
+  assert.throws(() => mergeSynapseHook('{"hooks": {"PostToolUse": {}}}', ["hooks", "PostToolUse"], hook, true, "settings.json"), /hooks\.PostToolUse must be an array/);
+
+  // The command quotes what the shell would split and carries only the entry's routing variables.
+  assert.equal(synapseHookCommand("/home/a"), "/home/a/.local/bin/synapse-hook");
+  assert.equal(synapseHookCommand("/home/a b"), "'/home/a b/.local/bin/synapse-hook'");
+  assert.equal(
+    synapseHookCommand("/home/a", { SYNAPSE_NAMESPACE: "team", SYNAPSE_DB_DIR: "/data/it's here", SYNAPSE_AGENT_ID: "x" }),
+    "SYNAPSE_DB_DIR='/data/it'\\''s here' SYNAPSE_NAMESPACE=team /home/a/.local/bin/synapse-hook",
+  );
+  // An entry whose routing changed takes the new command in place, keeping the user's matcher; a prune
+  // removes it whatever routing it carries.
+  const routed = { launcher: "/home/a/.local/bin/synapse-hook", command: "SYNAPSE_NAMESPACE=team /home/a/.local/bin/synapse-hook" };
+  const stale = '{"hooks":{"PostToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"SYNAPSE_NAMESPACE=old /home/a/.local/bin/synapse-hook"}]}]}}';
+  const updated = mergeSynapseHook(stale, ["hooks", "PostToolUse"], routed, true, "settings.json");
+  assert.deepEqual(parseJsonc(updated, "updated").hooks.PostToolUse, [{ matcher: "Bash", hooks: [{ type: "command", command: routed.command }] }]);
+  assert.equal(mergeSynapseHook(updated, ["hooks", "PostToolUse"], routed, true, "settings.json"), updated, "a rerun changes nothing");
+  assert.deepEqual(parseJsonc(mergeSynapseHook(stale, ["hooks", "PostToolUse"], routed, false, "settings.json"), "pruned"), {});
+  // Only a command this module could have written is Synapse's: a user's own wrapper around the
+  // launcher is neither rewritten nor pruned, and a value the renderer had to quote still matches.
+  const wrapped = '{"hooks":{"PostToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"nice /home/a/.local/bin/synapse-hook"}]}]}}';
+  assert.equal(mergeSynapseHook(wrapped, ["hooks", "PostToolUse"], routed, false, "settings.json"), wrapped);
+  assert.equal(parseJsonc(mergeSynapseHook(wrapped, ["hooks", "PostToolUse"], routed, true, "settings.json"), "added").hooks.PostToolUse.length, 2);
+  const quoted = { launcher: routed.launcher, command: synapseHookCommand("/home/a", { SYNAPSE_DB_DIR: "/data/it's here" }) };
+  const quotedFile = mergeSynapseHook(null, ["hooks", "PostToolUse"], quoted, true, "settings.json");
+  assert.deepEqual(parseJsonc(mergeSynapseHook(quotedFile, ["hooks", "PostToolUse"], routed, false, "settings.json"), "pruned"), {});
+  // Codex keeps the entry's env in TOML; the plan reads it there too.
+  const codexRoot = ownTmp("synapse-hook-codex-toml");
+  rmSync(codexRoot, { recursive: true, force: true });
+  mkdirSync(codexRoot, { recursive: true });
+  const codexToml = '[mcp_servers.synapse]\ncommand = "x"\nargs = []\n\n[mcp_servers.synapse.env]\nSYNAPSE_DB_DIR = "/data/syn"\nSYNAPSE_AGENT_ID = "me"\n';
+  const codexPlan = await planSynapseHook({ target: "codex", installRoot: codexRoot, home: "/home/a", configMerges: [{ entries: [["synapse", {}]], format: "codex-toml", relativeOutput: ".codex/config.toml", content: codexToml }] });
+  assert.equal(JSON.parse(codexPlan.content).hooks.PostToolUse[0].hooks[0].command, "SYNAPSE_DB_DIR=/data/syn /home/a/.local/bin/synapse-hook");
+  rmSync(codexRoot, { recursive: true, force: true });
+}
+
+// The installed hook command runs in the host's shell and routes like the user's synapse entry, so the
+// hook reads the store the server writes. Every path holds a space. The launchers, hook and store are
+// the real ones from mcps/synapse; the suite runs after `npm run install:mcps` has built them.
+{
+  const synapseDist = path.join(root, "mcps", "synapse", "dist", "src");
+  assert.ok(existsSync(path.join(synapseDist, "hook.js")), "build mcps/synapse first: npm run install:synapse");
+  const { Store } = await import(pathToFileURL(path.join(synapseDist, "store.js")).href);
+  const { SystemClock } = await import(pathToFileURL(path.join(synapseDist, "clock.js")).href);
+  const { canonicalRoot, hashKey } = await import(pathToFileURL(path.join(synapseDist, "namespace.js")).href);
+  const base = mkdtempSync(path.join(os.tmpdir(), "synapse hook "));
+  const home = path.join(base, "user home");
+  const dest = path.join(base, "dest");
+  const dbDir = path.join(base, "pinned store");
+  const pinned = path.join(base, "pinned project");
+  mkdirSync(pinned, { recursive: true });
+  mkdirSync(dest, { recursive: true });
+  writeShims({
+    binDir: path.join(home, ".local", "bin"),
+    nodeBin: process.execPath,
+    override: "SYNAPSE_NODE",
+    entries: { "synapse-bridge": path.join(synapseDist, "server.js"), "synapse-hook": path.join(synapseDist, "hook.js") },
+  });
+  const entryEnv = { SYNAPSE_DB_DIR: dbDir, SYNAPSE_PROJECT: pinned };
+  const mcpConfig = path.join(dest, ".mcp.json");
+  writeFileSync(mcpConfig, `${JSON.stringify({ mcpServers: { synapse: { type: "stdio", command: "synapse-bridge", args: [], env: entryEnv } } }, null, 2)}\n`);
+  const installEnv = { ...process.env, HOME: home, USERPROFILE: home };
+  run(["install", "--target", "claude-code", "--dest", dest, "--category", "mcps", "--service", "synapse"], { env: installEnv });
+  assert.deepEqual(parseJsonc(readFileSync(mcpConfig, "utf8"), ".mcp.json").mcpServers.synapse.env, entryEnv, "the install keeps the entry's routing");
+  const settings = parseJsonc(readFileSync(path.join(dest, ".claude", "settings.json"), "utf8"), "settings.json");
+  assert.equal(settings.hooks.PostToolUse.length, 1);
+  const command = settings.hooks.PostToolUse[0].hooks[0].command;
+  const store = new Store({ clock: new SystemClock(), dbDir, globalDbPath: path.join(dbDir, "global.sqlite") });
+  const projectDbPath = path.join(dbDir, `${hashKey(canonicalRoot(pinned))}.sqlite`);
+  try {
+    store.remember({ projectDbPath, agentId: "peer", content: "seed" });
+    // The host runs the command through its shell, from wherever the session works.
+    const hook = () => spawnSync("/bin/sh", ["-c", command], {
+      cwd: base,
+      encoding: "utf8",
+      env: { PATH: process.env.PATH ?? "", HOME: home },
+      input: JSON.stringify({ session_id: "routing", cwd: base, hook_event_name: "PostToolUse", tool_name: "Bash" }),
+    });
+    const baseline = hook();
+    assert.deepEqual([baseline.status, baseline.stdout], [0, ""], `${command} -> ${baseline.stderr}`);
+    store.remember({ projectDbPath, agentId: "peer", content: "routed marker" });
+    const delivered = hook();
+    assert.equal(delivered.status, 0, delivered.stderr);
+    assert.match(delivered.stdout, /routed marker/, `${command} read the store the synapse entry pins`);
+  } finally {
+    store.close();
+    rmSync(base, { recursive: true, force: true });
+  }
 }
 
 // P3.1/P3.2 acceptance: non-destructive MCP merge into every manual/secret-bearing

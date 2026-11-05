@@ -150,7 +150,7 @@ async function runHost(name, model) {
   chmodSync(wrapper, 0o755);
   const route = await synapseHookRoute(host.target, project);
   mkdirSync(path.dirname(path.join(project, route.relativeOutput)), { recursive: true });
-  writeFileSync(path.join(project, route.relativeOutput), mergeSynapseHook(null, route.eventPath, wrapper, true, route.relativeOutput));
+  writeFileSync(path.join(project, route.relativeOutput), mergeSynapseHook(null, route.eventPath, { launcher: wrapper, command: wrapper }, true, route.relativeOutput));
   const run = { project, model, emptyMcpConfig: path.join(dir, "no-mcp.json"), promptFile: path.join(dir, "prompt.txt") };
   writeFileSync(run.emptyMcpConfig, "{\"mcpServers\":{}}\n");
   writeFileSync(run.promptFile, `${PROMPT}\n`);

@@ -2,6 +2,7 @@
 // Claude Code, Codex and Droid (mcps/synapse/architecture.md, Registration). The install adds the entry
 // wherever it wires the synapse MCP server for those targets and removes it wherever it prunes that
 // server. One JSON merge keeps every other key and hook; this module handles no other kind of hook.
+import * as TOML from "@decimalturn/toml-patch";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -10,10 +11,32 @@ import { shimFileName } from "./mcp-shims.mjs";
 
 export const SYNAPSE_HOOK_TARGETS = new Set(["claude-code", "codex", "droid"]);
 const EVENT = "PostToolUse";
+// The variables that choose the store and project; the hook must see the values the server sees.
+const ROUTING_ENV = ["SYNAPSE_DB_DIR", "SYNAPSE_PROJECT", "SYNAPSE_NAMESPACE"];
 
-/** The launcher mcps/synapse/install.mjs writes; the entry is matched by this command. */
-export function synapseHookCommand(home = os.homedir()) {
+/** The launcher mcps/synapse/install.mjs writes; an entry is Synapse's when its command runs it. */
+export function synapseHookLauncher(home = os.homedir()) {
   return path.join(home, ".local", "bin", shimFileName("synapse-hook"));
+}
+
+// One shell word for `value`: bare when no character needs quoting, else single-quoted for POSIX
+// shells, or double-quoted on Windows, whose paths keep their backslashes bare.
+function shellWord(value) {
+  const windows = process.platform === "win32";
+  if ((windows ? /^[\w@%+=:,./\\-]+$/ : /^[\w@%+=:,./-]+$/).test(value)) return value;
+  return windows ? `"${value}"` : `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+/**
+ * The command a host runs after each tool: the launcher, after the routing variables the synapse MCP
+ * entry sets, so hook and server open the same store. Hosts start hooks through their shell, and a
+ * Windows command cannot prefix variables portably, so there the hook reads the host's environment.
+ */
+export function synapseHookCommand(home = os.homedir(), entryEnv = {}) {
+  const launcher = shellWord(synapseHookLauncher(home));
+  if (process.platform === "win32") return launcher;
+  const routing = ROUTING_ENV.filter((key) => typeof entryEnv[key] === "string" && entryEnv[key] !== "");
+  return [...routing.map((key) => `${key}=${shellWord(entryEnv[key])}`), launcher].join(" ");
 }
 
 async function readText(file) {
@@ -46,18 +69,24 @@ export async function synapseHookRoute(target, installRoot) {
 }
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-const runsCommand = (hook, command) => isObject(hook) && hook.command === command;
-const holdsCommand = (groups, command) =>
-  Array.isArray(groups) && groups.some((group) => Array.isArray(group?.hooks) && group.hooks.some((hook) => runsCommand(hook, command)));
+// Synapse's entry is one whose command synapseHookCommand could have written: the launcher, quoted or
+// bare, after nothing but routing assignments. A rerun updates it and a prune finds it, while a user's
+// own command around the launcher, such as `nice <launcher>`, stays the user's.
+const ROUTING_PREFIX = new RegExp(`^(?:(?:${ROUTING_ENV.join("|")})=(?:'(?:[^']|'\\\\'')*'|[^\\s'"]*) )*`);
+const runsLauncher = (hook, launcher) => isObject(hook) && typeof hook.command === "string"
+  && [shellWord(launcher), launcher].includes(hook.command.replace(ROUTING_PREFIX, ""));
+const holdsLauncher = (groups, launcher) =>
+  Array.isArray(groups) && groups.some((group) => Array.isArray(group?.hooks) && group.hooks.some((hook) => runsLauncher(hook, launcher)));
 
 /**
- * Add (`enabled`) or remove the entry that runs `command` after every tool. Matching is by command, so
- * a rerun changes nothing and a user's own matcher or timeout on that entry survives. Only that entry
- * is inserted or deleted, so the user's entries keep their content and comments; removal keeps their
- * bytes, while an insertion re-indents an entry that shares its line. Returns the new text; a file
- * whose hook keys hold the wrong types is refused, never rewritten.
+ * Add (`enabled`) or remove the entry that runs `hook.launcher` after every tool. Matching is by
+ * launcher: a rerun changes nothing, an entry whose command differs only takes the new `hook.command`,
+ * and a user's own matcher or timeout on that entry survives. Only that entry is inserted, updated or
+ * deleted, so the user's entries keep their content and comments; removal keeps their bytes, while
+ * an insertion re-indents an entry that shares its line. Returns the new text; a file whose hook keys
+ * hold the wrong types is refused, never rewritten.
  */
-export function mergeSynapseHook(text, eventPath, command, enabled, label) {
+export function mergeSynapseHook(text, eventPath, { launcher, command }, enabled, label) {
   const source = text ?? "{}";
   const root = parseJsonc(source, label);
   if (!isObject(root)) throw new Error(`${label}: the root must be an object`);
@@ -69,9 +98,15 @@ export function mergeSynapseHook(text, eventPath, command, enabled, label) {
   }
   const groups = parent?.[EVENT];
   if (groups !== undefined && !Array.isArray(groups)) throw new Error(`${label}: ${eventPath.join(".")} must be an array`);
-  const present = holdsCommand(groups, command);
+  const present = holdsLauncher(groups, launcher);
+  if (enabled && present) {
+    let next = source;
+    groups.forEach((group, g) => group?.hooks?.forEach?.((hook, h) => {
+      if (runsLauncher(hook, launcher) && hook.command !== command) next = setJsoncPath(next, [...eventPath, g, "hooks", h, "command"], command);
+    }));
+    return next;
+  }
   if (enabled) {
-    if (present) return source;
     const entry = { matcher: "*", hooks: [{ type: "command", command }] };
     return groups === undefined
       ? setJsoncPath(source, eventPath, [entry])
@@ -83,14 +118,14 @@ export function mergeSynapseHook(text, eventPath, command, enabled, label) {
   let kept = groups.length;
   for (let g = groups.length - 1; g >= 0; g -= 1) {
     const hooks = groups[g]?.hooks;
-    if (!Array.isArray(hooks) || !hooks.some((hook) => runsCommand(hook, command))) continue;
-    if (hooks.every((hook) => runsCommand(hook, command))) {
+    if (!Array.isArray(hooks) || !hooks.some((hook) => runsLauncher(hook, launcher))) continue;
+    if (hooks.every((hook) => runsLauncher(hook, launcher))) {
       next = removeJsoncValue(next, [...eventPath, g]);
       kept -= 1;
       continue;
     }
     for (let h = hooks.length - 1; h >= 0; h -= 1) {
-      if (runsCommand(hooks[h], command)) next = removeJsoncValue(next, [...eventPath, g, "hooks", h]);
+      if (runsLauncher(hooks[h], launcher)) next = removeJsoncValue(next, [...eventPath, g, "hooks", h]);
     }
   }
   if (kept > 0) return next;
@@ -102,6 +137,15 @@ export function mergeSynapseHook(text, eventPath, command, enabled, label) {
   return without;
 }
 
+// The env of the synapse entry a config merge leaves in place: the user's own keys survive a merge, so
+// this is what the server will run with. The three hook targets keep MCP servers in JSON or TOML.
+function mergedSynapseEnv(merge) {
+  if (!merge.content) return {};
+  const config = merge.format === "codex-toml" ? TOML.parse(merge.content) : parseJsonc(merge.content, merge.relativeOutput);
+  const env = config?.[merge.format === "codex-toml" ? "mcp_servers" : "mcpServers"]?.synapse?.env;
+  return isObject(env) ? env : {};
+}
+
 /**
  * The hook change one target's install plan makes, or null when the plan leaves Synapse alone: the
  * entry follows the synapse MCP server, added where a config merge wires it and removed where one
@@ -109,14 +153,15 @@ export function mergeSynapseHook(text, eventPath, command, enabled, label) {
  */
 export async function planSynapseHook({ target, installRoot, configMerges, home = os.homedir() }) {
   if (!SYNAPSE_HOOK_TARGETS.has(target)) return null;
-  const wires = configMerges.some((merge) => (merge.entries ?? merge.mcpEntries ?? []).some(([id]) => id === "synapse"));
+  const wiring = configMerges.find((merge) => (merge.entries ?? merge.mcpEntries ?? []).some(([id]) => id === "synapse"));
   const prunes = configMerges.some((merge) => (merge.removeMcpServers ?? []).includes("synapse"));
-  if (!wires && !prunes) return null;
+  if (!wiring && !prunes) return null;
   const route = await synapseHookRoute(target, installRoot);
   const output = path.join(installRoot, route.relativeOutput);
-  const command = synapseHookCommand(home);
+  const hook = { launcher: synapseHookLauncher(home), command: synapseHookCommand(home, wiring ? mergedSynapseEnv(wiring) : {}) };
   const current = await readText(output);
-  const content = mergeSynapseHook(current, route.eventPath, command, wires, route.relativeOutput);
+  const wires = wiring !== undefined;
+  const content = mergeSynapseHook(current, route.eventPath, hook, wires, route.relativeOutput);
   return {
     output,
     relativeOutput: route.relativeOutput,
@@ -139,7 +184,7 @@ export async function synapseHookStatus(target, home = os.homedir()) {
   } catch (error) {
     return `unreadable: ${error.message}`;
   }
-  return holdsCommand(groups, synapseHookCommand(home))
+  return holdsLauncher(groups, synapseHookLauncher(home))
     ? `registered (${shown})`
     : `not registered in ${shown} (agent-surface install --target ${target} --category mcps)`;
 }
