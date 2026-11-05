@@ -1,170 +1,292 @@
 # Architecture
 
-## Status
-
-Status: IMPLEMENTED (v0.4 core + distribution + robustness — HTTP sidecar + stdio bridge, realtime with coalescing, budgeted recall, autostart, non-destructive MCP merge into all 25 generated MCP hosts, crash recovery, bridge roots routing). Remaining: live per-host transport smoke (T2.5 runbook). See [roadmap.md](roadmap.md).
-Source concept: mcps/synapse/concept-zero.md (HISTORICAL; this doc is the source of truth)
-Last updated: 2026-11-03
+Status: PROPOSED. It replaces the IMPLEMENTED v0.4 sidecar design; the work is in [roadmap.md](roadmap.md).
+Source: the user's decisions of 2026-11-04, recorded below as ADR-11 to ADR-17. [concept-zero.md](concept-zero.md) is historical: its problem framing stands and its mechanism is superseded.
+Last updated: 2026-11-04
 
 ## Executive Decision
 
-`synapse` is **one local sidecar** (TypeScript, `@modelcontextprotocol/sdk` `>=1.24.0 <2`, `node:sqlite` WAL) that is the **sole owner/writer** of per-project + global SQLite stores and the realtime hub for **many concurrent agent sessions**. It speaks **Streamable HTTP on 127.0.0.1** (bearer + Host validation). Because stdio is the only *universally* supported MCP transport, clients connect through a **thin stdio bridge** that autostarts the sidecar, proxies JSON-RPC to it, and forwards server notifications back over stdout; HTTP-native hosts may hit the sidecar URL directly. Realtime is native: an in-process `commit_hook` pushes MCP `notifications/resources/updated` (a **dirty-bit**) to subscribed sessions — **no watcher, no poll, no topic bus, no handshake**. Push is an accelerator; the **correctness floor is cursor pull**: `memory_recall({since})` + `lock_list`. Surface = **7 tools** (`memory_remember`/`recall`/`get`/`forget`, `lock_acquire`/`release`/`list`); `memory_recall` returns **compact, budgeted** results by default with `memory_get({ids})` for full local/global records. Named cross-project recall is read-only and returns non-mutable IDs, so callers use `mode:full` when they need complete cross-project content. Usage is taught via the server **`instructions` field** + rich tool/arg descriptions + **in-band result hints**. Isolation is **physical** (file per canonical git-root hash + opt-in global file; explicit cross-project read) — there is **no `scope`/visibility column**. Single owner removes the cold-start/WAL-contention class. **Distribution**: a first-party `agent-surface` registry entry renders the stdio `synapse-bridge` into generated and shared host configs across the JSON/TOML/JSONC/YAML families (**25 generated MCP hosts total**; canonical per-host matrix in [../../docs/reference/targets.md](../../docs/reference/targets.md)) so synapse never clobbers a user's own servers; `install.mjs` (`npm run install:synapse`) builds + links the bins; the bridge's autostart is the only lifecycle (no service). **Realtime** notifications are coalesced (leading+trailing edge) to bound burst-write churn; **crash recovery** is proven (SIGKILL→restart→WAL durable to last committed id); the **bridge** resolves the project from `SYNAPSE_PROJECT`/`SYNAPSE_NAMESPACE` env → MCP roots → cwd git-root so out-of-workspace launches still isolate (raw absolute-path roots from Cline/Cursor are normalized as deprecated compatibility input; `file://` is the contract), and re-initializes its upstream session once with a single retry when a sidecar restart invalidates it; the retry reuses the request's operation id, so a write that committed before its response was lost is answered from its record, and the host's resource subscriptions are made again on the new session. Calls that were waiting on the upstream client when another call's reconnect closed it, and calls that arrive during the reconnect, recover through that same reconnect. On every connect the bridge checks the `experimental` capabilities the sidecar advertises (operation records, encoded project routing) and refuses a sidecar from an earlier build; after a failed reconnect the next call reconnects again, so a running bridge recovers once the cause is gone. Status: **IMPLEMENTED** (package tests pass; repo gates rerun with distribution changes); remaining: live per-host transport smoke (T2.5 runbook). Excluded: stdio-per-client ownership, watcher/poll, topic bus, presence/handshake, private visibility (deferred), `kind` enum.
+Synapse becomes one stdio MCP server per host session. It keeps the `synapse-bridge` name, so no host config changes, and opens the existing SQLite stores directly: one file per project and `global.sqlite` under `~/.synapse`, in WAL mode with `busy_timeout=5000`. SQLite serializes writers from different sessions, so no process owns the data. The seven tools, both stores, project/global separation, TTL locks, read-only cross-project recall and `memory_forget` stay.
 
-## Source and Evidence Inventory
+Real-time delivery moves out of the server. After every tool call, Claude Code, Codex and Droid run `synapse-hook`, which returns the records that session has not yet seen as added context; every other host keeps `memory_recall({since})`.
 
-| Source | Status | Used for | Notes |
-|---|---|---|---|
-| `concept-zero.md` | HISTORICAL | problem framing + evidence (E-01..E-10) + security stance | mechanism specifics (bus/stdio/event-log) superseded by this doc |
-| prior synapse impl + contract/model/tests/package files | `REMOVED` (git `8a761c5`) | reference only | re-create fresh in Phase 0 |
-| MCP spec 2025-11-25 (+ draft / 2026-07-28 RC) | `ADOPTED` | transport + realtime | Streamable HTTP multi-session; stdio universal; `resources/subscribe`→`resources/updated` (optional, client support uneven); `instructions` reaches the model; RC → per-subscription streams + caching |
-| `@modelcontextprotocol/sdk` GHSA-w48q-cv73-mx4w (DNS rebinding) | `ADOPTED` | security floor | pin **`>=1.24.0 <2`**, not just `<2` |
-| node:sqlite, SQLite WAL/FTS5 | `ADOPTED` | storage | single owner ⇒ one writer; WAL for durability + operator reads |
-| research 2026-06-28 (local-first sync, MCP realtime, agent ergonomics, MINJA) | evidence | design basis | SQLite has no cross-proc push → single-owner-pushes; `instructions` reaches model, resources don't; compact/progressive recall beats raw `limit`; budgeted recall counters poisoning/flooding |
-| `external/agentmemory` v0.9.27, MCP Agent Mail | reference / patterns | ergonomics | tool-desc quality, `privacy.ts` redaction, smart-search compact shape, in-band lock hints |
+Removed:
 
-## Requirements Traceability
+- the HTTP sidecar, bearer token and Host check;
+- the discovery, lock and token files, and spawn election;
+- reconnect with retry and replay, and the `operations` table;
+- capability negotiation;
+- `resources/updated` push, with its subscriptions and coalescing;
+- the 2 MB body cap;
+- the ingest redactor.
 
-| ID | Requirement | Architecture response | Verification / gate |
-|---|---|---|---|
-| G-01 | Concurrent agents share durable knowledge in real time | sidecar owner; write → commit hook → `resources/updated` dirty-bit; agent `recall({since})` the delta | A writes → B notified <1s; B pull-by-cursor returns it |
-| G-02 | Prevent concurrent-edit collisions, live | `lock_acquire` atomic; conflict → `{heldBy,expiresAt,suggestion}`; release/auto-reap pushes dirty-bit | concurrent acquire → one winner; release notifies |
-| G-03 | Conflict handling without loss | supersede via `memory_remember(supersedes)`; `memory_forget` redacts; append-only | superseded/redacted excluded from recall, kept for audit |
-| G-04 | Secure by default | 127.0.0.1 + bearer + Host; SDK `>=1.24.0`; auto-identity+provenance; ingest redaction; data-as-data | bind/Host/redaction/poison tests |
-| G-05 | Minimal & self-describing | 7 tools; rich descriptions; server `instructions`; in-band hints | tool count == 7; `instructions` present; descriptions ≥3 sentences |
-| G-06 | Realtime without watcher; correct without push | commit hook → dirty-bit; **cursor pull is the floor** (`recall({since})`+`lock_list`) | works with push DISABLED via cursor |
-| G-07 | Context control (no flooding) | compact+budgeted `recall` default; `memory_get({ids})` for full | recall returns snippets+provenance under budget; full only on demand |
-| C-01 | Single shared owner + universal client reach | HTTP sidecar (sole writer) + stdio bridge (universal); HTTP-direct optional | one process opens DBs; bridge works on a stdio-only host |
-| C-02 | Default project isolation, explicit cross-project read | physical file per git-root hash; `recall(project:<ref>)` opens another file read-only | B absent by default, present when named |
-| N-01..N-05 | No stdio-per-client ownership / watcher-poll / topic bus / handshake / `scope` column / `kind` enum | not built | scope guard |
+The design does not wake an idle agent; that agent sees news after its first tool call once it is working again. It delivers nothing automatically on hosts without a hook that can add context. The status becomes IMPLEMENTED only when the marker acceptance (Q-01) passes through each of the three hosts' real hook loaders.
 
-## System Context
+## Architecture Drivers
+
+- `G-01` Goal: agents working at the same time see each other's new records without asking, on every host whose hooks can add context.
+  - Evidence:
+    - the user, 2026-11-04: "the real time message switch is required";
+    - the v0.4 push has no recorded native proof: the push column of the old smoke matrix is blank for all 23 hosts;
+    - Claude Code documents that a standard MCP server pushes nothing into the session.
+  - Architecture impact: `hook.ts`, per-receiver cursors in the project DB, and hook registration for three hosts.
+  - Verification gate: Q-01 per host.
+- `G-02` Goal: keep the memory contract and the data.
+  - Evidence: the user's decision to keep the global store and locks; the current store suite.
+  - Architecture impact: `store.ts`, `tools.ts` and `contract.ts` keep their contracts minus the operation and push plumbing. v0.4 DBs open unchanged apart from the dropped `operations` table.
+  - Verification gate: the store suite, plus a v0.4 fixture DB that opens with every memory and lock row intact.
+- `G-03` Goal: fewer mechanisms, meaning no long-lived process, network listener or lifecycle management.
+  - Evidence: the user's direction to remove over-design; peer#3's recommendation 1.
+  - Architecture impact: `sidecar.ts`, `bridge.ts`, `bootstrap.ts`, `redactor.ts` and their tests are deleted.
+  - Verification gate: the source tree below matches the repository, and no `synapse-sidecar` exists after install.
+- `G-04` Goal: no person in the acceptance loop.
+  - Evidence: the user, 2026-11-04.
+  - Verification gate: every roadmap acceptance step is a command.
+- `Q-01` Delivery: after B's first hook run has set its baseline, agent A writes a fresh random marker while agent B's ordinary tool call runs → B's host runs `synapse-hook` after that call → B, which has no Synapse MCP server configured, reports the marker → B's receiver cursor is at or past the marker, so no later hook run injects it again.
+  - Verification gate: `scripts/host-acceptance.mjs`, one headless run per host.
+- `Q-02` Delivery once per receiver: parallel tool calls in one session finish together → their hooks run concurrently → each new record reaches that receiver once.
+  - Verification gate: `hook.test.ts` with concurrent hook processes for one receiver.
+- `Q-03` Shared store: several real `synapse-bridge` processes write to one DB and one is killed mid-write → the others keep working, every committed row is present, and a lock held by one process is refused to another until it is released or expires.
+  - Verification gate: `multiprocess.test.ts`.
+- `Q-04` Cost: in a project without a Synapse DB, the hook exits after resolving the path; with nothing new, it takes no write lock. S0.4 records p50/p95 per run; the numbers are reported, not gated.
+
+Non-goals:
+
+- waking idle agents;
+- automatic delivery on hosts without hooks;
+- delivering lock changes;
+- private per-agent memory, which stays deferred.
+
+## Evidence and Source Reconciliation
+
+- **Previous design:** the prior version of this file and `roadmap.md` describe v0.4, which stays VERIFIED_EXISTING until S1 lands. This design supersedes ADR-01 (topology), ADR-02 (push), ADR-07 (bearer and Host) and ADR-08 (autostart).
+- **Several writer processes on one SQLite file:** on 2026-11-04, 8 processes × 300 commits on one WAL file with FTS5 kept all 2,400 rows, `integrity_check` passed, and the worst commit waited 563 ms. That proves safe concurrent writes, not push delivery. The existing `busy_timeout=5000` covers the measured wait ([SQLite WAL](https://www.sqlite.org/wal.html#concurrency)).
+- **Recall cursor:** `memory_recall({since})` drains project rows but always rescans global ([store.ts:166](src/store.ts#L166), VERIFIED_EXISTING). The hook keeps its own project and global cursors, and `recall` does not change.
+- **Agent identity:** `agent_id` comes from `SYNAPSE_AGENT_ID` or the MCP client name ([identity.ts](src/identity.ts)), so all sessions of one host share it. The hook identifies a receiver by the host's `session_id`, plus `agent_id` for a Claude Code subagent.
+- **Host hook contracts** (ADOPTED; versions installed on 2026-11-04: Claude Code 2.1.309, Codex 0.166.0, Droid 1.2.0). All three hosts:
+  - send `session_id`, `transcript_path`, `cwd`, `tool_name`, `tool_input` and `tool_response`;
+  - name MCP tools `mcp__<server>__<tool>`;
+  - match every tool with `*`;
+  - accept the same output, `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"…"}}`.
+
+  Per host:
+  - [Claude Code](https://code.claude.com/docs/en/hooks):
+    - Config: `hooks` in `~/.claude/settings.json` or `.claude/settings.json`; reloaded automatically.
+    - Subagent events add `agent_id`.
+    - Context over 10,000 characters moves to a file, and the model gets a 2,000-character preview.
+    - An exit code other than 0 or 2 shows the user a hook-error notice and the model nothing.
+  - [Codex](https://learn.chatgpt.com/docs/hooks):
+    - Config: `hooks` in `~/.codex/hooks.json` or `<repo>/.codex/hooks.json`.
+    - PostToolUse covers shell, `apply_patch`, MCP and local function tools, but not hosted tools.
+    - `transcript_path` may be null.
+    - Context over the 2,500-token `additionalContextLimit` is saved to disk, and the model gets a preview.
+    - A hook that isn't centrally managed must be trusted once through `/hooks`, and that trust is tied to the hook's hash.
+    - `--dangerously-bypass-hook-trust` skips trust for one invocation. Managed hooks (`requirements.toml`) are trusted by policy.
+  - [Droid](https://docs.factory.com/reference/hooks-reference):
+    - Config: `~/.factory/hooks.json` or `.factory/hooks.json` with events at the top level. When `hooks.json` is absent, Droid reads `hooks` in `settings.json` instead.
+    - Hooks are loaded once at session start.
+    - Other non-zero exits are recorded and the session continues.
+    - Default timeout: 60 s.
+  - Not covered by this design:
+    - Windsurf and Goose: their hooks cannot add context.
+    - Cursor and Copilot: documented, with open reports of dropped context.
+    - Kiro: adds context only when a prompt is submitted.
+    - Pi and OpenCode: native extension APIs; later adapters.
+    - All other hosts: not checked.
+
+## System Context and Boundaries
 
 ```text
- agent A (host) ─ stdio ─▶ synapse-bridge A ─┐
- agent B (host) ─ stdio ─▶ synapse-bridge B ─┼─ HTTP/SSE (127.0.0.1+bearer) ──▶ ┌──────────────────────────┐
- agent C (HTTP-native host) ── HTTP/SSE ─────┘                                  │ synapse-sidecar (1 proc) │
-        ▲                                                                       │ sole owner + writer      │
-        └─ resources/updated (dirty-bit) ◀── forwarded by bridge ◀── push ──────│ commit_hook → notify     │
-           + cursor pull via tools (floor)                                      │ ~/.synapse/<hash>.sqlite │
-                                                                                │ ~/.synapse/global.sqlite │
- operator ─▶ reads .sqlite files directly (audit)                               └──────────────────────────┘
+host session (Claude Code, Codex, Droid or any MCP host)
+  ├─ stdio ─────────────────▶ synapse-bridge   one process per session; serves the 7 tools
+  └─ after each tool call ──▶ synapse-hook     Claude Code, Codex, Droid only; exits per call
+                                  │
+                                  ▼
+     ~/.synapse/<project-hash>.sqlite    ~/.synapse/global.sqlite    (WAL; SQLite serializes writers)
+operator ─▶ reads the .sqlite files directly
 ```
 
-Trust boundary: the local machine (single user, cooperative concurrent agents). Sidecar authenticates by bearer, derives `agent_id` for provenance; all stored content is untrusted data.
+Trust boundary: one local user and cooperating agents. Nothing listens on the network. Stored content is untrusted data, and tool results and hook output label it as data, never as instructions.
 
 ## Selected Architecture
 
-| Component | Responsibility |
-|---|---|
-| `sidecar` | Long-lived process; **sole** `node:sqlite` owner (WAL); Streamable HTTP on 127.0.0.1; N sessions; `commit_hook` → notifier; the realtime hub |
-| `bridge` | Tiny stdio MCP server per client; autostarts + health-checks the sidecar; proxies JSON-RPC to sidecar HTTP; forwards `resources/updated` to host stdout. Resolves the project key from `SYNAPSE_PROJECT` → host's first MCP root (`file://`) → cwd git-root (P4.3); `SYNAPSE_ROOTS=ignore` skips the roots step for hosts whose MCP proxy advertises roots it cannot serve, so out-of-workspace launches still isolate. Universal-compat entry. |
-| `identity` | Per-session `agent_id`: `SYNAPSE_AGENT_ID` → MCP `clientInfo` → stable session id. Never throws; provenance only. |
-| `namespace` | Project DB = hash(`git rev-parse --show-toplevel` realpath) → realpath cwd → `SYNAPSE_NAMESPACE`. Global DB fixed. |
-| `store` | `memory`+FTS5, `locks`; monotonic cursor; atomic lock txn; redaction on ingest |
-| `notifier` | commit → `resources/updated` dirty-bit to that namespace's subscribers (inline in `sidecar.onCommit`); **leading+trailing-edge coalescer** bounds burst-write notifications (P4.2); best-effort, cursor pull is the floor |
-| `tools` | 7 tools; compact/budgeted recall; in-band hints |
-| `instructions` | Server `InitializeResult.instructions` (≤~2KB) — the manual that reaches the model |
-| `lifecycle` | Bridge first-client autostart, the only owner (PID/token files mode 0600 in an owner-only directory); the sidecar stays resident (no idle-shutdown) and drops inherited per-session env (`SYNAPSE_NAMESPACE`/`PROJECT`/`AGENT_ID`/`ROOTS`/`URL`, `GIT_*`) at startup. |
+### Runtime View
 
-Data flow — **write**: auth+validate (zod, byte caps) → redact → append row in project (or global) DB, with the outcome (result, miss, or refusal) under the request's operation id → commit → commit-hook → push dirty-bit → return id+provenance. **recall**: FTS across project∪global (or named other project, read-only); `since` cursor is incremental for the selected **project** store only — the low-churn **global** store is always re-scanned, so clients dedupe already-seen global ids. Cross-project rows use a reserved read-only external-ID range, preventing a colliding row id from being passed to local `get`/`forget`; use `mode:full` to retrieve their bodies. Normal compact projection is `(id, snippet, agentId, ts, tags, score, store)` under `limit`/`maxBytes`, with `memory_get({ids})` for local/global bodies. **realtime**: agent subscribes; on dirty-bit it `recall({since})`/`lock_list`; if the client ignores push, the same cursor pull at turn boundaries stays correct. **lock**: atomic reap→claim; conflict returns holder+suggestion.
+- **`synapse-bridge`** (PROPOSED, S1): the host starts it over stdio.
+  - It resolves the project once at initialize: `SYNAPSE_PROJECT`, then the host's first MCP root, then the cwd git root. It keeps the `SYNAPSE_ROOTS=ignore` and fail-closed rules from `bridge.ts`.
+  - It opens DBs on first use and exits when stdin closes. It opens no port and writes no file besides the DBs.
+  - A SQLite error becomes a tool error. A crash affects only its own session, and WAL keeps committed rows.
+- **`synapse-hook`** (PROPOSED, S2): the host starts it after each tool call, with the event JSON on stdin.
+  - It prints the context JSON or nothing, and exits 0.
+  - On an internal error it exits 1 with one stderr line, which Claude Code shows the user (not the model) and Droid records. S0.1 records what Codex does.
+  - It never exits 2, which hosts treat as a blocking signal.
+- **`npm run install:synapse`**: cleans and rebuilds `dist`, links `synapse-bridge` and `synapse-hook`, and removes the `synapse-sidecar` link.
+  - For the v0.4 hand-over, it stops a running sidecar with `stop-sidecar.mjs` and deletes `~/.synapse/{sidecar.json,sidecar.lock,token}`. That hand-over code is deleted one release later.
+  - Running host sessions keep their old server process until restarted.
+- **`agent-surface install --category mcps`** for `claude-code`, `codex` or `droid`: merges the Synapse MCP entry as today and, from S2, one PostToolUse hook entry.
 
-## Source Tree and File Responsibilities
+### Component View
 
-All `src/*` files are IMPLEMENTED (compiled by `tsc`, exercised by `test/*`). Dependency direction: `sidecar`/`bridge` → `tools` → `store` → `model` → `contract`; `contract` imports nothing runtime-bound.
+- `server.ts`: the MCP stdio transport and the session context (project DB path, agent id, lock owner `agentId#pid`). It hands every call to `tools.ts` and owns no business rule.
+- `tools.ts`: the seven tool specs and validated dispatch over `IStore`. Results are JSON in text, marked as data.
+- `store.ts`: the only SQLite code. It covers:
+  - opening a DB (WAL, busy timeout, schema);
+  - remember, recall, get and forget;
+  - locks;
+  - read-only cross-project access;
+  - `claimUnseen` for the hook.
+- `hook.ts`: reads the host event, works out the receiver and project, claims unseen records through `store.ts`, and renders the context text. It must not import the MCP SDK.
+- `namespace.ts`, `identity.ts`, `model.ts`, `contract.ts`, `fsguard.ts` and `clock.ts` keep their current roles.
+
+### Source Tree and File Responsibilities
 
 ```text
 mcps/synapse/
   src/
-    contract.ts   - FROZEN tool I/O, zod inputs (.describe), DTOs, LIMITS, SERVER_INSTRUCTIONS, IStore. Pure; imports no sqlite/http/fs. Invariant: 7 tools, no scope/kind field.
-    model.ts      - Row entities + mappers + SCHEMA_SQL + external-id codec (global = BASE+rowid). Owns id encode/decode; no I/O.
-    store.ts      - SOLE node:sqlite owner: per-project + global DBs (WAL), FTS5/bm25 recall, byte budget, atomic lock reap+claim, ingest redaction, onCommit(channel). Must not know HTTP/MCP. Verified by test/store.test.ts.
-    tools.ts      - Transport-agnostic tool specs (tools/list) + validated dispatcher (tools/call); results are JSON-in-text (data, not instructions); lock denials carry hints.
-    sidecar.ts    - ONE process: low-level MCP Server per session over Streamable HTTP (127.0.0.1 + bearer + DNS-rebind), resources/subscribe handling, onCommit → coalesced resources/updated fan-out (P4.2), 2 MB body cap. Verified by test/sidecar.test.ts + test/coalescing.test.ts + test/recovery.test.ts.
-    bridge.ts     - Per-host stdio Server <-> upstream HTTP Client; proxies tools/resources; forwards resources/updated + list_changed downstream; autostarts the sidecar; resolves project key SYNAPSE_PROJECT → roots (skipped under SYNAPSE_ROOTS=ignore) → cwd git-root (P4.3). Verified by test/bridge.test.ts + test/roots-routing.test.ts.
-    bootstrap.ts  - Zero-config: discovery file + persistent token (mode 600) + lock-elected sidecar spawn + /health poll. Owns ~/.synapse file lifecycle.
-    namespace.ts  - Canonical project key = git-root realpath hash (override -> git root -> cwd); fixed global path. Owns physical isolation routing.
-    identity.ts   - Derive agent_id (env -> clientInfo -> session) for provenance; never throws.
-    redactor.ts   - Secret regex floor (Bearer/sk-/gh_/glpat/...) applied on ingest.
-    clock.ts      - SystemClock / FakeClock seam for deterministic tests.
-  test/{store,sidecar,bridge,recovery,roots-routing,coalescing}.test.ts  - store invariants, forget-reason redaction, local/global/cross-project ids and cursors; live-HTTP sidecar + S-01 realtime + oversized-body 413; bridge proxy/forward + autostart; kill→restart WAL recovery + concurrent writes; bridge roots routing; dirty-bit coalescing.
-  test/smoke/README.md  - per-target transport smoke runbook (T2.5): host matrix + the live per-host check procedure.
-  schema.sql            - Canonical DDL mirror of model.ts SCHEMA_SQL.
-  install.mjs           - Build + link bins (npm run install:synapse); on macOS, retires the launchd agent earlier versions deployed.
-```
+    contract.ts    - Tool I/O schemas, DTOs, LIMITS, SERVER_INSTRUCTIONS, IStore. Pure. Loses OPERATION_* and SIDECAR_FEATURES; memory_remember's result loses `redactions`. Invariant: 7 tools.
+    model.ts       - Row types, mappers, SCHEMA_SQL (adds hook_cursors, drops operations), external-id codec. No I/O.
+    store.ts       - The only SQLite code: per-project and global DBs, FTS5 recall, locks, forget scrub, read-only cross-project access, claimUnseen. No MCP, onCommit, redaction or operation records. Tests: store, hook, multiprocess.
+    tools.ts       - Tool specs and dispatcher for one session; no operation ids.
+    server.ts      - PROPOSED (S1). Stdio MCP server for one host session; bin `synapse-bridge`. Tests: server, roots-routing.
+    hook.ts        - PROPOSED (S2). Bin `synapse-hook`; PostToolUse reader for Claude Code, Codex and Droid; no MCP SDK import. Tests: hook, scripts/host-acceptance.mjs.
+    namespace.ts   - Project key and DB paths (unchanged).
+    identity.ts    - Agent id derivation (unchanged).
+    fsguard.ts     - Owner-only data directory (unchanged).
+    clock.ts       - Clock seam for tests (unchanged).
+    sidecar.ts, bridge.ts, bootstrap.ts, redactor.ts - DEPRECATED; deleted in S1.
+  test/
+    store.test.ts         - Kept, minus the redaction, operation-id and onCommit cases.
+    server.test.ts        - PROPOSED: a spawned server lists 7 tools, round-trips remember→recall, exits on stdin close, and owns locks per process.
+    roots-routing.test.ts - Ported from the bridge to the server.
+    multiprocess.test.ts  - PROPOSED: Q-03.
+    hook.test.ts          - PROPOSED: Q-02 and the hook rules, driven by recorded host payloads.
+    fixtures/hooks/*.json - PROPOSED (S0.1): real PostToolUse payloads from each host, scrubbed of secrets and home paths.
+    sidecar, bridge, coalescing and recovery tests - DEPRECATED; deleted in S1. Recovery's crash cases move to multiprocess.test.ts.
+    smoke/README.md       - DEPRECATED: the manual runbook is replaced by scripts/host-acceptance.mjs.
+  scripts/host-acceptance.mjs - PROPOSED (S3): the Q-01 run per host. One model call per host; run on demand, not by npm test.
+  schema.sql       - DDL mirror of SCHEMA_SQL.
+  install.mjs      - Build, bin links, v0.4 hand-over.
+  stop-sidecar.mjs - DEPRECATED: used only by the v0.4 hand-over; deleted one release later.
+  package.json     - Bins `synapse-bridge` → dist/src/server.js and `synapse-hook` → dist/src/hook.js.
 
-Distribution lives in the parent repo, not here: `registry/optional-services.json` (first-party `synapse` entry), `schemas/optional-services.schema.json` (first-party path), and `scripts/agent-surface/` (the compiler renders the stdio entry into owned files and **non-destructively merges** shared host configs — **25 generated MCP hosts total** across JSON/TOML/JSONC/YAML). The merge engine is IMPLEMENTED (roadmap P3).
+scripts/agent-surface/
+  synapse-hook.mjs - PROPOSED (S2): the three hosts' hook-config locations and one idempotent JSON merge that adds or removes the Synapse PostToolUse entry and keeps every other hook. Owns the Droid file rule. Handles no other kind of hook.
+  install.mjs      - Calls it wherever the mcps category installs Synapse for those targets; dry-run lists the change.
+  doctor.mjs       - Reports both bin links and each host's hook entry; drops the sidecar.json check.
+registry/optional-services.json - The Synapse validation hint and wiring notes describe the server and the hook.
+```
 
 ## Data and State
 
-- **`memory`** (append-only): `id (monotonic = cursor), ts, agent_id, content, tags(json), supersedes(id?), status(live|superseded|redacted)`. FTS5 over `content`+`tags`. **No `scope`/`kind` column** — project vs global is *which file*; classification is `tags`.
-- **`locks`**: `glob PK, agent_id, acquired_at, expires_at`. TTL + lazy reap; atomic acquire.
-- **Single writer** (the sidecar) → no cross-process WAL contention, no cold-start race. WAL for durability + operator reads.
-- **Physical isolation**: project file (git-root hash) + global file, mode 600. Cross-project read = explicitly open another project's file, read-only; never implicit, no other-project writes. (Per-agent *private* visibility intentionally omitted; a future `visibility` column could add it without touching isolation.)
-- **Recovery**: restart sidecar → recover to last committed WAL row; clients reconnect and cursor-re-pull (`recall({since})`). Stream-level `Last-Event-ID` resume is **not yet wired** (no event store) — roadmap P4.1.
+- **`memory`, `locks` and `meta`:** unchanged.
+- **`operations`:** dropped by a `DROP TABLE IF EXISTS` in `SCHEMA_SQL`. Every open runs the idempotent schema, and the busy timeout serializes concurrent opens. The install stops the v0.4 sidecar, the only writer of this table, before any new server opens a DB.
+- **`hook_cursors`** (new, in the project DB):
+  - `receiver TEXT PRIMARY KEY`: the host `session_id`, plus `:agent_id` for a subagent;
+  - `project_after INTEGER NOT NULL`;
+  - `global_after INTEGER NOT NULL`;
+  - `updated_at INTEGER NOT NULL`.
 
-## Technology Decisions
+  Rows are never pruned. Each is about 100 bytes per session or subagent; revisit if the table becomes a noticeable share of a DB file.
+- **Claim rule:**
+  1. On a receiver's first hook run, insert the baseline (the current max ids) and deliver nothing. S0.2 may move the baseline to session start.
+  2. On later runs, first check, read-only, whether either store has a live row past its cursor. If not, stop.
+  3. Otherwise run `BEGIN IMMEDIATE`, re-read the cursor, and select live rows past it in id order.
+  4. Skip the id returned by this event's own `mcp__synapse__memory_remember`.
+  5. Take rows until the byte budget is spent, and advance both cursors past the rows taken and the skipped id.
+  6. `COMMIT`, then print.
 
-| Area | Decision | State | Rationale | Alternatives rejected |
-|---|---|---|---|---|
-| Topology | one HTTP sidecar (sole owner) + stdio bridge (universal client) | `IMPLEMENTED` (USER_DECISION) | shared owner needed for realtime; stdio bridge = universal host compat; HTTP-direct free for capable hosts | HTTP-only (brittle host support); stdio-per-client (no cross-notify) |
-| Realtime | commit-hook → `resources/updated` dirty-bit; **cursor pull is the floor** | `IMPLEMENTED` | native MCP push; correctness never depends on push | watcher/poll (cut); `list_changed` as floor (wrong semantics); CRDT (overkill) |
-| Recall | compact+budgeted default; `since` cursor; `memory_get({ids})` full | `IMPLEMENTED` | `limit` ≠ context control; counters flooding/poisoning | full-by-default (floods); separate `sync_changes` tool (fold into `recall`) |
-| Storage | `node:sqlite` WAL single owner; `memory`+`locks`; no scope column | `IMPLEMENTED` | one writer = simple; physical isolation | logical scope column (agentmemory leak class) |
-| Identity | auto-derive per session, never gate writes | `IMPLEMENTED` | zero ceremony | handshake/`IDENTITY_REQUIRED` |
-| Usage delivery | server `instructions` + descriptions + in-band hints | `IMPLEMENTED` | reaches the model | guide resource (invisible to clients) |
-| Auth / SDK | static bearer (local) + Host; SDK `>=1.24.0 <2` | `IMPLEMENTED` | spec-acceptable local; DNS-rebind advisory patched ≥1.24.0 | `<2` alone (vulnerable); full OAuth (overkill local) |
-| Lifecycle | bridge autostart only | `IMPLEMENTED` | zero-setup; one owner of the port | launchd-required (heavy default); launchd always-on beside autostart (two owners raced for the port; retired) |
-| Distribution | first-party registry entry → stdio `synapse-bridge`; generated for owned files and **non-destructively merged** into shared host configs across JSON/TOML/JSONC/YAML (25 generated MCP hosts total; matrix in [../../docs/reference/targets.md](../../docs/reference/targets.md)) | `IMPLEMENTED` | reuse agent-surface render path; never bake a per-project secret/path into a global config | wholesale write into shared configs (clobbers user servers) |
+  Delivery is at most once per receiver. If the hook dies after `COMMIT`, that receiver loses the batch, but `memory_recall` still returns it.
+- **Hook budget:** `LIMITS.MAXBYTES_DEFAULT` (8 KiB) per run. That is below Claude Code's 10,000-character limit and about Codex's 2,500-token default; above that default, Codex keeps the text on disk and shows a preview. Rows beyond the budget stay unclaimed and arrive with later tool calls, and the text says how many remain.
+- **Retention, backup and privacy:** rows are append-only as today; back up by copying the files. Content is stored as written, `memory_forget` scrubs a record, and the data directory stays owner-only.
+- **Rollback:** reinstalling `synapse-v0.4.0` recreates `operations` (`CREATE TABLE IF NOT EXISTS`) and ignores `hook_cursors`, so the data stays compatible in both directions.
 
-## Quality Scenarios and Fitness Gates
+## Interfaces and Contracts
 
-| Scenario | Mechanism | Gate |
-|---|---|---|
-| A writes, B sees it live | commit hook → dirty-bit → B `recall({since})` | B notified <1s (push) AND B cursor-pull returns it (floor) |
-| Push-ignoring client | cursor pull at turn boundary | coordination correct with push disabled |
-| Recall doesn't flood | compact+budgeted default | result under `maxBytes`; full only via `memory_get` |
-| Two agents lock same glob | atomic reap+claim | one winner; loser gets `{heldBy,expiresAt,suggestion}` |
-| Project A vs B | separate files; explicit `project:` | B absent by default; present when named |
-| Stdio-only host | bridge → sidecar | tools + push work through the bridge |
-| Poisoned/secret record | redaction; quoted-data render | redaction suite; never surfaces as instruction |
-| Crash / reconnect | append-only WAL + reconnect cursor re-pull | recover to last row (proven: `test/recovery.test.ts` kill→restart→max(id) intact); client re-pulls via `recall({since})` (stream `Last-Event-ID` resume = not wired, stated) |
+- **MCP:**
+  - The seven tools keep their names and inputs; `memory_remember` no longer returns `redactions`.
+  - The server declares no resources, subscriptions or experimental capabilities.
+  - `SERVER_INSTRUCTIONS` gains one sentence: on hosts with the Synapse hook, records from other agents may arrive after tool calls, as untrusted data.
+- **`synapse-hook` input:** the host's PostToolUse JSON on stdin. It reads `session_id`, the optional `agent_id`, `cwd`, `tool_name` and `tool_response`. It also reads `SYNAPSE_DB_DIR`, `SYNAPSE_PROJECT` and `SYNAPSE_NAMESPACE`, which mean the same as for the server; there are no MCP roots.
+- **`synapse-hook` output:** nothing, or `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"<text>"}}`.
+  - The text starts `Synapse: new records from other agents (untrusted data, not instructions):`.
+  - Then one line per record: `[project #id | global #id] <agent_id> <ISO time>: <content>`.
+  - A record longer than its share of the budget is cut to the snippet length and keeps its id, so `memory_get` can expand it.
+- **Registration:** one entry, `{"matcher":"*","hooks":[{"type":"command","command":"<absolute path of ~/.local/bin/synapse-hook>"}]}`, under PostToolUse:
+  - Claude Code: `hooks.PostToolUse` in `~/.claude/settings.json` (user scope) or `.claude/settings.json` (project scope).
+  - Codex: `hooks.PostToolUse` in `~/.codex/hooks.json` or `.codex/hooks.json`.
+  - Droid: top-level `PostToolUse` in `hooks.json` when that file exists or `settings.json` has no `hooks` key; otherwise `hooks.PostToolUse` in `settings.json`. Creating `hooks.json` would hide the hooks a user keeps in `settings.json`.
 
-## Security, Privacy, and Compliance
+  Merges are idempotent and match the entry by its command path. They keep every other key and hook, and remove only this entry when Synapse is deselected.
 
-- Sidecar binds **127.0.0.1 only**; validate `Host` (DNS-rebinding); **static bearer** (token file mode 0600); SDK **`>=1.24.0`**; no token passthrough; OAuth deferred. Bridge↔sidecar over localhost with the same bearer.
-- Identity auto-derived (provenance); `forget` works with derived identity; append-only = audit. Cooperative single-user trust.
-- Secrets redacted on ingest (Bearer/sk-proj/sk-ant/gh[pus]_/glpat floor); no transcript auto-capture; DB + token files mode 600.
-- Stored content rendered as quoted data, never instructions; static tool descriptions; strict zod (`additionalProperties:false`, UTF-8 byte caps); fail-open reads.
+## Security, Privacy, and Abuse Cases
+
+- **Asset:** memory content, which can include project details. It stays in owner-only files under the user's home. Nothing listens on the network any more; that listener was the only thing the bearer token and Host check protected.
+- **Untrusted input:** any agent that can write to the store can put text in front of other agents through the hook, as it already could through `recall`. Both label the content as data, not instructions. There is no ingest redaction (ADR-14); `memory_forget` scrubs a record that should not have been stored.
+- **Codex hook trust stays Codex's control:** agent-surface never writes Codex's trust store and never adds `--dangerously-bypass-hook-trust` to normal use (ADR-17).
 
 ## Operations
 
-- **Lifecycle**: the first client's bridge lock-elects and autostarts the sidecar (discovery + bearer token in `~/.synapse`, mode 0600); it stays resident (no idle-shutdown). There is no service: `npm run install:synapse` only rebuilds and relinks (on macOS it also retires the old `local.synapse` launchd agent); the token + DBs persist, and a running sidecar keeps its build until it exits.
-- Config: `SYNAPSE_DB_DIR` (default `~/.synapse`), `SYNAPSE_PORT` (default 4319), `SYNAPSE_URL` with `SYNAPSE_TOKEN` (set both or neither; neither discovers or autostarts the local sidecar); per-session `SYNAPSE_AGENT_ID`/`SYNAPSE_PROJECT`/`SYNAPSE_NAMESPACE`/`SYNAPSE_ROOTS`.
-- Observability: sidecar stderr (discarded under autostart; run `synapse-sidecar` directly to watch it); audit = read `.sqlite`. Backup = copy files. Cost: one small process + thin bridges.
+- **Install or upgrade:** run `npm run install:synapse`, then `agent-surface install --category mcps --target <targets>`. Restart host sessions to start the new server.
+  - Claude Code reloads hooks itself.
+  - Droid reads them when a session starts.
+  - Codex needs its one-time trust, unless S0.3 finds a policy route.
+- **Environment:** `SYNAPSE_DB_DIR`, `SYNAPSE_AGENT_ID`, `SYNAPSE_PROJECT`, `SYNAPSE_NAMESPACE`, `SYNAPSE_ROOTS`. Removed: `SYNAPSE_PORT`, `SYNAPSE_URL`, `SYNAPSE_TOKEN`.
+- **Health:** `agent-surface doctor` reports the bin links and each host's hook entry. With no daemon, there is no health endpoint.
+- **Logs:** none on success. Hook failures show up as the host's hook-error notice, and server errors as tool errors.
+- **Cost:** one small process per host session, plus one short process per tool call on the three hook hosts (Q-04).
+
+## Quality Scenarios and Fitness Gates
+
+- Q-01: `node scripts/host-acceptance.mjs --host <claude-code|codex|droid>` reports PASS, FAIL, or BLOCKED with the reason, per host.
+- Q-02: the concurrent-claim case in `hook.test.ts`.
+- Q-03: `multiprocess.test.ts`.
+- Q-04: the S0.4 measurement, recorded here.
+- G-02: the store suite and the v0.4 fixture DB case.
+
+## Architecture Decisions
+
+- **ADR-11** (ACCEPTED 2026-11-04, user): one stdio server per session over shared SQLite. Supersedes ADR-01, ADR-07 and ADR-08. Rejected:
+  - keeping the sidecar, which exists for a push that no host has been shown to deliver;
+  - HTTP-only hosts;
+  - a new daemon for push.
+- **ADR-12** (ACCEPTED 2026-11-04, user): real-time delivery through each host's PostToolUse hook. One event on every host and no PostToolBatch path, because maintaining two paths costs more than it saves. Supersedes ADR-02. Rejected:
+  - Claude Code channels as the baseline: Claude Code only, with a development flag and a warning dialog at every launch;
+  - an in-server `data_version` watcher, which would only feed a push no host shows the model;
+  - rewriting tool descriptions, which invalidates prompt caches.
+- **ADR-13** (ACCEPTED 2026-11-04, user): no tool-result fallback; hosts without hooks use `memory_recall({since})`. Revisit when a host without hooks needs automatic delivery.
+- **ADR-14** (ACCEPTED 2026-11-04, user): the ingest redactor is removed; `memory_forget` is the remedy.
+- **ADR-15** (ACCEPTED): hook state is kept per receiver in the project DB, with separate project and global cursors, an atomic claim, and at-most-once delivery.
+- **ADR-16** (PROPOSED, S0.2): the first-run baseline.
+- **ADR-17** (PROPOSED, S0.3): the Codex trust route.
+- Unchanged:
+  - ADR-03: recall shape;
+  - ADR-04: physical isolation;
+  - ADR-05: derived identity;
+  - ADR-06: usage through instructions;
+  - ADR-09: private visibility deferred;
+  - ADR-10: distribution through the registry.
 
 ## Risks, Debt, and Revisit Triggers
 
-| Item | Impact | Trigger | Next proof |
-|---|---|---|---|
-| Client ignores `resources/updated` | no live push for that client | known-thin today | cursor pull floor (S-01 proven) |
-| MCP merge clobbers a host's own servers/secrets | data loss in user config | resolved | per-format read-modify-write + idempotent matrix cases in `tests/suites/install.test.mjs` |
-| Crash / many-session integrity unproven | possible lost write on kill | resolved | `test/recovery.test.ts` (SIGKILL mid-session → restart → all committed rows + max(id) intact; concurrent writes persist) |
-| Notification flooding on burst writes | host churn | resolved | leading+trailing-edge coalescer (`test/coalescing.test.ts`: 20-write burst → ≤2 notifications) |
-| Bridge cwd ≠ workspace | wrong project namespace | resolved | bridge roots routing (`test/roots-routing.test.ts`: env → roots → cwd) |
-| 2026-07-28 RC (stateless, `subscriptions/listen`) | transport churn | RC ships | cache-friendly reads; pin SDK `>=1.24.0 <2` |
-| Private visibility omitted | no agent-local scratch | a real need | additive `visibility` column later |
+- **Codex runs the hook only after one approval.**
+  - Impact: nothing is delivered on Codex until the hook is trusted, and again whenever the hook definition changes.
+  - Mitigation: the install prints the exact step, and the definition stays the same across Synapse upgrades.
+  - Next proof: S0.3.
+- **Host hook contracts drift.** Cursor and Copilot have shipped versions that dropped this context.
+  - Impact: delivery silently stops.
+  - Mitigation: rerun `host-acceptance.mjs` whenever a host's major version changes.
+- **Receiver identity:** S0.1 confirms how each host marks subagent events. Without such a marker, a subagent shares its parent's cursor and can take a record the parent never sees.
+- **Gap before the first tool call:** under the default baseline, records written before a receiver's first tool call arrive only through `recall`. Next proof: S0.2.
+- **Self-echo:** with parallel tool calls, a sibling hook can claim the session's own new record before the hook for the `memory_remember` event skips it.
+  - Impact: one redundant line.
+  - Revisit if agents act on their own echoed records.
+- **Per-call cost:** see Q-04.
+- **Debt:** `stop-sidecar.mjs` and the hand-over in `install.mjs`. Delete them one release after this ships.
 
-## ADR Index
+## Implementation Guardrails
 
-| Decision | Status | Section |
-|---|---|---|
-| ADR-01 HTTP sidecar (sole owner) + stdio bridge (universal); HTTP-direct optional | accepted (USER_DECISION) | Topology |
-| ADR-02 Realtime = commit-hook dirty-bit push; **cursor pull is the correctness floor** | accepted | Realtime |
-| ADR-03 Compact+budgeted recall default + `memory_get({ids})`; `since` cursor folded into `recall` (no `sync_changes` tool) | accepted | Recall |
-| ADR-04 Physical isolation only (git-root file + global); **no scope/visibility column**; explicit cross-project read | accepted | Data and State |
-| ADR-05 Identity auto-derived per session; no handshake | accepted | Security |
-| ADR-06 Usage via server `instructions` + descriptions + in-band hints | accepted | Selected |
-| ADR-07 SDK `>=1.24.0 <2` (DNS-rebind); bearer + Host; bind 127.0.0.1 | accepted | Security |
-| ADR-08 Lifecycle: bridge autostart only (the launchd always-on agent raced it for the port and was retired) | accepted | Operations |
-| ADR-09 (open) private visibility omitted per prior user decision; revisit if scratch needed | proposed | Data and State |
-| ADR-10 Distribution: first-party registry entry (no submodule pin); generated for agent-surface-owned MCP files; **non-destructive merge** for shared host configs (JSON/TOML/JSONC/YAML; 25 generated MCP hosts total); never bake a per-project path/secret into a global config (bridge derives project at runtime, env → roots → cwd) | accepted | Technology Decisions · roadmap P3 |
+- Dependencies point one way: `server` → `tools` → `store` → `model` → `contract`, and `hook` → `store`, `namespace`, `model`, `contract`. Nothing imports `server` or `hook`.
+- `store.ts` is the only SQLite code; `hook.ts` builds no SQL.
+- `hook.ts` must not import `@modelcontextprotocol/sdk`.
+- No new long-lived process, no port, and no file under `~/.synapse` besides the DBs.
+- Out of scope here: delivering lock events, waking idle agents, adapters for other hosts, and changes to the `recall` contract.

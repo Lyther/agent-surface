@@ -1,114 +1,166 @@
 # Roadmap
 
-Status: SHIPPED (v0.4 core + distribution + robustness; PR #14 merged) — tag `synapse-v0.4.0` cut; open by nature: per-host in-app smoke (operator-recorded continuously)
-Source architecture: mcps/synapse/architecture.md
-Last updated: 2026-11-03
+Status: PROPOSED
+Source architecture: [architecture.md](architecture.md)
+Last updated: 2026-11-04
+
+v0.4 shipped as `synapse-v0.4.0`; its history is in git. This plan replaces its machinery. Grimoire's changes are in [../grimoire/roadmap.md](../grimoire/roadmap.md). Both land in one PR, in the order set in [docs/roadmap.md](../../docs/roadmap.md#phase-mcp-s-synapse-and-grimoire-simplification).
 
 ## Roadmap Principles
 
-- One HTTP sidecar owns writes + realtime; a stdio bridge gives universal host reach. Push accelerates; cursor pull is the correctness floor.
-- 7 tools, self-describing via server `instructions` + descriptions + in-band hints. No ritual/handshake.
-- Physical isolation; identity auto-derived, never gates writes. Compact/budgeted recall by default.
-- Every task carries observable acceptance evidence; nothing depends on push.
-- Distribution never clobbers a host's existing MCP config: agent-surface generates the files it owns and **merges** (read-modify-write) into shared/secret-bearing ones.
+- Keep the tools and the data. Remove the machinery first, then add the hook.
+- Every acceptance step is a command. A host that can't be driven headless gets a scripted interactive run, never a manual step.
+- One host event (PostToolUse), one reader, and one registration module.
 
-## Status Snapshot
+## Phase S0: Decisions and Spikes
 
-- **Done**: Phase 0 (spike + contract + model + namespace), Phase 1 (sidecar/bridge/store/identity/memory/locks/realtime/instructions), Phase 2 (autostart + launchd, since retired, security pass, threat-model README, first-party distribution, **concurrency + crash recovery**), Phase 3 (**non-destructive MCP merge engine**; external MCP opt-in policy reconciled), Phase 4 (**dirty-bit coalescing**, **bridge MCP-roots routing**, SSE-resume + idle-shutdown claims truth-stated). Proof: synapse `npm test` 40/40; repo gates are rerun with each distribution change.
-- **Phase 5 (production-readiness) — mostly done** (PR #14 and later portfolio refreshes): shipped distribution, CI, `doctor` sidecar health, Linux lazy-start, YAML config support, and CHANGELOG. **Open by nature**: per-host live transport smoke and the `synapse-v0.4.0` git tag. The current matrix has 25 generated MCP hosts; Antigravity desktop and DSH have no modeled MCP.
+Objective: settle what the hook depends on before building it.
+Exit gate: ADR-16 and ADR-17 are accepted or defaulted, the payload fixtures are committed, and the hook cost is recorded.
 
-## Phase 0–1: Core (DONE)
+- [ ] `S0.1` Spike: capture real PostToolUse payloads and check what the model sees.
+  - Why now: `hook.ts` parses these fields, and the shapes of subagent events and MCP results are undocumented.
+  - Scope:
+    - Set up a temp project with a temp `SYNAPSE_DB_DIR`.
+    - Register a logging hook at project scope. It saves stdin and returns a random static marker as `additionalContext`.
+    - Run `claude -p`, `codex exec --dangerously-bypass-hook-trust` and `droid exec` once each.
+    - Use one prompt that runs a shell command, a `memory_remember` and, where the host has one, a subagent, then asks the model to repeat any marker it received.
+  - Output:
+    - `test/fixtures/hooks/<host>-{shell,mcp,subagent}.json`, with secrets and home paths removed;
+    - per host, whether hooks fire in headless runs and whether the model repeats the marker;
+    - per host, what an exit code of 1 does.
+  - Acceptance evidence: the fixtures exist, and the notes record how each host identifies subagent events, or that it doesn't.
+  - If it fails:
+    - A host that doesn't run hooks in headless runs moves to S3.2's scripted interactive run.
+    - A host that doesn't show the model the added context is dropped from the three, with that evidence recorded.
+- [ ] `S0.2` Decide ADR-16, the first-run baseline.
+  - Default: a receiver's first hook run sets its cursors to the current max ids and delivers nothing.
+  - Spike: using S0.1, check whether every host sends a `transcript_path` whose file creation time matches the session start. If all three do, the first run instead delivers rows with `ts` at or after that time.
+  - Output: ADR-16 accepted in architecture.md.
+- [ ] `S0.3` Decide ADR-17, the Codex trust route.
+  - Options:
+    - (a) the user trusts the hook once through `/hooks` after install, and the install prints that step;
+    - (b) a managed hook in `requirements.toml`, which Codex trusts by policy. This spike also finds out where that file lives and who can write it.
+  - Ruled out:
+    - writing Codex's private trust store;
+    - adding `--dangerously-bypass-hook-trust` to normal use, which skips review for every hook.
+  - Output: ADR-17 accepted. S4.1 updates the README and install output to match.
+- [ ] `S0.4` Measure the hook's cost.
+  - Scope: a stub `hook.ts` that resolves the namespace, opens the store and checks max ids, run 100 times on this machine with a project DB and 100 times without one.
+  - Output: p50 and p95, recorded under Q-04. If imports dominate the time, keep zod and the SDK out of the hook's imports.
+- [x] `S0.5` ADR-13 accepted by the user on 2026-11-04: no tool-result fallback.
 
-- [x] `P0.1` Spike S-01 — realtime push + bridge-forward + cursor floor. Evidence: `test/sidecar.test.ts` "S-01 …", `test/bridge.test.ts` "forwards realtime resources/updated".
-- [x] `P0.2`–`P0.4` Contract / model / namespace — `src/contract.ts` (7 tools, `instructions`, DTOs), `src/model.ts` + `schema.sql` (no scope/kind column), `src/namespace.ts` (git-root realpath hash). Evidence: `tsc` clean; store tests.
-- [x] `P1.1` Sidecar transport — Streamable HTTP 127.0.0.1, sessions, bearer, DNS-rebind/Host, SDK `>=1.24.0 <2`. Evidence: sidecar tests (bearer/init/isolation).
-- [x] `P1.2` stdio bridge — proxy JSON-RPC + forward `resources/updated`/`list_changed`. Evidence: bridge proxy + forward test.
-- [x] `P1.3`–`P1.6` Store, identity, `memory_*`, `lock_*` — single-owner WAL, FTS5/bm25, budgeted recall, atomic lock reap+claim. Evidence: 22 store tests incl. F001/F004.
-- [x] `P1.7` Realtime + cursor floor — commit hook → dirty-bit; `recall({since})`/`lock_list` floor. Evidence: S-01 + `since`-cursor tests.
-- [x] `P1.8` `instructions` + tool descriptions (≥3 sentences, "untrusted data"). Evidence: `SERVER_INSTRUCTIONS` + `TOOL_DESCRIPTIONS` in `src/contract.ts`.
+## Phase S1: Direct Stdio Server
 
-## Phase 2: Hardening + owned-file distribution
+Objective: one server per session over the existing DBs, with the sidecar machinery gone.
+Exit gate: a host config that runs `synapse-bridge` gets 7 tools and a working round trip with no sidecar process running, and `npm test` in `mcps/synapse` passes.
 
-- [x] `T2.1` Lifecycle autostart — `src/bootstrap.ts` lock-elected spawn + discovery/token (mode 600); a macOS launchd agent, retired 2026-11-03 because it raced autostart for the port (`install.mjs` now removes it; autostart is the only lifecycle). Evidence: bridge "zero-config autostart" test; `node --check install.mjs`.
-- [x] `T2.3` Security pass — bearer/Host, ingest redaction, `forget` plaintext scrub (F004), 2 MB body cap → 413 (F005), mode-600 files (F007). Evidence: F002/F004/F005 + redaction tests.
-- [x] `T2.4` Threat model + README. Evidence: `README.md` Security section.
-- [x] `T2.6` Distribution (owned-file targets) — first-party `synapse` registry entry; `optional-services.schema.json` first-party path; `npm run install:synapse` builds+links bins. Evidence: `check generated: ok`; generated routes asserted in `tests/suites/build.test.mjs`.
-- [x] `T2.2` Concurrency + crash recovery
-  - Files: `test/recovery.test.ts`.
-  - Scope: many concurrent sessions; kill sidecar mid-write (SIGKILL); restart; assert no lost committed writes and recovery to last committed row (WAL).
-  - Acceptance evidence: `T2.2: kill mid-session then restart recovers all committed rows and last id` + `T2.2: concurrent writes from many sessions all persist across a hard crash` (synapse `npm test` 40/40).
-  - Dependencies: none.
-- [x] `T2.5` Per-target transport smoke (runbook)
-  - Files: `test/smoke/README.md`.
-  - Scope: launch `synapse-bridge` under each registered host; confirm tools/list + a remember/recall round-trip + push arrives.
-  - Acceptance evidence: runbook landed with the per-host procedure; matrix-driven config merge is proven in `tests/suites/install.test.mjs`; in-process transport is proven by `test/bridge.test.ts`; native host passes remain separately recorded evidence.
-  - Dependencies: T2.6.
-  - Note: the live per-host smoke is operator-run evidence, not an automated test; the matrix records pass/fail per host before that host is documented as fully wired.
-- [x] `T2.7` Orchestrator seeding
-  - Files: `skills/workflow-orchestrator/SKILL.md` (SYNAPSE AGENT SEEDING section).
-  - Scope: when the orchestrator fans out concurrent agents, pass `SYNAPSE_AGENT_ID` (per agent, distinct) and a shared `SYNAPSE_PROJECT`; single-agent runs untouched.
-  - Acceptance evidence: the orchestrator command now specifies the per-agent `SYNAPSE_AGENT_ID` + shared `SYNAPSE_PROJECT` seeding rule and the single-agent exemption; non-secret, process-local only, never persisted.
-  - Dependencies: T2.6.
+- [ ] `S1.1` Add `server.ts`.
+  - Files: `src/server.ts` (new), `package.json` bins.
+  - Scope:
+    - a stdio server with `SERVER_INSTRUCTIONS` and the seven tools via `tools.ts`;
+    - session context from routing: env, then roots, then cwd, keeping `bridge.ts`'s fail-closed and `SYNAPSE_ROOTS` rules;
+    - identity from env, then clientInfo;
+    - lock owner `agentId#pid`.
+  - Acceptance evidence: `server.test.ts` (spawned process) shows tools/list returns 7 tools, remember→recall works, and the server exits when stdin closes; the ported `roots-routing.test.ts` passes.
+- [ ] `S1.2` Trim the store, tools, contract and model.
+  - Scope:
+    - remove operation records, replay and the `operationId` parameters;
+    - remove `onCommit`, the redactor call, `SIDECAR_FEATURES`, `OPERATION_*` and the `redactions` result;
+    - drop the `operations` table from `SCHEMA_SQL`;
+    - keep `memory_forget`'s scrub.
+  - Acceptance evidence: `store.test.ts` passes without the deleted cases. A v0.4 fixture DB, built with the v0.4 schema and holding `operations` rows, opens with every memory and lock row intact and no `operations` table.
+- [ ] `S1.3` Delete the sidecar path.
+  - Files to delete: `src/{sidecar,bridge,bootstrap,redactor}.ts`, `test/{sidecar,bridge,coalescing,recovery}.test.ts`, `test/smoke/README.md`.
+  - Acceptance evidence: `tsc` is clean, and `rg -n "sidecar|SYNAPSE_URL|SYNAPSE_TOKEN|SYNAPSE_PORT|operation" mcps/synapse/src` finds nothing.
+- [ ] `S1.4` Prove the shared store across processes (Q-03).
+  - Files: `test/multiprocess.test.ts`.
+  - Scope:
+    - Four real server processes on one temp DB dir write concurrently, and one is killed with SIGKILL mid-burst.
+    - The surviving processes and a fresh one see every committed row.
+    - A lock held by one process is refused to another until it is released or expires.
+  - Acceptance evidence: the test passes.
+- [ ] `S1.5` Hand over from v0.4 at install.
+  - Files: `install.mjs`.
+  - Scope:
+    - clean `dist` before the build, so no stale `sidecar.js` remains;
+    - link `synapse-bridge`, plus `synapse-hook` once S2.2 exists;
+    - remove the `synapse-sidecar` link;
+    - stop a running v0.4 sidecar with `stop-sidecar.mjs`;
+    - delete `~/.synapse/{sidecar.json,sidecar.lock,token}`.
+  - Acceptance evidence: after `install.mjs` runs with a disposable `HOME`, both links exist, the `synapse-sidecar` link is gone, and none of the three files remain. The disposable `HOME` has no LaunchAgents plist, so nothing calls `launchctl`.
 
-## Phase 3: MCP-merge distribution
+## Phase S2: Hook Delivery
 
-Goal: deliver synapse to the hosts the user listed in `README.md` Distribution step 2 **without** clobbering user-owned servers/secrets.
+Objective: G-01 on Claude Code, Codex and Droid.
+Exit gate: `hook.test.ts` passes on the recorded payloads, and installs register the hook idempotently.
 
-- [x] `P3.1` Non-destructive merge engine
-  - Files: `scripts/agent-surface/install.mjs` (`mcpConfigMerge`) and `scripts/agent-surface/merge.mjs` (`mergeJsonMcpConfig`, `mergeCodexMcpToml`), `scripts/agent-surface/jsonc.mjs`, `registry/target-capabilities.json`.
-  - Scope: read-modify-write helpers per config format — JSON `mcpServers`, TOML `mcp_servers` (Codex), JSONC `mcp` (Kilo/OpenCode), nested settings (`gemini settings.json`, Zed `context_servers`, VS Code `servers`), Claude Code (`~/.claude.json` / project `.mcp.json`). Merge adds/updates only the `synapse` key; preserves all other entries and comments where the format requires.
-  - Acceptance evidence: matrix-driven cases in `tests/suites/install.test.mjs` cover the active JSON/JSONC/TOML/YAML merge families; idempotent re-merge is a no-op diff.
-  - Dependencies: T2.6.
-- [x] `P3.2` Flip manual MCP targets to generated-merge
-  - Files: `scripts/agent-surface/targets.mjs`, `registry/target-capabilities.json`, `tests/suites/{build,install}.test.mjs`.
-  - Scope: every target whose capability record declares a generated MCP surface emits or merges the `synapse` stdio entry.
-  - Acceptance evidence: `check generated` and matrix-driven install tests assert `synapse` on every active generated route; non-destructive merge tests expect a merge, not a skip.
-  - Dependencies: P3.1.
-- [x] `P3.3` Reconcile `agentmemory` default vs opt-in
-  - Files: `scripts/agent-surface/targets.mjs`, `tests/suites/install.test.mjs`, `registry/optional-services.json`.
-  - Scope: external/secret-bearing MCPs (agentmemory) are **opt-in** via `--category mcps --service <id>`; only first-party secretless MCPs (synapse) are default-on. This matches the README.
-  - Acceptance evidence: install tests assert external MCPs are absent unless selected while first-party MCPs are present. Decision: **opt-in**.
-  - Dependencies: none.
-- [x] `P3.4` Pending-target research/wiring
-  - Scope: research each previously-unwired host's MCP surface and either wire it (generated-merge) or record an evidence-backed reason it stays out.
-  - Outcome: the maintained matrix now covers 25 generated hosts across JSON/JSONC/TOML/YAML, including current Copilot, Grok Build, Antigravity CLI, Qoder, Qwen Code, and Kiro routes. Pi was added once its 1.3.0 release read MCP natively; Antigravity desktop and DSH remain intentionally unwired.
-  - Acceptance evidence: `registry/target-capabilities.json` records the path/format boundary; `check generated` plus matrix-driven build/install tests cover every generated target.
-  - Dependencies: P3.1.
+- [ ] `S2.1` Add `hook_cursors` and `claimUnseen` to `store.ts`.
+  - Acceptance evidence: store tests show that:
+    - the first claim sets the baseline;
+    - later claims return only newer live rows from both stores;
+    - the session's own id is skipped;
+    - concurrent claims from separate processes deliver each row once (Q-02).
+- [ ] `S2.2` Add `hook.ts` and the `synapse-hook` bin.
+  - Acceptance evidence: `hook.test.ts`, run on each host's fixtures, shows that the hook:
+    - stays silent with no DB, and when nothing is new;
+    - delivers a new record once, then stays silent;
+    - delivers a budget overflow over later runs;
+    - gives a Claude Code subagent its own receiver;
+    - exits 1 with one stderr line on malformed stdin.
+- [ ] `S2.3` Register the hook through agent-surface.
+  - Files:
+    - `scripts/agent-surface/synapse-hook.mjs` (new);
+    - the call site in `install.mjs`;
+    - `doctor.mjs`;
+    - the Synapse wiring text in `registry/optional-services.json`;
+    - `tests/suites/install.test.mjs`.
+  - Scope:
+    - user and project scope paths;
+    - an idempotent merge that preserves other hooks;
+    - removal of only this entry when Synapse is deselected;
+    - the Droid file rule;
+    - the change listed in dry-run output.
+  - Acceptance evidence: install tests show that:
+    - merging into settings that already hold user hooks keeps them;
+    - re-running produces no diff;
+    - for Droid, when `settings.json` has hooks and there is no `hooks.json`, the entry goes into `settings.json`;
+    - removing the entry leaves the user's hooks in place.
 
-## Phase 4: Robustness + doc reconciliation
+## Phase S3: Host Acceptance
 
-- [x] `P4.1` SSE resumability — the architecture truth-states this: stream-level `Last-Event-ID` resume is **not wired** (no event store); the correctness floor is reconnect + cursor re-pull (`recall({since})`). No doc claims stream resume. Acceptance: the doc no longer claims stream resume (architecture.md lines ~103, ~130).
-- [x] `P4.2` Dirty-bit coalescing — added a leading+trailing-edge per-channel coalescer in `src/sidecar.ts` (`NotificationCoalescer`, default 50ms window) so a burst of writes collapses to ≤2 notifications. Acceptance: `test/coalescing.test.ts` — a 20-write burst produces ≤2 notifications and all 20 rows stay cursor-retrievable; spaced writes each notify (no over-coalescing).
-- [x] `P4.3` Bridge MCP-roots routing — `src/bridge.ts` resolves the project key as `SYNAPSE_PROJECT` → host's first MCP root (`file://` URI) → cwd git-root, so hosts that launch the bridge outside the workspace still isolate. `SYNAPSE_ROOTS=ignore` (2026-10-19) skips roots for hosts whose FastMCP proxy advertises roots it cannot serve; any other value fails startup. Acceptance: `test/roots-routing.test.ts` — a roots-provided workspace routes to the right DB without cwd reliance; override wins; no-roots host falls back to cwd.
-- [x] `P4.4` Doc/code drift sweep — `architecture.md`/`README.md`/`roadmap.md` truth-stated against the code; every IMPLEMENTED claim maps to a named test (synapse 40/40). The three prior drift claims (SSE resume, dirty-bit rate-limit, idle-shutdown) are reconciled: SSE resume = not wired (stated); dirty-bit = coalesced now; idle-shutdown = the sidecar stays resident.
+Objective: Q-01 through each host's real hook loader, with no person in the loop.
+Exit gate: each of the three hosts is PASS, or BLOCKED with the exact blocker (for example Codex trust under ADR-17 option (a)).
 
-## Phase 5: Production-readiness (remaining)
+- [ ] `S3.1` Write `scripts/host-acceptance.mjs`.
+  - Setup: a temp project with the hook registered at project scope and a temp `SYNAPSE_DB_DIR`. B has no Synapse MCP server.
+  - Run: B's prompt runs `echo start`, then `sleep 8`, then `echo done`, then prints any Synapse record text it received. A waits until B's first hook run has created B's `hook_cursors` row, then writes `SYN-<random>` through `synapse-bridge`, so the marker lands after B's baseline and during the sleep.
+  - Pass: B's final output contains the marker; B's `hook_cursors` row is at or past the marker's id; and running `synapse-hook` once more with B's session id prints nothing.
+  - Acceptance evidence: one run per host, with the host version and result recorded in the README.
+- [ ] `S3.2` Check interactive parity.
+  - Scope: from S0.1 and host docs, state whether interactive sessions load the same hook config. If a host's interactive mode differs, drive it through a PTY (tmux) in the same script.
+  - Acceptance evidence: a parity note per host, or a scripted interactive PASS.
 
-The honest blockers before an unqualified "production-ready" claim. Items marked **(shared)** are tracked in `mcps/grimoire/roadmap.md` too — they cover the agent-surface MCP plumbing both services ride.
+## Phase S4: Docs and Hand-off
 
-- [x] `P5.1` **(shared)** Ship the distribution work — the original PR #14 wiring and later portfolio refreshes maintain one capability matrix and per-format merge gates.
-- [~] `P5.2` Per-host live transport smoke — run native headless probes where available and record GUI-only launches separately. Config merge and in-process bridge transport are automated; host execution remains a distinct proof boundary.
-- [x] `P5.3` **(shared)** Goose + Poolside MCP — safe non-destructive YAML block merge is implemented; the current generated matrix totals 25 hosts.
-- [x] `P5.4` **(shared)** CI gate — `.github/workflows/ci.yml` `mcp` job (Node 22) runs the synapse suite (45 tests) + `npm audit` on every PR.
-- [x] `P5.5` `agent-surface doctor` sidecar health — `doctor` reports `synapse-bridge`/`synapse-sidecar` linked state and `~/.synapse/sidecar.json` presence, plus grimoire/host wiring.
-- [x] `P5.6` Linux always-on service — **lazy-start** documented as the supported Linux mode (the bridge autostarts the lock-elected sidecar; no service required). The optional reference systemd unit was retired with the launchd agent.
-- [x] `P5.7` **(shared)** Release — `CHANGELOG.md` landed and the `synapse-v0.4.0` tag is cut.
+- [ ] `S4.1` Update the docs:
+  - README: setup, which hosts get delivery, the Codex step if one remains, upgrading and restarting, troubleshooting;
+  - architecture.md: status IMPLEMENTED, with proofs;
+  - concept-zero.md: a line marking it superseded;
+  - a CHANGELOG entry;
+  - a hook note for the three targets in `docs/reference/targets.md`.
+- [ ] `S4.2` Pass the integration gate in [docs/roadmap.md](../../docs/roadmap.md#phase-mcp-s-synapse-and-grimoire-simplification).
 
 ## Later / Not Now
 
-- Private (agent-local) visibility — additive `visibility` column; deferred per prior user decision (shared-only).
-- OAuth 2.1 resource-server auth — static bearer covers localhost.
-- 2026-07-28 stateless / `subscriptions/listen` migration — pin SDK `>=1.24.0 <2`; revisit when the RC + SDK ship.
-- CRDT document-merge / A2A peer messaging — out of scope; we append + lock, MCP gives shared-memory not peer messaging.
+- Delete `stop-sidecar.mjs` and the hand-over one release after this ships.
+- Add idle wake for Claude Code through `asyncRewake`, if a workflow needs an idle agent to react unprompted.
+- Add Pi and OpenCode adapters through their native extension APIs, if those hosts run alongside others.
+- Add a tool-result fallback, if ADR-13 is revisited.
+- Deliver lock events, if agents miss lock releases in practice.
+- Private visibility stays deferred.
 
 ## Cross-Phase Gates
 
-- [x] Cursor pull correct without push — S-01 + `since` tests.
-- [x] Bridge forwards push + tools — bridge test.
-- [x] Cross-project isolation (+ explicit read) — isolation tests.
-- [x] Identity never blocks writes — F002 / no-env write test.
-- [x] Recall compact/budgeted — byte-budget + truncation test.
-- [x] No-secret-in-store — redaction suite.
-- [x] SDK security floor `>=1.24.0 <2` — `package.json` pin.
-- [x] Merge never clobbers — matrix-driven install tests exercise the active JSON/JSONC/TOML/YAML merge families (P3.1 done).
-- [~] Per-target smoke — config merge is proven for all 25 generated hosts plus in-process bridge transport; live host execution is recorded separately and is not inferred from generated output.
+- [ ] At the start of each phase, the architecture's source tree matches the actual tree.
+- [ ] No new dependency: `node:sqlite`, the MCP SDK and zod are already present.
+- [ ] Acceptance claims cite command runs as passed, failed or not run.
