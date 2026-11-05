@@ -31,7 +31,7 @@ When the driver's own subagent or agent-manager tool can select the model, isola
 
 ## Context controls
 
-Take the suggested window from [runtime-catalog.md](runtime-catalog.md), apply the runtime's native control, and record the effective value. Compaction thresholds may reserve headroom or be clamped to model capacity; they are not spending caps. Preserve unrelated model, effort, permission, and subagent settings.
+When [runtime-catalog.md](runtime-catalog.md) has a suggested window, apply the runtime's native control and record the effective value. A blank suggestion preserves the existing runtime setting; do not substitute the model's cap. Compaction thresholds may reserve headroom or be clamped to model capacity; they are not spending caps. Preserve unrelated model, effort, permission, and subagent settings.
 
 | Runtime | Control |
 |---|---|
