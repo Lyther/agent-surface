@@ -29,13 +29,14 @@ function shellWord(value) {
 
 /**
  * The command a host runs after each tool: the launcher, after the routing variables the synapse MCP
- * entry sets, so hook and server open the same store. Hosts start hooks through their shell, and a
- * Windows command cannot prefix variables portably, so there the hook reads the host's environment.
+ * entry sets, so hook and server open the same store. An empty value stays: it overrides the host's own
+ * value for the server, so it must for the hook. Hosts start hooks through their shell, and a Windows
+ * command cannot prefix variables portably, so there the hook reads the host's environment.
  */
 export function synapseHookCommand(home = os.homedir(), entryEnv = {}) {
   const launcher = shellWord(synapseHookLauncher(home));
   if (process.platform === "win32") return launcher;
-  const routing = ROUTING_ENV.filter((key) => typeof entryEnv[key] === "string" && entryEnv[key] !== "");
+  const routing = ROUTING_ENV.filter((key) => typeof entryEnv[key] === "string");
   return [...routing.map((key) => `${key}=${shellWord(entryEnv[key])}`), launcher].join(" ");
 }
 
