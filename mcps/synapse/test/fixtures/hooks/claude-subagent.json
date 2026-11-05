@@ -1,0 +1,27 @@
+{
+  "session_id": "8eaabd38-e675-4c8e-a672-01c31230a525",
+  "transcript_path": "/Users/example/.claude/projects/-private-tmp-as-spike-hooks-project/8eaabd38-e675-4c8e-a672-01c31230a525.jsonl",
+  "cwd": "/private/tmp/as-spike-hooks/project",
+  "prompt_id": "a72c7f3d-4f2a-4efa-aea1-c226ecf13f3f",
+  "permission_mode": "default",
+  "agent_id": "a89e0f6739e72fb35",
+  "agent_type": "worker",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "echo spike-sub",
+    "description": "Echo a test string"
+  },
+  "tool_response": {
+    "stdout": "spike-sub",
+    "stderr": "",
+    "interrupted": false,
+    "isImage": false,
+    "noOutputExpected": false
+  },
+  "tool_use_id": "toolu_01D4J2dkx64cr4BUN9uTFtai",
+  "duration_ms": 25
+}

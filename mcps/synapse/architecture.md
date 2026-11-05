@@ -33,7 +33,7 @@ The design does not wake an idle agent; that agent sees news after its first too
   - Verification gate: Q-01 per host.
 - `G-02` Goal: keep the memory contract and the data.
   - Evidence: the user's decision to keep the global store and locks; the current store suite.
-  - Architecture impact: `store.ts`, `tools.ts` and `contract.ts` keep their contracts minus the operation and push plumbing. v0.4 DBs open unchanged apart from the dropped `operations` table.
+  - Architecture impact: `store.ts`, `tools.ts` and `contract.ts` keep their contracts minus the operation and push plumbing. v0.4 DBs open unchanged; their `operations` table stays for one release.
   - Verification gate: the store suite, plus a v0.4 fixture DB that opens with every memory and lock row intact.
 - `G-03` Goal: fewer mechanisms, meaning no long-lived process, network listener or lifecycle management.
   - Evidence: the user's direction to remove over-design; peer#3's recommendation 1.
@@ -46,7 +46,7 @@ The design does not wake an idle agent; that agent sees news after its first too
   - Verification gate: `scripts/host-acceptance.mjs`, one headless run per host.
 - `Q-02` Delivery once per receiver: parallel tool calls in one session finish together → their hooks run concurrently → each new record reaches that receiver once.
   - Verification gate: `hook.test.ts` with concurrent hook processes for one receiver.
-- `Q-03` Shared store: several real `synapse-bridge` processes write to one DB and one is killed mid-write → the others keep working, every committed row is present, and a lock held by one process is refused to another until it is released or expires.
+- `Q-03` Shared store: several real `synapse-bridge` processes write to one DB and one is killed with writes in flight → the others keep working, every acknowledged row is present, no row lacks its full-text entry, a lease runs from when its write lock is won, and a lock held by one process is refused to another until it is released or expires.
   - Verification gate: `multiprocess.test.ts`.
 - `Q-04` Cost: in a project without a Synapse DB, the hook exits after resolving the path; with nothing new, it takes no write lock. S0.4 records p50/p95 per run; the numbers are reported, not gated.
 
@@ -93,6 +93,12 @@ Non-goals:
     - Kiro: adds context only when a prompt is submitted.
     - Pi and OpenCode: native extension APIs; later adapters.
     - All other hosts: not checked.
+- **Recorded payloads** (S0.1, 2026-11-05; `claude -p`, `codex exec --dangerously-bypass-hook-trust` and `droid exec`, each with a project-scope logging hook; fixtures in `test/fixtures/hooks`):
+  - All three ran the project's PostToolUse hook in a headless run, and each model repeated every context the hook added to its own session.
+  - A hook that exited 1 was recorded; the session went on, and no model saw its stderr.
+  - The tool is `mcp__synapse__memory_remember` on Claude Code and Codex and `synapse___memory_remember` on Droid. Its `tool_response` is MCP content blocks on Claude Code, `{content}` on Codex, and the result text on Droid.
+  - Subagents: a Claude Code subagent's events add `agent_id` and `agent_type` under the parent's `session_id`; a Droid subagent's events carry its own `session_id`. A Codex subagent's tool calls ran no PostToolUse hook in two runs.
+  - Codex runs an MCP tool in `exec` only when the server's `default_tools_approval_mode` is `approve`.
 
 ## System Context and Boundaries
 
@@ -144,7 +150,7 @@ Trust boundary: one local user and cooperating agents. Nothing listens on the ne
 mcps/synapse/
   src/
     contract.ts    - Tool I/O schemas, DTOs, LIMITS, SERVER_INSTRUCTIONS, IStore. Pure. Loses OPERATION_* and SIDECAR_FEATURES; memory_remember's result loses `redactions`. Invariant: 7 tools.
-    model.ts       - Row types, mappers, SCHEMA_SQL (adds hook_cursors, drops operations), external-id codec. No I/O.
+    model.ts       - Row types, mappers, SCHEMA_SQL (adds hook_cursors; no longer creates operations), external-id codec. No I/O.
     store.ts       - The only SQLite code: per-project and global DBs, FTS5 recall, locks, forget scrub, read-only cross-project access, claimUnseen. No MCP, onCommit, redaction or operation records. Tests: store, hook, multiprocess.
     tools.ts       - Tool specs and dispatcher for one session; no operation ids.
     server.ts      - PROPOSED (S1). Stdio MCP server for one host session; bin `synapse-bridge`. Tests: server, roots-routing.
@@ -179,20 +185,21 @@ registry/optional-services.json - The Synapse validation hint and wiring notes d
 ## Data and State
 
 - **`memory`, `locks` and `meta`:** unchanged.
-- **`operations`:** dropped by a `DROP TABLE IF EXISTS` in `SCHEMA_SQL`. Every open runs the idempotent schema, and the busy timeout serializes concurrent opens. The install stops the v0.4 sidecar, the only writer of this table, before any new server opens a DB.
+- **`operations`:** no longer created, and left in place in v0.4 files for one release. A v0.4 sidecar that outlives the upgrade, because the install could not stop it, keeps writing it beside the new servers; the release after drops the table with the hand-over.
 - **`hook_cursors`** (new, in the project DB):
   - `receiver TEXT PRIMARY KEY`: the host `session_id`, plus `:agent_id` for a subagent;
   - `project_after INTEGER NOT NULL`;
   - `global_after INTEGER NOT NULL`;
+  - `own_ids TEXT NOT NULL DEFAULT '[]'`: ids the receiver wrote that lie past its cursors, as JSON;
   - `updated_at INTEGER NOT NULL`.
 
   Rows are never pruned. Each is about 100 bytes per session or subagent; revisit if the table becomes a noticeable share of a DB file.
 - **Claim rule:**
-  1. On a receiver's first hook run, insert the baseline (the current max ids) and deliver nothing. S0.2 may move the baseline to session start.
+  1. On a receiver's first hook run, insert the baseline (the current max ids) and deliver nothing (ADR-16).
   2. On later runs, first check, read-only, whether either store has a live row past its cursor. If not, stop.
   3. Otherwise run `BEGIN IMMEDIATE`, re-read the cursor, and select live rows past it in id order.
-  4. Skip the id returned by this event's own `mcp__synapse__memory_remember`.
-  5. Take rows until the byte budget is spent, and advance both cursors past the rows taken and the skipped id.
+  4. Skip the id returned by this event's own `mcp__synapse__memory_remember`, and the receiver's `own_ids`.
+  5. Take rows until the byte budget is spent, and advance both cursors past the rows taken and skipped. A skipped id past where the budget stopped stays in `own_ids`.
   6. `COMMIT`, then print.
 
   Delivery is at most once per receiver. If the hook dies after `COMMIT`, that receiver loses the batch, but `memory_recall` still returns it.
@@ -256,8 +263,8 @@ registry/optional-services.json - The Synapse validation hint and wiring notes d
 - **ADR-13** (ACCEPTED 2026-11-04, user): no tool-result fallback; hosts without hooks use `memory_recall({since})`. Revisit when a host without hooks needs automatic delivery.
 - **ADR-14** (ACCEPTED 2026-11-04, user): the ingest redactor is removed; `memory_forget` is the remedy.
 - **ADR-15** (ACCEPTED): hook state is kept per receiver in the project DB, with separate project and global cursors, an atomic claim, and at-most-once delivery.
-- **ADR-16** (PROPOSED, S0.2): the first-run baseline.
-- **ADR-17** (PROPOSED, S0.3): the Codex trust route.
+- **ADR-16** (ACCEPTED 2026-11-05, S0.2): a receiver's first hook run records the current max ids and delivers nothing. Rejected: starting from the transcript file's creation time, because Codex documents `transcript_path` as nullable and a resumed session's old transcript would replay its whole history.
+- **ADR-17** (ACCEPTED 2026-11-05, S0.3): on Codex the user trusts the hook once through `/hooks`; the install prints that step. Codex's documentation names only system, MDM, cloud and enterprise `requirements.toml` sources for managed hooks, and none a user-level install can write. Acceptance runs use `--dangerously-bypass-hook-trust`, which Codex documents for automation that vets its hooks.
 - Unchanged:
   - ADR-03: recall shape;
   - ADR-04: physical isolation;
@@ -275,13 +282,13 @@ registry/optional-services.json - The Synapse validation hint and wiring notes d
 - **Host hook contracts drift.** Cursor and Copilot have shipped versions that dropped this context.
   - Impact: delivery silently stops.
   - Mitigation: rerun `host-acceptance.mjs` whenever a host's major version changes.
-- **Receiver identity:** S0.1 confirms how each host marks subagent events. Without such a marker, a subagent shares its parent's cursor and can take a record the parent never sees.
-- **Gap before the first tool call:** under the default baseline, records written before a receiver's first tool call arrive only through `recall`. Next proof: S0.2.
+- **Receiver identity:** Claude Code and Droid subagents get their own receivers (S0.1). If a Codex subagent's tool calls ever run the hook, they carry no recorded marker and would share the parent's cursor, so a record could reach the subagent instead of the parent. Revisit when a Codex payload shows otherwise.
+- **Gap before the first tool call:** records written before a receiver's first tool call has finished arrive only through `recall` (ADR-16).
 - **Self-echo:** with parallel tool calls, a sibling hook can claim the session's own new record before the hook for the `memory_remember` event skips it.
   - Impact: one redundant line.
   - Revisit if agents act on their own echoed records.
-- **Per-call cost:** see Q-04.
-- **Debt:** `stop-sidecar.mjs` and the hand-over in `install.mjs`. Delete them one release after this ships.
+- **Per-call cost:** on 2026-11-05 (Apple M3 Pro, Node 26.13, other builds running), 100 runs took p50 163 ms and p95 199 ms with a project DB and nothing new, and p50 162 ms and p95 210 ms without one. Bare Node startup was p50 114 ms of that, zod's import about 28 ms and `git rev-parse` 7 ms. The host waits for the hook after every tool call; revisit the import graph if that delay matters.
+- **Debt:** `stop-sidecar.mjs`, the hand-over in `install.mjs`, and v0.4's `operations` table. Delete them, and drop the table, one release after this ships.
 
 ## Implementation Guardrails
 

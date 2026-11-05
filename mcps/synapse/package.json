@@ -1,13 +1,13 @@
 {
   "name": "synapse-mcp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
-  "description": "Local-first multi-agent memory + coordination MCP: one HTTP sidecar (sole node:sqlite owner) + stdio bridge.",
+  "description": "Local-first multi-agent memory + coordination MCP: one stdio server per session over shared node:sqlite files, plus a PostToolUse hook that delivers other agents' new records.",
   "license": "MIT",
   "bin": {
-    "synapse-sidecar": "dist/src/sidecar.js",
-    "synapse-bridge": "dist/src/bridge.js"
+    "synapse-bridge": "dist/src/server.js",
+    "synapse-hook": "dist/src/hook.js"
   },
   "scripts": {
     "prebuild": "node require-node.mjs",

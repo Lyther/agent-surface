@@ -43,7 +43,6 @@ export async function doctor() {
   checks.push(["grimoire-server", (await exists(path.join(bin, "grimoire-server"))) ? "linked" : "missing (npm run install:grimoire)"]);
   checks.push(["grimoire-index", await grimoireIndexStatus()]);
   checks.push(["synapse-bridge", (await exists(path.join(bin, "synapse-bridge"))) ? "linked" : "missing (npm run install:synapse)"]);
-  checks.push(["synapse-sidecar", (await exists(path.join(os.homedir(), ".synapse", "sidecar.json"))) ? "present" : "missing (autostarts on first use)"]);
 
   const today = localDate();
   for (const { target, notice } of await allStoredNotices()) {

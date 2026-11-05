@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// synapse — build + link the bridge/sidecar into ~/.local/bin. Idempotent: re-running relinks the
-// latest build while the token + databases under ~/.synapse persist. There is no service: on every
-// platform the first bridge autostarts the lock-elected sidecar and later bridges reuse it.
+// synapse — build + link the server into ~/.local/bin. Idempotent: re-running relinks the latest build
+// while the databases under ~/.synapse persist. There is no service: each host session starts its own
+// server over stdio, and those servers share the SQLite files.
 //
 // Runs under Node on every platform, which synapse already requires, so Windows is served by this
 // same script rather than a translated shell script that would drift.
@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertNodeFloor, binEntries, installAndBuild } from "../../scripts/agent-surface/mcp-build.mjs";
-import { pinnedNodePath, writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
+import { pinnedNodePath, shimFileName, writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
 import { stopRunningSidecar } from "./stop-sidecar.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -41,10 +41,22 @@ function retireLaunchdAgent() {
     return;
   }
   rmSync(plist, { force: true });
-  console.log(`retired the local.synapse launchd agent (${plist}); the bridge autostarts the sidecar`);
+  console.log(`retired the local.synapse launchd agent (${plist}); each host session starts its own server`);
+}
+
+// v0.4 shipped a sidecar and an HTTP bridge. Remove what it left behind so nothing can start it again;
+// delete this hand-over one release after v0.5.
+async function retireSidecar(binDir) {
+  rmSync(path.join(binDir, shimFileName("synapse-sidecar")), { force: true });
+  retireLaunchdAgent();
+  await stopRunningSidecar();
+  const dbDir = process.env.SYNAPSE_DB_DIR ?? path.join(os.homedir(), ".synapse");
+  for (const name of ["sidecar.json", "sidecar.lock", "token"]) rmSync(path.join(dbDir, name), { force: true });
 }
 
 assertNodeFloor("synapse");
+// A rebuild over an old dist would keep files no source produces any more, such as v0.4's sidecar.js.
+rmSync(path.join(here, "dist"), { recursive: true, force: true });
 installAndBuild(here);
 
 const binDir = path.join(os.homedir(), ".local", "bin");
@@ -61,7 +73,7 @@ const onPath = process.platform === "win32"
   : pathEntries.includes(binDir);
 if (!onPath) console.log(`NOTE: add ${binDir} to your PATH`);
 
-retireLaunchdAgent();
-await stopRunningSidecar();
+await retireSidecar(binDir);
 
 console.log("Point your MCP host at the stdio command: synapse-bridge");
+console.log("Restart host sessions that were open during this install; they keep running the build they started with");

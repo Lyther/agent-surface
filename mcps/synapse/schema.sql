@@ -1,7 +1,7 @@
--- synapse schema (v0.4). Applied to BOTH the per-project file and the global file.
--- Single owner (the sidecar) is the sole writer. No scope/kind column: project vs
--- global is which FILE; classification is tags. memory is append-only (forget/supersede
--- flip status, never delete). id is the monotonic cursor.
+-- synapse schema (v0.5). Applied to BOTH the per-project file and the global file.
+-- Every session's server opens these files; SQLite serializes the writers. No scope/kind
+-- column: project vs global is which FILE; classification is tags. memory is append-only
+-- (forget/supersede flip status, never delete). id is the monotonic cursor.
 --
 -- Connection pragmas set by the store at open (not schema):
 --   PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;
@@ -33,11 +33,15 @@ CREATE TABLE IF NOT EXISTS locks (
 );
 CREATE INDEX IF NOT EXISTS idx_locks_expiry ON locks(expires_at);
 
--- A write's result keyed by the request's operation id, committed with the write itself, so a
--- retried request is answered from here instead of being applied twice.
-CREATE TABLE IF NOT EXISTS operations (
-  id         TEXT    PRIMARY KEY,                 -- bridge-generated id, one per host request
-  result     TEXT    NOT NULL,                    -- JSON of the store result returned the first time
-  created_at INTEGER NOT NULL                     -- epoch ms; rows older than a day are pruned
+-- A file v0.4 wrote also holds its `operations` table. Nothing reads it; it stays for one release so
+-- a v0.4 sidecar still running after the upgrade keeps writing, and the release after drops it.
+
+-- What each hook receiver (a host session, or one of its subagents) has been handed, per store. The
+-- hook moves both cursors in one BEGIN IMMEDIATE transaction, so a record reaches a receiver once.
+CREATE TABLE IF NOT EXISTS hook_cursors (
+  receiver      TEXT    PRIMARY KEY,               -- host session_id, plus ":<agent_id>" for a subagent
+  project_after INTEGER NOT NULL,                  -- highest project memory id handed over or skipped
+  global_after  INTEGER NOT NULL,                  -- the same for the global file
+  own_ids       TEXT    NOT NULL DEFAULT '[]',     -- JSON ids this receiver wrote that lie past its cursors
+  updated_at    INTEGER NOT NULL                   -- epoch ms of the last claim
 );
-CREATE INDEX IF NOT EXISTS idx_operations_created ON operations(created_at);

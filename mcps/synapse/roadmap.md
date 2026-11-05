@@ -17,7 +17,7 @@ v0.4 shipped as `synapse-v0.4.0`; its history is in git. This plan replaces its 
 Objective: settle what the hook depends on before building it.
 Exit gate: ADR-16 and ADR-17 are accepted or defaulted, the payload fixtures are committed, and the hook cost is recorded.
 
-- [ ] `S0.1` Spike: capture real PostToolUse payloads and check what the model sees.
+- [x] `S0.1` Spike: capture real PostToolUse payloads and check what the model sees. Done 2026-11-05: all three hosts pass; findings under Evidence in architecture.md.
   - Why now: `hook.ts` parses these fields, and the shapes of subagent events and MCP results are undocumented.
   - Scope:
     - Set up a temp project with a temp `SYNAPSE_DB_DIR`.
@@ -32,11 +32,11 @@ Exit gate: ADR-16 and ADR-17 are accepted or defaulted, the payload fixtures are
   - If it fails:
     - A host that doesn't run hooks in headless runs moves to S3.2's scripted interactive run.
     - A host that doesn't show the model the added context is dropped from the three, with that evidence recorded.
-- [ ] `S0.2` Decide ADR-16, the first-run baseline.
+- [x] `S0.2` Decide ADR-16, the first-run baseline. Accepted: the default.
   - Default: a receiver's first hook run sets its cursors to the current max ids and delivers nothing.
   - Spike: using S0.1, check whether every host sends a `transcript_path` whose file creation time matches the session start. If all three do, the first run instead delivers rows with `ts` at or after that time.
   - Output: ADR-16 accepted in architecture.md.
-- [ ] `S0.3` Decide ADR-17, the Codex trust route.
+- [x] `S0.3` Decide ADR-17, the Codex trust route. Accepted: option (a).
   - Options:
     - (a) the user trusts the hook once through `/hooks` after install, and the install prints that step;
     - (b) a managed hook in `requirements.toml`, which Codex trusts by policy. This spike also finds out where that file lives and who can write it.
@@ -44,7 +44,7 @@ Exit gate: ADR-16 and ADR-17 are accepted or defaulted, the payload fixtures are
     - writing Codex's private trust store;
     - adding `--dangerously-bypass-hook-trust` to normal use, which skips review for every hook.
   - Output: ADR-17 accepted. S4.1 updates the README and install output to match.
-- [ ] `S0.4` Measure the hook's cost.
+- [x] `S0.4` Measure the hook's cost. Measured on the real hook after S2.2; numbers under Risks in architecture.md.
   - Scope: a stub `hook.ts` that resolves the namespace, opens the store and checks max ids, run 100 times on this machine with a project DB and 100 times without one.
   - Output: p50 and p95, recorded under Q-04. If imports dominate the time, keep zod and the SDK out of the hook's imports.
 - [x] `S0.5` ADR-13 accepted by the user on 2026-11-04: no tool-result fallback.
@@ -66,17 +66,18 @@ Exit gate: a host config that runs `synapse-bridge` gets 7 tools and a working r
   - Scope:
     - remove operation records, replay and the `operationId` parameters;
     - remove `onCommit`, the redactor call, `SIDECAR_FEATURES`, `OPERATION_*` and the `redactions` result;
-    - drop the `operations` table from `SCHEMA_SQL`;
+    - stop creating the `operations` table; v0.4 files keep it for one release, so a v0.4 sidecar that outlives the upgrade keeps writing;
     - keep `memory_forget`'s scrub.
-  - Acceptance evidence: `store.test.ts` passes without the deleted cases. A v0.4 fixture DB, built with the v0.4 schema and holding `operations` rows, opens with every memory and lock row intact and no `operations` table.
+  - Acceptance evidence: `store.test.ts` passes without the deleted cases. A v0.4 fixture DB, built with the v0.4 schema and holding `operations` rows, opens with every memory, lock and `operations` row intact, and a v0.4 connection still writes memory and `operations` rows after the new store has opened and written.
 - [ ] `S1.3` Delete the sidecar path.
   - Files to delete: `src/{sidecar,bridge,bootstrap,redactor}.ts`, `test/{sidecar,bridge,coalescing,recovery}.test.ts`, `test/smoke/README.md`.
   - Acceptance evidence: `tsc` is clean, and `rg -n "sidecar|SYNAPSE_URL|SYNAPSE_TOKEN|SYNAPSE_PORT|operation" mcps/synapse/src` finds nothing.
 - [ ] `S1.4` Prove the shared store across processes (Q-03).
   - Files: `test/multiprocess.test.ts`.
   - Scope:
-    - Four real server processes on one temp DB dir write concurrently, and one is killed with SIGKILL mid-burst.
-    - The surviving processes and a fresh one see every committed row.
+    - Four real server processes on one temp DB dir write concurrently, and one is killed with SIGKILL while its writes are in flight.
+    - The surviving processes and a fresh one see every acknowledged row, and the full-text index matches the memory table.
+    - A lease acquired after waiting on another process's write runs its full TTL from when the write lock was won.
     - A lock held by one process is refused to another until it is released or expires.
   - Acceptance evidence: the test passes.
 - [ ] `S1.5` Hand over from v0.4 at install.
@@ -98,7 +99,7 @@ Exit gate: `hook.test.ts` passes on the recorded payloads, and installs register
   - Acceptance evidence: store tests show that:
     - the first claim sets the baseline;
     - later claims return only newer live rows from both stores;
-    - the session's own id is skipped;
+    - the session's own id is skipped, also when the byte budget stops a claim before reaching it;
     - concurrent claims from separate processes deliver each row once (Q-02).
 - [ ] `S2.2` Add `hook.ts` and the `synapse-hook` bin.
   - Acceptance evidence: `hook.test.ts`, run on each host's fixtures, shows that the hook:
@@ -152,7 +153,7 @@ Exit gate: each of the three hosts is PASS, or BLOCKED with the exact blocker (f
 
 ## Later / Not Now
 
-- Delete `stop-sidecar.mjs` and the hand-over one release after this ships.
+- Delete `stop-sidecar.mjs` and the hand-over, and drop v0.4's `operations` table, one release after this ships.
 - Add idle wake for Claude Code through `asyncRewake`, if a workflow needs an idle agent to react unprompted.
 - Add Pi and OpenCode adapters through their native extension APIs, if those hosts run alongside others.
 - Add a tool-result fallback, if ADR-13 is revisited.
