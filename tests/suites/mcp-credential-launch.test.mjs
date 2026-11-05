@@ -24,7 +24,7 @@ const dir = mkdtempSync(path.join(os.tmpdir(), "as-cred-launch-"));
 function install(home, dest, extra, target = "droid") {
   mkdirSync(home, { recursive: true });
   mkdirSync(dest, { recursive: true });
-  return spawnSync(process.execPath, [cli, "install", "--target", target, "--dest", dest, "--category", "mcps", ...extra, "-y"], {
+  return spawnSync(process.execPath, [cli, "install", "--target", target, "--dest", dest, "--category", "mcps", ...extra], {
     encoding: "utf8",
     // os.homedir() reads USERPROFILE on Windows and HOME elsewhere; set both so the disposable
     // home applies on every platform.
@@ -33,11 +33,11 @@ function install(home, dest, extra, target = "droid") {
 }
 
 // Seed the path-based prerequisites inside the disposable HOME so this suite runs NO package
-// manager and needs no network: provisioning EXECUTION is proven in provision-exec and
-// provision-install, while this suite is about credential delivery and launch shape. These stubs
+// manager and needs no network: provisioning execution belongs to provision-exec and the opt-in
+// live-provision suite, while this suite is about credential delivery and launch shape. These stubs
 // stand in only for "a binary exists at this path"; none of them is offered as evidence that the
-// real tool works. Without them the installer would authorize (-y) real recipes on any machine that
-// happens to lack uv — which is exactly what a hermetic suite must not do.
+// real tool works. The installs never pass -y, so a prerequisite the seeds miss cannot start a real
+// recipe.
 function seedBin(home, name, body = "#!/bin/sh\nexit 0\n") {
   const bin = path.join(home, ".local", "bin");
   mkdirSync(bin, { recursive: true });
