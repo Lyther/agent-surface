@@ -10,19 +10,19 @@ Prices are standard text API USD per million tokens, **input / cached input / ou
 
 | Model | Overall | Coding | Agentic | Reasoning | Price: in / cached / out | Suggested context | Cap |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [Claude Opus 5.5](https://platform.claude.com/docs/en/models/overview) | 86.3 | 82.9 | 90.1 | 86.1 | 4 / 0.20 / 20 | | 1M |
-| [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) | 86.1 | 74.7 | 76.0 | 93.3 | 10 / 1 / 50 | | 1.05M |
-| [GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol) | 85.3 | 70.3 | 77.2 | 90.5 | 2 / 0.10 / 10 | | 1.05M |
-| [Gemini 4 Argon](https://aistudio.google.com/docs/models/gemini-4-argon) | 82.3 | 72.2 | 78.3 | 86.9 | 2 / 0.10 / 10 | | 1,048,576 |
-| [Claude Sonnet 5.5](https://platform.claude.com/docs/en/models/overview) | 81.8 | 81.7 | 69.1 | 81.8 | 2 / 0.10 / 10 | | 1M |
-| [GPT-6.1 Terra](https://developers.openai.com/api/docs/models/gpt-6.1-terra) † | 80.5 | — | 76.7 | 81.8 | 1 / 0.05 / 5 | | 1.05M |
-| [Claude Haiku 5.5](https://platform.claude.com/docs/en/models/haiku-5-5/overview) | 66.4 | 52.4 | 61.8 | 59.8 | 0.10 / 0.01 / 0.50 | | 1M |
-| [Gemini 3.8 Flash](https://aistudio.google.com/docs/models/gemini-3.8-flash) | 66.2 | 59.8 | 65.8 | 74.3 | 0.75 / 0.075 / 3.75 | | 1,048,576 input |
-| [DeepSeek V4.1 Flash 1017](https://api-docs.deepseek.com/quick_start/pricing/) | 65.2 | 62.9 | 62.2 | 82.5 | 0.30 / 0.006 / 1.20 | | 1M |
-| [Qwen3.8 Max](https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max) | 64.9 | 52.7 | 66.0 | 87.0 | 2 / 0.25 / 6 | | 1M |
-| [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna) | 62.1 | 51.4 | 53.8 | 59.2 | 0.10 / 0.01 / 0.50 | | 1.05M |
-| [GLM-5.3](https://docs.z.ai/guides/llm/glm-5.3) | 61.0 | 55.4 | 69.9 | 79.8 | 1.40 / 0.26 / 4.40 | | 1M |
-| [Grok 4.7](https://docs.x.ai/developers/models/grok-4.7) | — | — | — | — | 2 / 0.50 / 6 | | 500K |
+| [Claude Opus 5.5](https://platform.claude.com/docs/en/models/overview) | 86.3 | 82.9 | 90.1 | 86.1 | 4 / 0.20 / 20 | 500K | 1M |
+| [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) | 86.1 | 74.7 | 76.0 | 93.3 | 10 / 1 / 50 | 272K | 1.05M |
+| [GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol) | 85.3 | 70.3 | 77.2 | 90.5 | 2 / 0.10 / 10 | 1.05M | 1.05M |
+| [Gemini 4 Argon](https://aistudio.google.com/docs/models/gemini-4-argon) | 82.3 | 72.2 | 78.3 | 86.9 | 2 / 0.10 / 10 | 500K | 1.04M |
+| [Claude Sonnet 5.5](https://platform.claude.com/docs/en/models/overview) | 81.8 | 81.7 | 69.1 | 81.8 | 2 / 0.10 / 10 | 1M | 1M |
+| [GPT-6.1 Terra](https://developers.openai.com/api/docs/models/gpt-6.1-terra) † | 80.5 | — | 76.7 | 81.8 | 1 / 0.05 / 5 | 1.05M | 1.05M |
+| [Claude Haiku 5.5](https://platform.claude.com/docs/en/models/haiku-5-5/overview) | 66.4 | 52.4 | 61.8 | 59.8 | 0.10 / 0.01 / 0.50 | 1M | 1M |
+| [Gemini 3.8 Flash](https://aistudio.google.com/docs/models/gemini-3.8-flash) | 66.2 | 59.8 | 65.8 | 74.3 | 0.75 / 0.075 / 3.75 | 1.04M | 1.04M |
+| [DeepSeek V4.1 Flash 1017](https://api-docs.deepseek.com/quick_start/pricing/) | 65.2 | 62.9 | 62.2 | 82.5 | 0.30 / 0.006 / 1.20 | 1M | 1M |
+| [Qwen3.8 Max](https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max) | 64.9 | 52.7 | 66.0 | 87.0 | 2 / 0.25 / 6 | 1M | 1M |
+| [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna) | 62.1 | 51.4 | 53.8 | 59.2 | 0.10 / 0.01 / 0.50 | 1.05M | 1.05M |
+| [GLM-5.3](https://docs.z.ai/guides/llm/glm-5.3) | 61.0 | 55.4 | 69.9 | 79.8 | 1.40 / 0.26 / 4.40 | 500K | 1M |
+| [Grok 4.7](https://docs.x.ai/developers/models/grok-4.7) | — | — | — | — | 2 / 0.50 / 6 | 200K | 500K |
 
 † Terra's export row is estimated and lacks a coding score. Grok 4.7 retains the operator's earlier recommendation; the export scores Grok 4.6, so those scores are not transferred. A dash means unavailable, not zero.
 
