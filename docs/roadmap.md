@@ -320,7 +320,7 @@ State: SOURCE SURVEY COMPLETE; native pilots and Synapse measurement NOT RUN. Ow
 
 ## Phase MCP-S: Synapse and Grimoire Simplification
 
-State: PROPOSED 2026-11-04, as one PR after PR #119 merges. The plans:
+State: IMPLEMENTED 2026-11-05, when every integration-gate item below passed. It lands as one PR after PR #119 merges. The plans:
 
 - [Synapse](../mcps/synapse/roadmap.md): a stdio server per session, plus delivery through a PostToolUse hook.
 - [Grimoire](../mcps/grimoire/roadmap.md): a single-file index with no provenance.

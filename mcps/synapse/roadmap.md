@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: IMPLEMENTED (v0.5.0); S4.2, the integration gate, is the last open step.
+Status: IMPLEMENTED (v0.5.0)
 Source architecture: [architecture.md](architecture.md)
 Last updated: 2026-11-05
 
@@ -149,7 +149,7 @@ Exit gate: each of the three hosts is PASS, or BLOCKED with the exact blocker (f
   - concept-zero.md: a line marking it superseded;
   - a CHANGELOG entry;
   - a hook note for the three targets in `docs/reference/targets.md`.
-- [ ] `S4.2` Pass the integration gate in [docs/roadmap.md](../../docs/roadmap.md#phase-mcp-s-synapse-and-grimoire-simplification).
+- [x] `S4.2` Pass the integration gate in [docs/roadmap.md](../../docs/roadmap.md#phase-mcp-s-synapse-and-grimoire-simplification).
 
 ## Later / Not Now
 
