@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as TOML from "@decimalturn/toml-patch";
 import { isMap, isSeq, parseDocument, stringify as stringifyYaml } from "yaml";
-import { parseJsoncResult, removeJsoncProperty, setJsoncPath, setJsoncRootProperty } from "./jsonc.mjs";
+import { parseJsoncResult, removeJsoncValue, setJsoncPath, setJsoncRootProperty } from "./jsonc.mjs";
 import { canonicalJson, fail } from "./util.mjs";
 
 export const YAML_MCP_FORMATS = new Set(["goose-extensions", "poolside-mcp"]);
@@ -154,14 +154,14 @@ export function mergeJsonMcpConfig(
     if (!isPlainObject(current)) throw new Error(`${key} must be an object`);
     // Each owned entry is edited at its own path, so the servers and comments beside it keep their bytes.
     for (const id of removeIds) {
-      if (Object.hasOwn(current, id)) content = removeJsoncProperty(content, [key, id]);
+      if (Object.hasOwn(current, id)) content = removeJsoncValue(content, [key, id]);
     }
     for (const [id, server] of Object.entries(optionalServiceMcpServers(entries, format))) {
       // An id removed above is rewritten whole, as the TOML and YAML merges do.
       const existing = Object.hasOwn(current, id) && !removeIds.includes(id) ? current[id] : undefined;
       for (const [subpath, value] of ownedEntryEdits(existing, JSON.parse(JSON.stringify(server)))) {
         content = value === undefined
-          ? removeJsoncProperty(content, [key, id, ...subpath])
+          ? removeJsoncValue(content, [key, id, ...subpath])
           : setJsoncPath(content, [key, id, ...subpath], value);
       }
     }
@@ -368,6 +368,7 @@ function tomlMcpServers(entries) {
     }
     servers[id] = { command: server.command, args: server.args ?? [] };
     if (isPlainObject(server.env) && Object.keys(server.env).length > 0) servers[id].env = server.env;
+    if (isPlainObject(server.properties)) Object.assign(servers[id], server.properties);
   }
   return servers;
 }

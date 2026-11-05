@@ -6,8 +6,9 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import os from "node:os";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
-import { parseJsonc, removeJsoncProperty } from "../../scripts/agent-surface/jsonc.mjs";
+import { parseJsonc, removeJsoncValue } from "../../scripts/agent-surface/jsonc.mjs";
 import { mergeCodexMcpToml, mergeJsonMcpConfig, mergeYamlMcpConfig } from "../../scripts/agent-surface/merge.mjs";
+import { mergeSynapseHook, planSynapseHook, synapseHookCommand, synapseHookStatus } from "../../scripts/agent-surface/synapse-hook.mjs";
 import { kimiCodeCursorSettingsPath, kimiCodeVsCodeSettingsPath, vsCodeUserRoot } from "../../scripts/agent-surface/roots.mjs";
 import { targets } from "../../scripts/agent-surface/targets.mjs";
 import {
@@ -31,7 +32,7 @@ const ownTmp = ownTempRoot("install");
   assert.match(removed, /servers-note/);
   assert.match(removed, /"keep": \{ "command": "k", "args": \[\] \} \/\/ keep-note/, "the neighbour keeps its bytes and its comment");
   assert.deepEqual(Object.keys(parseJsonc(removed, "removed").mcpServers), ["keep"]);
-  assert.equal(removeJsoncProperty("{\"m\":{\"a\":1,\"s\":2,\"b\":3}}", ["m", "s"]), "{\"m\":{\"a\":1,\"b\":3}}");
+  assert.equal(removeJsoncValue("{\"m\":{\"a\":1,\"s\":2,\"b\":3}}", ["m", "s"]), "{\"m\":{\"a\":1,\"b\":3}}");
   // An id both released and rendered in one merge is written whole, as the TOML and YAML merges do.
   const service = { path: "registry#a", mcp: { server: { type: "stdio", command: "c", args: [] } } };
   const rewritten = mergeJsonMcpConfig("{\"mcpServers\":{\"a\":{\"type\":\"stdio\",\"command\":\"c\",\"args\":[]}}}", "mcpServers", [["a", service]], ["a"]);
@@ -1351,8 +1352,117 @@ assert.equal(parsedCodexMcp.sandbox_mode, "workspace-write");
 assert.equal(parsedCodexMcp.profile.default.model, "keep-me");
 assert.equal(parsedCodexMcp.mcp_servers.existing.command, "local-existing");
 assert.equal(parsedCodexMcp.mcp_servers.synapse.command, path.join(os.homedir(), ".local", "bin", "synapse-bridge"));
+// Under approval_policy "never" Codex refuses an MCP tool call that needs approval; Synapse's writes run.
+assert.equal(parsedCodexMcp.mcp_servers.synapse.default_tools_approval_mode, "approve");
+assert.equal(Object.hasOwn(parsedCodexMcp.mcp_servers.existing, "default_tools_approval_mode"), false);
 assert.equal(Object.hasOwn(parsedCodexMcp.mcp_servers, "agentmemory"), false);
 rmSync(existingCodexMcpDest, { recursive: true, force: true });
+
+// The Synapse PostToolUse hook follows the synapse server on the three hosts whose hooks can add
+// context (synapse-hook.mjs): merged beside the user's own hooks, unchanged by a rerun, and removed
+// alone when the server is pruned.
+{
+  const hookCommand = synapseHookCommand();
+  const synapseEntry = { matcher: "*", hooks: [{ type: "command", command: hookCommand }] };
+  const userPostToolUse = { matcher: "Edit", hooks: [{ type: "command", command: "format-on-edit" }] };
+  const userPreToolUse = { matcher: "*", hooks: [{ type: "command", command: "guard" }] };
+  const userSettings = [
+    "{",
+    "  // keep this comment",
+    '  "permissions": { "allow": ["Bash(ls)"] },',
+    '  "hooks": {',
+    '    "PostToolUse": [',
+    "      // the user's formatter",
+    '      { "matcher": "Edit", "hooks": [{ "type": "command", "command": "format-on-edit" }] }',
+    "    ],",
+    '    "PreToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "guard" }] }]',
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+  const installSynapse = (target, dest, extra = []) =>
+    run(["install", "--target", target, "--dest", dest, "--category", "mcps", "--service", "synapse", ...extra]);
+
+  const claudeDest = ownTmp("synapse-hook-claude");
+  rmSync(claudeDest, { recursive: true, force: true });
+  mkdirSync(path.join(claudeDest, ".claude"), { recursive: true });
+  const claudeSettingsPath = path.join(claudeDest, ".claude", "settings.json");
+  writeFileSync(claudeSettingsPath, userSettings);
+  assert.match(installSynapse("claude-code", claudeDest, ["--dry-run"]), /\.claude\/settings\.json PostToolUse \+= synapse-hook/, "dry-run lists the hook change");
+  assert.equal(readFileSync(claudeSettingsPath, "utf8"), userSettings, "dry-run writes nothing");
+  installSynapse("claude-code", claudeDest);
+  const claudeText = readFileSync(claudeSettingsPath, "utf8");
+  assert.match(claudeText, /\/\/ keep this comment/);
+  assert.match(claudeText, /\/\/ the user's formatter/);
+  const claudeSettings = parseJsonc(claudeText, "claude settings");
+  assert.deepEqual(claudeSettings.permissions, { allow: ["Bash(ls)"] });
+  assert.deepEqual(claudeSettings.hooks, { PostToolUse: [userPostToolUse, synapseEntry], PreToolUse: [userPreToolUse] });
+  installSynapse("claude-code", claudeDest);
+  assert.equal(readFileSync(claudeSettingsPath, "utf8"), claudeText, "a rerun changes nothing");
+
+  // Pruning the server removes only its hook entry; a file the entry alone needed loses its hooks key.
+  const prune = [{ entries: [], removeMcpServers: ["synapse"] }];
+  const pruned = await planSynapseHook({ target: "claude-code", installRoot: claudeDest, configMerges: prune });
+  assert.equal(pruned.change, "remove");
+  assert.match(pruned.content, /\/\/ the user's formatter/);
+  assert.deepEqual(parseJsonc(pruned.content, "pruned").hooks, { PostToolUse: [userPostToolUse], PreToolUse: [userPreToolUse] });
+  writeFileSync(claudeSettingsPath, '{\n  "model": "keep"\n}\n');
+  installSynapse("claude-code", claudeDest);
+  const alone = await planSynapseHook({ target: "claude-code", installRoot: claudeDest, configMerges: prune });
+  assert.deepEqual(parseJsonc(alone.content, "alone"), { model: "keep" });
+  rmSync(claudeDest, { recursive: true, force: true });
+
+  const codexDest = ownTmp("synapse-hook-codex");
+  rmSync(codexDest, { recursive: true, force: true });
+  assert.match(installSynapse("codex", codexDest), /NOTE: Codex runs the Synapse hook in \.codex\/hooks\.json only after you trust it/, "the install names the one-time trust step");
+  assert.deepEqual(JSON.parse(readFileSync(path.join(codexDest, ".codex", "hooks.json"), "utf8")), { hooks: { PostToolUse: [synapseEntry] } });
+  assert.doesNotMatch(installSynapse("codex", codexDest), /NOTE: Codex runs the Synapse hook/, "an unchanged entry asks for nothing new");
+  rmSync(codexDest, { recursive: true, force: true });
+
+  // Droid reads settings.json's hooks only while hooks.json is absent, so the entry joins them there.
+  const droidDest = ownTmp("synapse-hook-droid");
+  rmSync(droidDest, { recursive: true, force: true });
+  mkdirSync(path.join(droidDest, ".factory"), { recursive: true });
+  writeFileSync(path.join(droidDest, ".factory", "settings.json"), `${JSON.stringify({ model: "keep", hooks: { PreToolUse: [userPreToolUse] } }, null, 2)}\n`);
+  installSynapse("droid", droidDest);
+  assert.equal(existsSync(path.join(droidDest, ".factory", "hooks.json")), false, "a new hooks.json would hide the settings.json hooks");
+  assert.deepEqual(JSON.parse(readFileSync(path.join(droidDest, ".factory", "settings.json"), "utf8")), {
+    model: "keep",
+    hooks: { PreToolUse: [userPreToolUse], PostToolUse: [synapseEntry] },
+  });
+  rmSync(droidDest, { recursive: true, force: true });
+  const freshDroidDest = ownTmp("synapse-hook-droid-fresh");
+  rmSync(freshDroidDest, { recursive: true, force: true });
+  installSynapse("droid", freshDroidDest);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(freshDroidDest, ".factory", "hooks.json"), "utf8")), { PostToolUse: [synapseEntry] });
+  rmSync(freshDroidDest, { recursive: true, force: true });
+
+  // Removal from a hook file written on one line leaves valid JSON with the user's hooks intact; deleting
+  // array items through jsonc-parser's own edit rewrote these into invalid JSON.
+  const userGroup = { matcher: "Bash", hooks: [{ type: "command", command: "a" }] };
+  const userHook = JSON.stringify(userGroup.hooks[0]);
+  const ourHook = JSON.stringify(synapseEntry.hooks[0]);
+  for (const oneLine of [
+    `{"hooks":{"PostToolUse":[${JSON.stringify(userGroup)},${JSON.stringify(synapseEntry)}]}}`,
+    `{"hooks":{"PostToolUse":[{"matcher":"Bash","hooks":[${userHook},${ourHook}]}]}}`,
+    `{"hooks":{"PostToolUse":[{"matcher":"Bash","hooks":[${ourHook},${userHook},${ourHook}]}]}}`,
+  ]) {
+    const removed = mergeSynapseHook(oneLine, ["hooks", "PostToolUse"], hookCommand, false, "settings.json");
+    assert.deepEqual(parseJsonc(removed, "one-line removal"), { hooks: { PostToolUse: [userGroup] } }, oneLine);
+  }
+
+  // doctor reports a Droid settings.json it cannot parse instead of failing the whole report.
+  const brokenDroidHome = ownTmp("synapse-hook-doctor");
+  rmSync(brokenDroidHome, { recursive: true, force: true });
+  mkdirSync(path.join(brokenDroidHome, ".factory"), { recursive: true });
+  writeFileSync(path.join(brokenDroidHome, ".factory", "settings.json"), "{ not json");
+  assert.match(await synapseHookStatus("droid", brokenDroidHome), /^unreadable: /);
+  rmSync(brokenDroidHome, { recursive: true, force: true });
+
+  // Hook keys of the wrong type stop the install instead of being overwritten.
+  assert.throws(() => mergeSynapseHook('{"hooks": []}', ["hooks", "PostToolUse"], hookCommand, true, "settings.json"), /hooks must be an object/);
+  assert.throws(() => mergeSynapseHook('{"hooks": {"PostToolUse": {}}}', ["hooks", "PostToolUse"], hookCommand, true, "settings.json"), /hooks\.PostToolUse must be an array/);
+}
 
 // P3.1/P3.2 acceptance: non-destructive MCP merge into every manual/secret-bearing
 // host. Each fixture carries a pre-existing user server; the merge must keep it,

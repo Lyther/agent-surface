@@ -11,6 +11,7 @@ import { readJsonIfExists, readJsoncIfExists } from "./io.mjs";
 import { allStoredNotices, localDate, noticeHeading } from "./notices.mjs";
 import { commandVersion } from "./proc.mjs";
 import { readOptionalServices, root } from "./registry.mjs";
+import { SYNAPSE_HOOK_TARGETS, synapseHookStatus } from "./synapse-hook.mjs";
 import { kiloRuleInstructionRoot } from "./targets.mjs";
 import { exists } from "./util.mjs";
 
@@ -43,6 +44,8 @@ export async function doctor() {
   checks.push(["grimoire-server", (await exists(path.join(bin, "grimoire-server"))) ? "linked" : "missing (npm run install:grimoire)"]);
   checks.push(["grimoire-index", await grimoireIndexStatus()]);
   checks.push(["synapse-bridge", (await exists(path.join(bin, "synapse-bridge"))) ? "linked" : "missing (npm run install:synapse)"]);
+  checks.push(["synapse-hook", (await exists(path.join(bin, "synapse-hook"))) ? "linked" : "missing (npm run install:synapse)"]);
+  for (const target of SYNAPSE_HOOK_TARGETS) checks.push([`synapse-hook ${target}`, await synapseHookStatus(target)]);
 
   const today = localDate();
   for (const { target, notice } of await allStoredNotices()) {

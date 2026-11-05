@@ -79,6 +79,9 @@ export const targets = {
         approval_policy: "never",
         sandbox_mode: "danger-full-access",
       },
+      // Under approval_policy "never" Codex refuses every MCP tool call that needs approval, Synapse's
+      // writes included; approving the server's tools by default lets them run.
+      serverProperties: { synapse: { default_tools_approval_mode: "approve" } },
     },
   },
   deepagents: {
@@ -1149,7 +1152,7 @@ export async function optionalMcpOutputs(adapter, context) {
 
     const entries = mcpConfig.includeServices === false
       ? []
-      : withMcpServerEnv(await selectedMcpServiceEntries(mcpConfig.defaultEnabled, context), mcpConfig, context);
+      : withMcpServerOverrides(await selectedMcpServiceEntries(mcpConfig.defaultEnabled, context), mcpConfig, context);
     const rootProperties = mcpConfigRootProperties(mcpConfig, context);
     if (entries.length === 0 && Object.keys(rootProperties).length === 0) continue;
     const entryCategories = [...new Set(entries.map(([id]) => assetCategoryFor(categories, "services", id)).filter(Boolean))];
@@ -1175,15 +1178,19 @@ function isHomeRoot(root) {
   return samePath(real(root), real(os.homedir()));
 }
 
-// Env a host's MCP config sets on particular servers (serverEnv: an object or a function of the
-// install context, keyed by service id), merged over any env the service itself declares.
-export function withMcpServerEnv(entries, mcpConfig, context) {
-  const serverEnv = typeof mcpConfig.serverEnv === "function" ? mcpConfig.serverEnv(context) : mcpConfig.serverEnv;
-  if (!serverEnv) return entries;
+// What a host's MCP config sets on particular servers, keyed by service id: serverEnv (an object or a
+// function of the install context) merges over any env the service itself declares, and
+// serverProperties adds host-specific keys to the server's entry (TOML configs only).
+export function withMcpServerOverrides(entries, mcpConfig, context) {
+  const serverEnv = (typeof mcpConfig.serverEnv === "function" ? mcpConfig.serverEnv(context) : mcpConfig.serverEnv) ?? {};
+  const serverProperties = mcpConfig.serverProperties ?? {};
   return entries.map(([id, service]) => {
     const server = service.mcp?.server;
-    if (!serverEnv[id] || !server) return [id, service];
-    return [id, { ...service, mcp: { ...service.mcp, server: { ...server, env: { ...server.env, ...serverEnv[id] } } } }];
+    if (!server || (!serverEnv[id] && !serverProperties[id])) return [id, service];
+    const overridden = { ...server };
+    if (serverEnv[id]) overridden.env = { ...server.env, ...serverEnv[id] };
+    if (serverProperties[id]) overridden.properties = serverProperties[id];
+    return [id, { ...service, mcp: { ...service.mcp, server: overridden } }];
   });
 }
 

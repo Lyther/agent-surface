@@ -166,6 +166,7 @@ try {
   // ---- keyless server: direct launch preserved, no wrapper materialized -------
   const keylessHome = path.join(dir, "keyless-home");
   seedBin(keylessHome, "synapse-bridge");
+  seedBin(keylessHome, "synapse-hook");
   const provisionable = await serviceIsProvisionable("synapse", keylessHome);
   if (!provisionable.ok) {
     console.log(`mcp-credential-launch: synapse prerequisite unavailable here (${provisionable.unmet.join(", ")}) — skipping the keyless install case`);

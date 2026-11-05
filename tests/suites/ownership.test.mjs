@@ -38,7 +38,7 @@ const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, ".con
 // prerequisite check finds them; nothing stands in for them.
 const operatorBin = path.join(os.homedir(), ".local", "bin");
 mkdirSync(path.join(home, ".local", "bin"), { recursive: true });
-for (const name of ["grimoire-server", "synapse-bridge"]) {
+for (const name of ["grimoire-server", "synapse-bridge", "synapse-hook"]) {
   assert.ok(existsSync(path.join(operatorBin, name)), `${name} is missing; run npm run install:mcps first`);
   symlinkSync(path.join(operatorBin, name), path.join(home, ".local", "bin", name));
 }

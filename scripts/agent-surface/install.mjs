@@ -22,10 +22,11 @@ import { provisioningDecision, runProvisioning } from "./provision-exec.mjs";
 import { formatProvisioningPlan, launchNameOf, PLATFORM, provisioningActions, provisioningStatus, unrecipedRequired } from "./provision.mjs";
 import { assertJsonPropertyType, isMcpLauncherCommand, MCP_ENV_LAUNCH_SCRIPT, mcpLauncherInvocation, mcpLaunchScriptCopy, mergeCodexMcpToml, mergeJsonMcpConfig, mergeKiroPermissions, mergeYamlMcpConfig, optionalServiceMcpServers, renderMcpConfig, YAML_MCP_FORMATS } from "./merge.mjs";
 import { pinnedNodePath } from "./mcp-shims.mjs";
+import { planSynapseHook } from "./synapse-hook.mjs";
 import { formatNotice, localDate, planNotices } from "./notices.mjs";
 import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { readRules } from "./rules.mjs";
-import { adapterMcpConfigs, kiloRuleInstructionPaths, kiloRuleInstructionRoot, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets, withMcpServerEnv } from "./targets.mjs";
+import { adapterMcpConfigs, kiloRuleInstructionPaths, kiloRuleInstructionRoot, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets, withMcpServerOverrides } from "./targets.mjs";
 import { argValue, fail, isPathInside, isSafeRelativePath, isSafeTargetName, splitArgValues, uniqueStrings } from "./util.mjs";
 
 export async function build(args) {
@@ -1117,6 +1118,17 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     if (item.action === "blocked") blocked.push(item.error);
   }
 
+  // The Synapse hook follows the synapse server this plan wires or prunes (synapse-hook.mjs).
+  const hookMerges = [];
+  try {
+    const hook = await planSynapseHook({ target, installRoot, configMerges });
+    const routeError = hook && await installPathError(installRoot, hook.output, `hook config ${hook.relativeOutput}`);
+    if (routeError) blocked.push(routeError);
+    else if (hook) hookMerges.push(hook);
+  } catch (error) {
+    blocked.push(`synapse hook: ${error.message}`);
+  }
+
   for (const item of staleManaged) {
     if (!isSafeRelativePath(item.output)) {
       blocked.push(`unsafe stale managed path: ${item.output}`);
@@ -1178,6 +1190,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     writes,
     staleRemovalActions,
     configMerges,
+    hookMerges,
     blocked,
     notApplicableCategories,
     nonApplicable: nonApplicable.sort((left, right) => left.localeCompare(right)),
@@ -1784,6 +1797,13 @@ function printInstallPlan(plan) {
       }
     }
   }
+  if (plan.hookMerges.length > 0) {
+    console.log("planned hook merges:");
+    for (const item of plan.hookMerges) {
+      const verb = item.change === "add" ? "+=" : "-=";
+      console.log(`  ${item.relativeOutput} PostToolUse ${verb} synapse-hook${item.action === "skip" ? " (unchanged)" : ""}`);
+    }
+  }
   if (plan.skippedConfigRoutes.length > 0) {
     console.log("skipped config routes:");
     for (const item of plan.skippedConfigRoutes) console.log(`  ${item}`);
@@ -1903,6 +1923,15 @@ async function applyInstallPlan(plan) {
     configMerges += result.changed ? 1 : 0;
   }
 
+  for (const item of plan.hookMerges) {
+    if (item.action === "skip") continue;
+    await assertInstallPath(plan.installRoot, item.output, `hook config ${item.relativeOutput}`);
+    await mkdir(path.dirname(item.output), { recursive: true });
+    await assertInstallPath(plan.installRoot, item.output, `hook config ${item.relativeOutput}`);
+    await replaceFile(item.output, item.content);
+    configMerges += 1;
+  }
+
   await writeManifestFile(plan, plan.manifest);
 
   console.log("installed:");
@@ -1910,6 +1939,10 @@ async function applyInstallPlan(plan) {
   console.log(`  skipped unchanged: ${skipped}`);
   console.log(`  removed stale: ${removed}`);
   console.log(`  config merges: ${configMerges}`);
+  // ADR-17: Codex runs a hook only once a user has trusted it, and agent-surface cannot do that for them.
+  if (plan.target === "codex" && plan.hookMerges.some((item) => item.change === "add" && item.action === "write")) {
+    console.log(`NOTE: Codex runs the Synapse hook in ${plan.hookMerges[0].relativeOutput} only after you trust it: open codex and review it once with /hooks`);
+  }
 }
 
 // Replaced atomically, so a crash leaves the previous or the new manifest, never a torn one.
@@ -1928,7 +1961,7 @@ async function assertInstallPath(safetyRoot, candidate, label) {
 async function mcpConfigMerge(mcpConfig, installRoot, scope, context) {
   const entries = mcpConfig.includeServices === false
     ? []
-    : withMcpServerEnv(await selectedMcpServiceEntries(mcpConfig.defaultEnabled, context), mcpConfig, { ...context, scope, installRoot });
+    : withMcpServerOverrides(await selectedMcpServiceEntries(mcpConfig.defaultEnabled, context), mcpConfig, { ...context, scope, installRoot });
   const relativeOutput = outputRootFor(mcpConfig.relativeOutput, { ...context, scope });
   const absoluteOutput = path.isAbsolute(relativeOutput);
   const safetyRoot = configRouteSafetyRoot(relativeOutput, mcpConfig.allowAbsoluteOutput === true, installRoot);

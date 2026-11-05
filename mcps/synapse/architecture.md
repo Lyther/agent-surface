@@ -1,8 +1,8 @@
 # Architecture
 
-Status: PROPOSED. It replaces the IMPLEMENTED v0.4 sidecar design; the work is in [roadmap.md](roadmap.md).
+Status: IMPLEMENTED (v0.5.0). It replaced the v0.4 sidecar design; proofs are under Quality Scenarios and Fitness Gates, and the remaining debt under Risks.
 Source: the user's decisions of 2026-11-04, recorded below as ADR-11 to ADR-17. [concept-zero.md](concept-zero.md) is historical: its problem framing stands and its mechanism is superseded.
-Last updated: 2026-11-04
+Last updated: 2026-11-05
 
 ## Executive Decision
 
@@ -98,7 +98,7 @@ Non-goals:
   - A hook that exited 1 was recorded; the session went on, and no model saw its stderr.
   - The tool is `mcp__synapse__memory_remember` on Claude Code and Codex and `synapse___memory_remember` on Droid. Its `tool_response` is MCP content blocks on Claude Code, `{content}` on Codex, and the result text on Droid.
   - Subagents: a Claude Code subagent's events add `agent_id` and `agent_type` under the parent's `session_id`; a Droid subagent's events carry its own `session_id`. A Codex subagent's tool calls ran no PostToolUse hook in two runs.
-  - Codex runs an MCP tool in `exec` only when the server's `default_tools_approval_mode` is `approve`.
+  - Under `approval_policy = "never"`, which agent-surface writes, Codex runs an MCP tool that needs approval only when the server's `default_tools_approval_mode` is `approve`; the generated Codex entry sets it for Synapse.
 
 ## System Context and Boundaries
 
@@ -118,13 +118,13 @@ Trust boundary: one local user and cooperating agents. Nothing listens on the ne
 
 ### Runtime View
 
-- **`synapse-bridge`** (PROPOSED, S1): the host starts it over stdio.
+- **`synapse-bridge`**: the host starts it over stdio.
   - It resolves the project once at initialize: `SYNAPSE_PROJECT`, then the host's first MCP root, then the cwd git root. It keeps the `SYNAPSE_ROOTS=ignore` and fail-closed rules from `bridge.ts`.
   - It opens DBs on first use and exits when stdin closes. It opens no port and writes no file besides the DBs.
   - A SQLite error becomes a tool error. A crash affects only its own session, and WAL keeps committed rows.
-- **`synapse-hook`** (PROPOSED, S2): the host starts it after each tool call, with the event JSON on stdin.
+- **`synapse-hook`**: the host starts it after each tool call, with the event JSON on stdin.
   - It prints the context JSON or nothing, and exits 0.
-  - On an internal error it exits 1 with one stderr line, which Claude Code shows the user (not the model) and Droid records. S0.1 records what Codex does.
+  - On an internal error it exits 1 with one stderr line; on all three hosts the session goes on and the model does not see it (S0.1).
   - It never exits 2, which hosts treat as a blocking signal.
 - **`npm run install:synapse`**: cleans and rebuilds `dist`, links `synapse-bridge` and `synapse-hook`, and removes the `synapse-sidecar` link.
   - For the v0.4 hand-over, it stops a running sidecar with `stop-sidecar.mjs` and deletes `~/.synapse/{sidecar.json,sidecar.lock,token}`. That hand-over code is deleted one release later.
@@ -149,37 +149,37 @@ Trust boundary: one local user and cooperating agents. Nothing listens on the ne
 ```text
 mcps/synapse/
   src/
-    contract.ts    - Tool I/O schemas, DTOs, LIMITS, SERVER_INSTRUCTIONS, IStore. Pure. Loses OPERATION_* and SIDECAR_FEATURES; memory_remember's result loses `redactions`. Invariant: 7 tools.
+    contract.ts    - Tool I/O schemas, DTOs, LIMITS, SERVER_INSTRUCTIONS, IStore. Pure. Invariant: 7 tools.
     model.ts       - Row types, mappers, SCHEMA_SQL (adds hook_cursors; no longer creates operations), external-id codec. No I/O.
-    store.ts       - The only SQLite code: per-project and global DBs, FTS5 recall, locks, forget scrub, read-only cross-project access, claimUnseen. No MCP, onCommit, redaction or operation records. Tests: store, hook, multiprocess.
-    tools.ts       - Tool specs and dispatcher for one session; no operation ids.
-    server.ts      - PROPOSED (S1). Stdio MCP server for one host session; bin `synapse-bridge`. Tests: server, roots-routing.
-    hook.ts        - PROPOSED (S2). Bin `synapse-hook`; PostToolUse reader for Claude Code, Codex and Droid; no MCP SDK import. Tests: hook, scripts/host-acceptance.mjs.
-    namespace.ts   - Project key and DB paths (unchanged).
-    identity.ts    - Agent id derivation (unchanged).
-    fsguard.ts     - Owner-only data directory (unchanged).
-    clock.ts       - Clock seam for tests (unchanged).
-    sidecar.ts, bridge.ts, bootstrap.ts, redactor.ts - DEPRECATED; deleted in S1.
+    store.ts       - The only SQLite code: per-project and global DBs, FTS5 recall, locks, forget scrub, read-only cross-project access, claimUnseen. No MCP. Tests: store, hook, multiprocess.
+    tools.ts       - Tool specs and dispatcher for one session.
+    server.ts      - Stdio MCP server for one host session; bin `synapse-bridge`. Tests: server, roots-routing, multiprocess.
+    hook.ts        - Bin `synapse-hook`; PostToolUse reader for Claude Code, Codex and Droid; no MCP SDK import. Tests: hook, scripts/host-acceptance.mjs.
+    namespace.ts   - Project key and DB paths.
+    identity.ts    - Agent id derivation.
+    fsguard.ts     - Owner-only data directory.
+    clock.ts       - Clock seam for tests.
   test/
-    store.test.ts         - Kept, minus the redaction, operation-id and onCommit cases.
-    server.test.ts        - PROPOSED: a spawned server lists 7 tools, round-trips remember→recall, exits on stdin close, and owns locks per process.
-    roots-routing.test.ts - Ported from the bridge to the server.
-    multiprocess.test.ts  - PROPOSED: Q-03.
-    hook.test.ts          - PROPOSED: Q-02 and the hook rules, driven by recorded host payloads.
-    fixtures/hooks/*.json - PROPOSED (S0.1): real PostToolUse payloads from each host, scrubbed of secrets and home paths.
-    sidecar, bridge, coalescing and recovery tests - DEPRECATED; deleted in S1. Recovery's crash cases move to multiprocess.test.ts.
-    smoke/README.md       - DEPRECATED: the manual runbook is replaced by scripts/host-acceptance.mjs.
-  scripts/host-acceptance.mjs - PROPOSED (S3): the Q-01 run per host. One model call per host; run on demand, not by npm test.
+    store.test.ts         - Store rules, including a v0.4 file opened beside a v0.4 writer.
+    server.test.ts        - A spawned server lists 7 tools, round-trips remember→recall and exits on stdin close.
+    roots-routing.test.ts - Project routing by env, MCP roots and cwd.
+    multiprocess.test.ts  - Q-03.
+    hook.test.ts          - Q-02 and the hook rules, driven by recorded host payloads.
+    helpers.ts            - Spawns the built server over stdio.
+    fixtures/hooks/*.json - Real PostToolUse payloads from each host (S0.1), scrubbed of secrets and home paths.
+  scripts/host-acceptance.mjs - The Q-01 run per host. One model call per host; run on demand, not by npm test.
   schema.sql       - DDL mirror of SCHEMA_SQL.
   install.mjs      - Build, bin links, v0.4 hand-over.
+  require-node.mjs - Stops build and test with a clear message under a Node older than 22.17.
   stop-sidecar.mjs - DEPRECATED: used only by the v0.4 hand-over; deleted one release later.
   package.json     - Bins `synapse-bridge` → dist/src/server.js and `synapse-hook` → dist/src/hook.js.
 
 scripts/agent-surface/
-  synapse-hook.mjs - PROPOSED (S2): the three hosts' hook-config locations and one idempotent JSON merge that adds or removes the Synapse PostToolUse entry and keeps every other hook. Owns the Droid file rule. Handles no other kind of hook.
+  synapse-hook.mjs - The three hosts' hook-config locations and one idempotent JSON merge that adds or removes the Synapse PostToolUse entry and keeps every other hook. Owns the Droid file rule and doctor's per-host check. Handles no other kind of hook.
   install.mjs      - Calls it wherever the mcps category installs Synapse for those targets; dry-run lists the change.
-  doctor.mjs       - Reports both bin links and each host's hook entry; drops the sidecar.json check.
-registry/optional-services.json - The Synapse validation hint and wiring notes describe the server and the hook.
+  doctor.mjs       - Reports both bin links and each host's user-scope hook entry.
+registry/optional-services.json - The Synapse prerequisites (both launchers), validation hint and wiring notes.
+scripts/agent-surface/targets.mjs - The Codex entry approves Synapse's tools by default (`default_tools_approval_mode`), since the generated `approval_policy = "never"` refuses MCP calls that need approval.
 ```
 
 ## Data and State
@@ -236,19 +236,19 @@ registry/optional-services.json - The Synapse validation hint and wiring notes d
 - **Install or upgrade:** run `npm run install:synapse`, then `agent-surface install --category mcps --target <targets>`. Restart host sessions to start the new server.
   - Claude Code reloads hooks itself.
   - Droid reads them when a session starts.
-  - Codex needs its one-time trust, unless S0.3 finds a policy route.
-- **Environment:** `SYNAPSE_DB_DIR`, `SYNAPSE_AGENT_ID`, `SYNAPSE_PROJECT`, `SYNAPSE_NAMESPACE`, `SYNAPSE_ROOTS`. Removed: `SYNAPSE_PORT`, `SYNAPSE_URL`, `SYNAPSE_TOKEN`.
+  - Codex needs its one-time trust through `/hooks` (ADR-17).
+- **Environment:** `SYNAPSE_DB_DIR`, `SYNAPSE_AGENT_ID`, `SYNAPSE_PROJECT`, `SYNAPSE_NAMESPACE`, `SYNAPSE_ROOTS`.
 - **Health:** `agent-surface doctor` reports the bin links and each host's hook entry. With no daemon, there is no health endpoint.
 - **Logs:** none on success. Hook failures show up as the host's hook-error notice, and server errors as tool errors.
 - **Cost:** one small process per host session, plus one short process per tool call on the three hook hosts (Q-04).
 
 ## Quality Scenarios and Fitness Gates
 
-- Q-01: `node scripts/host-acceptance.mjs --host <claude-code|codex|droid>` reports PASS, FAIL, or BLOCKED with the reason, per host.
-- Q-02: the concurrent-claim case in `hook.test.ts`.
-- Q-03: `multiprocess.test.ts`.
-- Q-04: the S0.4 measurement, recorded here.
-- G-02: the store suite and the v0.4 fixture DB case.
+- Q-01: `node scripts/host-acceptance.mjs [claude] [codex] [droid]` reports PASS, FAIL, or BLOCKED with the reason, per host. Passed 2026-11-05 on Claude Code 2.1.309, Codex 0.166.0 and Droid 1.2.0; the versions and models are in the README.
+- Q-02: the concurrent-claim case in `hook.test.ts` (six hook processes, each record once).
+- Q-03: `multiprocess.test.ts`: a writer SIGKILLed with hundreds of writes queued loses no acknowledged record, the FTS index matches the memory table, and a lease runs from when its write lock is won.
+- Q-04: the S0.4 measurement, recorded under Risks.
+- G-02: the store suite and the v0.4 file case, which keeps writing through a v0.4 connection after the new store opens it.
 
 ## Architecture Decisions
 
@@ -277,8 +277,7 @@ registry/optional-services.json - The Synapse validation hint and wiring notes d
 
 - **Codex runs the hook only after one approval.**
   - Impact: nothing is delivered on Codex until the hook is trusted, and again whenever the hook definition changes.
-  - Mitigation: the install prints the exact step, and the definition stays the same across Synapse upgrades.
-  - Next proof: S0.3.
+  - Mitigation: an install that adds the entry prints the step, and the definition stays the same across Synapse upgrades (ADR-17).
 - **Host hook contracts drift.** Cursor and Copilot have shipped versions that dropped this context.
   - Impact: delivery silently stops.
   - Mitigation: rerun `host-acceptance.mjs` whenever a host's major version changes.

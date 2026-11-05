@@ -1,9 +1,9 @@
 # Concept Zero — `synapse`
 
-Status: PROPOSED
+Status: SUPERSEDED
 Last updated: 2026-06-26
 
-> ⚠️ **HISTORICAL HLD — do NOT implement from the body below.** Source of truth is **[architecture.md](architecture.md) (v0.4)** + **[roadmap.md](roadmap.md)**. Keep this doc only for problem framing, the evidence ledger (E-01..E-10), and the security stance. Everything below about *mechanism* is superseded: the current design is **one HTTP sidecar (sole SQLite owner) + a stdio bridge**, realtime via `notifications/resources/updated` (dirty-bit) with **cursor pull as the correctness floor**, **7 tools** (`memory_remember/recall/get/forget`, `lock_acquire/release/list`) — NOT a stdio event-log "bus", NOT a watcher, NOT `bus_*`/offsets/presence.
+> ⚠️ **HISTORICAL HLD, superseded: do NOT implement from the body below.** The source of truth is **[architecture.md](architecture.md) (v0.5)**: one stdio server per host session over shared SQLite files, and records delivered after each tool call by a PostToolUse hook on Claude Code, Codex and Droid. Keep this doc only for problem framing, the evidence ledger (E-01..E-10) and the security stance; its event-log bus, watcher, `bus_*` tools, offsets and presence were never built.
 
 ## Executive Decision
 
