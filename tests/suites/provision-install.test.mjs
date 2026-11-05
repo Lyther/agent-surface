@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Install-level provisioning gating, exercised through the real CLI against the real registry — but
-// NEVER running a real package manager: the block case denies authorization BEFORE the executor
-// runs, and the satisfied case has every prerequisite already present so no recipe fires. Both use a
-// disposable HOME so nothing lands in the developer's real ~/.local/bin.
+// NEVER running a real package manager: no install here passes -y, and without it a headless install
+// runs no recipe, so a prerequisite missing from the disposable HOME is reported, never installed on
+// the developer's machine.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -29,10 +29,10 @@ const dir = mkdtempSync(path.join(os.tmpdir(), "as-prov-install-"));
   assert.deepEqual(excluded.map(([id]) => id), [], "excludeServices drops the service and does not raise a missing-service error");
 }
 
-function install(home, dest, env, extra) {
+function install(home, dest, env) {
   mkdirSync(home, { recursive: true });
   mkdirSync(dest, { recursive: true });
-  return spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", "--service", "openosint", ...extra], {
+  return spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", "--service", "openosint"], {
     encoding: "utf8",
     // os.homedir() reads USERPROFILE on Windows and HOME elsewhere; set both so the disposable
     // home applies on every platform.
@@ -41,10 +41,10 @@ function install(home, dest, env, extra) {
 }
 
 // Same disposable-home install, for an arbitrary service selection.
-function installServices(home, dest, services, extra = []) {
+function installServices(home, dest, services) {
   mkdirSync(home, { recursive: true });
   mkdirSync(dest, { recursive: true });
-  return spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", ...services.flatMap((id) => ["--service", id]), ...extra], {
+  return spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", ...services.flatMap((id) => ["--service", id])], {
     encoding: "utf8",
     env: { ...process.env, HOME: home, USERPROFILE: home },
   });
@@ -59,10 +59,10 @@ try {
   {
     const home = path.join(dir, "partial-home");
     const dest = path.join(dir, "partial-proj");
-    const first = installServices(home, dest, ["chrome-devtools"], ["-y"]);
+    const first = installServices(home, dest, ["chrome-devtools"]);
     const configPath = path.join(dest, ".factory", "mcp.json");
     if (first.status !== 0 || !existsSync(configPath)) {
-      console.log("provision-install: chrome-devtools not provisionable here — skipping the partial-install regression case");
+      console.log("provision-install: chrome-devtools prerequisites absent here — skipping the partial-install regression case");
     } else {
       const before = readFileSync(configPath, "utf8");
       assert.match(before, /--executablePath/, "the baseline install wired the resolved browser");
@@ -283,7 +283,7 @@ try {
   // both required prerequisites read missing. Headless without -y must refuse to run the recipes.
   const blockHome = path.join(dir, "block-home");
   const blockDest = path.join(dir, "block-proj");
-  const blocked = install(blockHome, blockDest, { PATH: "/usr/bin:/bin" }, []);
+  const blocked = install(blockHome, blockDest, { PATH: "/usr/bin:/bin" });
   assert.equal(blocked.status, 1, "a missing required prerequisite blocks a headless install");
   assert.match(blocked.stdout, /re-run with -y/, "the block explains how to authorize the install");
   // The executor logs "provisioning: ok"/"provisioning: FAILED" only AFTER a real spawn; their
@@ -299,19 +299,24 @@ try {
   // env into the disposable HOME so the extras are probed in the REAL interpreter against the REAL
   // libraries — no `exit 0` stub stands in as proof. openosint-mcp/uv resolve via the real PATH. If
   // that real env is absent (e.g. CI without openosint), the integration prerequisite is reported
-  // unavailable and this case is skipped rather than faked.
+  // unavailable and this case is skipped rather than faked. Readiness is judged in the install's own
+  // HOME and environment, because a binary the developer's HOME provides can be missing from the
+  // disposable one.
   const realVenv = path.join(os.homedir(), ".local", "share", "uv", "tools", "openosint");
+  const okHome = path.join(dir, "ok-home");
+  const okDest = path.join(dir, "ok-proj");
+  const okEnv = { ...process.env, HOME: okHome, USERPROFILE: okHome };
+  if (existsSync(realVenv)) {
+    mkdirSync(path.join(okHome, ".local", "share", "uv", "tools"), { recursive: true });
+    symlinkSync(realVenv, path.join(okHome, ".local", "share", "uv", "tools", "openosint"));
+  }
   const realEntries = await selectedMcpServiceEntries(true, { mode: "install", scope: "project", optionalServices: new Set(["openosint"]) });
   const realSatisfied = existsSync(realVenv)
-    && provisioningStatus(realEntries).every((s) => s.prerequisites.every((p) => p.satisfied));
+    && provisioningStatus(realEntries, { homedir: okHome, env: okEnv }).every((s) => s.prerequisites.every((p) => p.satisfied));
   if (!realSatisfied) {
     console.log("provision-install: openosint integration prerequisite unavailable — skipping the real-env wire assertion");
   } else {
-    const okHome = path.join(dir, "ok-home");
-    const okDest = path.join(dir, "ok-proj");
-    mkdirSync(path.join(okHome, ".local", "share", "uv", "tools"), { recursive: true });
-    symlinkSync(realVenv, path.join(okHome, ".local", "share", "uv", "tools", "openosint"));
-    const ok = install(okHome, okDest, process.env, ["-y"]);
+    const ok = install(okHome, okDest, okEnv);
     assert.equal(ok.status, 0, `a satisfied install proceeds: ${ok.stderr || ok.stdout}`);
     assert.match(ok.stdout, /openosint-mcp ok/, "the already-present binary is reported satisfied");
     assert.match(ok.stdout, /openosint-extras ok/, "the provider extras are satisfied (probed in the REAL openosint interpreter)");

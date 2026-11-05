@@ -8,6 +8,8 @@ skills/ops-server/
 # Host state an editor or agent session keeps inside the checkout, such as session worktrees.
 .claude/
 .cursor/
+.kilo/
+.vscode/
 # MCP credential files — never commit or publish secrets.
 .env
 .env.*

@@ -53,7 +53,7 @@ if (process.platform === "win32") {
     const searchPath = onPath ? `${path.join(dir, onPath)}:/usr/bin:/bin` : "/usr/bin:/bin";
     const result = spawnSync(
       process.execPath,
-      [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", "--service", "pentest-ai", "--allow-scope-root", "-y"],
+      [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", "--service", "pentest-ai", "--allow-scope-root"],
       { encoding: "utf8", env: { HOME: home, USERPROFILE: home, PATH: searchPath } },
     );
     // Selecting an opt-in service must never fail an install, present or absent.

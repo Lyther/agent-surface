@@ -1,8 +1,6 @@
 # ops-swarm report template
 
-Companion reference for `ops-swarm`. The required sections and their order, then the `--state` artifact's
-shape; the rules about what must appear in them — dissent preserved, evidence separated from
-corroboration — are in `SKILL.md`.
+Companion reference for `ops-swarm`. The required sections and their order, then the `--state` artifact's shape; the rules about what must appear in them — dissent preserved, evidence separated from corroboration — are in `SKILL.md`.
 
 Return a Markdown report unless `--state` only is requested:
 
