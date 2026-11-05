@@ -121,7 +121,7 @@ export class Store {
       if (d === null) return { status: "INVALID_INPUT", hint: "cursor is not a valid grimoire_list cursor" };
       after = d;
     }
-    const mappedCategory = category === undefined ? undefined : (CATEGORY_ALIASES[category] ?? category);
+    const mappedCategory = category === undefined ? undefined : (CATEGORY_ALIASES.get(category) ?? category);
     const rows = (mappedCategory
       ? db.prepare("SELECT id,pack,name,description FROM skills WHERE category=? AND id>? ORDER BY id LIMIT ?").all(mappedCategory, after, LIMITS.PAGE + 1)
       : db.prepare("SELECT id,pack,name,description FROM skills WHERE id>? ORDER BY id LIMIT ?").all(after, LIMITS.PAGE + 1)

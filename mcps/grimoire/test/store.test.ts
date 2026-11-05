@@ -131,6 +131,10 @@ test("list: all / by derived category / unknown category / cursor paging", () =>
     if (impl.status === "ok") assert.equal(impl.items[0]!.id, "fixture:implementing-mfa-enforcement");
     const none = store.list("nonexistent");
     if (none.status === "ok") assert.equal(none.items.length, 0);
+    // Names an object inherits are unknown categories too, not aliases.
+    for (const inherited of ["constructor", "toString", "__proto__"]) {
+      assert.deepEqual(store.list(inherited), { status: "ok", items: [] }, inherited);
+    }
 
     // cursor boundary: id > firstId returns the remaining skills, never the first.
     const firstId = all.items[0]!.id;
