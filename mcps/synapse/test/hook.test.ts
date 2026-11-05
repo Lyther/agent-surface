@@ -227,7 +227,10 @@ test("a malformed event exits 1 with one stderr line and prints nothing", () => 
       const run = t.hook(input);
       assert.equal(run.status, 1, input);
       assert.equal(run.stdout, "");
-      assert.match(run.stderr, /^\[synapse-hook\] [^\n]+\n$/);
+      // Node 22 also prints its own SQLite ExperimentalWarning; only the synapse-hook line is ours.
+      const own = run.stderr.split("\n").filter((line) => line.startsWith("[synapse-hook]"));
+      assert.equal(own.length, 1, run.stderr);
+      assert.match(own[0]!, /^\[synapse-hook\] \S/);
     }
     assert.deepEqual(readdirSync(t.dbDir).filter((f) => f.endsWith(".sqlite")).length, 1, "nothing new was created");
   } finally { t.cleanup(); }
