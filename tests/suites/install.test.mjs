@@ -1358,6 +1358,18 @@ assert.equal(parsedCodexMcp.mcp_servers.synapse.command, path.join(os.homedir(),
 assert.equal(parsedCodexMcp.mcp_servers.synapse.default_tools_approval_mode, "approve");
 assert.equal(Object.hasOwn(parsedCodexMcp.mcp_servers.existing, "default_tools_approval_mode"), false);
 assert.equal(Object.hasOwn(parsedCodexMcp.mcp_servers, "agentmemory"), false);
+// Codex gives an MCP server only an allowlisted environment but a hook the shell's, so the entry passes
+// the routing variables through, and names the user listed there stay.
+assert.deepEqual(parsedCodexMcp.mcp_servers.synapse.env_vars, ["SYNAPSE_DB_DIR", "SYNAPSE_PROJECT", "SYNAPSE_NAMESPACE"]);
+assert.equal(Object.hasOwn(parsedCodexMcp.mcp_servers.existing, "env_vars"), false);
+const existingCodexConfig = path.join(existingCodexMcpDest, ".codex", "config.toml");
+parsedCodexMcp.mcp_servers.synapse.env_vars = ["SYNAPSE_AGENT_ID", "SYNAPSE_NAMESPACE"];
+writeFileSync(existingCodexConfig, TOML.patch(mergedCodexMcp, parsedCodexMcp));
+run(["install", "--target", "codex", "--dest", existingCodexMcpDest, "--category", "mcps", "--service", "synapse"]);
+const userListedCodexMcp = readFileSync(existingCodexConfig, "utf8");
+assert.deepEqual(TOML.parse(userListedCodexMcp).mcp_servers.synapse.env_vars, ["SYNAPSE_AGENT_ID", "SYNAPSE_NAMESPACE", "SYNAPSE_DB_DIR", "SYNAPSE_PROJECT"]);
+run(["install", "--target", "codex", "--dest", existingCodexMcpDest, "--category", "mcps", "--service", "synapse"]);
+assert.equal(readFileSync(existingCodexConfig, "utf8"), userListedCodexMcp, "a rerun changes nothing");
 rmSync(existingCodexMcpDest, { recursive: true, force: true });
 
 // The Synapse PostToolUse hook follows the synapse server on the three hosts whose hooks can add

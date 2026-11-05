@@ -15,7 +15,7 @@
       },
       "local_wiring": [
         "Claude Code MCP: ~/.claude.json mcpServers.synapse (auto-generated/merged)",
-        "Codex MCP: ~/.codex/config.toml mcp_servers.synapse with default_tools_approval_mode = \"approve\", which the generated approval_policy = \"never\" needs (auto-generated/merged)",
+        "Codex MCP: ~/.codex/config.toml mcp_servers.synapse with default_tools_approval_mode = \"approve\", which the generated approval_policy = \"never\" needs, and env_vars listing SYNAPSE_DB_DIR, SYNAPSE_PROJECT and SYNAPSE_NAMESPACE, which Codex otherwise withholds from MCP servers (auto-generated/merged)",
         "Deep Agents MCP: ~/.deepagents/.mcp.json mcpServers.synapse (auto-generated/merged; does not connect: FastMCP proxy roots); project .deepagents/.mcp.json sets SYNAPSE_ROOTS=ignore",
         "Cursor MCP: ~/.cursor/mcp.json mcpServers.synapse (auto-generated/merged)",
         "Droid MCP: ~/.factory/mcp.json mcpServers.synapse (auto-generated/merged)",

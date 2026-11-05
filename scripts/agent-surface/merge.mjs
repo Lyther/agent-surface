@@ -213,13 +213,17 @@ const staleTransportKeys = (current, rendered) => TRANSPORT_KEYS.filter((key) =>
 
 // An owned server entry carries the keys agent-surface renders, and every other key it holds stays
 // (CONTRIBUTING: the compiler owns only the keys it writes) except a stale transport key; env merges
-// by variable the same way. A malformed entry is replaced whole.
+// by variable the same way, and env_vars keeps the user's names beside the rendered ones. A malformed
+// entry is replaced whole.
 function ownedServerEntry(current, rendered) {
   if (!isPlainObject(current)) return rendered;
   const kept = { ...current };
   for (const key of staleTransportKeys(current, rendered)) delete kept[key];
   const env = isPlainObject(current.env) && isPlainObject(rendered.env) ? { env: { ...current.env, ...rendered.env } } : {};
-  return { ...kept, ...rendered, ...env };
+  const envVars = Array.isArray(current.env_vars) && Array.isArray(rendered.env_vars)
+    ? { env_vars: [...new Set([...current.env_vars, ...rendered.env_vars])] }
+    : {};
+  return { ...kept, ...rendered, ...env, ...envVars };
 }
 
 // The same rule as [subpath, value] edits; an equal value is no edit, so an unchanged entry keeps its
