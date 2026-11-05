@@ -1,9 +1,9 @@
-// grimoire MCP — FROZEN tool contract (v0.1). Source of truth for tool I/O, DTOs,
+// grimoire MCP — FROZEN tool contract (v2.0.0). Source of truth for tool I/O, DTOs,
 // the error model, limits, and the id grammar. Pure: imports only zod, no storage/transport.
 // See mcps/grimoire/api-contract.md (this file is its machine-readable mirror).
 import { z } from "zod";
 
-export const CONTRACT_VERSION = "1.0.0";
+export const CONTRACT_VERSION = "2.0.0";
 
 // ---- limits (validate-early) -----------------------------------------------
 export const LIMITS = {
@@ -30,13 +30,6 @@ export type ErrorStatus = Exclude<Status, "ok">;
 export interface StatusError { status: ErrorStatus; hint: string }
 
 // ---- result DTOs (mapped from rows; never raw rows) ------------------------
-export interface Provenance {
-  sourcePath: string;
-  sourceCommit: string;
-  sha256: string;
-  indexedAt: string;
-  attribution: string;
-}
 export interface FileManifestEntry { path: string; size: number }
 export interface SkillRef { id: string; pack: string; name: string; summary: string }
 export interface SkillHit extends SkillRef { score: number }
@@ -44,7 +37,6 @@ export interface SkillFull {
   id: string; pack: string; name: string; description: string; body: string;
   category: string; categorySource: "derived";
   files: FileManifestEntry[];
-  provenance: Provenance;
 }
 
 // ---- tool result unions (the typed `structuredContent`) --------------------
@@ -53,7 +45,7 @@ export type ListResult = { status: "ok"; items: SkillRef[]; nextCursor?: string 
 export type GetResult = { status: "ok"; skill: SkillFull } | StatusError;
 export type FileGetResult = {
   status: "ok";
-  file: { path: string; content: string; size: number; attribution: string };
+  file: { path: string; content: string; size: number };
 } | StatusError;
 
 // ===========================================================================
@@ -76,13 +68,13 @@ export const ListInput = z.object({
 
 export const GetInput = z.object({
   id: z.string().regex(SKILL_ID_RE)
-    .describe("Skill id from grimoire_search/grimoire_list, shape \"<pack>:<skillName>\". Returns the full SKILL.md body, the supporting-file manifest, and provenance."),
+    .describe("Skill id from grimoire_search/grimoire_list, shape \"<pack>:<skillName>\". Returns the full SKILL.md body and the supporting-file manifest."),
 }).strict();
 
 export const FileGetInput = z.object({
   id: z.string().regex(SKILL_ID_RE).describe("Skill id that owns the file."),
   path: z.string().min(1).max(LIMITS.PATH_MAX)
-    .describe("A supporting-file path EXACTLY as listed in grimoire_get's file manifest, e.g. \"references/iocs.md\". Relative to the skill dir; no absolute or traversal paths."),
+    .describe("A supporting-file path EXACTLY as listed in grimoire_get's file manifest, e.g. \"references/iocs.md\". Relative to the skill dir; any other path returns NOT_FOUND."),
 }).strict();
 
 export type SearchArgs = z.infer<typeof SearchInput>;
@@ -97,7 +89,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   grimoire_list:
     "Browse the skill index when search keywords are unclear. Lists skills, optionally filtered by a derived category, and paginates via cursor. Prefer grimoire_search when you can describe the task.",
   grimoire_get:
-    "Load one usable Agent Skill in full by id, including its procedure, supporting-file manifest, and provenance. Call after search/list narrows to a single skill, then apply its procedure to the current task.",
+    "Load one usable Agent Skill in full by id, including its procedure and supporting-file manifest. Call after search/list narrows to a single skill, then apply its procedure to the current task.",
   grimoire_file_get:
     "Fetch one supporting file for a selected skill, such as a script, reference document, or asset, using a path from grimoire_get's file manifest. Use only when the skill points to that file.",
 };

@@ -35,7 +35,7 @@ test("every package.json#bin target exists after build (no installer wrapper dri
 
 test("real stdio: the spawned grimoire-server serves search→get→file_get", async () => {
   const dir = mkdtempSync(join(tmpdir(), "grimoire-stdio-"));
-  buildIndex({ packs: [{ serviceId: "fixture", path: FIXTURE_PACK, commit: "stdio", attribution: "Fixture skill pack for stdio test." }], outDir: dir, indexedAt: "2026-01-01T00:00:00.000Z" });
+  buildIndex({ packs: [{ serviceId: "fixture", path: FIXTURE_PACK }], outDir: dir });
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [SERVER_JS],

@@ -1,8 +1,8 @@
 // grimoire — row entities + mappers + the id codec + the canonical runtime schema
 // (mirrors schema.sql). Pure: no node:sqlite, no fs, no Date.
-import { LIMITS, SLUG_RE, type FileManifestEntry, type Provenance, type SkillFull, type SkillHit, type SkillRef } from "./contract.js";
+import { LIMITS, SLUG_RE, type FileManifestEntry, type SkillFull, type SkillHit, type SkillRef } from "./contract.js";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 // External id codec. id = "<pack>:<skillName>"; both segments are slugs (no ":"),
 // so decId splits on the FIRST ":". Ids are content-independent → stable across rebuilds.
@@ -38,15 +38,10 @@ CREATE TABLE IF NOT EXISTS skills (
   id              TEXT PRIMARY KEY,
   pack            TEXT NOT NULL,
   name            TEXT NOT NULL,
-  source_path     TEXT NOT NULL,
-  source_commit   TEXT NOT NULL,
-  sha256          TEXT NOT NULL,
-  indexed_at      TEXT NOT NULL,
   description     TEXT NOT NULL,
   body            TEXT NOT NULL,
   category        TEXT NOT NULL,
   category_source TEXT NOT NULL DEFAULT 'derived' CHECK (category_source IN ('derived')),
-  notice          TEXT NOT NULL DEFAULT '',
   UNIQUE (pack, name)
 );
 CREATE INDEX IF NOT EXISTS idx_skills_pack_category ON skills(pack, category);
@@ -54,7 +49,6 @@ CREATE TABLE IF NOT EXISTS skill_files (
   skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
   rel_path TEXT NOT NULL,
   content  TEXT NOT NULL,
-  sha256   TEXT NOT NULL,
   size     INTEGER NOT NULL,
   PRIMARY KEY (skill_id, rel_path)
 );
@@ -67,11 +61,10 @@ CREATE TABLE IF NOT EXISTS index_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL
 `;
 
 export interface SkillRow {
-  id: string; pack: string; name: string; source_path: string; source_commit: string;
-  sha256: string; indexed_at: string; description: string; body: string;
-  category: string; category_source: string; notice: string;
+  id: string; pack: string; name: string; description: string; body: string;
+  category: string; category_source: string;
 }
-export interface SkillFileRow { skill_id: string; rel_path: string; content: string; sha256: string; size: number }
+export interface SkillFileRow { skill_id: string; rel_path: string; content: string; size: number }
 
 const summarize = (description: string): string =>
   description.length > LIMITS.SUMMARY_CHARS ? description.slice(0, LIMITS.SUMMARY_CHARS - 1) + "…" : description;
@@ -84,18 +77,10 @@ export function rowToRef(r: RefRow): SkillRef {
 export function rowToHit(r: RefRow, score: number): SkillHit {
   return { ...rowToRef(r), score };
 }
-// A catalog can mix licenses and authors, and frontmatter is not served, so a skill's own
-// license/author/license-file declarations travel with its pack's attribution.
-export const servedAttribution = (packAttribution: string, notice: string): string =>
-  notice ? `${packAttribution} Skill declares ${notice}.` : packAttribution;
 
-export function rowToFull(r: SkillRow, files: FileManifestEntry[], attribution: string): SkillFull {
-  const provenance: Provenance = {
-    sourcePath: r.source_path, sourceCommit: r.source_commit, sha256: r.sha256,
-    indexedAt: r.indexed_at, attribution,
-  };
+export function rowToFull(r: SkillRow, files: FileManifestEntry[]): SkillFull {
   return {
     id: r.id, pack: r.pack, name: r.name, description: r.description, body: r.body,
-    category: r.category, categorySource: "derived", files, provenance,
+    category: r.category, categorySource: "derived", files,
   };
 }

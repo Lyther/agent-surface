@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { GRIMOIRE_SCHEMA_VERSION } from "../../scripts/agent-surface/doctor.mjs";
-import { files, ownTempRoot, root, run, status } from "../lib/helpers.mjs";
+import { files, ownTempRoot, run, status } from "../lib/helpers.mjs";
 
 const ownTmp = ownTempRoot("runtime");
 
@@ -288,106 +287,5 @@ assert.deepEqual(fullConsentEvidence.execution_consent, {
 });
 assert.equal(Object.hasOwn(fullConsentEvidence, "approval"), false);
 rmSync(fullConsentClassDest, { recursive: true, force: true });
-
-// SUBSTITUTE_JUSTIFICATION
-// - substitute: dirtyDoctorHome
-// - replaces: the operator's user-level ~/.grimoire index and manifest
-// - necessity: the dirty-manifest diagnostic requires exact state that a test cannot safely create in the operator's live index
-// - real-option: the installed index was checked live, but its state is mutable and must not be overwritten by the suite
-// - proof-limit: this test proves doctor output only, not index installation or Grimoire runtime behavior
-// - real-proof: npm run install:grimoire, then node scripts/agent-surface.mjs doctor against the installed index
-const dirtyDoctorHome = mkdtempSync(path.join(tmpdir(), "agent-surface-doctor-dirty-"));
-try {
-  const grimoireDir = path.join(dirtyDoctorHome, ".grimoire");
-  mkdirSync(grimoireDir, { recursive: true });
-  writeFileSync(path.join(grimoireDir, "index.sqlite"), "present");
-  const registry = JSON.parse(readFileSync(path.join(root, "registry", "optional-services.json"), "utf8"));
-  const serviceId = "trailofbits-static-analysis";
-  const pin = registry.services[serviceId].commit;
-  const sourcePath = registry.services[serviceId].path;
-  const otherServedPacks = Object.entries(registry.services)
-    .filter(([id, service]) => id !== serviceId && service.served_by?.includes("grimoire"))
-    .map(([id, service]) => ({ serviceId: id, commit: service.commit }));
-  writeFileSync(path.join(grimoireDir, "manifest.json"), JSON.stringify({
-    schemaVersion: 1,
-    packs: [
-      { serviceId, commit: `${pin}-dirty` },
-      ...otherServedPacks,
-    ],
-  }));
-
-  const result = status(["doctor"], { env: { ...process.env, HOME: dirtyDoctorHome } });
-  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.match(result.stdout, new RegExp(
-    `grimoire-index: stale: ${serviceId} built from a dirty worktree of pinned ${pin.slice(0, 8)}`,
-  ));
-  // serviceId is trailofbits-static-analysis but the checkout is external/trailofbits-skills: the hint
-  // must name the registered source path, not external/<serviceId>.
-  assert.match(result.stdout, new RegExp(`clean or commit ${sourcePath}, then run npm run install:grimoire`));
-  assert.doesNotMatch(result.stdout, new RegExp(`installed ${pin.slice(0, 8)} but repo pins ${pin.slice(0, 8)}`));
-} finally {
-  rmSync(dirtyDoctorHome, { recursive: true, force: true });
-}
-
-// SUBSTITUTE_JUSTIFICATION
-// - substitute: attributionDriftHome
-// - replaces: an installed Grimoire manifest built with the prior registry attribution
-// - necessity: mutating the operator's live attribution metadata would make the real index intentionally stale
-// - real-option: the live index proves current attribution, but cannot safely represent historical drift
-// - proof-limit: proves doctor detects registry-attribution drift before SQLite inspection, not index rebuilding
-// - real-proof: npm run install:grimoire, then node scripts/agent-surface.mjs doctor against the installed index
-const attributionDriftHome = mkdtempSync(path.join(tmpdir(), "agent-surface-doctor-attribution-"));
-try {
-  const grimoireDir = path.join(attributionDriftHome, ".grimoire");
-  mkdirSync(grimoireDir, { recursive: true });
-  writeFileSync(path.join(grimoireDir, "index.sqlite"), "present");
-  const registry = JSON.parse(readFileSync(path.join(root, "registry", "optional-services.json"), "utf8"));
-  writeFileSync(path.join(grimoireDir, "manifest.json"), JSON.stringify({
-    schemaVersion: 2,
-    packs: Object.entries(registry.services)
-      .filter(([, service]) => service.served_by?.includes("grimoire"))
-      .map(([serviceId, service]) => ({
-        serviceId,
-        commit: service.commit,
-        sourceHash: "a".repeat(64),
-        attribution: serviceId === "rev-skills" ? "stale attribution" : service.attribution,
-      })),
-  }));
-  const result = status(["doctor"], { env: { ...process.env, HOME: attributionDriftHome } });
-  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.match(result.stdout, /grimoire-index: stale: rev-skills attribution differs from registry/);
-} finally {
-  rmSync(attributionDriftHome, { recursive: true, force: true });
-}
-
-// SUBSTITUTE_JUSTIFICATION
-// - substitute: missingPackHome
-// - replaces: an operator ~/.grimoire built before rev-skills was a served pack
-// - necessity: cannot delete rev-skills from the live index without destroying the just-built 875-skill proof
-// - real-option: a second disposable index would still be a substitute for the operator home
-// - proof-limit: proves doctor text for a missing required pack, not install:grimoire
-// - real-proof: npm run install:grimoire after adding the pack, then doctor
-const missingPackHome = mkdtempSync(path.join(tmpdir(), "agent-surface-doctor-missing-pack-"));
-try {
-  const grimoireDir = path.join(missingPackHome, ".grimoire");
-  mkdirSync(grimoireDir, { recursive: true });
-  writeFileSync(path.join(grimoireDir, "index.sqlite"), "present");
-  const registry = JSON.parse(readFileSync(path.join(root, "registry", "optional-services.json"), "utf8"));
-  writeFileSync(path.join(grimoireDir, "manifest.json"), JSON.stringify({
-    schemaVersion: 1,
-    packs: [{ serviceId: "anthropic-cybersecurity-skills", commit: registry.services["anthropic-cybersecurity-skills"].commit }],
-  }));
-  const result = status(["doctor"], { env: { ...process.env, HOME: missingPackHome } });
-  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.match(result.stdout, /grimoire-index: stale: manifest pack set differs from registry/);
-} finally {
-  rmSync(missingPackHome, { recursive: true, force: true });
-}
-
-// doctor runs without a Grimoire build, so it keeps its own copy of the schema version the indexer writes.
-const indexerSchemaVersion = Number(/export const SCHEMA_VERSION = (\d+);/.exec(
-  readFileSync(path.join(root, "mcps", "grimoire", "src", "model.ts"), "utf8"),
-)?.[1]);
-assert.equal(GRIMOIRE_SCHEMA_VERSION, indexerSchemaVersion, "doctor's Grimoire schema version matches the indexer's");
 
 console.log("runtime: ok");

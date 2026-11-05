@@ -1,6 +1,6 @@
 # Architecture — grimoire
 
-Status: v0.1 IMPLEMENTED; the simplification marked G1 is PROPOSED ([roadmap.md](roadmap.md)) · Source: the user's decisions of 2026-11-04; [concept-zero.md](concept-zero.md) is historical · Last updated: 2026-11-04
+Status: G1 IMPLEMENTED · Source: the user's decisions of 2026-11-04; [concept-zero.md](concept-zero.md) is historical · Last updated: 2026-11-05
 
 Thin, read-only MCP: a small script, not a platform. This doc is sized to match. Diagrams: [diagrams.md](diagrams.md).
 
@@ -10,28 +10,22 @@ Grimoire is a read-only, stateless stdio MCP server that serves large Agent-Skil
 
 It has four namespaced tools and no sidecar, network access, executor or embeddings. Distribution reuses the first-party MCP rails, so it reaches every generated MCP host. Precondition: served packs are kept out of every native skill catalog, so Grimoire is the only path to them.
 
-G1 removes the parts that checked the index against another record of itself, or guarded what was already safe:
-
-- `manifest.json` and its runtime comparison;
-- `doctor`'s freshness check;
-- per-response provenance and attribution;
-- the pin and clean-HEAD refusals, and the `-dirty` marking;
-- the path guard in front of an exact database lookup.
+The index is a derived build artifact: the checked-out pack tree is the only record of what was indexed, and a rebuild is the only repair.
 
 ## Source tree
 
 ```text
 mcps/grimoire/
   src/
-    contract.ts     - zod tool I/O, DTOs, statuses (INDEX_MISSING/INDEX_STALE/NOT_FOUND/INVALID_INPUT), SERVER_INSTRUCTIONS. Pure. G1: no Provenance or attribution fields.
-    model.ts        - SCHEMA_SQL (v4), id codec <pack>:<skillName>, row mappers, derived category. Pure. G1: no servedAttribution.
-    indexer.ts      - The only writer, at build time. Walks each pack's skills root and validates metadata, skipping skills with no frontmatter, a bad slug or a duplicate id. G1: also skips a symbolic SKILL.md, which used to fail the build. Stores bodies and files in a temp sqlite file, then publishes it with one rename. G1: no git calls, manifest, attribution, notice or source hashing.
-    served-packs.ts - Install time: reads the served_by grimoire packs and index_root from the registry and runs the indexer. G1: no attribution.
-    store.ts        - Runtime read-only reader: search (bm25), list, get, fileGet, indexStatus. Reopens after the index file is replaced. G1: INDEX_MISSING when there is no file; INDEX_STALE when the file is unreadable or its schema_version ≠ SCHEMA_VERSION; fileGet is an exact (skill, path) lookup.
+    contract.ts     - zod tool I/O, DTOs, statuses (INDEX_MISSING/INDEX_STALE/NOT_FOUND/INVALID_INPUT), SERVER_INSTRUCTIONS. Pure.
+    model.ts        - SCHEMA_SQL (v4), id codec <pack>:<skillName>, row mappers, derived category. Pure.
+    indexer.ts      - The only writer, at build time. Walks each pack's skills root and validates metadata, skipping skills with no frontmatter, a bad slug, a duplicate id or a symbolic SKILL.md. Stores bodies and files in a temp sqlite file, then publishes it with one rename. Reads the checkout as it stands, with no git calls, manifest or source hashing.
+    served-packs.ts - Install time: reads the served_by grimoire packs and index_root from the registry and runs the indexer.
+    store.ts        - Runtime read-only reader: search (bm25), list, get, fileGet, indexStatus. Reopens after the index file is replaced. INDEX_MISSING when there is no file; INDEX_STALE when the file is unreadable or its schema_version ≠ SCHEMA_VERSION; fileGet is an exact (skill, path) lookup.
     tools.ts        - 4 tool specs and a validated dispatcher (structuredContent plus labelled text); readOnlyHint.
     server.ts       - stdio MCP server (instructions); bin grimoire-server.
-    namespace.ts    - GRIMOIRE_DIR or ~/.grimoire → index.sqlite. G1: no manifest path.
-  test/{contract,model,indexer,store,server,packaging,served-packs,eval}.test.ts · test/helpers.ts · test/fixtures/{pack/**, queries/*.json}
+    namespace.ts    - GRIMOIRE_DIR or ~/.grimoire → index.sqlite.
+  test/{contract,model,indexer,store,server,packaging,served-packs,eval,acceptance}.test.ts · test/helpers.ts · test/fixtures/{pack/**, queries/*.json}
   schema.sql · install.mjs · package.json · README.md
 ```
 
@@ -55,7 +49,7 @@ Schemas and errors: [api-contract.md](api-contract.md). `src/contract.ts` is the
 - `skills_fts`: FTS5 over name, description and body, ranked by bm25 with weights name 10, description 5, body 1;
 - `index_meta(schema_version)`.
 
-G1 drops `source_path`, `source_commit`, `sha256`, `indexed_at`, `notice`, `skill_files.sha256`, the per-pack meta keys and `~/.grimoire/manifest.json`. The index is rebuilt, never migrated, so a v3 index reports `INDEX_STALE` until `npm run install:grimoire` runs again.
+The index is rebuilt, never migrated, so an index built by another schema reports `INDEX_STALE` until `npm run install:grimoire` runs again.
 
 ## Distribution
 
@@ -82,14 +76,14 @@ Grimoire is local-only and read-only, and holds no secrets.
 ## Decisions
 
 - **Read-only stdio, no sidecar:** retrieval needs no writer or real-time machinery.
-- **Self-contained, single-file index, published with one rename (G1):** an interrupted build leaves the previous index in place, so nothing needs a second file to detect a half-published state.
-- **Built on install from the checkout (G1):** no HEAD or clean-tree refusal and no provenance. After a pin bump, run `npm run install:grimoire` again; nothing reports an index older than the pins (see Risks).
+- **Self-contained, single-file index, published with one rename:** an interrupted build leaves the previous index in place, so nothing needs a second file to detect a half-published state.
+- **Built on install from the checkout:** the indexer reads the tree as it stands, local edits included. After a pin bump, run `npm run install:grimoire` again; nothing reports an index older than the pins (see Risks).
 - **BM25/FTS5, matching any word**, with weights name 10, description 5, body 1:
   - A skill matching any query word is a candidate, and weighted BM25 ranks candidates. An unmatched word never excludes a result.
   - The measured baseline on 30 reviewed queries is hit@1 0.767, hit@5 0.967 and MRR 0.836. A [held-out check](../../docs/contracts/grimoire-evaluation.md#held-out-relevance) confirmed it across all served packs.
   - Hybrid retrieval stays unbuilt unless an eval floor fails.
 - **4 namespaced tools, including `file_get`:** generic `skill_*` names would collide with native skills.
-- **Evaluation (G1):** keep the fixture, real-pack, reworded and held-out ranking gates. Replace the skill-count pins with a check that the indexer skipped nothing unexpected, so an indexer regression still fails while an upstream pin bump does not.
+- **Evaluation:** keep the fixture, real-pack, reworded and held-out ranking gates. The builds must skip only entries on an explicit expected-skip list, so an indexer regression still fails while an upstream pin bump does not pin a skill count.
 
 ## Risks
 

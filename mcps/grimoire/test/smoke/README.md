@@ -13,7 +13,7 @@ Config presence + generic stdio are proven; the matrix below records **in-app lo
 
 ## Prerequisites
 
-- `npm run install:grimoire` has run: `~/.local/bin/grimoire-server`, `~/.grimoire/index.sqlite`, and `manifest.json` are present. `npm run doctor` shows `grimoire-index: ok (...)`.
+- `npm run install:grimoire` has run: `~/.local/bin/grimoire-server` and `~/.grimoire/index.sqlite` are present. `npm run doctor` shows `grimoire-index: present`.
 - The host's MCP config has been wired: `agent-surface install --target <host> --scope user --category mcps`.
 
 ## Host matrix

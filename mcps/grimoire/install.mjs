@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // grimoire — build the server, link the bins into ~/.local/bin, and build the read-only index from
-// the pinned skill pack(s). Idempotent: re-running rebuilds the index (write-once + fail-closed
-// publication) and re-links. The index + manifest live under ~/.grimoire.
+// the pinned skill pack(s). Idempotent: re-running rebuilds the index (one temp file, published
+// with one rename) and re-links. The index lives under ~/.grimoire.
 // If a required pack is absent the install FAILS; any existing index is left untouched until
 // publication, and a clean machine then reports INDEX_MISSING.
 //
@@ -40,8 +40,8 @@ if (!onPath) console.log(`NOTE: add ${binDir} to your PATH`);
 
 // Build the index from the pinned packs (served_by grimoire in registry/optional-services.json).
 // A required pack that is absent FAILS rather than silently succeeding without rebuilding. The
-// indexer builds temp artifacts before publishing; interruption between the two final renames
-// reports INDEX_STALE and is repaired by rerunning this installer.
+// indexer builds one temp file and publishes it with a rename; an interrupted build leaves the
+// previous index in place.
 run(process.execPath, [
   path.join(here, "dist", "src", "served-packs.js"),
   "--repo", repo,

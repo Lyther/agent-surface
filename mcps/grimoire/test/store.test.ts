@@ -8,7 +8,7 @@ import { LIMITS } from "../src/contract.js";
 import { buildIndex } from "../src/indexer.js";
 import { SCHEMA_VERSION } from "../src/model.js";
 import { Store, ftsQuery } from "../src/store.js";
-import { FIXTURE_ATTRIBUTION, FIXTURE_PACK, setupIndex } from "./helpers.js";
+import { FIXTURE_PACK, setupIndex } from "./helpers.js";
 
 const COBALT = "fixture:detecting-cobalt-strike-beacons";
 
@@ -144,15 +144,13 @@ test("list: all / by derived category / unknown category / cursor paging", () =>
   } finally { cleanup(); }
 });
 
-test("get returns body + provenance + file manifest; unknown/invalid ids handled", () => {
+test("get returns body + file manifest; unknown/invalid ids handled", () => {
   const { store, cleanup } = setupIndex();
   try {
     const g = store.get(COBALT);
     assert.equal(g.status, "ok");
     if (g.status === "ok") {
       assert.match(g.skill.body, /Cobalt Strike/);
-      assert.equal(g.skill.provenance.sourceCommit.length > 0, true);
-      assert.equal(g.skill.provenance.attribution, FIXTURE_ATTRIBUTION);
       assert.deepEqual(g.skill.files.map((f) => f.path), ["references/iocs.md"]);
       assert.equal(g.skill.categorySource, "derived");
     }
@@ -161,18 +159,17 @@ test("get returns body + provenance + file manifest; unknown/invalid ids handled
   } finally { cleanup(); }
 });
 
-test("fileGet: raw content; not-in-manifest → NOT_FOUND; traversal/absolute → INVALID_INPUT", () => {
+test("fileGet: raw content; a path not in the manifest returns NOT_FOUND", () => {
   const { store, cleanup } = setupIndex();
   try {
     const raw = store.fileGet(COBALT, "references/iocs.md");
     assert.equal(raw.status, "ok");
-    if (raw.status === "ok") {
-      assert.equal(raw.file.attribution, FIXTURE_ATTRIBUTION);
-    }
+    if (raw.status === "ok") assert.match(raw.file.content, /<ioc type="ip">/);
     assert.equal(store.fileGet(COBALT, "references/missing.md").status, "NOT_FOUND");
     assert.equal(store.fileGet("fixture:does-not-exist", "references/iocs.md").status, "NOT_FOUND");
-    assert.equal(store.fileGet(COBALT, "../../../etc/passwd").status, "INVALID_INPUT");
-    assert.equal(store.fileGet(COBALT, "/etc/passwd").status, "INVALID_INPUT");
+    assert.equal(store.fileGet(COBALT, "../x").status, "NOT_FOUND");
+    assert.equal(store.fileGet(COBALT, "../../../etc/passwd").status, "NOT_FOUND");
+    assert.equal(store.fileGet(COBALT, "/etc/passwd").status, "NOT_FOUND");
   } finally { cleanup(); }
 });
 
@@ -186,26 +183,9 @@ test("INDEX_MISSING when nothing is built", () => {
   } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("INDEX_STALE when the installed manifest no longer matches the index", () => {
-  const { dir, cleanup } = setupIndex();
-  try {
-    const mp = join(dir, "manifest.json");
-    const m = JSON.parse(readFileSync(mp, "utf8"));
-    m.packs[0].commit = "0000000000000000000000000000000000000000"; // pretend the source moved
-    writeFileSync(mp, JSON.stringify(m));
-    const store = new Store({ dir });
-    assert.equal(store.search("cobalt").status, "INDEX_STALE");
-    store.close();
-  } finally { cleanup(); }
-});
-
 test("INDEX_STALE when the index was built under an earlier schema version", () => {
   const { dir, cleanup } = setupIndex();
   try {
-    const mp = join(dir, "manifest.json");
-    const m = JSON.parse(readFileSync(mp, "utf8"));
-    m.schemaVersion = SCHEMA_VERSION - 1;
-    writeFileSync(mp, JSON.stringify(m));
     const db = new DatabaseSync(join(dir, "index.sqlite"));
     db.prepare("UPDATE index_meta SET value=? WHERE key='schema_version'").run(String(SCHEMA_VERSION - 1));
     db.close();
@@ -217,27 +197,13 @@ test("INDEX_STALE when the index was built under an earlier schema version", () 
   } finally { cleanup(); }
 });
 
-test("INDEX_STALE when the manifest omits a pack still present in the index", () => {
-  const dir = mkdtempSync(join(tmpdir(), "grimoire-pack-subset-"));
+test("INDEX_STALE when the index file cannot be opened", () => {
+  const dir = mkdtempSync(join(tmpdir(), "grimoire-corrupt-"));
+  writeFileSync(join(dir, "index.sqlite"), "not a sqlite database\n");
   const store = new Store({ dir });
   try {
-    buildIndex({
-      packs: [
-        { serviceId: "alpha", path: FIXTURE_PACK, commit: "alpha-commit", attribution: FIXTURE_ATTRIBUTION },
-        { serviceId: "beta", path: FIXTURE_PACK, commit: "beta-commit", attribution: FIXTURE_ATTRIBUTION },
-      ],
-      outDir: dir,
-    });
-    const manifestPath = join(dir, "manifest.json");
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    manifest.packs = manifest.packs.filter((pack: { serviceId: string }) => pack.serviceId === "alpha");
-    writeFileSync(manifestPath, JSON.stringify(manifest));
-
     assert.equal(store.search("cobalt").status, "INDEX_STALE");
-  } finally {
-    store.close();
-    rmSync(dir, { recursive: true, force: true });
-  }
+  } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
 test("a long-lived Store reopens the index after an atomic rebuild", () => {
@@ -246,20 +212,14 @@ test("a long-lived Store reopens the index after an atomic rebuild", () => {
   cpSync(FIXTURE_PACK, pack, { recursive: true });
   const store = new Store({ dir });
   try {
-    buildIndex({
-      packs: [{ serviceId: "fixture", path: pack, attribution: FIXTURE_ATTRIBUTION }],
-      outDir: dir,
-    });
+    buildIndex({ packs: [{ serviceId: "fixture", path: pack }], outDir: dir });
     const before = store.get(COBALT);
     assert.equal(before.status, "ok");
     if (before.status !== "ok") return;
     const skillPath = join(pack, "skills", "detecting-cobalt-strike-beacons", "SKILL.md");
     writeFileSync(skillPath, `${readFileSync(skillPath, "utf8")}\nSecond build marker.\n`);
 
-    buildIndex({
-      packs: [{ serviceId: "fixture", path: pack, attribution: FIXTURE_ATTRIBUTION }],
-      outDir: dir,
-    });
+    buildIndex({ packs: [{ serviceId: "fixture", path: pack }], outDir: dir });
     const after = store.get(COBALT);
     assert.equal(after.status, "ok");
     if (after.status === "ok") {
