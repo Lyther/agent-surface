@@ -6,7 +6,7 @@ Choose a model for the packet, then an accessible provider or runtime. Launch sy
 
 Scores come from the operator's filtered [BenchLM](https://benchlm.ai/methodology) export, rounded to one decimal. Use the task-specific columns; small score gaps do not establish a better choice for a real packet. The shortlist omits Pro variants and older or more expensive alternatives without a useful advantage in the retained scores.
 
-Prices are standard text API USD per million tokens, **input / cached input / output**, checked on the date above. They are unit rates, not accumulated per-round costs or subscription prices. Cache writes, storage, tools, taxes, and provider multipliers are extra. Suggested context is intentionally blank for the operator to fill; preserve the existing runtime setting until then. The published cap is not a suggested window, and a host may expose less. K = 1,000; M = 1,000,000 tokens.
+Prices are standard text API USD per million tokens, **input / cached input / output**, checked on the date above. They are unit rates, not accumulated per-round costs or subscription prices. Cache writes, storage, tools, taxes, and provider multipliers are extra. Suggested context is the operator's chosen working window for each model; use it, not the published cap, when a runtime asks for a context limit. The cap is the most the provider accepts, and a host may expose less. K = 1,000; M = 1,000,000 tokens.
 
 | Model | Overall | Coding | Agentic | Reasoning | Price: in / cached / out | Suggested context | Cap |
 |---|---:|---:|---:|---:|---:|---:|---:|
