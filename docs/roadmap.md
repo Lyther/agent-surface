@@ -317,3 +317,27 @@ State: INSTALLED-PROFILE AND GRIMOIRE DELIVERY COHORTS COMPLETE 2026-10-18, and 
 ### GR3: Native Mechanisms and Memory Follow-Up
 
 State: SOURCE SURVEY COMPLETE; native pilots and Synapse measurement NOT RUN. Owner: agent-surface research peer. Prototype one useful hook/mode feature in a project-local native configuration, measuring event/failure semantics and value before adding a shared source primitive. Preserve version distinctions and existing adapter evidence. Synapse follows with disposable real memory tests for update/abstention, scope and tagged recall; source hypotheses are not defects until reproduced. Neither track blocks GR1/GR2.
+
+## Phase MCP-S: Synapse and Grimoire Simplification
+
+State: IMPLEMENTED 2026-11-05, when every integration-gate item below passed. It lands as one PR after PR #119 merges. The plans:
+
+- [Synapse](../mcps/synapse/roadmap.md): a stdio server per session, plus delivery through a PostToolUse hook.
+- [Grimoire](../mcps/grimoire/roadmap.md): a single-file index with no provenance.
+
+Out of scope: rules, commands, skills, the workflow ledger, other installer work, and platform support. The Synapse hook follows GR3: it is one Synapse-specific registration, proven project-locally on three hosts, with no shared hook primitive.
+
+Order:
+
+1. Synapse S0 first. Its spikes make model calls and can run while Grimoire G1 lands.
+2. Synapse S1, then S2, then S3.
+
+Each step runs its own package's checks. The integration gate runs once, at the end:
+
+- root `npm test`;
+- `npm test` in both `mcps/` packages;
+- `node scripts/agent-surface.mjs check`;
+- `build --target all` and `check generated --target all`;
+- Synapse S3 for each host.
+
+Each result is reported as passed, failed or not run.

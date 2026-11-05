@@ -8,17 +8,17 @@
 //      retrieval pass over the combined pack corpus including near-duplicates and a non-match
 //   4. REPEAT: install again; the prerequisites are already satisfied, so nothing is re-provisioned
 //      and the generated config is byte-identical
-//   5. LIFECYCLE: reinstall while synapse's sidecar is running — the case Windows makes distinct,
+//   5. LIFECYCLE: reinstall while a synapse session is open — the case Windows makes distinct,
 //      since a running process there can hold the files an install rewrites — then start again
 //
-// Everything runs in a disposable home. Synapse binds one sidecar per machine on a fixed port, so
-// this run is given its own SYNAPSE_PORT rather than contending with a developer's own sidecar.
+// Everything runs in a disposable home. The first install also replaces a seeded v0.4 sidecar
+// layout, which proves the hand-over removes what that version left behind.
 //
 // Opt-in (network: npm install for both packages): AGENT_SURFACE_LIVE_FIRST_PARTY=1. Without it
 // this skips, so the default suite stays hermetic and offline.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,21 +33,24 @@ if (enabled) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
   const cli = path.join(root, "scripts", "agent-surface.mjs");
   const windows = process.platform === "win32";
-  // A port this machine is not already serving synapse on, so the acceptance owns its own sidecar.
-  const port = String(45000 + (process.pid % 2000));
 
   const dir = mkdtempSync(path.join(os.tmpdir(), "as-live-fp-"));
   const home = path.join(dir, "home");
   const dest = path.join(dir, "project");
   const configPath = path.join(dest, ".factory", "mcp.json");
-  const sidecarState = path.join(home, ".synapse", "sidecar.json");
+  const binDir = path.join(home, ".local", "bin");
+  const v04Leftovers = [
+    path.join(binDir, windows ? "synapse-sidecar.cmd" : "synapse-sidecar"),
+    path.join(home, ".synapse", "sidecar.json"),
+    path.join(home, ".synapse", "sidecar.lock"),
+    path.join(home, ".synapse", "token"),
+  ];
 
   // os.homedir() reads USERPROFILE on Windows and HOME elsewhere; both are set so the installer,
   // the launcher and the servers all agree on where the disposable home is.
-  // The installer stops the sidecar recorded under SYNAPSE_DB_DIR, so an inherited one would stop
-  // the developer's own sidecar rather than this run's.
+  // An inherited SYNAPSE_DB_DIR would point the installer's v0.4 hand-over at the developer's own files.
   const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("SYNAPSE_")));
-  const installEnv = { ...inherited, HOME: home, USERPROFILE: home, SYNAPSE_PORT: port };
+  const installEnv = { ...inherited, HOME: home, USERPROFILE: home };
   const install = (label) => {
     const result = spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", "--service", "synapse", "--service", "grimoire", "-y"], { encoding: "utf8", env: installEnv });
     console.log(result.stdout);
@@ -59,7 +62,7 @@ if (enabled) {
   // under a minimal PATH that is never repaired here.
   const startServer = (entry, expected) => mcpSession(entry.command, entry.args ?? [], {
     cwd: os.tmpdir(),
-    env: { ...minimalLaunchEnv(home), SYNAPSE_PORT: port },
+    env: minimalLaunchEnv(home),
     timeoutMs: 120000,
   }, async ({ call, serverInfo }) => {
     const { tools } = await call("tools/list", {});
@@ -74,7 +77,7 @@ if (enabled) {
   // only calling a tool proves the capability the config was wired for.
   const useServer = (entry, steps) => mcpSession(entry.command, entry.args ?? [], {
     cwd: os.tmpdir(),
-    env: { ...minimalLaunchEnv(home), SYNAPSE_PORT: port },
+    env: minimalLaunchEnv(home),
     timeoutMs: 180000,
   }, steps);
   const callTool = async (call, name, args) => {
@@ -88,26 +91,22 @@ if (enabled) {
     try { return JSON.parse(text.slice(start)); } catch { return text; }
   };
 
-  const readSidecarPid = () => {
-    try { return JSON.parse(readFileSync(sidecarState, "utf8")).pid; } catch { return null; }
-  };
-  const stopSidecar = () => {
-    const pid = readSidecarPid();
-    if (pid === null) return null;
-    // Windows does not deliver SIGTERM; taskkill is how a process tree is ended there.
-    if (windows) spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" });
-    else { try { process.kill(pid, "SIGTERM"); } catch { /* already gone */ } }
-    return pid;
-  };
-
   try {
     mkdirSync(home, { recursive: true });
     mkdirSync(dest, { recursive: true });
+    // A v0.4 install's leftovers. The discovery file names a url nothing serves, so the hand-over finds no
+    // sidecar to stop and only removes the files.
+    mkdirSync(binDir, { recursive: true });
+    mkdirSync(path.join(home, ".synapse"), { recursive: true });
+    for (const file of v04Leftovers) writeFileSync(file, "");
+    writeFileSync(v04Leftovers[1], JSON.stringify({ url: "http://127.0.0.1:9/mcp", pid: 0 }));
 
     // ---- phase 1: install through the product's own provisioning ------------------------
     const first = install("install");
     assert.match(first, /provisioning: ok agent-surface repo build \(mcps\/synapse\/install\.mjs\)/, "synapse was built by its registry recipe on this platform");
     assert.match(first, /provisioning: ok agent-surface repo build \(mcps\/grimoire\/install\.mjs\)/, "grimoire was built by its registry recipe on this platform");
+
+    for (const file of v04Leftovers) assert.ok(!existsSync(file), `the v0.4 hand-over removed ${file}`);
 
     const servers = JSON.parse(readFileSync(configPath, "utf8")).mcpServers;
     for (const id of ["synapse", "grimoire"]) assert.ok(servers[id], `${id} was not wired: ${first}`);
@@ -125,7 +124,7 @@ if (enabled) {
     const synapse = await startServer(servers.synapse, { name: "synapse", tools: ["memory_remember", "memory_recall", "lock_acquire"] });
     const grimoire = await startServer(servers.grimoire, { name: "grimoire", tools: ["grimoire_search", "grimoire_get"] });
     console.log(`live-first-party: started synapse ${synapse.serverInfo.version} (${synapse.names.length} tools) and grimoire ${grimoire.serverInfo.version} (${grimoire.names.length} tools)`);
-    assert.ok(existsSync(sidecarState), "starting the bridge elected and started the shared sidecar");
+    assert.ok(!existsSync(v04Leftovers[1]), "starting synapse-bridge starts no sidecar");
 
     // ---- phase 3: the wired servers do their job ------------------------------------------
     // Synapse: what one session stores, a later session gets back. The record is written into the
@@ -177,21 +176,21 @@ if (enabled) {
     assert.match(second, /grimoire-server ok/, "grimoire's launcher is detected as present on re-run");
     assert.equal(readFileSync(configPath, "utf8"), before, "the generated config is byte-identical on re-run");
 
-    // ---- phase 5: reinstall while the sidecar is running ----------------------------------
+    // ---- phase 5: reinstall while a synapse session is open --------------------------------
     // The interesting platform is Windows, where a running process can hold the very files an
-    // install rewrites. The sidecar started in phase 2 is still up, so this reinstall happens
-    // under exactly that condition; afterwards the bridge must still start.
-    const runningPid = readSidecarPid();
-    assert.ok(runningPid, "the sidecar recorded its pid for this phase");
-    const third = spawnSync(process.execPath, [path.join(root, "mcps", "synapse", "install.mjs")], { encoding: "utf8", env: installEnv });
-    console.log(third.stdout.split("\n").slice(-6).join("\n"));
-    assert.equal(third.status, 0, `reinstall with the sidecar running failed: ${third.stderr}`);
+    // install rewrites. The session stays open across the rebuild and must keep answering, and a
+    // new session must start from the rebuilt files.
+    await useServer(servers.synapse, async ({ call }) => {
+      const third = spawnSync(process.execPath, [path.join(root, "mcps", "synapse", "install.mjs")], { encoding: "utf8", env: installEnv });
+      console.log(third.stdout.split("\n").slice(-6).join("\n"));
+      assert.equal(third.status, 0, `reinstall with a session open failed: ${third.stderr}`);
+      const still = await callTool(call, "memory_recall", { query: "disposable record", tags: ["agent-surface-acceptance"], mode: "full" });
+      assert.ok(JSON.stringify(still).includes(fact), "the open session still answers after the rebuild");
+    });
     const restarted = await startServer(servers.synapse, { name: "synapse", tools: ["memory_remember"] });
-    assert.ok(restarted.names.length > 0, "the bridge still starts after a rebuild under a live sidecar");
-    console.log(`live-first-party: rebuilt with sidecar ${runningPid} running, bridge restarted, platform=${process.platform}`);
+    assert.ok(restarted.names.length > 0, "synapse-bridge starts from the rebuilt files");
+    console.log(`live-first-party: rebuilt with a session open, server restarted, platform=${process.platform}`);
   } finally {
-    const stopped = stopSidecar();
-    if (stopped) console.log(`live-first-party: stopped the sidecar this run started (pid ${stopped})`);
     // Retry, then REPORT rather than throw: Windows keeps handles open briefly after a process
     // exits, and throwing from `finally` would replace the real failure.
     try {

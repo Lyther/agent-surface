@@ -359,6 +359,7 @@ const codexMcp = readFileSync(path.join(root, "dist", "codex", ".codex", "config
 assert.match(codexMcp, /^approval_policy = "never"$/m);
 assert.match(codexMcp, /^sandbox_mode = "danger-full-access"$/m);
 assert.match(codexMcp, /\[mcp_servers\.synapse\]/);
+assert.match(codexMcp, /^\[mcp_servers\.synapse\]\n(?:[^[\n].*\n)*default_tools_approval_mode = "approve"$/m, "Codex runs Synapse's tools under approval_policy never");
 assert.match(codexMcp, /\[mcp_servers\.grimoire\]/);
 const grokConfig = readFileSync(path.join(root, "dist", "grok-build", ".grok", "config.toml"), "utf8");
 assert.match(grokConfig, /^\[ui\]$/m);

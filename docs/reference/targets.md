@@ -4,11 +4,11 @@ Every host `agent-surface` renders into, and how much of the source model each r
 
 | Target | Auto-invocable skills | Manual-only workflows | Rules / instructions | Agents / subagents | External / MCP / ignores | Compat |
 |---|---|---|---|---|---|---:|
-| Claude Code | 62 `.claude/skills/*/SKILL.md` | 5 explicit-only skills | `.claude/agent-surface/rules.md`, imported by `CLAUDE.md`; scoped references | 6 `.claude/agents/*.md` | External skills; Synapse + Grimoire in `.claude.json` | 5 |
-| Codex | 62 `.agents/skills/*/SKILL.md` with implicit sidecars | 5 explicit-only `.agents/skills/*/SKILL.md` with non-implicit sidecars | `~/.codex/AGENTS.md`, or a project's `AGENTS.md` + 6 scoped refs | 6 `.codex/agents/*.toml` | External skills; Synapse + Grimoire in `.codex/config.toml` | 5 |
+| Claude Code | 62 `.claude/skills/*/SKILL.md` | 5 explicit-only skills | `.claude/agent-surface/rules.md`, imported by `CLAUDE.md`; scoped references | 6 `.claude/agents/*.md` | External skills; Synapse + Grimoire in `.claude.json`; Synapse hook in `.claude/settings.json` | 5 |
+| Codex | 62 `.agents/skills/*/SKILL.md` with implicit sidecars | 5 explicit-only `.agents/skills/*/SKILL.md` with non-implicit sidecars | `~/.codex/AGENTS.md`, or a project's `AGENTS.md` + 6 scoped refs | 6 `.codex/agents/*.toml` | External skills; Synapse + Grimoire in `.codex/config.toml`; Synapse hook in `.codex/hooks.json` | 5 |
 | Deep Agents Code | 62 `.deepagents/agent/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.deepagents/agent/AGENTS.md` + 6 scoped refs | Worker only | External skills; Synapse + Grimoire in `.deepagents/.mcp.json` | 4 |
 | Cursor | 62 `.cursor/skills/*/SKILL.md` | 5 `.cursor/commands/*.md` | 12 `~/.cursor/rules/*.mdc` (loading unverified) | 6 `.cursor/agents/*.md` | External skills; Synapse + Grimoire; `.cursorignore` | 5 |
-| Droid | 62 `.agents/skills/*/SKILL.md` | 5 `.factory/commands/*.md` | `.factory/AGENTS.md` + 6 scoped refs | 6 `.factory/droids/*.md` | External skills; Synapse + Grimoire | 5 |
+| Droid | 62 `.agents/skills/*/SKILL.md` | 5 `.factory/commands/*.md` | `.factory/AGENTS.md` + 6 scoped refs | 6 `.factory/droids/*.md` | External skills; Synapse + Grimoire; Synapse hook in `.factory/hooks.json` | 5 |
 | Cline | 62 `.cline/skills/*/SKILL.md` | 5 `~/Documents/Cline/Workflows/*.md` | Cline rules + 6 scoped refs | 6 `.cline/agents/*.yaml` | External skills; Synapse + Grimoire; `.clineignore` | 5 |
 | Kilo | 62 `~/.kilo/skills/*/SKILL.md` | 5 `.config/kilo/commands/*.md` | 6 always-on rules + 6 scoped refs | 6 `.config/kilo/agents/*.md` | External skills; Synapse + Grimoire; whole-object full-access permission; sharing disabled; `.kilocodeignore` | 5 |
 | Kimi Code | 62 `$KIMI_CODE_HOME/skills/*/SKILL.md` | 5 explicit-only flow skills | `AGENTS.md` + 6 scoped refs | 6 custom agents | External skills; Synapse + Grimoire; auto permissions | 5 |
@@ -37,6 +37,10 @@ Bundled instruction targets inline only `alwaysApply: true` rules. Cybersecurity
 Generated-file presence proves only distribution. `workflow-runtime` separately grades host discovery, native invocation, authentication, full-autonomy execution, exact materialized world state, output contract, and MCP tool calls. A target may therefore be generated while its installed CLI is `BLOCKED`, `PARTIAL`, or `UNREACHABLE` on a particular machine.
 
 Targets with a native command, workflow, prompt, recipe, or explicit-only skill surface use it. The compatibility-skill targets receive `disable-model-invocation: true` plus an explicit-invocation instruction, but runtime enforcement of that metadata is host-dependent and is not claimed by generated-file checks.
+
+## Synapse Hook Notes
+
+Claude Code, Codex and Droid also get one PostToolUse entry running `~/.local/bin/synapse-hook`, merged beside the user's own hooks: after each tool call it adds the Synapse records other agents wrote since the session's previous call to the model's context. Droid reads `.factory/hooks.json` when it exists and the `hooks` key of `.factory/settings.json` otherwise, so the entry goes where Droid will read it. Codex runs a hook only after the user trusts it once through `/hooks`, and its generated `mcp_servers.synapse` table sets `default_tools_approval_mode = "approve"` because `approval_policy = "never"` refuses MCP calls that need approval. Pruning Synapse removes only that entry. The other hosts recall explicitly; see [mcps/synapse/README.md](../../mcps/synapse/README.md).
 
 ## Cline Notes
 

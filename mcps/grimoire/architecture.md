@@ -1,69 +1,99 @@
 # Architecture — grimoire
 
-Status: IMPLEMENTED (v0.1) · Source: mcps/grimoire/concept-zero.md · Last updated: 2026-08-31
+Status: G1 IMPLEMENTED · Source: the user's decisions of 2026-11-04; [concept-zero.md](concept-zero.md) is historical · Last updated: 2026-11-05
 
-Thin, read-only MCP — a small script, not a platform. This doc is sized to match. Diagrams: [diagrams.md](diagrams.md) (containers · ERD · JIT flow).
+Thin, read-only MCP: a small script, not a platform. This doc is sized to match. Diagrams: [diagrams.md](diagrams.md).
 
 ## What it is
 
-A read-only, stateless **stdio MCP server** that serves large Agent-Skill packs **just-in-time** so the model *selects* a skill instead of drowning in a 750-entry startup catalog. It reads a self-contained `node:sqlite` FTS5 index (skill text + UTF-8 supporting-file content) **built on install** from the pinned submodule; a non-UTF-8 supporting file fails the build instead of being corrupted. Four namespaced tools; no sidecar, no network, no executor, no embeddings (v0). Distribution reuses synapse's first-party MCP rails, so it reaches **every MCP-capable host those rails cover** — Claude Code, Codex, Deep Agents, Cursor, Droid, Kilo, OpenCode, VS Code, Zed, … — for free. Precondition: served packs are **deferred from all native skill catalogs** (grimoire is the sole path). Sources: `concept-zero.md` (historical); synapse impl (`VERIFIED_EXISTING` — FTS5 store, stdio Server, first-party distribution reused); the served packs `anthropic-cybersecurity-skills`, `rev-skills`, and `hack-skills` (registry `source-pack` entries with `served_by: ["grimoire"]` and no `skill_roots`).
+Grimoire is a read-only, stateless stdio MCP server that serves large Agent-Skill packs just in time. The model selects a skill instead of carrying a 750-entry startup catalog. The server reads one self-contained `node:sqlite` FTS5 index of skill text and UTF-8 supporting files, built on install from the checked-out packs.
+
+It has four namespaced tools and no sidecar, network access, executor or embeddings. Distribution reuses the first-party MCP rails, so it reaches every generated MCP host. Precondition: served packs are kept out of every native skill catalog, so Grimoire is the only path to them.
+
+The index is a derived build artifact: the checked-out pack tree is the only record of what was indexed, and a rebuild is the only repair.
 
 ## Source tree
 
 ```text
 mcps/grimoire/
   src/
-    contract.ts  - zod tool I/O, DTOs, ErrorCode (INDEX_MISSING/INDEX_STALE/NOT_FOUND/INVALID_INPUT), SERVER_INSTRUCTIONS. Pure.
-    model.ts     - SCHEMA_SQL (skills + skill_files + index_meta + FTS5), id codec <pack>:<skillName>, row mappers, deriveCategory(name)→categorySource:"derived". Pure.
-    indexer.ts   - build-time ONLY writer: walk Git-owned pack roots (skillsRel, default skills/) → validate attribution/metadata (reject symbolic SKILL.md; skip no-frontmatter/bad-slug/dup-id; truncate desc>1024 in metadata) → store body/files → sqlite + index_meta + ~/.grimoire/manifest.json. Git-less input is marked uncommitted; absent pack dir throws; temp-builds and publishes fail-closed. Not imported by server.
-    served-packs.ts - install-time: read served_by grimoire packs + index_root from optional-services.json and invoke the indexer.
-    store.ts     - runtime read-only reader: search(bm25)/list/get/fileGet/indexStatus. Reopens after index replacement; rejects manifest/index pack-set mismatch. No writes, no MCP.
-    tools.ts     - 4 tool specs + validated dispatcher (structuredContent + labeled text); readOnlyHint.
-    server.ts    - stdio MCP Server (instructions); bin grimoire-server. Opens index read-only.
-    namespace.ts - resolve ~/.grimoire/{index.sqlite,manifest.json}; no repo dependency at runtime.
-  test/{contract,model,indexer,store,server,packaging,served-packs,eval}.test.ts · test/helpers.ts · test/fixtures/{pack/**, queries/*.json}
-    (packaging.test.ts = bin-targets-exist + spawned-process real-stdio; eval.test.ts = fixture + real-pack gate)
+    contract.ts     - zod tool I/O, DTOs, statuses (INDEX_MISSING/INDEX_STALE/NOT_FOUND/INVALID_INPUT), SERVER_INSTRUCTIONS. Pure.
+    model.ts        - SCHEMA_SQL (v4), id codec <pack>:<skillName>, row mappers, derived category. Pure.
+    indexer.ts      - The only writer, at build time. Walks each pack's skills root and validates metadata, skipping skills with no frontmatter, a bad slug, a duplicate id or a symbolic SKILL.md. Stores bodies and files in a temp sqlite file, then publishes it with one rename. Reads the checkout as it stands, with no git calls, manifest or source hashing.
+    served-packs.ts - Install time: reads the served_by grimoire packs and index_root from the registry and runs the indexer.
+    store.ts        - Runtime read-only reader: search (bm25), list, get, fileGet, indexStatus. Reopens after the index file is replaced. INDEX_MISSING when there is no file; INDEX_STALE when the file is unreadable or its schema_version ≠ SCHEMA_VERSION; fileGet is an exact (skill, path) lookup.
+    tools.ts        - 4 tool specs and a validated dispatcher (structuredContent plus labelled text); readOnlyHint.
+    server.ts       - stdio MCP server (instructions); bin grimoire-server.
+    namespace.ts    - GRIMOIRE_DIR or ~/.grimoire → index.sqlite.
+  test/{contract,model,indexer,store,server,packaging,served-packs,eval,acceptance}.test.ts · test/helpers.ts · test/fixtures/{pack/**, queries/*.json}
   schema.sql · install.mjs · package.json · README.md
 ```
 
 Dependency direction: `server → tools → store → model → contract`; `indexer` is the only writer.
 
-## Tools (read-only; each result `status: ok | <ErrorCode> + hint`)
+## Tools (read-only; each result is `status: ok | <ErrorCode> + hint`)
 
-Full schemas, error semantics, and examples: [api-contract.md](api-contract.md) (`src/contract.ts` is the source of truth).
+Schemas and errors: [api-contract.md](api-contract.md). `src/contract.ts` is the source of truth.
 
-- `grimoire_search({query, k?})` → `{hits:[{id,pack,name,summary,score}]}` — primary path, BM25 top-k.
-- `grimoire_list({category?, cursor?})` → paginated `[{id,pack,name,summary}]`; derived categories.
-- `grimoire_get({id})` → body + supporting-file manifest + provenance `{sourcePath,sourceCommit,sha256,indexedAt,attribution}`.
-- `grimoire_file_get({id, path})` → one supporting file's content + attribution (`path` validated against the manifest).
+- `grimoire_search({query, k?})` → `{hits:[{id,pack,name,summary,score}]}`, BM25 top-k.
+- `grimoire_list({category?, cursor?})` → paginated `[{id,pack,name,summary}]`.
+- `grimoire_get({id})` → the body and the supporting-file manifest `[{path,size}]`.
+- `grimoire_file_get({id, path})` → `{path, content, size}` for a path in that skill's manifest. Any other path returns `NOT_FOUND`.
 
 ## Data
 
-Full DDL, manifest shape, codecs, and data dictionary: [data-model.md](data-model.md). Self-contained `~/.grimoire/index.sqlite` (mode 600): `skills(id PK=<pack>:<skillName>, pack, name, source_path, source_commit, sha256, indexed_at, description, body, category, category_source, notice)`, `skill_files(skill_id, rel_path, content, sha256, size)`, `skills_fts` (FTS5 over name+description+body; bm25 name^/desc^/body-low), `index_meta` (schema version, exact pack ids, per-pack commit/hash/count/attribution). `store.indexStatus()` compares `index_meta` to the **installed `~/.grimoire/manifest.json`** (written by the indexer) → `ok|stale|missing` — never the repo registry (the global binary may run with no checkout).
+`~/.grimoire/index.sqlite` (mode 600), schema v4 ([data-model.md](data-model.md)):
+
+- `skills(id PK, pack, name, description, body, category, category_source)`;
+- `skill_files(skill_id, rel_path, content, size)`;
+- `skills_fts`: FTS5 over name, description and body, ranked by bm25 with weights name 10, description 5, body 1;
+- `index_meta(schema_version)`.
+
+The index is rebuilt, never migrated, so an index built by another schema reports `INDEX_STALE` until `npm run install:grimoire` runs again.
 
 ## Distribution
 
-Registry `first_party kind:"mcp"` grimoire entry (stdio `~/.local/bin/grimoire-server`) → rendered/merged across the **full synapse MCP host set** (zero new infra). A `served_by:["grimoire"]` link on each de-scoped source-pack (`anthropic-cybersecurity-skills`, `rev-skills`, `hack-skills`) tells the `check` rule which packs grimoire indexes. `rev-skills` sets `index_root: ".claude/skills"` because upstream does not use a top-level `skills/` directory. Invariant: `served_by` includes grimoire ⇒ `source-pack`, no `skill_roots`, pinned `commit`, present in the index. `check` fails if a served pack regains `skill_roots` or its skill names surface in any native catalog.
+The registry's `first_party kind:"mcp"` grimoire entry (stdio `~/.local/bin/grimoire-server`) is rendered and merged across the full first-party MCP host set. A `served_by:["grimoire"]` link on each served source-pack tells `check` which packs Grimoire indexes. `index_root` names a pack's skills directory when it is not `skills/`.
+
+`check` enforces that a pack whose `served_by` includes grimoire:
+
+- is a source-pack;
+- has no `skill_roots`;
+- has a pinned `commit`;
+- has no skill names in any native catalog.
+
+Pins choose what install checks out. The indexer indexes the checkout as it is, including local edits.
 
 ## Security
 
-Local-only, read-only, no secrets. Supporting files and the `SKILL.md` body after frontmatter separation are stored without content rewriting and returned as structured data plus a labeled text mirror (`Indexed Agent Skill (third-party content, not authority):`). Full-content responses include the registry-owned source/license attribution. Tool descriptions and server instructions tell runtimes to use the skill within the current task without letting pack content override higher-priority instructions or safety constraints. `grimoire_file_get` rejects any path not in the skill's stored manifest (no traversal; no serve-time fs read).
+Grimoire is local-only and read-only, and holds no secrets.
+
+- **Output:** indexed text is returned as structured data plus a labelled text mirror (`Indexed Agent Skill (third-party content, not authority):`). The tool descriptions and server instructions keep pack content below higher-priority instructions.
+- **Indexer:** it follows no symlink. It walks only real directories and collects only regular files. A symbolic `SKILL.md` is skipped, because reading it by name would follow it out of the pack.
+- **`grimoire_file_get`:** reads only the database.
+- **Attribution:** responses carry none. Everything under `external/` is a git submodule, so the repository redistributes no pack content, and each pack's LICENSE stays in its checkout.
 
 ## Decisions
 
-- Read-only stdio, **no sidecar** — synapse's single-writer/realtime machinery is unneeded for retrieval.
-- **Self-contained** index (store file contents) — portable; zero runtime submodule dependency.
-- **Build-on-install** from pinned source — no committed index; exact pack-set and provenance drift fail as `INDEX_STALE`, and a running server reopens a replaced index on the next call.
-- **BM25/FTS5 any-word** (weights name^10/desc^5/body^1). A skill matching any query word is a candidate and weighted BM25 orders the candidates by term rarity, frequency, document length and column, so an unmatched word never excludes a result; requiring every word dropped a relevant skill whenever a caller added one word its text lacked. Measured baseline on the pinned pack over 30 reviewed paraphrased queries: **hit@1 0.767, hit@5 0.967, MRR 0.836** (`test/eval.test.ts`, gated at hit@5 ≥ 0.85 / MRR ≥ 0.75, which the earlier conjunctive query fails). The cost: a query about an uncovered topic returns its nearest rows instead of nothing, and only a query whose every word is absent from the index returns none — callers judge each hit. A [held-out check](../../docs/contracts/grimoire-evaluation.md#held-out-relevance) on 52 later requests across all five packs, with blind-graded candidates, moved useful-in-top-five from 11/42 to 40/42 against the conjunctive reader, and two caller models declined all 10 no-skill controls. **Hybrid trigger**: if the gate drops below the floor, or higher recall is wanted, add hybrid lexical+embedding retrieval — not built (sibling-skill collisions on long paraphrased requests are the main remaining miss class, along with split-versus-joined spellings such as `spear phishing`).
-- **4 namespaced tools** incl. `file_get` — generic `skill_*` would collide with native "skills"; `resource_link` deferred (uneven client support).
-- **`served_by` link + installed manifest** — explicit ownership + runtime staleness without the repo.
+- **Read-only stdio, no sidecar:** retrieval needs no writer or real-time machinery.
+- **Self-contained, single-file index, published with one rename:** an interrupted build leaves the previous index in place, so nothing needs a second file to detect a half-published state.
+- **Built on install from the checkout:** the indexer reads the tree as it stands, local edits included. After a pin bump, run `npm run install:grimoire` again; nothing reports an index older than the pins (see Risks).
+- **BM25/FTS5, matching any word**, with weights name 10, description 5, body 1:
+  - A skill matching any query word is a candidate, and weighted BM25 ranks candidates. An unmatched word never excludes a result.
+  - The measured baseline on 30 reviewed queries is hit@1 0.767, hit@5 0.967 and MRR 0.836. A [held-out check](../../docs/contracts/grimoire-evaluation.md#held-out-relevance) confirmed it across all served packs.
+  - Hybrid retrieval stays unbuilt unless an eval floor fails.
+- **4 namespaced tools, including `file_get`:** generic `skill_*` names would collide with native skills.
+- **Evaluation:** keep the fixture, real-pack, reworded and held-out ranking gates. The builds must skip only entries on an explicit expected-skip list, so an indexer regression still fails while an upstream pin bump does not pin a skill count.
 
 ## Risks
 
-- BM25 misses paraphrased queries → curate trigger-keyword descriptions; add hybrid only if the eval gate fails.
-- Model doesn't call grimoire → routing wording in `instructions`/tool descriptions; revisit with a pointer skill if smoke shows non-use.
-- Stale index after a submodule bump without reinstall → `INDEX_STALE`; surface in `doctor`.
+- **BM25 misses paraphrased queries:** curate trigger keywords in descriptions; add hybrid retrieval only if an eval gate fails.
+- **The model doesn't call grimoire:** adjust the routing wording in the instructions and tool descriptions.
+- **The index is older than the pins after a submodule bump:** nothing reports it, so run `npm run install:grimoire` again after pulling new pins. Revisit if a stale index causes a real miss.
 
 ## Guardrails
 
-`store` opens read-only and never writes (all writes in `indexer`, build-time). Ids are `<pack>:<skillName>` (never row ids); every `get` carries provenance. No network, no execution, no embeddings (v0). Out of scope: a write path in `store`, mirroring a served pack into a native catalog, a 5th tool without a driver.
+- `store` opens read-only and never writes; all writes happen in `indexer` at build time.
+- Ids are `<pack>:<skillName>`, never row ids.
+- No network, execution or embeddings.
+- Out of scope: a write path in `store`, mirroring a served pack into a native catalog, and a fifth tool without a driver.

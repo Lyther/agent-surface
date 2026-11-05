@@ -1,0 +1,27 @@
+{
+  "session_id": "8eaabd38-e675-4c8e-a672-01c31230a525",
+  "transcript_path": "/Users/example/.claude/projects/-private-tmp-as-spike-hooks-project/8eaabd38-e675-4c8e-a672-01c31230a525.jsonl",
+  "cwd": "/private/tmp/as-spike-hooks/project",
+  "prompt_id": "a72c7f3d-4f2a-4efa-aea1-c226ecf13f3f",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "mcp__synapse__memory_remember",
+  "tool_input": {
+    "content": "spike record from claude"
+  },
+  "tool_response": [
+    {
+      "type": "text",
+      "text": "{\"id\":1,\"ts\":1793857508940,\"agentId\":\"claude-code\"}"
+    }
+  ],
+  "tool_use_id": "toolu_01NCoW8nkNjh3rqgGcU3deqx",
+  "duration_ms": 8,
+  "mcp_server": {
+    "name": "synapse",
+    "source": "dynamic"
+  }
+}

@@ -1,6 +1,6 @@
 # Diagrams — grimoire
 
-Source: architecture.md · api-contract.md · data-model.md · Last updated: 2026-09-21. Three views — that's all a thin read-only server needs.
+Source: architecture.md · api-contract.md · data-model.md · Last updated: 2026-11-05. Three views — that's all a thin read-only server needs.
 
 ## 1. Containers & build/distribute
 
@@ -17,26 +17,24 @@ flowchart TB
         S["grimoire-server<br/>stdio MCP · read-only · 4 tools"]
     end
     DB[("~/.grimoire/index.sqlite<br/>FTS5: skills + skill_files + index_meta")]
-    MAN["~/.grimoire/manifest.json<br/>(expected packs: commit/hash/attribution)"]
 
     subgraph build["build-on-install (not at serve time)"]
         Inst["install.mjs / npm run install:grimoire"]
-        Idx["indexer (write-once)"]
+        Idx["indexer (write-once, one rename)"]
     end
-    Pack[("external/<pack>/skills/**<br/>pinned submodule (source of truth)")]
+    Pack[("external/<pack>/skills/**<br/>checked-out pack (source of truth)")]
     Reg["registry/optional-services.json<br/>first_party kind:mcp + served_by"]
 
     H -->|"JSON-RPC: search/list/get/file_get"| S
     S -->|reads| DB
-    S -->|"indexStatus: ok/stale/missing"| MAN
+    S -->|"indexStatus: ok/missing/stale"| DB
     Op --> Inst --> Idx
     Idx -->|"validate metadata · store raw"| DB
-    Idx -->|writes| MAN
     Pack -->|indexed| Idx
     Reg -.->|"render/merge grimoire-server into every host"| hosts
 ```
 
-Notes: server never writes and never reads the submodule or the repo registry; staleness is `index_meta` vs the installed `manifest.json`. Distribution reuses synapse's render/merge path (zero new infra).
+Notes: server never writes and never reads the pack tree or the repo registry; the index carries its own `schema_version`, so staleness is the index's schema vs the server's. Distribution reuses synapse's render/merge path (zero new infra).
 
 ## 2. Index ERD
 
@@ -52,24 +50,20 @@ erDiagram
         text description
         text body "raw"
         text category "derived"
-        text source_commit "provenance"
-        text sha256
-        text indexed_at
     }
     skill_files {
         text skill_id FK
-        text rel_path PK "manifest-relative"
+        text rel_path PK "skill-dir-relative"
         text content "raw"
         int  size
-        text sha256
     }
     index_meta {
         text key PK
-        text value "schema_version, pack_ids, pack:* provenance/count"
+        text value "schema_version"
     }
 ```
 
-Notes: `skills_fts` is an FTS5 external-content view over `skills` (rowid join), not a stored entity. `index_meta` drives staleness.
+Notes: `skills_fts` is an FTS5 external-content view over `skills` (rowid join), not a stored entity. `index_meta.schema_version` drives staleness.
 
 ## 3. Primary JIT flow
 
@@ -90,11 +84,11 @@ sequenceDiagram
         DB-->>G: bm25 top-k
         G-->>M: {status: ok, hits:[{id,summary,score}]}
         M->>G: grimoire_get{id}
-        G->>DB: row + file manifest + provenance
-        G-->>M: {status: ok, skill:{body, files[], provenance+attribution}}
-        M->>G: grimoire_file_get{id, path∈manifest}
-        G->>DB: file content
-        G-->>M: {status: ok, file:{path, content, attribution}}  %% NOT_FOUND if path∉manifest
+        G->>DB: row + file manifest
+        G-->>M: {status: ok, skill:{body, files[]}}
+        M->>G: grimoire_file_get{id, path}
+        G->>DB: exact (skill_id, rel_path) lookup
+        G-->>M: {status: ok, file:{path, content, size}}  %% NOT_FOUND if path not in the skill's manifest
     end
 ```
 

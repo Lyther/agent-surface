@@ -1,0 +1,14 @@
+{
+  "session_id": "028d1d17-605d-448e-a3ee-025fd54fb44a",
+  "transcript_path": "/Users/example/.factory/sessions/-private-tmp-as-spike-hooks-project/028d1d17-605d-448e-a3ee-025fd54fb44a.jsonl",
+  "cwd": "/private/tmp/as-spike-hooks/project",
+  "permission_mode": "auto-high",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Execute",
+  "tool_input": {
+    "summary": "Run echo spike-sub command",
+    "command": "echo spike-sub",
+    "riskLevel": "low"
+  },
+  "tool_response": "spike-sub\n\n\n[Process exited with code 0]"
+}

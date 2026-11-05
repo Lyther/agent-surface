@@ -41,10 +41,6 @@
             "type": "string",
             "pattern": "^[0-9a-f]{40}$"
           },
-          "attribution": {
-            "type": "string",
-            "pattern": "\\S"
-          },
           "kind": {
             "enum": [
               "mcp",
@@ -376,42 +372,6 @@
                   "const": true
                 }
               }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "kind": {
-                  "const": "source-pack"
-                }
-              },
-              "required": [
-                "kind"
-              ]
-            },
-            "then": {
-              "required": [
-                "attribution"
-              ]
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "served_by": {
-                  "contains": {
-                    "const": "grimoire"
-                  }
-                }
-              },
-              "required": [
-                "served_by"
-              ]
-            },
-            "then": {
-              "required": [
-                "attribution"
-              ]
             }
           },
           {

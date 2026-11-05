@@ -1,21 +1,25 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { readOrCreateToken } from "../src/bootstrap.js";
 import { FakeClock } from "../src/clock.js";
 import type { CompactMemory, FullMemory, RecallQuery } from "../src/contract.js";
 import { resolveProjectRef } from "../src/namespace.js";
-import { createRedactor } from "../src/redactor.js";
 import { Store } from "../src/store.js";
 import { buildToolSet } from "../src/tools.js";
 
+/*
+SUBSTITUTE_JUSTIFICATION
+- replaces: the system clock the store stamps records and lock leases with (FakeClock)
+- necessity: lease-expiry and time-order cases assert exact times; the system clock needs real waits past each lease and stamps same-millisecond writes alike
+- real-proof: test/multiprocess.test.ts runs real server processes on the system clock, including a lease that expires in real time
+*/
 function setup() {
   const clock = new FakeClock(1000);
   const dir = mkdtempSync(join(tmpdir(), "synapse-"));
-  const store = new Store({ clock, redactor: createRedactor(), dbDir: dir, globalDbPath: join(dir, "global.sqlite") });
+  const store = new Store({ clock, dbDir: dir, globalDbPath: join(dir, "global.sqlite") });
   const P = join(dir, "p.sqlite");
   const cleanup = () => { store.close(); rmSync(dir, { recursive: true, force: true }); };
   return { clock, dir, store, P, cleanup };
@@ -188,61 +192,6 @@ test("locks: conflict returns holder; release frees; expiry frees", () => {
   } finally { cleanup(); }
 });
 
-test("redaction strips secrets on ingest", () => {
-  const { store, P, cleanup } = setup();
-  try {
-    const w = store.remember({ projectDbPath: P, agentId: "a", content: "token sk-proj-ABCDEFGHIJKLMNOPQRSTUVWX is the key" });
-    assert.ok(w.redactions >= 1);
-    const full = store.get({ projectDbPath: P, agentId: "a", ids: [w.id] });
-    assert.doesNotMatch((full[0] as FullMemory).content, /ABCDEFGHIJKLMNOPQRSTUVWX/);
-  } finally { cleanup(); }
-});
-
-test("redaction covers prefixed keys, JSON/YAML quoting, Basic auth and URL credentials", () => {
-  const redactor = createRedactor();
-  const basic = Buffer.from("fake-user:fake-pass-0006").toString("base64");
-  const cases: [string, string][] = [
-    ["DB_PASSWORD=FakeDbPassword0001", "FakeDbPassword0001"],
-    ["export SYNAPSE_TOKEN=FakeSynapseToken0002", "FakeSynapseToken0002"],
-    ["client_secret=FakeClientSecret0003", "FakeClientSecret0003"],
-    ['{"token": "FakeJsonToken0004"}', "FakeJsonToken0004"],
-    ["password: 'fake yaml pass 0005'", "fake yaml pass 0005"],
-    [`curl -H "Authorization: Basic ${basic}"`, basic],
-    ["postgres://fakeuser:FakeUrlPass0007@db.example.invalid/app", "FakeUrlPass0007"],
-  ];
-  for (const [input, secret] of cases) {
-    const out = redactor.redact(input);
-    assert.ok(!out.text.includes(secret), `${input} -> ${out.text}`);
-    assert.equal(out.count, 1, `one redaction for ${input}`);
-  }
-  assert.equal(redactor.redact("DB_PASSWORD=FakeDbPassword0001").text, "DB_PASSWORD=[REDACTED]", "the key stays readable");
-  assert.equal(redactor.redact("postgres://fakeuser:FakeUrlPass0007@db.example.invalid/app").text, "postgres://[REDACTED]@db.example.invalid/app");
-  assert.equal(redactor.redact("clone ssh://git@github.com/org/repo.git via http://localhost:4319/mcp").count, 0, "a URL without a password is untouched");
-  for (const [input, secret] of [
-    ["AWS_SECRET_ACCESS_KEY=FakeAwsSecret0009", "FakeAwsSecret0009"],
-    ["dbPassword: FakeCamelPass0010", "FakeCamelPass0010"],
-    ["DB_PASSWORD=Fake$ymbol!Pass11", "Fake$ymbol!Pass11"],
-  ] as [string, string][]) assert.ok(!redactor.redact(input).text.includes(secret), input);
-  for (const prose of ['{"url":"http://localhost:8080","owner":"dev@example.invalid"}', "the token: string field", "secretary: abcdefghijkl"]) {
-    assert.equal(redactor.redact(prose).text, prose, `untouched: ${prose}`);
-  }
-  for (const flood of ["a-".repeat(32000), "a_".repeat(32000)]) {
-    const started = Date.now();
-    redactor.redact(flood);
-    assert.ok(Date.now() - started < 1000, "redaction stays linear on a long hyphenated run");
-  }
-});
-
-test("remember redacts tags and counts those redactions", () => {
-  const { store, P, cleanup } = setup();
-  try {
-    const w = store.remember({ projectDbPath: P, agentId: "a", content: "rotated the staging credential", tags: ["ops", "token=FakeTagToken0008"] });
-    assert.equal(w.redactions, 1);
-    assert.deepEqual(store.get({ projectDbPath: P, agentId: "a", ids: [w.id] })[0]?.tags, ["ops", "token=[REDACTED]"]);
-    assert.equal(store.recall(recall(P, { query: "FakeTagToken0008" })).results.length, 0, "the raw tag value is not FTS-indexed");
-  } finally { cleanup(); }
-});
-
 test("forget purges a superseded record without corrupting the FTS index", () => {
   const { store, P, cleanup } = setup();
   try {
@@ -262,15 +211,11 @@ test("forget purges a superseded record without corrupting the FTS index", () =>
 
 test("the data directory is narrowed to its owner", { skip: process.platform === "win32" }, () => {
   const { store, dir, P, cleanup } = setup();
-  const tokenDir = mkdtempSync(join(tmpdir(), "synapse-tok-"));
   try {
     chmodSync(dir, 0o755);
-    chmodSync(tokenDir, 0o755);
     store.remember({ projectDbPath: P, agentId: "a", content: "first write opens the project DB" });
-    readOrCreateToken(tokenDir);
     assert.equal(statSync(dir).mode & 0o777, 0o700, "store DB directory");
-    assert.equal(statSync(tokenDir).mode & 0o777, 0o700, "bootstrap token directory");
-  } finally { cleanup(); rmSync(tokenDir, { recursive: true, force: true }); }
+  } finally { cleanup(); }
 });
 
 test("query recall pages through every match by following the cursor", () => {
@@ -288,23 +233,6 @@ test("query recall pages through every match by following the cursor", () => {
     assert.equal(page.truncated, false, "paging terminates");
     assert.equal(seen.size, 3, "the match the first page left out is reachable through the cursor");
   } finally { cleanup(); }
-});
-
-test("onCommit fires with global vs project channel", () => {
-  const clock = new FakeClock(1000);
-  const dir = mkdtempSync(join(tmpdir(), "synapse-"));
-  const channels: string[] = [];
-  const store = new Store({
-    clock, redactor: createRedactor(), dbDir: dir, globalDbPath: join(dir, "global.sqlite"),
-    onCommit: (c) => channels.push(c),
-  });
-  const P = join(dir, "p.sqlite");
-  try {
-    store.remember({ projectDbPath: P, agentId: "a", content: "project note" });
-    store.remember({ projectDbPath: P, agentId: "a", content: "global note", global: true });
-    assert.equal(channels[0], P);
-    assert.equal(channels[1], "global");
-  } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
 test("F001: global memory round-trips recall -> get -> forget", () => {
@@ -335,21 +263,6 @@ test("F004: forget scrubs plaintext content (real redaction, audit kept)", () =>
     assert.match(row.content, /\[REDACTED: leaked secret\]/, "reason tombstone kept for audit");
     assert.equal(row.status, "redacted");
     assert.equal(row.tags, null);
-  } finally { cleanup(); }
-});
-
-test("F002: forget reason is redacted so secret-remediation never re-leaks the secret", () => {
-  const { store, P, cleanup } = setup();
-  try {
-    const tok = "sk-proj-abcdefghijklmnopqrstuvwxyz012345"; // realistic length (> 20 chars)
-    const w = store.remember({ projectDbPath: P, agentId: "a", content: "placeholder note to forget" });
-    // The agent names the leaked value in the reason — the classic remediation foot-gun.
-    store.forget({ projectDbPath: P, agentId: "a", id: w.id, reason: `purge leaked token ${tok}` });
-    const db = new DatabaseSync(P);
-    const row = db.prepare("SELECT content FROM memory WHERE id=?").get(w.id) as { content: string };
-    db.close();
-    assert.doesNotMatch(row.content, /sk-proj-abcdefghijklmnopqrstuvwxyz012345/, "secret in reason scrubbed from the raw tombstone");
-    assert.match(row.content, /\[REDACTED: purge leaked token \[REDACTED\]\]/, "reason kept (redacted) for audit");
   } finally { cleanup(); }
 });
 
@@ -450,6 +363,19 @@ test("R4b: memory_get fails loud (PAYLOAD_TOO_LARGE) when combined content is to
   } finally { cleanup(); }
 });
 
+test("a store failure is the call's INTERNAL tool error, not a thrown exception", () => {
+  const { store, dir, cleanup } = setup();
+  try {
+    const broken = join(dir, "broken.sqlite");
+    writeFileSync(broken, "this file is not a SQLite database, which every open of it reports");
+    const result = buildToolSet(store, { projectDbPath: broken, agentId: "a" }).call("memory_remember", { content: "lands nowhere" });
+    assert.equal(result.isError, true);
+    const body = JSON.parse(result.content[0]!.text) as { code: string; message: string };
+    assert.equal(body.code, "INTERNAL");
+    assert.match(body.message, /not a database/);
+  } finally { cleanup(); }
+});
+
 // One tagged record that lies outside the first `limit` rows both ways: it is the oldest (browse pages
 // newest-first) and the longest (bm25 favors short documents), behind `limit + 1` untagged matches.
 function seedTaggedBelowLimit(store: Store, P: string, limit: number): number {
@@ -490,57 +416,51 @@ test("tags filter runs before the row limit: browse recall", () => {
   } finally { cleanup(); }
 });
 
-test("a repeated operation id returns the recorded result and applies once, after a reopen too", () => {
-  const { clock, dir, store, P, cleanup } = setup();
-  try {
-    const remember = { projectDbPath: P, agentId: "a", content: "applied exactly once", operationId: "op-remember" };
-    const written = store.remember(remember);
-    assert.deepEqual(store.remember(remember), written, "a retried write answers with the first result");
-    const forget = { projectDbPath: P, agentId: "a", id: written.id, reason: "stale", operationId: "op-forget" };
-    const forgotten = store.forget(forget);
-    assert.ok(forgotten, "the first forget redacts the record");
-    assert.deepEqual(store.forget(forget), forgotten, "a retried forget is not reported as NOT_FOUND");
-    const acquire = { projectDbPath: P, agentId: "a", glob: "src/x.ts", ttlMs: 60_000, operationId: "op-acquire" };
-    const acquired = store.acquire(acquire);
-    const release = { projectDbPath: P, agentId: "a", glob: "src/x.ts", operationId: "op-release" };
-    const released = store.release(release);
-    assert.deepEqual(released, { released: true });
-    assert.deepEqual(store.release(release), released, "a retried release still reports the release");
+// The v0.4 schema as synapse-v0.4.0 shipped it, operations table included.
+const V04_SCHEMA = `
+CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE memory (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, agent_id TEXT NOT NULL, content TEXT NOT NULL,
+  tags TEXT, supersedes INTEGER REFERENCES memory(id),
+  status TEXT NOT NULL DEFAULT 'live' CHECK (status IN ('live','superseded','redacted'))
+);
+CREATE INDEX idx_memory_status_id ON memory(status, id);
+CREATE VIRTUAL TABLE memory_fts USING fts5(content, tags, content='memory', content_rowid='id', tokenize='porter unicode61');
+CREATE TABLE locks (glob TEXT PRIMARY KEY, agent_id TEXT NOT NULL, acquired_at INTEGER NOT NULL, expires_at INTEGER NOT NULL);
+CREATE INDEX idx_locks_expiry ON locks(expires_at);
+CREATE TABLE operations (id TEXT PRIMARY KEY, result TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE INDEX idx_operations_created ON operations(created_at);
+`;
 
-    // A restarted sidecar opens the same files, so the records answer its retries as well. Time moves
-    // on first, so an acquire that ran again would report a new lock and leave it held.
-    clock.advance(5_000);
-    const reopened = new Store({ clock, redactor: createRedactor(), dbDir: dir, globalDbPath: join(dir, "global.sqlite") });
-    try {
-      assert.deepEqual(reopened.remember(remember), written);
-      assert.deepEqual(reopened.forget(forget), forgotten);
-      assert.deepEqual(reopened.acquire(acquire), acquired);
-      assert.deepEqual(reopened.release(release), released);
-      assert.deepEqual(reopened.listLocks({ projectDbPath: P }), [], "a replayed acquire does not take back a released lock");
-    } finally { reopened.close(); }
-    const db = new DatabaseSync(P, { readOnly: true });
-    try {
-      assert.equal((db.prepare("SELECT COUNT(*) AS n FROM memory").get() as { n: number }).n, 1, "one row for one intended write");
-    } finally { db.close(); }
-  } finally { cleanup(); }
-});
-
-test("a retried write keeps the outcome it first settled on when that was a miss or a refusal", () => {
+test("a v0.4 database opens with every row intact, and a v0.4 writer still running keeps writing", () => {
   const { store, P, cleanup } = setup();
+  // Stands in for a v0.4 sidecar that outlives the upgrade: its own connection, the v0.4 statements.
+  const old = new DatabaseSync(P);
   try {
-    // Record 1 does not exist yet, so this forget misses and this remember is refused.
-    const forget = { projectDbPath: P, agentId: "a", id: 1, reason: "stale", operationId: "op-forget-miss" };
-    assert.equal(store.forget(forget), null);
-    const remember = { projectDbPath: P, agentId: "a", content: "replacement", supersedes: 1, operationId: "op-remember-refused" };
-    assert.throws(() => store.remember(remember), /unknown supersedes id 1/);
-    // Another agent then writes record 1 before the lost responses are retried.
-    assert.equal(store.remember({ projectDbPath: P, agentId: "b", content: "written by another agent" }).id, 1);
-    assert.equal(store.forget(forget), null, "the retried forget still misses");
-    assert.throws(() => store.remember(remember), /unknown supersedes id 1/, "the retried remember is still refused");
-    assert.deepEqual(
-      store.get({ projectDbPath: P, agentId: "a", ids: [1] }).map((m) => [m.id, m.status, m.content]),
-      [[1, "live", "written by another agent"]],
-      "neither retry touched the record written since",
-    );
-  } finally { cleanup(); }
+    old.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+    old.exec(V04_SCHEMA);
+    old.prepare("INSERT INTO meta(key,value) VALUES('schema_version','1')").run();
+    const v04Remember = (ts: number, content: string, operation: string): void => {
+      old.exec("BEGIN IMMEDIATE");
+      const row = old.prepare("INSERT INTO memory(ts,agent_id,content,tags,status) VALUES(?,?,?,?,'live')").run(ts, "old-agent", content, '["v04"]');
+      old.prepare("INSERT INTO memory_fts(rowid,content,tags) VALUES(?,?,?)").run(Number(row.lastInsertRowid), content, '["v04"]');
+      old.prepare("INSERT INTO operations(id,result,created_at) VALUES(?,?,?)").run(operation, JSON.stringify({ id: Number(row.lastInsertRowid) }), ts);
+      old.exec("COMMIT");
+    };
+    v04Remember(900, "v04 decision kept across the upgrade", "op-1");
+    v04Remember(950, "v04 lesson kept across the upgrade", "op-2");
+    old.prepare("INSERT INTO locks(glob,agent_id,acquired_at,expires_at) VALUES(?,?,?,?)").run("src/held.ts", "old-agent#b1", 900, 10_000_000);
+
+    const recalled = store.recall(recall(P, { query: "upgrade", tags: ["v04"], mode: "full" }));
+    assert.deepEqual(recalled.results.map((r) => (r as FullMemory).content).sort(), ["v04 decision kept across the upgrade", "v04 lesson kept across the upgrade"]);
+    assert.deepEqual(store.listLocks({ projectDbPath: P }), [{ glob: "src/held.ts", agentId: "old-agent#b1", acquiredAt: 900, expiresAt: 10_000_000 }]);
+    const written = store.remember({ projectDbPath: P, agentId: "new-agent", content: "first write after the upgrade" });
+    assert.equal(written.id, 3, "new rows continue the v0.4 id sequence");
+
+    v04Remember(1100, "v04 write after the upgrade", "op-3");
+    assert.deepEqual(old.prepare("SELECT id FROM operations ORDER BY id").all().map((r) => (r as { id: string }).id), ["op-1", "op-2", "op-3"]);
+    const latest = store.recall(recall(P, { query: "after upgrade", mode: "full" }));
+    assert.deepEqual(latest.results.map((r) => (r as FullMemory).content).sort(), ["first write after the upgrade", "v04 write after the upgrade"]);
+    assert.equal((old.prepare("PRAGMA integrity_check").get() as { integrity_check: string }).integrity_check, "ok");
+  } finally { old.close(); cleanup(); }
 });

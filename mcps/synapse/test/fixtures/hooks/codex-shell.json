@@ -1,0 +1,15 @@
+{
+  "session_id": "01a1aa3f-183a-7f40-a8d3-7cb86bb7097c",
+  "turn_id": "01a1aa3f-1d3e-7861-badd-4b715ef7abbc",
+  "transcript_path": "/Users/example/.codex/sessions/2026/11/05/rollout-2026-11-05T13-47-04-01a1aa3f-183a-7f40-a8d3-7cb86bb7097c.jsonl",
+  "cwd": "/tmp/as-spike-hooks/project",
+  "hook_event_name": "PostToolUse",
+  "model": "gpt-6-luna",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "echo spike-two"
+  },
+  "tool_response": "spike-two\n",
+  "tool_use_id": "exec-c6fc7a7e-9d4a-4791-82ed-4c8befa96a77"
+}

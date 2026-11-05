@@ -2,7 +2,7 @@
 // it becomes the hit@5/MRR gate (roadmap P0/P2). On fixtures it asserts the path works
 // and ranking separates well-formed queries (hit@5 == 1, MRR high, negatives never #1).
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -10,9 +10,24 @@ import { fileURLToPath } from "node:url";
 import { buildIndex } from "../src/indexer.js";
 import { servedPacksFromRegistry } from "../src/served-packs.js";
 import { Store } from "../src/store.js";
-import { FIXTURE_QUERIES, setupIndex } from "./helpers.js";
+import { FIXTURE_PACK, FIXTURE_QUERIES, setupIndex } from "./helpers.js";
 
 interface EvalQuery { query: string; expect: string[]; negatives?: string[] }
+
+// Every skill the indexer is expected to skip on the checked-out packs, with its reason. A fresh
+// build of the pinned packs skips nothing today, so any skipped entry fails the eval: a parser,
+// discovery or duplicate regression is caught without pinning a total skill count that a
+// pack-pin bump would change.
+const EXPECTED_SKIPS: { pack: string; dir: string; reason: string }[] = [];
+
+function assertOnlyExpectedSkips(skipped: { pack: string; dir: string; reason: string }[]): void {
+  for (const s of skipped) {
+    assert.ok(
+      EXPECTED_SKIPS.some((e) => e.pack === s.pack && e.dir === s.dir && e.reason === s.reason),
+      `unexpected skip ${s.pack}/${s.dir}: ${s.reason}`,
+    );
+  }
+}
 
 // Resolve the pinned source pack at the repo root (4 levels up from dist/test). The
 // real-pack eval is gated on it being checked out so grimoire's unit suite never hard-
@@ -27,7 +42,7 @@ const REPO_ROOT = join(HERE, "..", "..", "..", "..");
 function realPackStore(): { store: Store; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), "grimoire-realeval-"));
   const store = new Store({ dir });
-  buildIndex({ packs: [{ serviceId: "anthropic-cybersecurity-skills", path: REAL_PACK, attribution: "Anthropic Cybersecurity Skills test index." }], outDir: dir, indexedAt: "2026-01-01T00:00:00.000Z" });
+  buildIndex({ packs: [{ serviceId: "anthropic-cybersecurity-skills", path: REAL_PACK }], outDir: dir });
   return { store, cleanup: () => { store.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
@@ -112,16 +127,15 @@ test("real-pack eval: a sentence-shaped query still finds its skill", { skip: ex
 
 const REV_PACK = join(HERE, "..", "..", "..", "..", "external", "rev-skills");
 const REV_SKILLS = join(REV_PACK, ".claude", "skills");
-test("rev-skills pack: 121 skills, ghidra search, get", { skip: existsSync(REV_SKILLS) ? false : "rev-skills submodule not checked out" }, () => {
+test("rev-skills pack: ghidra search, get, and only expected skips", { skip: existsSync(REV_SKILLS) ? false : "rev-skills submodule not checked out" }, () => {
   const dir = mkdtempSync(join(tmpdir(), "grimoire-revskills-"));
   const store = new Store({ dir });
   try {
     const built = buildIndex({
-      packs: [{ serviceId: "rev-skills", path: REV_PACK, skillsRel: ".claude/skills", attribution: "rev-skills test index." }],
+      packs: [{ serviceId: "rev-skills", path: REV_PACK, skillsRel: ".claude/skills" }],
       outDir: dir,
-      indexedAt: "2026-01-01T00:00:00.000Z",
     });
-    assert.equal(built.skills, 121, `expected 121 rev-skills, got ${built.skills} skipped=${built.skipped.map((s) => s.dir).join(",")}`);
+    assertOnlyExpectedSkips(built.skipped);
     const search = store.search("ghidra", 5);
     assert.equal(search.status, "ok");
     if (search.status === "ok") {
@@ -144,16 +158,15 @@ test("rev-skills pack: 121 skills, ghidra search, get", { skip: existsSync(REV_S
 
 const HACK_PACK = join(HERE, "..", "..", "..", "..", "external", "hack-skills");
 const HACK_SKILLS = join(HACK_PACK, "skills");
-test("hack-skills pack: 103 skills and direct retrieval", { skip: existsSync(HACK_SKILLS) ? false : "hack-skills submodule not checked out" }, () => {
+test("hack-skills pack: direct retrieval and only expected skips", { skip: existsSync(HACK_SKILLS) ? false : "hack-skills submodule not checked out" }, () => {
   const dir = mkdtempSync(join(tmpdir(), "grimoire-hackskills-"));
   const store = new Store({ dir });
   try {
     const built = buildIndex({
-      packs: [{ serviceId: "hack-skills", path: HACK_PACK, attribution: "hack-skills test index." }],
+      packs: [{ serviceId: "hack-skills", path: HACK_PACK }],
       outDir: dir,
-      indexedAt: "2026-01-01T00:00:00.000Z",
     });
-    assert.equal(built.skills, 103);
+    assertOnlyExpectedSkips(built.skipped);
     const got = store.get("hack-skills:api-auth-and-jwt-abuse");
     assert.equal(got.status, "ok");
     if (got.status === "ok") {
@@ -184,7 +197,8 @@ test("held-out eval: useful skills reach the top 5 across all served packs", { s
   const dir = mkdtempSync(join(tmpdir(), "grimoire-heldout-"));
   const store = new Store({ dir });
   try {
-    buildIndex({ packs: servedPacks.map((p) => ({ serviceId: p.serviceId, path: p.absPath, skillsRel: p.skillsRel, attribution: p.attribution })), outDir: dir, indexedAt: "2026-01-01T00:00:00.000Z" });
+    const built = buildIndex({ packs: servedPacks.map((p) => ({ serviceId: p.serviceId, path: p.absPath, skillsRel: p.skillsRel })), outDir: dir });
+    assertOnlyExpectedSkips(built.skipped);
     let covered = 0, useful5 = 0, direct = 0, direct5 = 0;
     for (const c of cases) {
       if (c.class === "uncovered") continue;
@@ -199,4 +213,23 @@ test("held-out eval: useful skills reach the top 5 across all served packs", { s
     assert.ok(useful5 / covered >= USEFUL5_FLOOR, `useful@5 ${useful5}/${covered} >= ${USEFUL5_FLOOR}`);
     assert.ok(direct5 / direct >= DIRECT5_FLOOR, `direct@5 ${direct5}/${direct} >= ${DIRECT5_FLOOR}`);
   } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+// Proves the skip assertion discriminates: breaking one skill's frontmatter in a temp copy of a
+// pack produces a skip that is not on the expected list, and assertOnlyExpectedSkips rejects it.
+test("the expected-skip assertion rejects a skill that stops parsing", () => {
+  const dir = mkdtempSync(join(tmpdir(), "grimoire-skipcheck-"));
+  const pack = join(dir, "pack");
+  cpSync(FIXTURE_PACK, pack, { recursive: true });
+  writeFileSync(join(pack, "skills", "analyzing-malware-with-ghidra", "SKILL.md"), "Frontmatter removed, so this skill can no longer be indexed.\n");
+  try {
+    const built = buildIndex({ packs: [{ serviceId: "fixture", path: pack }], outDir: join(dir, "out") });
+    assert.ok(
+      built.skipped.some((s) => s.pack === "fixture" && s.dir === "analyzing-malware-with-ghidra" && s.reason === "no frontmatter"),
+      `the broken skill is reported as skipped (got ${JSON.stringify(built.skipped)})`,
+    );
+    // Only the broken skill: the fixture's own malformed skill would otherwise decide which skip throws first.
+    const broken = built.skipped.filter((s) => s.dir === "analyzing-malware-with-ghidra");
+    assert.throws(() => assertOnlyExpectedSkips(broken), /unexpected skip fixture\/analyzing-malware-with-ghidra: no frontmatter/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

@@ -15,7 +15,7 @@ export const decId = (id: number): { store: Store | "cross-project"; rowid: numb
   return id >= GLOBAL_BASE ? { store: "global", rowid: id - GLOBAL_BASE } : { store: "project", rowid: id };
 };
 
-// Inlined so the compiled sidecar needs no file lookup. Keep in sync with schema.sql.
+// Inlined so the compiled server needs no file lookup. Keep in sync with schema.sql.
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS memory (
@@ -38,12 +38,13 @@ CREATE TABLE IF NOT EXISTS locks (
   expires_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_locks_expiry ON locks(expires_at);
-CREATE TABLE IF NOT EXISTS operations (
-  id TEXT PRIMARY KEY,
-  result TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+CREATE TABLE IF NOT EXISTS hook_cursors (
+  receiver TEXT PRIMARY KEY,
+  project_after INTEGER NOT NULL,
+  global_after INTEGER NOT NULL,
+  own_ids TEXT NOT NULL DEFAULT '[]',
+  updated_at INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_operations_created ON operations(created_at);
 `;
 
 export interface MemoryRow {

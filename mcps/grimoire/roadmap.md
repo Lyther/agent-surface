@@ -1,53 +1,58 @@
 # Roadmap — grimoire
 
-Status: SHIPPED (v0.1 - PR #14 merged to `main`) · Source: mcps/grimoire/architecture.md · Last updated: 2026-08-31
+Status: G1 IMPLEMENTED · Source: [architecture.md](architecture.md) · Last updated: 2026-11-05
 
-Small build. Phases are checkpoints, not ceremony; each box names its acceptance proof. P0–P4 are done and proven by the test suites (`mcps/grimoire` package tests incl. a spawned-process stdio test + the real-pack eval gate, plus repo `check`/`test`). Two items stay open by nature: `P4.2` per-host in-app smoke (operator-recorded continuously during use — `[~]`) and the `P4.6` git tag (maintainer go). Everything under **Later** is deferred-by-design.
+v0.1 shipped as `grimoire-v0.1.0`; its history is in git. G1 removes the machinery by which the index checked itself and keeps the search-quality gates. It lands in the same PR as [Synapse's plan](../synapse/roadmap.md), in the order set in [docs/roadmap.md](../../docs/roadmap.md#phase-mcp-s-synapse-and-grimoire-simplification).
 
-## P0 — eval baseline (do first)
+## G1: Single-Artifact Index Without Provenance
 
-- [x] Committed `test/fixtures/queries/real-pack.json` (30 reviewed model-phrased queries with expected skill ids) + a fixture set with negatives.
-- [x] BM25 index over the real pack; baseline recorded and thresholds derived into `architecture.md`; hybrid trigger noted (not built). The conjunctive query scored hit@1 0.60 / hit@5 0.80 / MRR 0.686; matching any word and ranking by BM25 now scores hit@1 0.767 / hit@5 0.967 / MRR 0.836.
+Exit gate: `npm test` in `mcps/grimoire` passes, including the real-pack and held-out evals, and a real-pack build in a temp `GRIMOIRE_DIR` serves search → get → file_get over stdio.
 
-## P1 — build the server (fixture-backed)
+- [x] `G1.1` Indexer
+  - Files: `src/indexer.ts`, `src/model.ts`, `schema.sql`, `src/namespace.ts`, `test/indexer.test.ts`.
+  - Scope:
+    - remove `manifest.json`, git HEAD/pin/dirty logic, source snapshots and hashes, attribution, `notice` and license-file collection;
+    - skip a symbolic `SKILL.md` with the reason `symbolic SKILL.md`;
+    - schema v4 drops the provenance columns;
+    - publish with one rename.
+  - Acceptance evidence: indexer tests show that:
+    - a build leaves only `index.sqlite`;
+    - a failed build leaves the previous index byte-identical;
+    - a symbolic `SKILL.md` appears in `skipped` while the rest of its pack is indexed;
+    - a modified checkout is indexed with its working-tree content.
+- [x] `G1.2` Runtime
+  - Files: `src/store.ts`, `src/model.ts`, `src/contract.ts`, `src/tools.ts` and their tests.
+  - Scope:
+    - `indexStatus` reports only a missing index, an unreadable index or a schema mismatch;
+    - responses carry no provenance or attribution;
+    - remove `isUnsafePath`.
+  - Acceptance evidence: store, contract and server tests pass. `file_get` with `../x` or an absolute path returns `NOT_FOUND`, and a v3 index returns `INDEX_STALE`.
+- [x] `G1.3` Registry and repo tooling
+  - Files:
+    - `src/served-packs.ts`;
+    - `registry/optional-services.json`: the `attribution` fields and the notes that refer to them;
+    - `schemas/optional-services.schema.json`;
+    - `scripts/agent-surface/doctor.mjs`: report only whether the index exists;
+    - `tests/suites/check.test.mjs`: drop the whitespace-attribution case;
+    - `tests/suites/runtime.test.mjs`: drop the attribution-drift case.
+  - Acceptance evidence: root `npm test` and `npm run check` pass, and `rg -n "attribution" mcps/grimoire/src registry schemas scripts/agent-surface/doctor.mjs` finds nothing.
+- [x] `G1.4` Eval gates
+  - Files: `test/eval.test.ts`.
+  - Scope: replace `built.skills === 121` and `=== 103` with an assertion that `skipped` holds only expected entries. A fresh build of the real packs sets that list; record each expected skip with its reason.
+  - Acceptance evidence: the eval tests pass on the checked-out packs. Making one skill's frontmatter invalid in a temp copy of a pack fails the new assertion.
+- [x] `G1.5` Automated acceptance
+  - Scope: build the real packs into a temp `GRIMOIRE_DIR` with `grimoire-index`. Then start `grimoire-server` with that `GRIMOIRE_DIR` and call search → get → file_get over stdio.
+  - Acceptance evidence:
+    - a known query returns its expected skill first;
+    - `get` returns that skill's body;
+    - `file_get` returns a listed file;
+    - `~/.grimoire` is untouched.
+- [x] `G1.6` Docs
+  - Scope: `README.md`, `api-contract.md`, `data-model.md`, `diagrams.md`, the status in architecture.md, and a CHANGELOG entry.
 
-- [x] `package.json` (bin `grimoire-server`/`grimoire-index`, sdk `>=1.24.0 <2`, zod, node>=22.17 gate) + `tsconfig.json` → `tsc` clean.
-- [x] `contract.ts` + `model.ts` + `schema.sql` (+ tests): tools/DTOs/errors; `SCHEMA_SQL` loads; id round-trips across packs.
-- [x] `indexer.ts` (+ fixture pack incl. 1 malformed): validate metadata, store body/files **raw**, write `index_meta` + manifest; 0 crashes.
-- [x] `store.ts` (+ test): `search`/`list`/`get`/`fileGet`/`indexStatus` over the fixture index; `INDEX_MISSING`/`INDEX_STALE`.
-- [x] `tools.ts` + `server.ts` (+ in-process test in `server.test.ts` and a spawned-process stdio test in `packaging.test.ts`): `tools/list` shows 4; `search→get→file_get` round-trip; labeled-text rendering.
+## Later (open only if a trigger fires)
 
-## P2 — real pack + install
-
-- [x] `install.mjs` + `install:grimoire`: link bins (derived from `package.json#bin`, no path drift) then build index + `~/.grimoire/manifest.json`; a required pack absent → **install exits 1** (never a silent success); temp artifacts protect the pre-publication path, and an interrupted two-file publish fails closed as `INDEX_STALE`; a **clean machine reports `INDEX_MISSING`**; `indexStatus` reads the installed manifest, not the repo.
-- [x] `eval.test.ts`: `hit@5`/`MRR` meet the P0 thresholds, gated on the pinned pack (CI-gated; skips on a submodule-less checkout).
-
-## P3 — distribution (reach every generated MCP host modeled by agent-surface)
-
-MCP-host coverage is **honest, not blanket**. Three groups (see `registry/target-capabilities.json` `surfaces.mcp`):
-
-- **Generated (23)** — auto-rendered + non-destructively merged across JSON/TOML/YAML config families; the authoritative host list is `registry/target-capabilities.json` and `docs/reference/targets.md`.
-- **No modeled MCP surface** — Antigravity desktop (use Antigravity CLI) and DSH (developer-preview skills only).
-
-- [x] Registry: `grimoire` `first_party kind:"mcp"` + `served_by:["grimoire"]` on the `anthropic-cybersecurity-skills` source-pack (+ schema allows `served_by`) → `npm run check` green.
-- [x] `scripts/agent-surface.mjs`: grimoire in the first-party MCP set → renders/merges across **all 23 generated MCP hosts**; repo tests cover each active config family.
-- [x] `check` rule (`checkServedBy`): `served_by`-grimoire ⇒ `source-pack`, no `skill_roots`, not present in any native catalog; proven by negative tests.
-- [x] Smoke: real-stdio `search→get→file_get` against the server binary; grimoire confirmed in every config family (Claude/Droid/Deepagents/Cursor JSON, Codex TOML, Kilo/OpenCode local-map, VS Code servers, Zed context_servers).
-
-## P4 — production-readiness (remaining)
-
-The honest blockers before an unqualified "production-ready" claim. Items marked **(shared)** are tracked in `mcps/synapse/roadmap.md` too — they cover the agent-surface MCP plumbing both services ride.
-
-- [x] `P4.1` **(shared)** Ship the distribution work — the original PR #14 wiring and later runtime refresh maintain one authoritative capability matrix plus per-format merge tests.
-- [~] `P4.2` Per-host live launch smoke — run native headless probes where a host exposes one and record GUI-only evidence separately. Spawned-process stdio (`test/packaging.test.ts`) and config-merge presence are automated; host execution remains a distinct proof boundary.
-- [x] `P4.3` **(shared)** CI gate — `.github/workflows/ci.yml` `mcp` job (Node 22) runs the grimoire suite incl. the real-pack eval gate + `npm audit` on every PR.
-- [x] `P4.4` **(shared)** Goose + Poolside MCP — **done**: a safe non-destructive YAML block-merge (`mergeYamlMcpConfig`) was added. Merge preserves keys/comments/sibling servers, is idempotent, and refuses unsupported structures rather than corrupting them; the current matrix has 23 generated hosts.
-- [x] `P4.5` `agent-surface doctor` index-freshness — `doctor` compares the installed `~/.grimoire/manifest.json` pin against the repo registry pin and reports linked/wired state (`grimoire-index: ok (<commit>)`).
-- [x] `P4.6` **(shared)** Release — `CHANGELOG.md` landed and the `grimoire-v0.1.0` tag is cut.
-
-## Later (deferred-by-design — open only if a trigger fires)
-
-- **Hybrid / embedding retrieval** — only if the eval gate floor proves insufficient or higher recall is required (current any-word BM25 baseline: hit@5 0.967 / MRR 0.836).
-- **More packs** — add `--pack` + `served_by` as other large packs are de-scoped to grimoire (now: `anthropic-cybersecurity-skills`, `rev-skills`, and `hack-skills`; further packs still require the same native Agent-Skill contract).
-- **`resource_link`** — expose skills/files as MCP resources once client support is even (`grimoire_file_get` covers it today).
-- **Binary supporting files** — not supported by the text tool contract; indexing fails clearly on non-UTF-8 bytes instead of corrupting them.
+- **Hybrid or embedding retrieval:** only if an eval floor fails or higher recall is required.
+- **More packs:** add them through `served_by`, with the same native Agent-Skill contract.
+- **`resource_link`:** once client support is consistent.
+- **Binary supporting files:** unsupported; indexing fails clearly on non-UTF-8 bytes.

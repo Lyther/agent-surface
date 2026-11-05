@@ -14,22 +14,15 @@ test("servedPacksFromRegistry reads the real optional-services registry", () => 
   assert.equal(byId.get("anthropic-cybersecurity-skills")?.skillsRel, "skills");
   assert.equal(byId.get("hack-skills")?.skillsRel, "skills");
   assert.equal(byId.get("hack-skills")?.required, true);
-  assert.match(byId.get("hack-skills")?.commit ?? "", /^[0-9a-f]{40}$/);
-  assert.match(byId.get("hack-skills")?.attribution ?? "", /Yaklang.*MIT/);
   assert.equal(byId.get("rev-skills")?.skillsRel, ".claude/skills");
   assert.equal(byId.get("rev-skills")?.required, true);
-  assert.match(byId.get("rev-skills")?.commit ?? "", /^[0-9a-f]{40}$/);
-  assert.match(
-    byId.get("rev-skills")?.attribution ?? "",
-    /DslsDZC.*CC BY 4\.0/,
-  );
 });
 
 test("indexerArgv fail-closes a required pack whose skills dir is absent", () => {
   // SUBSTITUTE_JUSTIFICATION
   // - substitute: temp repo root with a copied registry path and no checkout
   // - replaces: a real required submodule that is missing from disk
-  // - necessity: cannot delete external/rev-skills from this checkout without breaking the real 121-skill eval
+  // - necessity: cannot delete external/rev-skills from this checkout without breaking the real-pack eval
   // - real-option: a disposable clone without the submodule still needs a registry; this isolates the missing-dir branch
   // - proof-limit: proves argv omission + missingRequired, not install.mjs or a live index rebuild
   // - real-proof: npm run install:grimoire on a machine with both submodules present

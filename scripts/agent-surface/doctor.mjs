@@ -1,7 +1,7 @@
 // The `doctor` command: environment + host-integration health report (node, git,
-// per-agent CLIs, first-party MCP binaries/index freshness, and stored target notices).
+// per-agent CLIs, first-party MCP launchers, Grimoire index presence, Synapse hook registration, and
+// stored target notices).
 // Read-only probes.
-import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -10,13 +10,10 @@ import { files } from "./fs-tree.mjs";
 import { readJsonIfExists, readJsoncIfExists } from "./io.mjs";
 import { allStoredNotices, localDate, noticeHeading } from "./notices.mjs";
 import { commandVersion } from "./proc.mjs";
-import { readOptionalServices, root } from "./registry.mjs";
+import { root } from "./registry.mjs";
+import { SYNAPSE_HOOK_TARGETS, synapseHookStatus } from "./synapse-hook.mjs";
 import { kiloRuleInstructionRoot } from "./targets.mjs";
 import { exists } from "./util.mjs";
-
-// Mirrors SCHEMA_VERSION in mcps/grimoire/src/model.ts (doctor runs without a Grimoire build);
-// tests/suites/runtime.test.mjs asserts the two match.
-export const GRIMOIRE_SCHEMA_VERSION = 3;
 
 export async function doctor() {
   const checks = [];
@@ -38,12 +35,13 @@ export async function doctor() {
   checks.push(["opencode", commandVersion("opencode", ["--version"])]);
   checks.push(["gh", commandVersion("gh", ["--version"])]);
 
-  // First-party MCP health (binaries linked, index/sidecar present, grimoire index fresh vs pin).
+  // First-party MCP health: launchers linked, the Grimoire index present, the Synapse hook registered per host.
   const bin = path.join(os.homedir(), ".local", "bin");
   checks.push(["grimoire-server", (await exists(path.join(bin, "grimoire-server"))) ? "linked" : "missing (npm run install:grimoire)"]);
   checks.push(["grimoire-index", await grimoireIndexStatus()]);
   checks.push(["synapse-bridge", (await exists(path.join(bin, "synapse-bridge"))) ? "linked" : "missing (npm run install:synapse)"]);
-  checks.push(["synapse-sidecar", (await exists(path.join(os.homedir(), ".synapse", "sidecar.json"))) ? "present" : "missing (autostarts on first use)"]);
+  checks.push(["synapse-hook", (await exists(path.join(bin, "synapse-hook"))) ? "linked" : "missing (npm run install:synapse)"]);
+  for (const target of SYNAPSE_HOOK_TARGETS) checks.push([`synapse-hook ${target}`, await synapseHookStatus(target)]);
 
   const today = localDate();
   for (const { target, notice } of await allStoredNotices()) {
@@ -55,68 +53,9 @@ export async function doctor() {
   }
 }
 
-// grimoire index freshness: the runtime compares against the installed manifest (it can't see
-// the repo), so doctor closes the loop by comparing the installed manifest's pinned commit
-// against the repo registry pin and flagging drift before runtime use.
 async function grimoireIndexStatus() {
-  const dir = path.join(os.homedir(), ".grimoire");
-  if (!(await exists(path.join(dir, "index.sqlite"))) || !(await exists(path.join(dir, "manifest.json")))) {
-    return "missing (npm run install:grimoire)";
-  }
-  let manifest;
-  try { manifest = JSON.parse(await readFile(path.join(dir, "manifest.json"), "utf8")); }
-  catch { return "stale: unreadable manifest (npm run install:grimoire)"; }
-  if (!Array.isArray(manifest?.packs)
-    || manifest.packs.some((pack) => !pack || typeof pack !== "object" || typeof pack.serviceId !== "string")) {
-    return "stale: malformed manifest (npm run install:grimoire)";
-  }
-  const packs = manifest.packs;
-  if (!packs.length) return "stale: empty manifest (npm run install:grimoire)";
-  const registry = await readOptionalServices();
-  const installedIds = new Set(packs.map((pack) => pack.serviceId));
-  const servedServices = Object.entries(registry.services ?? {})
-    .filter(([, service]) => Array.isArray(service.served_by) && service.served_by.includes("grimoire"));
-  const allServedIds = new Set(servedServices.map(([id]) => id));
-  // A served pack belongs in the manifest when the indexer would include it: a required pack always,
-  // an optional pack only when its source tree is present on disk. So an optional pack whose submodule
-  // is absent may be missing from the manifest, but one that is checked out yet unindexed is stale.
-  const missing = [];
-  for (const [id, service] of servedServices) {
-    const required = service.optional === false || service.status === "required";
-    const skillsDir = service.path ? path.join(root, service.path, service.index_root ?? "skills") : null;
-    const present = required || (skillsDir ? await exists(skillsDir) : false);
-    if (present && !installedIds.has(id)) missing.push(id);
-  }
-  const strayInstalled = [...installedIds].filter((id) => !allServedIds.has(id));
-  if (missing.length || strayInstalled.length) {
-    return "stale: manifest pack set differs from registry (npm run install:grimoire)";
-  }
-  for (const pack of packs) {
-    const service = registry.services?.[pack.serviceId];
-    const pin = service?.commit;
-    const attribution = service?.attribution;
-    // The submodule directory is not always the serviceId (e.g. trailofbits-static-analysis lives in
-    // external/trailofbits-skills), so name the registered source path, not a reconstructed one.
-    const sourcePath = service?.path ?? `external/${pack.serviceId}`;
-    const installed = String(pack.commit ?? "");
-    if (pin && installed.endsWith("-dirty")) {
-      const builtFrom = installed.slice(0, -"-dirty".length);
-      const revision = builtFrom === pin
-        ? `pinned ${String(pin).slice(0, 8)}`
-        : `${builtFrom.slice(0, 8)} while repo pins ${String(pin).slice(0, 8)}`;
-      return `stale: ${pack.serviceId} built from a dirty worktree of ${revision}; clean or commit ${sourcePath}, then run npm run install:grimoire`;
-    }
-    if (pin && pack.commit !== pin) {
-      return `stale: ${pack.serviceId} installed ${installed.slice(0, 8)} but repo pins ${String(pin).slice(0, 8)} (npm run install:grimoire)`;
-    }
-    if (attribution && pack.attribution !== attribution) {
-      return `stale: ${pack.serviceId} attribution differs from registry (npm run install:grimoire)`;
-    }
-  }
-  if (manifest.schemaVersion !== GRIMOIRE_SCHEMA_VERSION) {
-    return `stale: manifest schema ${String(manifest.schemaVersion)} != ${GRIMOIRE_SCHEMA_VERSION} (npm run install:grimoire)`;
-  }
-  return `ok (${packs.map((pack) => `${pack.serviceId}@${String(pack.commit ?? "").slice(0, 8)}`).join(", ")})`;
+  const indexPath = path.join(os.homedir(), ".grimoire", "index.sqlite");
+  return (await exists(indexPath)) ? "present" : "missing (npm run install:grimoire)";
 }
 
 async function kiloConfigStatus() {

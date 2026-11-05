@@ -8,8 +8,8 @@ import {
 } from "../src/contract.js";
 import { decId, extId } from "../src/model.js";
 
-test("public contract version reflects required attribution fields", () => {
-  assert.equal(CONTRACT_VERSION, "1.0.0");
+test("public contract version is pinned", () => {
+  assert.equal(CONTRACT_VERSION, "2.0.0");
 });
 
 test("id codec round-trips across packs and splits on the first colon", () => {

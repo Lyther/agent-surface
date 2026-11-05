@@ -2,7 +2,7 @@
 // - substitute: FIXTURE_PACK and makeStore's disposable index
 // - replaces: third-party source packs only in parser/store unit tests that need controlled records and malformed states
 // - necessity: real pinned packs cannot safely and deterministically supply each required tiny or malformed input
-// - real-option: eval.test.ts runs both checked-out pinned packs when present
+// - real-option: eval.test.ts and acceptance.test.ts run the checked-out pinned packs when present
 // - proof-limit: fixture-backed tests prove local indexing/query behavior, not real-pack content or installation
 // - real-proof: npm run install:grimoire, then spawned stdio search/get against the resulting multi-pack index
 // grimoire test helpers — build a fixture-backed index into a temp dir and hand back a Store.
@@ -17,18 +17,12 @@ const here = dirname(fileURLToPath(import.meta.url)); // dist/test
 // Fixtures are SOURCE files (not compiled): dist/test -> dist -> grimoire -> test/fixtures.
 export const FIXTURE_PACK = join(here, "..", "..", "test", "fixtures", "pack");
 export const FIXTURE_QUERIES = join(here, "..", "..", "test", "fixtures", "queries", "queries.json");
-export const FIXTURE_COMMIT = "fixturecommit000000000000000000000000aaaa";
-export const FIXTURE_ATTRIBUTION = "Fixture skill pack for Grimoire tests.";
 
 export interface Setup { dir: string; res: BuildResult; store: Store; cleanup: () => void }
 
-export function setupIndex(opts?: { commit?: string; indexedAt?: string }): Setup {
+export function setupIndex(): Setup {
   const dir = mkdtempSync(join(tmpdir(), "grimoire-"));
-  const res = buildIndex({
-    packs: [{ serviceId: "fixture", path: FIXTURE_PACK, commit: opts?.commit ?? FIXTURE_COMMIT, attribution: FIXTURE_ATTRIBUTION }],
-    outDir: dir,
-    indexedAt: opts?.indexedAt ?? "2026-01-01T00:00:00.000Z",
-  });
+  const res = buildIndex({ packs: [{ serviceId: "fixture", path: FIXTURE_PACK }], outDir: dir });
   const store = new Store({ dir });
   const cleanup = (): void => { store.close(); rmSync(dir, { recursive: true, force: true }); };
   return { dir, res, store, cleanup };

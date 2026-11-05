@@ -10,8 +10,8 @@ import path from "node:path";
 import { launchSpec } from "../../scripts/agent-surface/mcp-env-launch.mjs";
 import { pinnedNodePath, shimContent, shimFileName, writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
 
-const spec = { name: "synapse-bridge", nodeBin: "/opt/node/bin/node", entry: "/repo/mcps/synapse/dist/src/bridge.js", override: "SYNAPSE_NODE" };
-const windowsSpec = { ...spec, nodeBin: "C:\\Program Files\\nodejs\\node.exe", entry: "C:\\repo\\mcps\\synapse\\dist\\src\\bridge.js" };
+const spec = { name: "synapse-bridge", nodeBin: "/opt/node/bin/node", entry: "/repo/mcps/synapse/dist/src/server.js", override: "SYNAPSE_NODE" };
+const windowsSpec = { ...spec, nodeBin: "C:\\Program Files\\nodejs\\node.exe", entry: "C:\\repo\\mcps\\synapse\\dist\\src\\server.js" };
 
 // ---- the invariant that keeps ONE floor check valid in two quoting regimes ----------------
 // The same source string is embedded in a single-quoted `sh` argument and a double-quoted cmd.exe
@@ -27,7 +27,7 @@ assert.match(floorCheck, /process\.versions\.node/, "the floor check reads the r
 // ---- POSIX shape ----------------------------------------------------------------
 assert.match(posix, /^#!\/bin\/sh\n/, "POSIX shims are shell scripts");
 assert.match(posix, /NODE="\$\{SYNAPSE_NODE:-\/opt\/node\/bin\/node\}"/, "the pinned Node is baked in, overridable by the declared variable");
-assert.match(posix, /exec "\$NODE" "\/repo\/mcps\/synapse\/dist\/src\/bridge\.js" "\$@"/, "arguments are forwarded to the entry");
+assert.match(posix, /exec "\$NODE" "\/repo\/mcps\/synapse\/dist\/src\/server\.js" "\$@"/, "arguments are forwarded to the entry");
 assert.equal(shimFileName("synapse-bridge", "linux"), "synapse-bridge");
 
 // ---- Windows shape --------------------------------------------------------------
@@ -37,7 +37,7 @@ assert.equal(windows.includes("\n") && !/[^\r]\n/.test(windows), true, "batch fi
 // assigned unconditionally — otherwise NODE becomes the text "%SYNAPSE_NODE%".
 assert.match(windows, /set "NODE=C:\\Program Files\\nodejs\\node\.exe"/, "the pinned Node is baked in");
 assert.match(windows, /if defined SYNAPSE_NODE set "NODE=%SYNAPSE_NODE%"/, "the override is guarded by `if defined`");
-assert.match(windows, /"%NODE%" "C:\\repo\\mcps\\synapse\\dist\\src\\bridge\.js" %\*/, "every token that can contain a space is quoted, and arguments are forwarded");
+assert.match(windows, /"%NODE%" "C:\\repo\\mcps\\synapse\\dist\\src\\server\.js" %\*/, "every token that can contain a space is quoted, and arguments are forwarded");
 assert.match(windows, /exit \/b %ERRORLEVEL%/, "the server's exit status is propagated");
 assert.doesNotMatch(windows, /needs .*>=/, "the message avoids characters cmd would treat as redirection");
 // cmd parses a parenthesised block IN FULL when it reaches the `if`, so one unescaped parenthesis
@@ -97,8 +97,8 @@ assert.equal(pinnedNodePath(windowsSpec.nodeBin), windowsSpec.nodeBin, "a Window
 // - proof-limit: proves pinnedNodePath's substitution rules and that a shim naming an opt link
 //   outlives the keg it resolved to; not Homebrew's own link handling, launchd's environment, a real
 //   upgrade, or a real server starting
-// - real-proof: BLOCKED for the upgrade: after the next `brew upgrade node` and `brew cleanup`, restart
-//   the synapse sidecar and launch agent-surface-mcp-env and grimoire-server with an empty PATH. A server
+// - real-proof: BLOCKED for the upgrade: after the next `brew upgrade node` and `brew cleanup`, launch
+//   synapse-bridge, agent-surface-mcp-env and grimoire-server with an empty PATH. A server
 //   starting through an installed shim is covered by live-first-party.test.mjs
 if (process.platform === "win32") {
   console.log("mcp-shims: the Homebrew pin case runs on POSIX — Homebrew does not install Node on Windows");

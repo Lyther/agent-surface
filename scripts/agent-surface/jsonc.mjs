@@ -54,13 +54,13 @@ export function setJsoncRootProperty(text, key, value) {
   }));
 }
 
-// Sets one value at one path, creating its parents, or deletes it when `value` is undefined. Unlike a
-// root property set, everything beside that path, comments included, keeps its bytes.
-// Deletes one property and its own separating comma. jsonc-parser's removal edit also swallows comments
-// between the neighbouring properties, which belong to the user's entries, not to the removed one.
-export function removeJsoncProperty(text, path) {
-  const property = findNodeAtLocation(parseTree(text, [], parseOptions), path)?.parent;
-  if (property?.type !== "property") return text;
+// Deletes the property or array item at `path` and its own separating comma; everything else, comments
+// included, keeps its bytes. jsonc-parser's removal edit swallows comments between the neighbouring
+// entries, which belong to the user, and reformats an array on one line into invalid JSON.
+export function removeJsoncValue(text, path) {
+  const node = findNodeAtLocation(parseTree(text, [], parseOptions), path);
+  const property = node?.parent?.type === "property" ? node.parent : node;
+  if (property?.parent?.type !== "object" && property?.parent?.type !== "array") return text;
   const siblings = property.parent.children;
   const index = siblings.indexOf(property);
   const separators = [];
@@ -93,9 +93,12 @@ export function removeJsoncProperty(text, path) {
   return out.slice(0, start) + out.slice(end);
 }
 
-export function setJsoncPath(text, path, value) {
+// Sets one value at one path, creating its parents; with `insert`, adds it as a new array item at that
+// index. Unlike a root property set, everything beside that path, comments included, keeps its bytes.
+export function setJsoncPath(text, path, value, { insert = false } = {}) {
   return applyEdits(text, modify(text, path, value, {
     formattingOptions: formattingOptions(text),
+    isArrayInsertion: insert,
   }));
 }
 

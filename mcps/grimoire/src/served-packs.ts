@@ -8,12 +8,10 @@ import { DEFAULT_SKILLS_REL, resolveSkillsRel } from "./indexer.js";
 export interface RegistryService {
   kind?: string;
   path?: string;
-  commit?: string;
   optional?: boolean;
   status?: string;
   served_by?: string[];
   index_root?: string;
-  attribution?: string;
 }
 
 export interface RegistryFile {
@@ -26,8 +24,6 @@ export interface ServedPack {
   absPath: string;
   skillsRel: string;
   required: boolean;
-  commit?: string;
-  attribution: string;
 }
 
 export function loadRegistry(repoRoot: string): RegistryFile {
@@ -41,17 +37,12 @@ export function servedPacksFromRegistry(repoRoot: string, registry?: RegistryFil
   for (const [serviceId, service] of Object.entries(services)) {
     if (!Array.isArray(service.served_by) || !service.served_by.includes("grimoire")) continue;
     if (typeof service.path !== "string") throw new Error(`served pack ${serviceId} has no path`);
-    if (typeof service.attribution !== "string" || !service.attribution.trim()) {
-      throw new Error(`served pack ${serviceId} has no attribution`);
-    }
     packs.push({
       serviceId,
       path: service.path,
       absPath: join(repoRoot, service.path),
       skillsRel: resolveSkillsRel(service.index_root ?? DEFAULT_SKILLS_REL),
       required: service.optional === false || service.status === "required",
-      commit: service.commit,
-      attribution: service.attribution,
     });
   }
   return packs;
@@ -67,8 +58,6 @@ export function indexerArgv(packs: ServedPack[]): { args: string[]; missingRequi
       continue;
     }
     args.push("--pack", `${pack.serviceId}:${pack.absPath}`);
-    if (pack.commit) args.push("--commit", pack.commit);
-    args.push("--attribution", pack.attribution);
     if (pack.skillsRel !== DEFAULT_SKILLS_REL) args.push("--skills-rel", pack.skillsRel);
   }
   return { args, missingRequired };

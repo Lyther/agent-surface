@@ -1,16 +1,13 @@
 // grimoire — the only runtime seam. Read-only reader over the self-contained index.
 // Never writes (all writes live in indexer, build-time). Every public method first
 // checks index health and returns INDEX_MISSING/INDEX_STALE instead of throwing.
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import {
   LIMITS, type FileGetResult, type GetResult, type ListResult, type SearchResult, type StatusError,
 } from "./contract.js";
-import { CATEGORY_ALIASES, SCHEMA_VERSION, decId, rowToFull, rowToHit, rowToRef, servedAttribution, type SkillRow } from "./model.js";
+import { CATEGORY_ALIASES, SCHEMA_VERSION, decId, rowToFull, rowToHit, rowToRef, type SkillRow } from "./model.js";
 import { resolvePaths, type GrimoirePaths } from "./namespace.js";
-
-interface ManifestPack { serviceId: string; commit: string; sourceHash: string; attribution: string }
-interface Manifest { schemaVersion: number; packs: ManifestPack[] }
 
 const REBUILD = "run: npm run install:grimoire";
 
@@ -48,12 +45,6 @@ export const ftsQuery = (q: string): string => {
   return (kept.length ? kept : all).map((t) => `"${t}"`).join(" OR ") || '""';
 };
 
-function isUnsafePath(p: string): boolean {
-  if (p.includes("\0")) return true;
-  if (p.startsWith("/") || /^[A-Za-z]:[\\/]/.test(p)) return true;
-  return p.split(/[\\/]/).some((s) => s === "..");
-}
-
 const encodeCursor = (id: string): string => Buffer.from(id, "utf8").toString("base64url");
 function decodeCursor(c: string): string | null {
   try {
@@ -90,45 +81,16 @@ export class Store {
     return row?.value;
   }
 
-  /** Compares the index against the INSTALLED manifest (never the repo registry). */
+  /** INDEX_MISSING without the file; INDEX_STALE when it cannot be opened or its schema is not this build's. */
   indexStatus(): StatusError | { status: "ok" } {
-    if (!existsSync(this.paths.indexPath) || !existsSync(this.paths.manifestPath)) {
+    if (!existsSync(this.paths.indexPath)) {
       return { status: "INDEX_MISSING", hint: `index not built; ${REBUILD}` };
     }
-    let manifest: Manifest;
-    try {
-      const parsed = JSON.parse(readFileSync(this.paths.manifestPath, "utf8")) as unknown;
-      if (!parsed || typeof parsed !== "object") throw new Error("invalid manifest");
-      manifest = parsed as Manifest;
-    }
-    catch { return { status: "INDEX_STALE", hint: `manifest unreadable; ${REBUILD}` }; }
-    let db: DatabaseSync;
-    try { db = this.db(); this.metaGet(db, "schema_version"); }
+    let schemaVersion: number;
+    try { schemaVersion = Number(this.metaGet(this.db(), "schema_version")); }
     catch { this.close(); return { status: "INDEX_STALE", hint: `index unreadable; ${REBUILD}` }; }
-
-    const schemaVersion = Number(this.metaGet(db, "schema_version"));
-    if (schemaVersion !== manifest.schemaVersion || schemaVersion !== SCHEMA_VERSION) {
+    if (schemaVersion !== SCHEMA_VERSION) {
       return { status: "INDEX_STALE", hint: `schema changed; ${REBUILD}` };
-    }
-    if (!Array.isArray(manifest.packs) || manifest.packs.length === 0
-      || manifest.packs.some((p) => !p || typeof p.serviceId !== "string" || typeof p.commit !== "string"
-        || typeof p.sourceHash !== "string" || typeof p.attribution !== "string")) {
-      return { status: "INDEX_STALE", hint: `empty manifest; ${REBUILD}` };
-    }
-    let indexedIds: unknown;
-    try { indexedIds = JSON.parse(this.metaGet(db, "pack_ids") ?? ""); }
-    catch { indexedIds = null; }
-    const manifestIds = manifest.packs.map((p) => p.serviceId).sort();
-    if (!Array.isArray(indexedIds)
-      || JSON.stringify(indexedIds) !== JSON.stringify(manifestIds)) {
-      return { status: "INDEX_STALE", hint: `pack set changed since build; ${REBUILD}` };
-    }
-    for (const p of manifest.packs) {
-      if (this.metaGet(db, `pack:${p.serviceId}:source_commit`) !== p.commit
-        || this.metaGet(db, `pack:${p.serviceId}:source_hash`) !== p.sourceHash
-        || this.metaGet(db, `pack:${p.serviceId}:attribution`) !== p.attribution) {
-        return { status: "INDEX_STALE", hint: `source changed since build; ${REBUILD}` };
-      }
     }
     return { status: "ok" };
   }
@@ -159,7 +121,7 @@ export class Store {
       if (d === null) return { status: "INVALID_INPUT", hint: "cursor is not a valid grimoire_list cursor" };
       after = d;
     }
-    const mappedCategory = category === undefined ? undefined : (CATEGORY_ALIASES[category] ?? category);
+    const mappedCategory = category === undefined ? undefined : (CATEGORY_ALIASES.get(category) ?? category);
     const rows = (mappedCategory
       ? db.prepare("SELECT id,pack,name,description FROM skills WHERE category=? AND id>? ORDER BY id LIMIT ?").all(mappedCategory, after, LIMITS.PAGE + 1)
       : db.prepare("SELECT id,pack,name,description FROM skills WHERE id>? ORDER BY id LIMIT ?").all(after, LIMITS.PAGE + 1)
@@ -180,21 +142,18 @@ export class Store {
     if (!row) return { status: "NOT_FOUND", hint: "unknown skill id" };
     const files = db.prepare("SELECT rel_path,size FROM skill_files WHERE skill_id=? ORDER BY rel_path")
       .all(id) as unknown as { rel_path: string; size: number }[];
-    const attribution = servedAttribution(this.metaGet(db, `pack:${row.pack}:attribution`) ?? row.pack, row.notice);
-    return { status: "ok", skill: rowToFull(row, files.map((f) => ({ path: f.rel_path, size: f.size })), attribution) };
+    return { status: "ok", skill: rowToFull(row, files.map((f) => ({ path: f.rel_path, size: f.size }))) };
   }
 
   fileGet(id: string, path: string): FileGetResult {
     const db = this.readyDb();
     if ("status" in db) return db;
     if (!decId(id)) return { status: "INVALID_INPUT", hint: 'id must be "<pack>:<skillName>"' };
-    if (isUnsafePath(path)) return { status: "INVALID_INPUT", hint: "path must be a relative entry from the skill manifest (no absolute or .. paths)" };
-    const skill = db.prepare("SELECT pack,notice FROM skills WHERE id=?").get(id) as { pack: string; notice: string } | undefined;
+    const skill = db.prepare("SELECT id FROM skills WHERE id=?").get(id) as { id: string } | undefined;
     if (!skill) return { status: "NOT_FOUND", hint: "unknown skill id" };
     const row = db.prepare("SELECT content,size FROM skill_files WHERE skill_id=? AND rel_path=?")
       .get(id, path) as unknown as { content: string; size: number } | undefined;
     if (!row) return { status: "NOT_FOUND", hint: "path not in skill manifest; call grimoire_get first" };
-    const attribution = servedAttribution(this.metaGet(db, `pack:${skill.pack}:attribution`) ?? skill.pack, skill.notice);
-    return { status: "ok", file: { path, content: row.content, size: row.size, attribution } };
+    return { status: "ok", file: { path, content: row.content, size: row.size } };
   }
 }

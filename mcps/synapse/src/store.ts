@@ -1,12 +1,12 @@
-// synapse — the only SQLite seam. ONE machine-wide store: owns the global DB and
-// lazily opens each project's DB (routed by projectDbPath), plus read-only opens of
-// other projects for explicit cross-read. Sole writer ⇒ realtime notify fires INLINE
-// after each commit (no SQLite hook needed). onCommit(channel): "global" or projectDbPath.
+// synapse — the only SQLite seam. Each process opens the global DB and lazily opens each
+// project's DB (routed by projectDbPath), plus read-only opens of other projects for explicit
+// cross-read. Every session runs its own process over the same files: WAL plus busy_timeout
+// lets SQLite serialize their writers, and each write takes the write lock up front.
 import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type {
-  CompactMemory, FullMemory, IClock, IRedactor, IStore, LockRecord, Offset, RecallQuery, RecallResult,
+  CompactMemory, FullMemory, IClock, IStore, LockRecord, Offset, RecallQuery, RecallResult,
   Store as Scope,
 } from "./contract.js";
 import { LIMITS, SynapseInputError, SynapsePayloadError, utf8Bytes } from "./contract.js";
@@ -24,16 +24,36 @@ const TAGS_ALL_SQL = "AND NOT EXISTS (SELECT 1 FROM json_each(?) w WHERE w.value
 const tagFilter = (tags: string[] | undefined): { sql: string; params: string[] } =>
   tags && tags.length ? { sql: TAGS_ALL_SQL, params: [JSON.stringify(tags)] } : { sql: "", params: [] };
 
+const BUSY_TIMEOUT_MS = 5000;
+const SQLITE_BUSY = 5;
+const WAL_RETRY_INTERVAL_MS = 10;
+
+// Switching a new file to WAL needs an exclusive lock, and SQLite answers SQLITE_BUSY at once, without
+// the busy handler, while another process makes the same switch: four servers opening one new project
+// file at once failed this way. The switch is persistent, so retrying until busy_timeout covers it.
+function enableWal(db: DatabaseSync): void {
+  const deadline = Date.now() + BUSY_TIMEOUT_MS;
+  for (;;) {
+    try { db.exec("PRAGMA journal_mode=WAL"); return; } catch (e) {
+      if ((e as { errcode?: unknown }).errcode !== SQLITE_BUSY || Date.now() >= deadline) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, WAL_RETRY_INTERVAL_MS);
+    }
+  }
+}
+
 function openDb(path: string, readonly: boolean): DatabaseSync {
   if (!readonly) { mkdirSync(dirname(path), { recursive: true }); ensureOwnerOnlyDir(dirname(path)); }
   const db = new DatabaseSync(path, { readOnly: readonly });
-  db.exec("PRAGMA busy_timeout=5000");
+  db.exec(`PRAGMA busy_timeout=${BUSY_TIMEOUT_MS}`);
   if (!readonly) {
-    db.exec("PRAGMA journal_mode=WAL");
+    enableWal(db);
     db.exec("PRAGMA synchronous=NORMAL");
     db.exec("PRAGMA foreign_keys=ON");
     db.exec(SCHEMA_SQL);
-    db.prepare("INSERT OR IGNORE INTO meta(key,value) VALUES('schema_version',?)").run(String(SCHEMA_VERSION));
+    // Read first: even an ignored insert takes the write lock, and the hook opens this file on every tool call.
+    if (!db.prepare("SELECT 1 FROM meta WHERE key='schema_version'").get()) {
+      db.prepare("INSERT OR IGNORE INTO meta(key,value) VALUES('schema_version',?)").run(String(SCHEMA_VERSION));
+    }
     try { chmodSync(path, 0o600); } catch { /* best effort */ }
   }
   return db;
@@ -41,40 +61,51 @@ function openDb(path: string, readonly: boolean): DatabaseSync {
 
 export interface StoreOptions {
   clock: IClock;
-  redactor: IRedactor;
   globalDbPath: string;
   dbDir?: string;
-  /** fired after a committed write; channel = "global" | projectDbPath. Sidecar fans out. */
-  onCommit?: (channel: string) => void;
 }
 
 interface RowHit { row: MemoryRow; rank?: number }
-export const GLOBAL_CHANNEL = "global";
-
-// The bridge reuses an operation id only for its single retry, sent right after it reconnects,
-// which takes at most one sidecar election (seconds). A day of records outlives that by far.
-const OPERATION_RETENTION_MS = 24 * 60 * 60 * 1000;
-// A refusal is recorded as an object under this key. No write result has the key, so a recorded
-// result, a JSON null included, is never read back as a refusal.
-const REFUSAL_KEY = "refusal";
+/** A live record a hook receiver has not been handed yet; `id` is the external id memory_get takes. */
+export interface UnseenRecord { id: Offset; store: Scope; ts: number; agentId: string; content: string }
+export interface Claim { baseline: boolean; taken: number; remaining: number }
+type UnseenRow = { id: number; ts: number; agent_id: string; content: string };
 type AcquireResult = { ok: true; lock: LockRecord } | { ok: false; heldBy: string; expiresAt: number };
-type Settled<T> = { result: T; replayed: boolean } | { refused: SynapseInputError };
+
+/**
+ * Run one write under BEGIN IMMEDIATE. Taking the write lock first matters with several processes: a
+ * read transaction that later upgrades can fail with SQLITE_BUSY, which busy_timeout does not retry.
+ */
+const maxId = (db: DatabaseSync | null): number =>
+  db ? (db.prepare("SELECT COALESCE(MAX(id),0) AS m FROM memory").get() as unknown as { m: number }).m : 0;
+const countLiveAfter = (db: DatabaseSync | null, after: number, except: number[]): number =>
+  db ? (db.prepare("SELECT COUNT(*) AS n FROM memory WHERE status='live' AND id > ? AND id NOT IN (SELECT value FROM json_each(?))")
+    .get(after, JSON.stringify(except)) as unknown as { n: number }).n : 0;
+
+function writeTx<T>(db: DatabaseSync, apply: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = apply();
+    db.exec("COMMIT");
+    return result;
+  } catch (e) {
+    // A COMMIT that failed may have ended the transaction already; a second error would hide the first.
+    if (db.isTransaction) db.exec("ROLLBACK");
+    throw e;
+  }
+}
 
 export class Store implements IStore {
   private clock: IClock;
-  private redactor: IRedactor;
   private globalDbPath: string;
   private dbDir: string | undefined;
-  private onCommit: ((channel: string) => void) | undefined;
   private rw = new Map<string, DatabaseSync>();
   private ro = new Map<string, DatabaseSync | null>();
 
   constructor(opts: StoreOptions) {
     this.clock = opts.clock;
-    this.redactor = opts.redactor;
     this.globalDbPath = opts.globalDbPath;
     this.dbDir = opts.dbDir;
-    this.onCommit = opts.onCommit;
   }
 
   private rwDb(path: string): DatabaseSync {
@@ -87,18 +118,14 @@ export class Store implements IStore {
     return store === "global" ? this.globalDb() : this.rwDb(projectDbPath);
   }
 
-  // ---- writes (sole writer; notify inline after commit) --------------------
-  remember(q: { projectDbPath: string; agentId: string; content: string; tags?: string[]; global?: boolean; supersedes?: Offset; operationId?: string }): { id: Offset; ts: number; redactions: number } {
+  // ---- writes ----------------------------------------------------------------
+  remember(q: { projectDbPath: string; agentId: string; content: string; tags?: string[]; global?: boolean; supersedes?: Offset }): { id: Offset; ts: number } {
     const ts = this.clock.now();
-    const { text, count } = this.redactor.redact(q.content);
-    let redactions = count;
-    // Tags are stored and FTS-indexed like content, so they pass through the same redactor.
-    const safeTags = q.tags?.map((t) => { const r = this.redactor.redact(t); redactions += r.count; return r.text; });
     const store: Scope = q.global ? "global" : "project";
     const db = this.dbFor(store, q.projectDbPath);
-    const tags = safeTags && safeTags.length ? JSON.stringify(safeTags) : null;
+    const tags = q.tags && q.tags.length ? JSON.stringify(q.tags) : null;
     const sup = q.supersedes ? decId(q.supersedes) : null;
-    const { result, replayed } = this.write(db, q.operationId, () => {
+    return writeTx(db, () => {
       if (sup) {
         if (sup.store === "cross-project") throw new SynapseInputError("cross-project memory ids are read-only");
         if (sup.store !== store) throw new SynapseInputError(`supersedes id ${q.supersedes} belongs to ${sup.store} memory`);
@@ -107,13 +134,11 @@ export class Store implements IStore {
         this.markSuperseded(db, sup.rowid);
       }
       const res = db.prepare("INSERT INTO memory(ts,agent_id,content,tags,supersedes,status) VALUES(?,?,?,?,?,'live')")
-        .run(ts, q.agentId, text, tags, sup?.rowid ?? null);
+        .run(ts, q.agentId, q.content, tags, sup?.rowid ?? null);
       const rowid = Number(res.lastInsertRowid);
-      db.prepare("INSERT INTO memory_fts(rowid,content,tags) VALUES(?,?,?)").run(rowid, text, tags ?? "");
-      return { id: extId(store, rowid), ts, redactions };
+      db.prepare("INSERT INTO memory_fts(rowid,content,tags) VALUES(?,?,?)").run(rowid, q.content, tags ?? "");
+      return { id: extId(store, rowid), ts };
     });
-    if (!replayed) this.onCommit?.(store === "global" ? GLOBAL_CHANNEL : q.projectDbPath);
-    return result;
   }
 
   /** supersede: flip status + drop from FTS; CONTENT IS PRESERVED for history/audit. */
@@ -125,34 +150,28 @@ export class Store implements IStore {
     db.prepare("INSERT INTO memory_fts(memory_fts,rowid,content,tags) VALUES('delete',?,?,?)").run(rowid, row.content, row.tags ?? "");
   }
 
-  /** forget/redact: drop from FTS and OVERWRITE the plaintext with a reason tombstone
+  /** forget: drop from FTS and OVERWRITE the plaintext with a reason tombstone
    *  (real remediation for leaked secrets) while keeping the row for audit (id/ts/agent). */
-  private redactRow(db: DatabaseSync, rowid: number, reason: string): void {
+  private scrubRow(db: DatabaseSync, rowid: number, reason: string): void {
     const row = db.prepare("SELECT content,tags,status FROM memory WHERE id=?").get(rowid) as unknown as
       { content: string; tags: string | null; status: string } | undefined;
     if (!row) return;
-    // `reason` is free-form and this is THE secret-remediation path, so an agent may name
-    // the leaked value in it (e.g. "purge token sk-proj-..."). Scrub it through the same
-    // ingest redactor before persisting so forget never re-leaks the secret it removes.
-    const safeReason = this.redactor.redact(reason).text;
     // Only a live row is still indexed: markSuperseded already deleted it, and external-content
     // FTS5 reports a second delete of the same rowid as a malformed database.
     if (row.status === "live") db.prepare("INSERT INTO memory_fts(memory_fts,rowid,content,tags) VALUES('delete',?,?,?)").run(rowid, row.content, row.tags ?? "");
-    db.prepare("UPDATE memory SET content=?, tags=NULL, status='redacted' WHERE id=?").run(`[REDACTED: ${safeReason}]`, rowid);
+    db.prepare("UPDATE memory SET content=?, tags=NULL, status='redacted' WHERE id=?").run(`[REDACTED: ${reason}]`, rowid);
   }
 
-  forget(q: { projectDbPath: string; agentId: string; id: Offset; reason: string; operationId?: string }): { id: Offset; ts: number } | null {
+  forget(q: { projectDbPath: string; agentId: string; id: Offset; reason: string }): { id: Offset; ts: number } | null {
     const d = decId(q.id);
     if (d.store === "cross-project") throw new SynapseInputError("cross-project memory ids are read-only");
     const db = this.dbFor(d.store, q.projectDbPath);
-    const { result, replayed } = this.write(db, q.operationId, () => {
+    return writeTx(db, () => {
       const exists = db.prepare("SELECT 1 FROM memory WHERE id=? AND status!='redacted'").get(d.rowid);
       if (!exists) return null;
-      this.redactRow(db, d.rowid, q.reason);
+      this.scrubRow(db, d.rowid, q.reason);
       return { id: q.id, ts: this.clock.now() };
     });
-    if (result && !replayed) this.onCommit?.(d.store === "global" ? GLOBAL_CHANNEL : q.projectDbPath);
-    return result;
   }
 
   // ---- reads ---------------------------------------------------------------
@@ -295,10 +314,11 @@ export class Store implements IStore {
   }
 
   // ---- locks (project-scoped file coordination) ----------------------------
-  acquire(q: { projectDbPath: string; agentId: string; glob: string; ttlMs: number; operationId?: string }): AcquireResult {
-    const now = this.clock.now();
+  acquire(q: { projectDbPath: string; agentId: string; glob: string; ttlMs: number }): AcquireResult {
     const db = this.rwDb(q.projectDbPath);
-    const { result, replayed } = this.write<AcquireResult>(db, q.operationId, () => {
+    return writeTx<AcquireResult>(db, () => {
+      // Read after BEGIN IMMEDIATE: time spent waiting for another process's write must not shorten the lease.
+      const now = this.clock.now();
       db.prepare("DELETE FROM locks WHERE expires_at <= ?").run(now);
       const held = db.prepare("SELECT glob,agent_id,acquired_at,expires_at FROM locks WHERE glob=?").get(q.glob) as unknown as LockRow | undefined;
       if (held && held.agent_id !== q.agentId) return { ok: false, heldBy: held.agent_id, expiresAt: held.expires_at };
@@ -309,71 +329,11 @@ export class Store implements IStore {
       ).run(q.glob, q.agentId, now, expiresAt);
       return { ok: true, lock: { glob: q.glob, agentId: q.agentId, acquiredAt: now, expiresAt } };
     });
-    if (result.ok && !replayed) this.onCommit?.(q.projectDbPath);
-    return result;
   }
 
-  release(q: { projectDbPath: string; agentId: string; glob: string; operationId?: string }): { released: boolean } {
-    const db = this.rwDb(q.projectDbPath);
-    const { result, replayed } = this.write(db, q.operationId, () => {
-      const res = db.prepare("DELETE FROM locks WHERE glob=? AND agent_id=?").run(q.glob, q.agentId);
-      return { released: Number(res.changes) > 0 };
-    });
-    if (result.released && !replayed) this.onCommit?.(q.projectDbPath);
-    return result;
-  }
-
-  // ---- operation records: a retried write is answered, never applied twice --
-  /**
-   * Run one write in a BEGIN IMMEDIATE transaction under its operation id, and record what it settled
-   * on in the same transaction: a result, a miss (`null`), or a refusal the stored state decided. A
-   * retry after a lost response gets that answer even when the state has changed since.
-   */
-  private write<T>(db: DatabaseSync, operationId: string | undefined, apply: () => T): { result: T; replayed: boolean } {
-    let settled: Settled<T>;
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      settled = this.recorded<T>(db, operationId) ?? this.applyOnce(db, operationId, apply);
-      db.exec("COMMIT");
-    } catch (e) { db.exec("ROLLBACK"); throw e; }
-    if ("refused" in settled) throw settled.refused;
-    return settled;
-  }
-
-  private applyOnce<T>(db: DatabaseSync, operationId: string | undefined, apply: () => T): Settled<T> {
-    // A refusal commits its record, so whatever the write changed before refusing is undone first.
-    db.exec("SAVEPOINT apply");
-    let result: T;
-    try {
-      result = apply();
-    } catch (e) {
-      if (!(e instanceof SynapseInputError)) throw e;
-      db.exec("ROLLBACK TO apply");
-      db.exec("RELEASE apply");
-      this.record(db, operationId, { [REFUSAL_KEY]: e.message });
-      return { refused: e };
-    }
-    db.exec("RELEASE apply");
-    this.record(db, operationId, result);
-    return { result, replayed: false };
-  }
-
-  /** What the write first settled on under this operation id, read inside its transaction. */
-  private recorded<T>(db: DatabaseSync, operationId: string | undefined): Settled<T> | undefined {
-    if (!operationId) return undefined;
-    const row = db.prepare("SELECT result FROM operations WHERE id=?").get(operationId) as unknown as { result: string } | undefined;
-    if (!row) return undefined;
-    const stored: unknown = JSON.parse(row.result);
-    const refusal = stored !== null && typeof stored === "object" ? (stored as Record<string, unknown>)[REFUSAL_KEY] : undefined;
-    return typeof refusal === "string" ? { refused: new SynapseInputError(refusal) } : { result: stored as T, replayed: true };
-  }
-
-  /** Stored in the same transaction as the write it describes, so both commit or neither does. */
-  private record(db: DatabaseSync, operationId: string | undefined, result: unknown): void {
-    if (!operationId) return;
-    const now = this.clock.now();
-    db.prepare("DELETE FROM operations WHERE created_at < ?").run(now - OPERATION_RETENTION_MS);
-    db.prepare("INSERT INTO operations(id,result,created_at) VALUES(?,?,?)").run(operationId, JSON.stringify(result), now);
+  release(q: { projectDbPath: string; agentId: string; glob: string }): { released: boolean } {
+    const res = this.rwDb(q.projectDbPath).prepare("DELETE FROM locks WHERE glob=? AND agent_id=?").run(q.glob, q.agentId);
+    return { released: Number(res.changes) > 0 };
   }
 
   listLocks(q: { projectDbPath: string; globFilter?: string }): LockRecord[] {
@@ -394,6 +354,73 @@ export class Store implements IStore {
     const db = existsSync(path) ? openDb(path, true) : null;
     this.ro.set(path, db);
     return db;
+  }
+
+  // ---- hook delivery ---------------------------------------------------------
+  /**
+   * Hand a hook receiver the live records it has not seen, at most once (ADR-15). Its first claim only
+   * records the current max ids as its baseline (ADR-16). Later claims offer records to `take` oldest
+   * first, each store's records in id order, until `take` returns false; each cursor then moves past
+   * what was taken and past the ids in `skip`, which the receiver wrote itself. A skipped id the cursor
+   * has not reached when `take` stops is kept with the cursor, so a later claim skips it too. With
+   * nothing new, the claim reads only and takes no write lock. The global file is read only if it exists.
+   */
+  claimUnseen(q: { projectDbPath: string; receiver: string; skip: Offset[]; take: (r: UnseenRecord) => boolean }): Claim {
+    const project = this.rwDb(q.projectDbPath);
+    const global = existsSync(this.globalDbPath) ? this.globalDb() : null;
+    const cursorOf = (): { p: number; g: number; own: string } | undefined =>
+      project.prepare("SELECT project_after AS p, global_after AS g, own_ids AS own FROM hook_cursors WHERE receiver=?")
+        .get(q.receiver) as unknown as { p: number; g: number; own: string } | undefined;
+    const liveAfter = (db: DatabaseSync | null, after: number): boolean =>
+      db !== null && db.prepare("SELECT 1 FROM memory WHERE status='live' AND id > ? LIMIT 1").get(after) !== undefined;
+    const seen = cursorOf();
+    if (seen && !liveAfter(project, seen.p) && !liveAfter(global, seen.g)) return { baseline: false, taken: 0, remaining: 0 };
+    return writeTx(project, () => {
+      const now = this.clock.now();
+      const cursor = cursorOf();
+      if (!cursor) {
+        project.prepare("INSERT INTO hook_cursors(receiver,project_after,global_after,updated_at) VALUES(?,?,?,?)")
+          .run(q.receiver, maxId(project), maxId(global), now);
+        return { baseline: true, taken: 0, remaining: 0 };
+      }
+      const skip = new Set([...q.skip, ...(JSON.parse(cursor.own) as Offset[])]);
+      const unseen = (db: DatabaseSync | null, after: number): Iterator<UnseenRow> => (db
+        ? db.prepare("SELECT id,ts,agent_id,content FROM memory WHERE status='live' AND id > ? ORDER BY id").iterate(after) as unknown as Iterator<UnseenRow>
+        : [][Symbol.iterator]());
+      const sources = [
+        { store: "project" as const, rows: unseen(project, cursor.p), after: cursor.p },
+        { store: "global" as const, rows: unseen(global, cursor.g), after: cursor.g },
+      ];
+      const heads = sources.map((s) => s.rows.next());
+      let taken = 0;
+      for (;;) {
+        // Oldest head first; a store's own rows stay in id order, so each cursor only ever covers a prefix.
+        const live = [0, 1].filter((i) => !heads[i]!.done);
+        if (live.length === 0) break;
+        const i = live.reduce((a, b) => ((heads[b]!.value as UnseenRow).ts < (heads[a]!.value as UnseenRow).ts ? b : a));
+        const source = sources[i]!;
+        const row = heads[i]!.value as UnseenRow;
+        const id = extId(source.store, row.id);
+        if (!skip.has(id)) {
+          if (!q.take({ id, store: source.store, ts: row.ts, agentId: row.agent_id, content: row.content })) break;
+          taken += 1;
+        }
+        source.after = row.id;
+        heads[i] = source.rows.next();
+      }
+      for (const s of sources) s.rows.return?.();
+      const [p, g] = [sources[0]!.after, sources[1]!.after];
+      const ahead = { project: [] as number[], global: [] as number[] };
+      for (const id of skip) {
+        const d = decId(id);
+        if (d.store === "project" && d.rowid > p) ahead.project.push(d.rowid);
+        if (d.store === "global" && d.rowid > g) ahead.global.push(d.rowid);
+      }
+      const own = [...ahead.project.map((r) => extId("project", r)), ...ahead.global.map((r) => extId("global", r))];
+      project.prepare("UPDATE hook_cursors SET project_after=?, global_after=?, own_ids=?, updated_at=? WHERE receiver=?")
+        .run(p, g, JSON.stringify(own), now, q.receiver);
+      return { baseline: false, taken, remaining: countLiveAfter(project, p, ahead.project) + countLiveAfter(global, g, ahead.global) };
+    });
   }
 
   close(): void {

@@ -212,16 +212,6 @@ try {
 } finally {
   writeFileSync(optionalServicesPath, optionalServicesOriginal);
 }
-try {
-  const mutated = JSON.parse(optionalServicesOriginal);
-  mutated.services["anthropic-cybersecurity-skills"].attribution = "   ";
-  writeFileSync(optionalServicesPath, `${JSON.stringify(mutated, null, 2)}\n`);
-  const r = sandbox.status(["check"]);
-  assert.equal(r.status, 1, "served Grimoire pack attribution must contain non-whitespace text");
-  assert.match(`${r.stdout}${r.stderr}`, /registry\/optional-services\.json/);
-} finally {
-  writeFileSync(optionalServicesPath, optionalServicesOriginal);
-}
 assert.equal(sandbox.run(["check"]).trim(), "check: ok");
 sandbox.remove();
 

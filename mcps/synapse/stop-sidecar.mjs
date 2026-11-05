@@ -1,6 +1,6 @@
-// The installer's stop step, kept importable so it can be tested without running an install. A
-// running sidecar keeps serving the old build until it exits; stopping it makes open bridges elect a
-// sidecar from the new build on their next call.
+// The v0.4 hand-over's stop step (install.mjs). A v0.4 sidecar left running would keep the old build
+// alive for sessions started before the upgrade; nothing in this build starts or uses one. Deleted one
+// release after v0.5, with the hand-over.
 import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -22,7 +22,7 @@ export async function stopRunningSidecar(dbDir = process.env.SYNAPSE_DB_DIR ?? p
     // Nothing listening at the address means no sidecar is left to stop. A process that holds the address
     // but does not answer may be a stuck sidecar whose pid cannot be proven, so it is left alone and reported.
     if (error?.name === "TimeoutError") {
-      console.warn(`WARNING: the sidecar at ${url} did not answer /health within ${HEALTH_TIMEOUT_MS} ms, so nothing was stopped; stop the running Synapse sidecar so bridges start one from this build`);
+      console.warn(`WARNING: the v0.4 sidecar at ${url} did not answer /health within ${HEALTH_TIMEOUT_MS} ms, so nothing was stopped; if pid ${pid} is that sidecar, stop it`);
     }
     return;
   }
@@ -30,15 +30,15 @@ export async function stopRunningSidecar(dbDir = process.env.SYNAPSE_DB_DIR ?? p
   // A stale record can name a recycled pid while a different sidecar answers its address, so only the
   // process that reports this pid as its own is signalled.
   if (health.pid !== pid) {
-    console.warn(`WARNING: the sidecar at ${url} does not report pid ${pid}, so nothing was stopped; stop the running Synapse sidecar so bridges start one from this build`);
+    console.warn(`WARNING: the v0.4 sidecar at ${url} does not report pid ${pid}, so nothing was stopped; stop the Synapse sidecar that answers there`);
     return;
   }
   try {
     process.kill(pid, "SIGTERM");
   } catch (error) {
     // ESRCH: it exited after the health check, so there is nothing left to stop.
-    if (error.code !== "ESRCH") console.warn(`WARNING: could not stop the running sidecar (pid ${pid}, ${error.code}); stop it so bridges start one from this build`);
+    if (error.code !== "ESRCH") console.warn(`WARNING: could not stop the v0.4 sidecar (pid ${pid}, ${error.code}); stop it`);
     return;
   }
-  console.log(`stopped the running sidecar (pid ${pid}); the next bridge call starts one from this build`);
+  console.log(`stopped the v0.4 sidecar (pid ${pid})`);
 }

@@ -1,0 +1,14 @@
+{
+  "session_id": "abf51112-fe76-4ecf-9db3-e73b199d21bf",
+  "transcript_path": "/Users/example/.factory/sessions/-private-tmp-as-spike-hooks-project/abf51112-fe76-4ecf-9db3-e73b199d21bf.jsonl",
+  "cwd": "/private/tmp/as-spike-hooks/project",
+  "permission_mode": "auto-high",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Execute",
+  "tool_input": {
+    "command": "echo spike-two",
+    "riskLevel": "low",
+    "summary": "Echo spike-two in shell"
+  },
+  "tool_response": "spike-two\n\n\n[Process exited with code 0]"
+}
