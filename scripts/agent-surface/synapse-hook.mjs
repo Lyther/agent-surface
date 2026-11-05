@@ -12,7 +12,7 @@ import { shimFileName } from "./mcp-shims.mjs";
 export const SYNAPSE_HOOK_TARGETS = new Set(["claude-code", "codex", "droid"]);
 const EVENT = "PostToolUse";
 // The variables that choose the store and project; the hook must see the values the server sees.
-const ROUTING_ENV = ["SYNAPSE_DB_DIR", "SYNAPSE_PROJECT", "SYNAPSE_NAMESPACE"];
+export const SYNAPSE_ROUTING_ENV = ["SYNAPSE_DB_DIR", "SYNAPSE_PROJECT", "SYNAPSE_NAMESPACE"];
 
 /** The launcher mcps/synapse/install.mjs writes; an entry is Synapse's when its command runs it. */
 export function synapseHookLauncher(home = os.homedir()) {
@@ -29,13 +29,14 @@ function shellWord(value) {
 
 /**
  * The command a host runs after each tool: the launcher, after the routing variables the synapse MCP
- * entry sets, so hook and server open the same store. Hosts start hooks through their shell, and a
- * Windows command cannot prefix variables portably, so there the hook reads the host's environment.
+ * entry sets, so hook and server open the same store. An empty value stays: it overrides the host's own
+ * value for the server, so it must for the hook. Hosts start hooks through their shell, and a Windows
+ * command cannot prefix variables portably, so there the hook reads the host's environment.
  */
 export function synapseHookCommand(home = os.homedir(), entryEnv = {}) {
   const launcher = shellWord(synapseHookLauncher(home));
   if (process.platform === "win32") return launcher;
-  const routing = ROUTING_ENV.filter((key) => typeof entryEnv[key] === "string" && entryEnv[key] !== "");
+  const routing = SYNAPSE_ROUTING_ENV.filter((key) => typeof entryEnv[key] === "string");
   return [...routing.map((key) => `${key}=${shellWord(entryEnv[key])}`), launcher].join(" ");
 }
 
@@ -72,7 +73,7 @@ const isObject = (value) => value !== null && typeof value === "object" && !Arra
 // Synapse's entry is one whose command synapseHookCommand could have written: the launcher, quoted or
 // bare, after nothing but routing assignments. A rerun updates it and a prune finds it, while a user's
 // own command around the launcher, such as `nice <launcher>`, stays the user's.
-const ROUTING_PREFIX = new RegExp(`^(?:(?:${ROUTING_ENV.join("|")})=(?:'(?:[^']|'\\\\'')*'|[^\\s'"]*) )*`);
+const ROUTING_PREFIX = new RegExp(`^(?:(?:${SYNAPSE_ROUTING_ENV.join("|")})=(?:'(?:[^']|'\\\\'')*'|[^\\s'"]*) )*`);
 const runsLauncher = (hook, launcher) => isObject(hook) && typeof hook.command === "string"
   && [shellWord(launcher), launcher].includes(hook.command.replace(ROUTING_PREFIX, ""));
 const holdsLauncher = (groups, launcher) =>

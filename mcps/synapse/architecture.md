@@ -99,6 +99,7 @@ Non-goals:
   - The tool is `mcp__synapse__memory_remember` on Claude Code and Codex and `synapse___memory_remember` on Droid. Its `tool_response` is MCP content blocks on Claude Code, `{content}` on Codex, and the result text on Droid.
   - Subagents: a Claude Code subagent's events add `agent_id` and `agent_type` under the parent's `session_id`; a Droid subagent's events carry its own `session_id`. A Codex subagent's tool calls ran no PostToolUse hook in two runs.
   - Under `approval_policy = "never"`, which agent-surface writes, Codex runs an MCP tool that needs approval only when the server's `default_tools_approval_mode` is `approve`; the generated Codex entry sets it for Synapse.
+  - Codex 0.166.0 starts a stdio MCP server with an allowlisted environment, plus the entry's `env` and the shell variables its `env_vars` names, but runs a hook with the shell's whole environment; Claude Code 2.1.311 and Droid 1.2.0 give both the shell's. The generated Codex entry lists `SYNAPSE_DB_DIR`, `SYNAPSE_PROJECT` and `SYNAPSE_NAMESPACE` in `env_vars`, so a value exported in the shell routes server and hook alike.
 
 ## System Context and Boundaries
 
@@ -179,7 +180,7 @@ scripts/agent-surface/
   install.mjs      - Calls it wherever the mcps category installs Synapse for those targets; dry-run lists the change.
   doctor.mjs       - Reports both bin links and each host's user-scope hook entry.
 registry/optional-services.json - The Synapse prerequisites (both launchers), validation hint and wiring notes.
-scripts/agent-surface/targets.mjs - The Codex entry approves Synapse's tools by default (`default_tools_approval_mode`), since the generated `approval_policy = "never"` refuses MCP calls that need approval.
+scripts/agent-surface/targets.mjs - The Codex entry approves Synapse's tools by default (`default_tools_approval_mode`), since the generated `approval_policy = "never"` refuses MCP calls that need approval, and passes the routing variables through (`env_vars`), since Codex withholds the shell's environment from MCP servers.
 ```
 
 ## Data and State

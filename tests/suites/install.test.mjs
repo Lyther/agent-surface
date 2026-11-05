@@ -1358,6 +1358,18 @@ assert.equal(parsedCodexMcp.mcp_servers.synapse.command, path.join(os.homedir(),
 assert.equal(parsedCodexMcp.mcp_servers.synapse.default_tools_approval_mode, "approve");
 assert.equal(Object.hasOwn(parsedCodexMcp.mcp_servers.existing, "default_tools_approval_mode"), false);
 assert.equal(Object.hasOwn(parsedCodexMcp.mcp_servers, "agentmemory"), false);
+// Codex gives an MCP server only an allowlisted environment but a hook the shell's, so the entry passes
+// the routing variables through, and names the user listed there stay.
+assert.deepEqual(parsedCodexMcp.mcp_servers.synapse.env_vars, ["SYNAPSE_DB_DIR", "SYNAPSE_PROJECT", "SYNAPSE_NAMESPACE"]);
+assert.equal(Object.hasOwn(parsedCodexMcp.mcp_servers.existing, "env_vars"), false);
+const existingCodexConfig = path.join(existingCodexMcpDest, ".codex", "config.toml");
+parsedCodexMcp.mcp_servers.synapse.env_vars = ["SYNAPSE_AGENT_ID", "SYNAPSE_NAMESPACE"];
+writeFileSync(existingCodexConfig, TOML.patch(mergedCodexMcp, parsedCodexMcp));
+run(["install", "--target", "codex", "--dest", existingCodexMcpDest, "--category", "mcps", "--service", "synapse"]);
+const userListedCodexMcp = readFileSync(existingCodexConfig, "utf8");
+assert.deepEqual(TOML.parse(userListedCodexMcp).mcp_servers.synapse.env_vars, ["SYNAPSE_AGENT_ID", "SYNAPSE_NAMESPACE", "SYNAPSE_DB_DIR", "SYNAPSE_PROJECT"]);
+run(["install", "--target", "codex", "--dest", existingCodexMcpDest, "--category", "mcps", "--service", "synapse"]);
+assert.equal(readFileSync(existingCodexConfig, "utf8"), userListedCodexMcp, "a rerun changes nothing");
 rmSync(existingCodexMcpDest, { recursive: true, force: true });
 
 // The Synapse PostToolUse hook follows the synapse server on the three hosts whose hooks can add
@@ -1489,6 +1501,12 @@ rmSync(existingCodexMcpDest, { recursive: true, force: true });
   const quoted = { launcher: routed.launcher, command: synapseHookCommand("/home/a", { SYNAPSE_DB_DIR: "/data/it's here" }) };
   const quotedFile = mergeSynapseHook(null, ["hooks", "PostToolUse"], quoted, true, "settings.json");
   assert.deepEqual(parseJsonc(mergeSynapseHook(quotedFile, ["hooks", "PostToolUse"], routed, false, "settings.json"), "pruned"), {});
+  // An entry that clears a routing variable carries the empty value, which a rerun and a prune still find.
+  const cleared = { launcher: routed.launcher, command: synapseHookCommand("/home/a", { SYNAPSE_NAMESPACE: "" }) };
+  assert.equal(cleared.command, "SYNAPSE_NAMESPACE='' /home/a/.local/bin/synapse-hook");
+  const clearedFile = mergeSynapseHook(null, ["hooks", "PostToolUse"], cleared, true, "settings.json");
+  assert.equal(mergeSynapseHook(clearedFile, ["hooks", "PostToolUse"], cleared, true, "settings.json"), clearedFile, "a rerun changes nothing");
+  assert.deepEqual(parseJsonc(mergeSynapseHook(clearedFile, ["hooks", "PostToolUse"], routed, false, "settings.json"), "pruned"), {});
   // Codex keeps the entry's env in TOML; the plan reads it there too.
   const codexRoot = ownTmp("synapse-hook-codex-toml");
   rmSync(codexRoot, { recursive: true, force: true });
@@ -1500,8 +1518,10 @@ rmSync(existingCodexMcpDest, { recursive: true, force: true });
 }
 
 // The installed hook command runs in the host's shell and routes like the user's synapse entry, so the
-// hook reads the store the server writes. Every path holds a space. The launchers, hook and store are
-// the real ones from mcps/synapse; the suite runs after `npm run install:mcps` has built them.
+// hook reads the store the server writes, even where the entry overrides the host's environment: one
+// entry pins a project, the other clears the namespace the host sets. Every path holds a space. The
+// launchers, hook and store are the real ones from mcps/synapse; the suite runs after
+// `npm run install:mcps` has built them.
 {
   const synapseDist = path.join(root, "mcps", "synapse", "dist", "src");
   assert.ok(existsSync(path.join(synapseDist, "hook.js")), "build mcps/synapse first: npm run install:synapse");
@@ -1510,43 +1530,49 @@ rmSync(existingCodexMcpDest, { recursive: true, force: true });
   const { canonicalRoot, hashKey } = await import(pathToFileURL(path.join(synapseDist, "namespace.js")).href);
   const base = mkdtempSync(path.join(os.tmpdir(), "synapse hook "));
   const home = path.join(base, "user home");
-  const dest = path.join(base, "dest");
   const dbDir = path.join(base, "pinned store");
   const pinned = path.join(base, "pinned project");
   mkdirSync(pinned, { recursive: true });
-  mkdirSync(dest, { recursive: true });
   writeShims({
     binDir: path.join(home, ".local", "bin"),
     nodeBin: process.execPath,
     override: "SYNAPSE_NODE",
     entries: { "synapse-bridge": path.join(synapseDist, "server.js"), "synapse-hook": path.join(synapseDist, "hook.js") },
   });
-  const entryEnv = { SYNAPSE_DB_DIR: dbDir, SYNAPSE_PROJECT: pinned };
-  const mcpConfig = path.join(dest, ".mcp.json");
-  writeFileSync(mcpConfig, `${JSON.stringify({ mcpServers: { synapse: { type: "stdio", command: "synapse-bridge", args: [], env: entryEnv } } }, null, 2)}\n`);
   const installEnv = { ...process.env, HOME: home, USERPROFILE: home };
-  run(["install", "--target", "claude-code", "--dest", dest, "--category", "mcps", "--service", "synapse"], { env: installEnv });
-  assert.deepEqual(parseJsonc(readFileSync(mcpConfig, "utf8"), ".mcp.json").mcpServers.synapse.env, entryEnv, "the install keeps the entry's routing");
-  const settings = parseJsonc(readFileSync(path.join(dest, ".claude", "settings.json"), "utf8"), "settings.json");
-  assert.equal(settings.hooks.PostToolUse.length, 1);
-  const command = settings.hooks.PostToolUse[0].hooks[0].command;
   const store = new Store({ clock: new SystemClock(), dbDir, globalDbPath: path.join(dbDir, "global.sqlite") });
-  const projectDbPath = path.join(dbDir, `${hashKey(canonicalRoot(pinned))}.sqlite`);
+  const routes = [
+    { name: "pinned", entryEnv: { SYNAPSE_DB_DIR: dbDir, SYNAPSE_PROJECT: pinned }, key: canonicalRoot(pinned) },
+    { name: "cleared", entryEnv: { SYNAPSE_DB_DIR: dbDir, SYNAPSE_NAMESPACE: "" }, key: canonicalRoot(base) },
+  ];
   try {
-    store.remember({ projectDbPath, agentId: "peer", content: "seed" });
-    // The host runs the command through its shell, from wherever the session works.
-    const hook = () => spawnSync("/bin/sh", ["-c", command], {
-      cwd: base,
-      encoding: "utf8",
-      env: { PATH: process.env.PATH ?? "", HOME: home },
-      input: JSON.stringify({ session_id: "routing", cwd: base, hook_event_name: "PostToolUse", tool_name: "Bash" }),
-    });
-    const baseline = hook();
-    assert.deepEqual([baseline.status, baseline.stdout], [0, ""], `${command} -> ${baseline.stderr}`);
-    store.remember({ projectDbPath, agentId: "peer", content: "routed marker" });
-    const delivered = hook();
-    assert.equal(delivered.status, 0, delivered.stderr);
-    assert.match(delivered.stdout, /routed marker/, `${command} read the store the synapse entry pins`);
+    for (const { name, entryEnv, key } of routes) {
+      const dest = path.join(base, `${name} dest`);
+      mkdirSync(dest, { recursive: true });
+      const mcpConfig = path.join(dest, ".mcp.json");
+      writeFileSync(mcpConfig, `${JSON.stringify({ mcpServers: { synapse: { type: "stdio", command: "synapse-bridge", args: [], env: entryEnv } } }, null, 2)}\n`);
+      run(["install", "--target", "claude-code", "--dest", dest, "--category", "mcps", "--service", "synapse"], { env: installEnv });
+      assert.deepEqual(parseJsonc(readFileSync(mcpConfig, "utf8"), ".mcp.json").mcpServers.synapse.env, entryEnv, "the install keeps the entry's routing");
+      const settings = parseJsonc(readFileSync(path.join(dest, ".claude", "settings.json"), "utf8"), "settings.json");
+      assert.equal(settings.hooks.PostToolUse.length, 1);
+      const command = settings.hooks.PostToolUse[0].hooks[0].command;
+      const projectDbPath = path.join(dbDir, `${hashKey(key)}.sqlite`);
+      store.remember({ projectDbPath, agentId: "peer", content: "seed" });
+      // The host runs the command through its shell, from wherever the session works, in an
+      // environment that names another namespace.
+      const hook = () => spawnSync("/bin/sh", ["-c", command], {
+        cwd: base,
+        encoding: "utf8",
+        env: { PATH: process.env.PATH ?? "", HOME: home, SYNAPSE_NAMESPACE: "ambient-team" },
+        input: JSON.stringify({ session_id: name, cwd: base, hook_event_name: "PostToolUse", tool_name: "Bash" }),
+      });
+      const baseline = hook();
+      assert.deepEqual([baseline.status, baseline.stdout], [0, ""], `${command} -> ${baseline.stderr}`);
+      store.remember({ projectDbPath, agentId: "peer", content: `${name} marker` });
+      const delivered = hook();
+      assert.equal(delivered.status, 0, delivered.stderr);
+      assert.match(delivered.stdout, new RegExp(`${name} marker`), `${command} read the store the synapse entry routes to`);
+    }
   } finally {
     store.close();
     rmSync(base, { recursive: true, force: true });
