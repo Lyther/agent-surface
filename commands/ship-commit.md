@@ -50,9 +50,9 @@ Pick one mode, state it in one line, and ask when signals conflict.
 
 2. Stage each bucket by path or hunk (`git add <files>` or `git add -p`); never `git add .`, `-A`, or `commit -a`.
 3. Write an imperative subject of at most 50 characters that stands alone; for a complex change add a body, wrapped at 72 columns, that explains why. Conventional form: `type(scope): subject` with optional `Fixes #123`. Kernel form: `subsystem: subject`, body with the failure mode, then trailers.
-4. Kernel trailers: `Fixes: <12-hex> ("subject")` only with a known SHA; `Cc: stable@vger.kernel.org # 6.1.x` only when a backport is intended; `Reviewed-by`/`Tested-by` only when a human gave them; `Assisted-by:` when a tool helped, naming no product. Report trailer problems instead of rewriting existing commits (`lint-kernel` → `references/submission-policy.md`).
+4. Kernel trailers: `Fixes: <12-hex> ("subject")` only with a known SHA; `Cc: stable@vger.kernel.org # 6.1.x` only when a backport is intended; `Reviewed-by`/`Tested-by` only when a human gave them; no `Assisted-by:`, and disclose tool help with the body line `lint-kernel` names. Report trailer problems instead of rewriting existing commits (`lint-kernel` → `references/submission-policy.md`).
 5. Commit: `git commit -m "type(scope): subject"`, adding `-S` when a signing key is configured. Kernel mode is preparation only: `Signed-off-by:` is the human author's DCO, so print the exact `git commit -s -m …` for the author instead of running it.
-6. Read back the committed message (`git log -1 --format=%B`). Remove AI attribution or vendor advertising (`Made-with:`, `Co-Authored-By:` an AI, `Generated with …`, a `Signed-off-by:` naming an AI or `noreply@anthropic.com`, `AI-Generated:`) before any push or handoff; the kernel `Assisted-by:` and the human DCO stay.
+6. Read back the committed message (`git log -1 --format=%B`). Remove AI attribution or vendor advertising (`Made-with:`, `Co-Authored-By:` an AI, `Generated with …`, a `Signed-off-by:` naming an AI or `noreply@anthropic.com`, `AI-Generated:`) before any push or handoff; the kernel disclosure line and the human DCO stay.
 7. If a hook fails, fix only mechanical blockers, re-stage, and make a new commit (never `--amend` after an aborted hook). If the hook blocks on a product defect, report it and stop.
 
 ## 5. Publish (only when authorized)

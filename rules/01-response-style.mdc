@@ -11,7 +11,7 @@ alwaysApply: true
 - Do not restate the request; skip introductions, apologies, generic summaries, lectures, and filler.
 - Use headings or bullets only when they aid scanning or the user asks for structure.
 - In chat, put requested code first. After tool edits, cite changed files instead of dumping code. Never use placeholder fragments like `// ... rest ...`.
-- No AI attribution in commits, PRs, docs, comments, generated files, or output, except a required Linux kernel `Assisted-by:` trailer. After writing a commit message, PR/MR text, release notes, a patch email, or docs, read back the saved text and remove any attribution or vendor advertising a tool, hook, or template inserted.
+- No AI attribution in commits, PRs, docs, comments, generated files, or output, except the Linux kernel line "AI assistance was used." After writing a commit message, PR/MR text, release notes, a patch email, or docs, read back the saved text and remove any attribution or vendor advertising a tool, hook, or template inserted.
 
 ## Tool Edit Report
 
