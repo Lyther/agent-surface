@@ -100,6 +100,7 @@ Notable changes to agent-surface and its first-party MCP services. Format: [Keep
 
 ### Fixed
 
+- **`install` prints Antigravity's import step** - Antigravity runs the copy `agy plugin install` imported, not the staged plugin `install` updates, and only the generated plugin README said so, so redistributions left Antigravity on months-old skills. An `antigravity-cli` install that changes the staged plugin now prints `agy plugin install <plugin dir>`; one that changes nothing stays quiet.
 - **A malformed TOML config no longer reaches the install output** - `install` reported a TOML config it could not parse, such as Codex's `config.toml`, with the parser's whole message, which quotes the failing line, and that line can hold a credential. It now reports only the position, e.g. `invalid TOML: Error parsing TOML (2, 9)`.
 - **Codex can call Synapse under the generated `approval_policy = "never"`** - Codex refuses an MCP call that needs approval when the policy never asks, so Synapse's writes were refused. The generated `mcp_servers.synapse` table now sets `default_tools_approval_mode = "approve"`.
 - **Codex's Synapse server follows routing exported in the shell** - Codex starts MCP servers with an allowlisted environment but runs hooks with the shell's, so a `SYNAPSE_DB_DIR`, `SYNAPSE_PROJECT` or `SYNAPSE_NAMESPACE` exported in the shell routed the Synapse hook and not the server, and the two read different stores. The generated `mcp_servers.synapse` table now lists the three in `env_vars`; names a user already lists there stay.

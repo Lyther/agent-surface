@@ -1943,6 +1943,12 @@ async function applyInstallPlan(plan) {
   if (plan.target === "codex" && plan.hookMerges.some((item) => item.change === "add" && item.action === "write")) {
     console.log(`NOTE: Codex runs the Synapse hook in ${plan.hookMerges[0].relativeOutput} only after you trust it: open codex and review it once with /hooks`);
   }
+  // Antigravity runs the copy `agy plugin install` imported, so a change to the staged plugin reaches it
+  // only through another import; redistributions left it on months-old skills while nothing said so.
+  if (plan.target === "antigravity-cli" && written + removed + configMerges > 0) {
+    const plugin = path.join(plan.installRoot, "antigravity-cli", "plugins", "agent-surface");
+    console.log(`NOTE: Antigravity runs its imported copy of this plugin, not these files; import them with: agy plugin install "${plugin}"`);
+  }
 }
 
 // Replaced atomically, so a crash leaves the previous or the new manifest, never a torn one.
