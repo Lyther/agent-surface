@@ -339,7 +339,8 @@ export function mergeCodexMcpToml(text, entries, removeIds = [], rootProperties 
   try {
     config = TOML.parse(text);
   } catch (error) {
-    throw new Error(`invalid TOML: ${error.message}`);
+    // Only the position: the rest of the parser's message quotes the failing line, which can hold a credential.
+    throw new Error(`invalid TOML: ${String(error.message).split("\n")[0].replace(/:$/, "")}`);
   }
   if (!isPlainObject(config)) throw new Error("TOML root must be a table");
 

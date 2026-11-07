@@ -1,19 +1,16 @@
-// The workflow subsystem: the `workflow` command tree (init, doctor, apply, close,
-// patch) that drives the validated run ledger under .agent-surface/workflows/<run_id>.
-// Owns run.json ledger advancement, the hash-chained events.ndjson (the chain catches
-// hand edits, not a rewrite that recomputes hashes), and git-tree-based patch
-// capture/verify. Schema validation lives in check.mjs.
-import { spawnSync } from "node:child_process";
-import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rename, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
+// The workflow subsystem: the `workflow` command tree (init, doctor, apply, close) that
+// drives the validated run ledger under .agent-surface/workflows/<run_id>. Owns run.json
+// ledger advancement and the hash-chained events.ndjson (the chain catches hand edits, not
+// a rewrite that recomputes hashes). Schema validation lives in check.mjs.
+import { lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
-import { checkBossArtifactCoherence, createAjv, formatAjvErrors, readWorkflowJson, validateWorkflowJson, validateWorkflowPatchManifests, workflowSchemaFiles } from "./check.mjs";
+import { checkBossArtifactCoherence, createAjv, formatAjvErrors, readWorkflowJson, validateWorkflowJson, workflowSchemaFiles } from "./check.mjs";
 import { readFileIfExists } from "./io.mjs";
-import { gitNulFields, gitOutput, gitValue } from "./proc.mjs";
+import { gitValue } from "./proc.mjs";
 import { root } from "./registry.mjs";
-import { argValues, canonicalJson, exists, fail, isPathInside, isSafeRelativePath, requiredArgValue, safeFilename, sha256, uniqueStrings } from "./util.mjs";
+import { canonicalJson, exists, fail, isPathInside, requiredArgValue, safeFilename, sha256, uniqueStrings } from "./util.mjs";
 
 const workflowTaskStateKeys = [
   "active_task_ids",
@@ -43,11 +40,7 @@ export async function workflow(args) {
     await workflowClose(rest);
     return;
   }
-  if (subcommand === "patch") {
-    await workflowPatch(rest);
-    return;
-  }
-  fail("workflow requires init, doctor, apply, close, or patch");
+  fail("workflow requires init, doctor, apply, or close");
 }
 
 // Creates run.json bound to the current git HEAD, an empty event log, and a current.json
@@ -164,7 +157,6 @@ async function workflowDoctor(args) {
     const monitor = await readWorkflowJson(monitorPath, schemas.get("workflow.monitor.schema.json"), errors);
     if (monitor) errors.push(...await workflowMonitorErrors(monitor, runData, runDir));
   }
-  await validateWorkflowPatchManifests(runDir, schemas.get("workflow.patch.schema.json"), errors);
 
   // apply writes run.json and its event together, so a mismatch means run.json was
   // edited by hand or an apply did not finish. An artifact that was never applied
@@ -583,110 +575,6 @@ function filescopesOverlap(leftFiles, rightFiles) {
   return false;
 }
 
-async function workflowPatch(args) {
-  const [subcommand, ...rest] = args;
-  if (subcommand === "begin") {
-    await workflowPatchBegin(rest);
-    return;
-  }
-  if (subcommand === "end") {
-    await workflowPatchEnd(rest);
-    return;
-  }
-  if (subcommand === "verify") {
-    await workflowPatchVerify(rest);
-    return;
-  }
-  fail("workflow patch requires begin, end, or verify");
-}
-
-async function workflowPatchBegin(args) {
-  const context = workflowPatchContext(args);
-  const filescope = argValues(args, "--file");
-  if (filescope.length === 0) fail("workflow patch begin requires at least one --file");
-  for (const file of filescope) {
-    if (!isSafeRelativePath(file)) fail(`unsafe --file: ${file}`);
-  }
-
-  await mkdir(context.patchDir, { recursive: true });
-  const preTreeHash = await buildWorktreeTree(filescope);
-  const manifest = {
-    schema_version: "workflow.patch.v1",
-    run_id: context.runId,
-    round_id: context.roundId,
-    task_id: context.taskId,
-    filescope: uniqueStrings(filescope),
-    pre_tree_hash: preTreeHash,
-    pre_head: gitValue(["rev-parse", "HEAD"]) ?? null,
-    started_at: new Date().toISOString(),
-    status: "begun",
-  };
-
-  await writeWorkflowFile(context.manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  console.log(`patch begin: ${path.relative(process.cwd(), context.manifestPath)}`);
-  console.log(`pre_tree_hash: ${preTreeHash}`);
-}
-
-async function workflowPatchEnd(args) {
-  const context = workflowPatchContext(args);
-  const manifest = await readPatchManifest(context.manifestPath);
-  const postTreeHash = await buildWorktreeTree(manifest.filescope);
-  const patch = gitOutput(["diff", "--binary", "--full-index", manifest.pre_tree_hash, postTreeHash, "--", ...manifest.filescope]);
-  const nameStatus = gitOutput(["diff", "--name-status", manifest.pre_tree_hash, postTreeHash, "--", ...manifest.filescope]);
-  const changedFiles = parseNameStatusFiles(
-    gitNulFields(["diff", "--name-status", "-z", manifest.pre_tree_hash, postTreeHash, "--", ...manifest.filescope]),
-  );
-  const patchHash = `sha256:${sha256(patch)}`;
-  const updated = {
-    ...manifest,
-    post_tree_hash: postTreeHash,
-    patch_ref: path.relative(process.cwd(), context.patchPath),
-    patch_hash: patchHash,
-    name_status_ref: path.relative(process.cwd(), context.nameStatusPath),
-    changed_files: changedFiles,
-    completed_at: new Date().toISOString(),
-    status: "ended",
-  };
-
-  await writeWorkflowFile(context.patchPath, patch);
-  await writeWorkflowFile(context.nameStatusPath, nameStatus);
-  await writeWorkflowFile(context.manifestPath, `${JSON.stringify(updated, null, 2)}\n`);
-  console.log(`patch end: ${path.relative(process.cwd(), context.patchPath)}`);
-  console.log(`patch_hash: ${patchHash}`);
-  console.log(`changed_files: ${changedFiles.length}`);
-}
-
-// Checks the patch file hash, that the --file paths still build post_tree_hash,
-// `git diff --check`, and `git apply --check` on pre_tree_hash. It does not prove the
-// patch reproduces post_tree_hash or that files outside the --file paths are unchanged.
-async function workflowPatchVerify(args) {
-  const context = workflowPatchContext(args);
-  const manifest = await readPatchManifest(context.manifestPath);
-  if (manifest.status !== "ended") fail("patch manifest is not ended");
-  const currentPatch = await readFile(context.patchPath, "utf8");
-  const currentHash = `sha256:${sha256(currentPatch)}`;
-  if (currentHash !== manifest.patch_hash) fail("patch hash mismatch");
-  const postTreeHash = await buildWorktreeTree(manifest.filescope);
-  if (postTreeHash !== manifest.post_tree_hash) fail("current worktree no longer matches patch post_tree_hash");
-
-  const whitespace = spawnSync("git", ["diff", "--check", manifest.pre_tree_hash, manifest.post_tree_hash, "--", ...manifest.filescope], {
-    cwd: process.cwd(),
-    encoding: "utf8",
-  });
-  if (whitespace.status !== 0) fail(`patch has whitespace errors:\n${whitespace.stdout}${whitespace.stderr}`);
-
-  const applyCheck = await verifyPatchApplies(manifest.pre_tree_hash, context.patchPath);
-  const verified = {
-    ...manifest,
-    applies_cleanly: applyCheck,
-    verified_at: new Date().toISOString(),
-    status: "verified",
-  };
-
-  await writeWorkflowFile(context.manifestPath, `${JSON.stringify(verified, null, 2)}\n`);
-  console.log(`patch verify: ok (${path.relative(process.cwd(), context.patchPath)})`);
-}
-
 async function workflowSchemaValidators(errors) {
   const schemas = new Map();
   const ajv = createAjv();
@@ -704,111 +592,6 @@ async function workflowSchemaValidators(errors) {
   }
 
   return schemas;
-}
-
-function workflowPatchContext(args) {
-  const runId = requiredSafeId(args, "--run");
-  const roundId = Number(requiredArgValue(args, "--round"));
-  const taskId = requiredSafeId(args, "--task");
-  if (!Number.isInteger(roundId) || roundId < 0) fail("--round must be a non-negative integer");
-  const roundName = `round-${String(roundId).padStart(3, "0")}`;
-  const patchDir = path.join(workflowRunDir(runId), "rounds", roundName, "patches");
-  const basename = safeFilename(taskId);
-  return {
-    runId,
-    roundId,
-    taskId,
-    patchDir,
-    manifestPath: path.join(patchDir, `${basename}.patch.json`),
-    patchPath: path.join(patchDir, `${basename}.patch`),
-    nameStatusPath: path.join(patchDir, `${basename}.name-status.txt`),
-  };
-}
-
-async function readPatchManifest(file) {
-  if (!(await exists(file))) fail(`patch manifest missing: ${path.relative(process.cwd(), file)}`);
-  const manifest = JSON.parse(await readFile(file, "utf8"));
-  if (manifest.schema_version !== "workflow.patch.v1") fail("unsupported patch manifest schema");
-  if (!Array.isArray(manifest.filescope) || manifest.filescope.length === 0) fail("patch manifest missing filescope");
-  return manifest;
-}
-
-async function buildWorktreeTree(filescope) {
-  const files = gitNulFields(["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...filescope]);
-  const indexPath = path.join(await mkdtemp(path.join(os.tmpdir(), "agent-surface-index-")), "index");
-  const env = { ...process.env, GIT_INDEX_FILE: indexPath };
-
-  // A path under a linked directory is not in the worktree as git sees it: git records the link
-  // itself, and reading through it would hash a file outside the checkout.
-  const linkedDirs = new Map();
-  const underLinkedDir = async (file) => {
-    const parts = file.split("/");
-    for (let depth = 1; depth < parts.length; depth += 1) {
-      const dir = parts.slice(0, depth).join("/");
-      if (!linkedDirs.has(dir)) linkedDirs.set(dir, Boolean((await lstat(path.join(process.cwd(), dir)).catch(() => null))?.isSymbolicLink()));
-      if (linkedDirs.get(dir)) return true;
-    }
-    return false;
-  };
-
-  try {
-    gitOutput(["read-tree", "--empty"], env);
-    for (const file of files) {
-      if (!isSafeRelativePath(file)) fail(`unsafe git path: ${file}`);
-      if (await underLinkedDir(file)) continue;
-      const absolute = path.join(process.cwd(), file);
-      const fileStat = await lstat(absolute).catch(() => null);
-      // A link is stored as git stores one: its target path, mode 120000. Hashing the
-      // path itself would read the target's bytes, possibly from outside the repository.
-      if (fileStat?.isSymbolicLink()) {
-        const link = gitOutput(["hash-object", "-w", "--stdin"], env, await readlink(absolute, { encoding: "buffer" })).trim();
-        gitOutput(["update-index", "--add", "--cacheinfo", `120000,${link},${file}`], env);
-        continue;
-      }
-      if (!fileStat?.isFile()) continue;
-      const blob = gitOutput(["hash-object", "-w", "--", file], env).trim();
-      const mode = fileStat.mode & 0o111 ? "100755" : "100644";
-      gitOutput(["update-index", "--add", "--cacheinfo", `${mode},${blob},${file}`], env);
-    }
-    return gitOutput(["write-tree"], env).trim();
-  } finally {
-    await rm(path.dirname(indexPath), { recursive: true, force: true });
-  }
-}
-
-async function verifyPatchApplies(preTreeHash, patchPath) {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "agent-surface-apply-"));
-  const indexDir = await mkdtemp(path.join(os.tmpdir(), "agent-surface-apply-index-"));
-  const env = { ...process.env, GIT_INDEX_FILE: path.join(indexDir, "index") };
-  try {
-    gitOutput(["read-tree", preTreeHash], env);
-    gitOutput(["--work-tree", tempDir, "checkout-index", "-a", "-f"], env);
-    const init = spawnSync("git", ["init"], {
-      cwd: tempDir,
-      encoding: "utf8",
-    });
-    if (init.status !== 0) fail(`git init failed for patch check:\n${init.stdout}${init.stderr}`);
-    const result = spawnSync("git", ["apply", "--check", patchPath], {
-      cwd: tempDir,
-      encoding: "utf8",
-    });
-    if (result.status !== 0) fail(`patch does not apply cleanly:\n${result.stdout}${result.stderr}`);
-    return true;
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
-    await rm(indexDir, { recursive: true, force: true });
-  }
-}
-
-// `--name-status -z` fields: a status, then two paths for a rename or copy, else one.
-function parseNameStatusFiles(fields) {
-  const files = [];
-  for (let index = 0; index < fields.length;) {
-    const pathCount = /^[RC]/.test(fields[index]) ? 2 : 1;
-    files.push(...fields.slice(index + 1, index + 1 + pathCount));
-    index += 1 + pathCount;
-  }
-  return uniqueStrings(files);
 }
 
 function workflowRunDir(runId) {

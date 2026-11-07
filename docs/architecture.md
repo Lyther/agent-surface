@@ -129,7 +129,6 @@ agent-surface/
     mcp-env-launch.mjs                 - Existing child environment/runtime-path delivery; unchanged.
     mcp-build.mjs                      - Existing first-party MCP build prerequisites; unchanged.
     mcp-shims.mjs                      - Existing platform launch shims; unchanged.
-    evidence.mjs                       - Existing bounded workflow evidence capture; no new digest mandate.
     workflow.mjs                       - Existing workflow ledger operations, outside refresh scope.
   adapters/<target>/README.md           - Native component, supported scopes, omissions and proof commands.
   tests/suites/

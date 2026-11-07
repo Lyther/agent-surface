@@ -48,7 +48,7 @@ Helpers; their output is evidence for `context_capsule`, AC, risk notes, and ver
 7. Write the BOSS JSON to `.agent-surface/workflows/<run_id>/boss.json` and the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/boss.json` (`round-000` for a new run), with every task in a `run_state` bucket. Use temp-file-and-rename for JSON writes.
 8. Advance the ledger with `agent-surface workflow apply --role workflow-boss --run <run_id> --artifact .agent-surface/workflows/<run_id>/rounds/round-<round_id>/boss.json`; apply appends the event, sets the `run.json` task state and next command, and writes `current.json`.
 
-Role-file ownership is strict. BOSS owns its artifacts and creates the run; `dev-feature`, `dev-fix`, `dev-chore`, and `dev-refactor` own worker artifacts plus their evidence and patch files; `workflow-reviewer`, `workflow-judger`, and `workflow-rescue` own their artifacts; each role owns its own ledger event. A role may read other role files but never edits, repairs, truncates, or rewrites them.
+Role-file ownership is strict. BOSS owns its artifacts and creates the run; `dev-feature`, `dev-fix`, `dev-chore`, and `dev-refactor` own worker artifacts plus their evidence files; `workflow-reviewer`, `workflow-judger`, and `workflow-rescue` own their artifacts; each role owns its own ledger event. A role may read other role files but never edits, repairs, truncates, or rewrites them.
 
 ### Phase 1: Requirements
 
@@ -68,7 +68,7 @@ Extract requirements from exact user quotes and invent none. Requirements and ta
 - Put as much independent work as possible into the first round when filescope, test surface, or worktree isolates it, so parallel workers or a worker lead's subagents need not re-read the repo per task.
 - Split the run instead of batching when tasks need different worker routes, unrelated filescopes, incompatible risk levels, different irreversible targets, or separate human-only actions.
 - Give each task its own `plan` (3–8 steps), `ac`, and `verify`. Pin the contract, not the implementation.
-- Set `patch_required: true` only when partial merge, concurrent writable isolation, or explicit audit policy needs a per-task patch; `parallel_group` and `separate_worktree` require it. A serial single-owner task may use `false`, which disables `MERGE_PARTIAL` for it.
+- Give a task `separate_worktree` isolation when it must be acceptable on its own: tasks sharing a worktree leave one combined diff, so `MERGE_PARTIAL` cannot split them.
 - `max_tasks_per_round` defaults to 3. Five is the hard maximum, only for explicitly low/medium-risk coherent queues with cheap verification and no conflicting security, data, dependency, or target surface.
 - Route deterministically by `workflow.next_command` plus the task queue, not free-form agent debate.
 
@@ -97,7 +97,7 @@ Extract requirements from exact user quotes and invent none. Requirements and ta
 - `context_pressure_threshold_pct`: default 70, backed by counters: files opened, total bytes read, commands run, verify cycles, log bytes, failed attempts, elapsed time, and model-reported context usage when available.
 - `max_tasks_per_round`: default 3, hard maximum 5; put remaining work in a later round after the current batch is reviewed.
 - `drift_check_every`: re-read the BOSS spec after this many completed tasks (default 5).
-- `timeout_budget_ms`: maximum elapsed runner time for a round before handoff.
+- `timeout_budget_ms`: maximum elapsed time for a round before handoff.
 
 ### Phase 7a: Runtime and Parallelism Hints
 
@@ -161,7 +161,6 @@ Write the full BOSS JSON (v3) to `.agent-surface/workflows/<run_id>/boss.json`:
       "isolation": "same_worktree_read_only|separate_worktree|serial_required",
       "suggested_runtime": "kilo-cli|kilo-ide|droid|codex-exec|claude-code|cursor-agent|grok-build|goose|ollama-cloud|opencode|antigravity-cli|antigravity-desktop|current-session|unspecified",
       "subagent_suitable": false,
-      "patch_required": true,
       "plan": [
         { "step_id": 1, "title": "short verb phrase", "description": "what to do and why", "deliverable": "what changes will exist when done", "touches": ["paths if known"] }
       ],
@@ -169,7 +168,7 @@ Write the full BOSS JSON (v3) to `.agent-surface/workflows/<run_id>/boss.json`:
         { "id": "AC1", "type": "functional|failure_path|security|performance|accessibility|compatibility|documentation|observability|data_safety", "text": "verifiable statement", "verify": "how to verify" }
       ],
       "verify": [
-        { "cmd": "ordered runner command for this task", "class": "read_only|build_test|network|filesystem_destructive|deployment|database_mutation", "timeout_ms": 120000 }
+        { "cmd": "ordered verify command for this task", "class": "read_only|build_test|network|filesystem_destructive|deployment|database_mutation", "timeout_ms": 120000 }
       ],
       "risk_notes": []
     }

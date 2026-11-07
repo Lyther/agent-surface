@@ -21,7 +21,7 @@ Otherwise say no kernel lint applies and use the repository's own C tooling.
 ## Procedure
 
 1. List the touched `.c`, `.h`, `Kconfig`, and `Makefile` files. For an existing series, check `outgoing/*.patch` instead of the working tree.
-2. Select the checks this patch needs (a documentation-only change needs no smatch) and record one state per check: `PASS` (ran, found nothing), `FAIL` (ran, found a defect), `SKIP` (does not apply; say why), or `MISS` (applies but could not run: tool absent, no built tree, no hardware; say why). A `MISS` never counts as a pass or toward an "N/N" score, and it blocks only the claim its check supports: missing sparse blocks "no new type errors", not "checkpatch is clean". Restate unresolved `MISS` entries in the outgoing patch below `---`.
+2. Select the checks this patch needs (a documentation-only change needs no smatch) and record one state per check: `PASS` (ran, found nothing), `FAIL` (ran, found a defect), `SKIP` (does not apply; say why), or `MISS` (applies but could not run: tool absent, no built tree, no hardware; say why). A `MISS` never counts as a pass or toward an "N/N" score, and it blocks only the claim its check supports: missing sparse blocks "no new type errors", not "checkpatch is clean". The patch states testing in one line; other `MISS` entries stay in your report. A runtime result binds only the patch ID it ran; rerun it after any code change.
 
    ```bash
    # Style gate: --strict for new code; add --no-tree for a lone .patch outside a kernel tree.
@@ -43,7 +43,7 @@ Otherwise say no kernel lint applies and use the repository's own C tooling.
 
    ```bash
    # Against the review base you established (often a subsystem tree; origin/master is not universal).
-   git format-patch -M --cover-letter -o outgoing/ <review-base>..
+   git format-patch -M --base=<review-base> --cover-letter -o outgoing/ <review-base>..
    # Keep the defaults: git fallback adds history-derived reviewers that MAINTAINERS alone does not list.
    scripts/get_maintainer.pl --no-rolestats outgoing/*.patch
    # MAINTAINERS-only inspection, never for deriving recipients:
@@ -51,12 +51,12 @@ Otherwise say no kernel lint applies and use the repository's own C tooling.
    echo "Proposed: git send-email --to=<maintainer> --cc=<list> outgoing/*.patch"
    ```
 
-   Never pipe recipients into `git send-email` or run it: print the plan and stop. SMTP traffic needs explicit user authorization, and the user runs the send. A root `.get_maintainer.conf` is prepended to the arguments, so explicit flags win; read it before trusting output whose flags you did not fully set.
+   Never pipe recipients into `git send-email` or run it: print the plan and stop. SMTP traffic needs explicit user authorization, and the user runs the send. A root `.get_maintainer.conf` is prepended to the arguments, so explicit flags win; read it before trusting output whose flags you did not fully set. Splice notes below `---` into the exported files; never hand-build a mail. Compare recipient runs under `PERL_HASH_SEED=0 PERL_PERTURB_KEYS=0`; unseeded runs break history ties at random. `K:` patterns match all text before the diff, so rewording can change recipients.
 5. When the fix may reach stable, answer six questions separately: affected range, target branches, prerequisite investigation, application, build, behavioral evidence. History searches (`git log -S`/`-G`, `git describe --contains`) give leads to read, not verdicts; they misreport renames, reverts, and substring matches. An affected branch that needs an adapted patch or a prerequisite is not an excluded branch. Procedure: `references/backport-review.md`.
 6. Before `git format-patch` for a public list:
    - Rerun `qa-trace` with the error path, not the happy path, as the entry point.
    - Have a fresh agent or reviewer review the patch without the earlier context; if the design survives only with the backstory, it is not ready.
-   - For each `(input × concurrent-op)` quadrant no test reaches, state in the patch why and how you verified it by inspection.
+   - For each `(input × concurrent-op)` quadrant no test reaches, state in your report why and how you verified it by inspection.
    - If an earlier version went public, write the vN changelog as a real diff of the design.
 7. Read a subsystem CI reply (patchwork, `bluez.test.bot`) per check. A crash inside the userspace test harness, such as a sanitizer report from BlueZ `src/shared/`, is not a kernel finding, but every test after it never ran against the patch: check whether unrelated series fail the same way, then rerun the full suite locally on a harness revision without the breakage before calling those tests passed.
 8. Before reporting, apply `references/finding-discipline.md`: each issue needs concrete evidence on at least one execution path, style points are capped and held to a higher bar than correctness, and you never assert authorship or comment on a disclosure trailer. Report in the Output format.
@@ -104,6 +104,8 @@ Fix every checkpatch CHECK, WARNING, and ERROR.
 
 - A patch touching locking, IRQ context, RCU, atomics, or scheduler hooks needs a `qa-trace` pass before commit (`ship-commit` "Review Once").
 - Each added cancel, disable, or barrier needs a producer the caller or core does not already exclude; otherwise drop it and its race claim.
+- Delete a flag or guard that existing state already implies; prove it through every caller's locking.
+- Check any locking claim, yours or a reviewer's, against the target tree's version; lock types change across releases.
 - Mark accesses per `tools/memory-model/Documentation/access-marking.txt`, a four-way choice:
   - Plain C when a held lock or seqlock excludes the access, for init-before-publication or cleanup, for CPU- or task-private data, or with no concurrent store; marking these hides real bugs from KCSAN.
   - `READ_ONCE`/`WRITE_ONCE` when the race is intentional and the value is load-bearing for the concurrency design.
@@ -142,6 +144,8 @@ Body:
 - Make it self-contained for a reviewer who never saw earlier versions; one problem per patch, and past about three short paragraphs consider splitting.
 - Cite commits as `12-hex ("oneline summary")`, never a bare SHA.
 - No pointers to future RFCs; those belong in cover letters or follow-up threads.
+- When a tool helped, end the body with "AI assistance was used." Never list what the tool did.
+- Net-tree fixes also state discovery and testing in the body (`maintainer-netdev.rst`, "Bug fixes"), e.g. "Found by code review and not reproduced; compile-tested only."
 
 Trailers, in this order with no blank lines between:
 
@@ -149,12 +153,14 @@ Trailers, in this order with no blank lines between:
 - `Reported-by:`, `Closes:`, `Link:` only with real attribution; prefer lore.kernel.org URLs for `Link:`.
 - `Cc: <stable@vger.kernel.org> # 5.14.x` only when a backport is intended. A `Fixes:` naming a commit in a released kernel needs that decision made explicitly: without the `Cc:`, Greg's patch bot asks for a resend, and older releases get the fix only if AUTOSEL or the stable team's scripts select it; to keep it out of stable, add `Cc: <stable+noautosel@kernel.org> # reason`, where the reason is mandatory. The single version already means "and newer", so a trailing `+` is redundant, and an absent annotation is not a defect when `Fixes:` implies the range. Give each prerequisite its own line, `Cc: <stable@vger.kernel.org> # 5.7.x: <12-hex>: <subject>`; when a subsystem's gitlint caps line length (Bluetooth CI: 80 columns), shorten the subject, never the SHA. For an unpublished vulnerability use `stable@kernel.org`, after reading `references/submission-policy.md`: it protects one channel and does not make the mail private.
 - `Reviewed-by:`, `Tested-by:`, `Acked-by:` only when real; never invent one.
-- `Assisted-by: LLM [tools]` when a tool helped: the literal `LLM`, then any specialized analysis tools used (e.g. `Assisted-by: LLM coccinelle sparse`), never an agent or model name. Placing it directly above `Signed-off-by:` is this skill's convention, not upstream's (`references/submission-policy.md`).
+- No `Assisted-by:`; mainline docs dropped it (`references/submission-policy.md`).
 - `Signed-off-by:` is mandatory (DCO 1.1, `git commit -s`) and certified by a human; an agent never adds it.
 
 Trailers live in the commit object, so correcting one rewrites every later hash and invalidates a prepared series: report trailer problems, never rewrite them silently.
 
 Put `Changes in vN:` below `---`, between `Signed-off-by:` and the diffstat, never in the commit body: a brief bullet list of the previous-to-current delta that omits designs never sent publicly.
+
+Below `---`, keep only what a maintainer acts on: test status, runtime results, base or dependency facts. No defensive caveats.
 
 Inside the patch, place one short comment per branch where it explains the local action rather than one long composed comment above a multi-branch `if`; when a comment makes the reader track several counters and locks at once, split it or let the code structure carry the explanation.
 
@@ -175,7 +181,7 @@ make CHECK=smatch C=2:   [PASS (f files) | FAIL: findings | MISS: no built tree]
   smatch coverage:       [cross-function DB built? if not, inter-procedural findings are out of scope; a run limitation, not a MISS]
 coccicheck:              [PASS | FAIL: findings | MISS: ocaml unavailable]
 htmldocs (if touched):   [PASS | FAIL: kernel-doc warnings | SKIP: no kernel-doc touched]
-Not run: [every MISS with its reason; restated below --- in the patch]
+Not run: [every MISS with its reason]
 Claims blocked by the above: [conclusions left unsupported]
 
 3. Subject and Trailers
@@ -183,7 +189,7 @@ Subject:      [subsystem: imperative short description]
 Sign-off:     [Signed-off-by present? yes/no; human-certified]
 Fixes:        [hex: subject; present? yes/no/n-a; ancestor check PASS/MISS]
 Cc stable:    [yes # 6.1.x / noautosel # reason / no / n-a]
-Assisted-by:  [LLM <tools> / n-a]
+Disclosure:   ["AI assistance was used." in body / n-a]
 Other tags:   [Reported-by, Reviewed-by, Tested-by, Acked-by; real ones only]
 Trailer corrections needed: [report only; never rewrite]
 

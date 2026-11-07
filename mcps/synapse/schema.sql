@@ -33,8 +33,8 @@ CREATE TABLE IF NOT EXISTS locks (
 );
 CREATE INDEX IF NOT EXISTS idx_locks_expiry ON locks(expires_at);
 
--- A file v0.4 wrote also holds its `operations` table. Nothing reads it; it stays for one release so
--- a v0.4 sidecar still running after the upgrade keeps writing, and the release after drops it.
+-- v0.4's retry records. Once the table is gone the statement is a no-op that takes no write lock.
+DROP TABLE IF EXISTS operations;
 
 -- What each hook receiver (a host session, or one of its subagents) has been handed, per store. The
 -- hook moves both cursors in one BEGIN IMMEDIATE transaction, so a record reaches a receiver once.

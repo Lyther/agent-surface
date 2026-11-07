@@ -5,7 +5,6 @@ import process from "node:process";
 import { check, checkCommands, checkGenerated, checkRules, checkSkills, commandPhases, exportableCatalog, exportableCommands } from "./agent-surface/check.mjs";
 import { commandPhaseFromName } from "./agent-surface/commands.mjs";
 import { doctor } from "./agent-surface/doctor.mjs";
-import { runEvidence } from "./agent-surface/evidence.mjs";
 import { directDirectories, files } from "./agent-surface/fs-tree.mjs";
 import { build, install } from "./agent-surface/install.mjs";
 import { root } from "./agent-surface/registry.mjs";
@@ -35,15 +34,11 @@ const COMMAND_FLAGS = {
     lists: ["--target", "--runtime", "--category", "--categories", "--service"],
     switches: ["--allow-scope-root", "--dry-run", "-y"],
   },
-  run: { values: ["--task", "--class", "--timeout", "--out"], rest: true },
   workflow: {},
   "workflow init": { values: ["--run"] },
   "workflow doctor": { values: ["--run"] },
   "workflow apply": { values: ["--role", "--run", "--artifact"] },
   "workflow close": { values: ["--run", "--state"] },
-  "workflow patch begin": { values: ["--run", "--round", "--task", "--file"], repeatable: ["--file"] },
-  "workflow patch end": { values: ["--run", "--round", "--task"] },
-  "workflow patch verify": { values: ["--run", "--round", "--task"] },
   doctor: {},
 };
 
@@ -56,15 +51,14 @@ async function main() {
   }
 
   if (Object.hasOwn(COMMAND_FLAGS, command)) {
-    const key = [3, 2, 1].map((words) => [command, ...args.slice(0, words - 1)].join(" ")).find((name) => Object.hasOwn(COMMAND_FLAGS, name));
+    const key = [2, 1].map((words) => [command, ...args.slice(0, words - 1)].join(" ")).find((name) => Object.hasOwn(COMMAND_FLAGS, name));
     const given = args.slice(key.split(" ").length - 1);
     if (helpRequested(given, COMMAND_FLAGS[key])) {
       printHelp();
       return;
     }
-    // An unknown workflow subcommand and a run without its `--` fail below with their own message.
-    const ownError = (key === "workflow" && args.length > 0) || (command === "run" && !args.includes("--"));
-    if (!ownError) rejectUnknownArgs(key, given, COMMAND_FLAGS[key]);
+    // An unknown workflow subcommand fails below with its own message.
+    if (!(key === "workflow" && args.length > 0)) rejectUnknownArgs(key, given, COMMAND_FLAGS[key]);
   }
 
   if (command === "inventory") {
@@ -111,11 +105,6 @@ async function main() {
     return;
   }
 
-  if (command === "run") {
-    await runEvidence(args);
-    return;
-  }
-
   if (command === "workflow") {
     await workflow(args);
     return;
@@ -145,15 +134,11 @@ Usage:
   agent-surface check subagents
   agent-surface build --target <target|all> [--dry-run]
   agent-surface install --target <target>[,<target>...] [--runtime <runtime>[,<runtime>...]] [--category <category>[,<category>...]] [--scope project|user] [--dest <path>] [--allow-scope-root] [--dry-run]
-  agent-surface run --task <id> --class <class> --timeout <ms> --out <dir> -- <command...>
   agent-surface doctor
   agent-surface workflow init --run <run_id>
   agent-surface workflow doctor --run <run_id>
   agent-surface workflow apply --role <role> --run <run_id> --artifact <path>
   agent-surface workflow close --run <run_id> --state closed|quarantined|aborted
-  agent-surface workflow patch begin --run <run_id> --round <n> --task <id> --file <path> [--file <path>...]
-  agent-surface workflow patch end --run <run_id> --round <n> --task <id>
-  agent-surface workflow patch verify --run <run_id> --round <n> --task <id>
 `);
 }
 

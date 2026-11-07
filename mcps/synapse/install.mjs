@@ -5,57 +5,18 @@
 //
 // Runs under Node on every platform, which synapse already requires, so Windows is served by this
 // same script rather than a translated shell script that would drift.
-import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertNodeFloor, binEntries, installAndBuild } from "../../scripts/agent-surface/mcp-build.mjs";
-import { pinnedNodePath, shimFileName, writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
-import { stopRunningSidecar } from "./stop-sidecar.mjs";
+import { pinnedNodePath, writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const manifest = JSON.parse(readFileSync(path.join(here, "package.json"), "utf8"));
 
-// bootout can return before launchd has removed the job: an install saw it still loaded while it
-// was gone about a second later. So look again for up to two seconds before calling it loaded.
-const UNLOAD_CHECKS = 10;
-const UNLOAD_CHECK_INTERVAL_MS = 200;
-function stillLoaded(job) {
-  for (let check = 0; check < UNLOAD_CHECKS; check += 1) {
-    if (spawnSync("launchctl", ["print", job], { stdio: "ignore" }).status !== 0) return false;
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, UNLOAD_CHECK_INTERVAL_MS);
-  }
-  return true;
-}
-
-// Earlier installs deployed a KeepAlive launchd agent that raced the bridge's autostart for the port.
-// The plist goes only once the job is unloaded, so a failed bootout is retried by the next install.
-function retireLaunchdAgent() {
-  const plist = path.join(os.homedir(), "Library", "LaunchAgents", "local.synapse.plist");
-  if (process.platform !== "darwin" || !existsSync(plist)) return;
-  const job = `gui/${process.getuid()}/local.synapse`;
-  spawnSync("launchctl", ["bootout", job], { stdio: "ignore" });
-  if (stillLoaded(job)) {
-    console.warn(`WARNING: ${job} is still loaded; run \`launchctl bootout ${job}\`, then rerun this install`);
-    return;
-  }
-  rmSync(plist, { force: true });
-  console.log(`retired the local.synapse launchd agent (${plist}); each host session starts its own server`);
-}
-
-// v0.4 shipped a sidecar and an HTTP bridge. Remove what it left behind so nothing can start it again;
-// delete this hand-over one release after v0.5.
-async function retireSidecar(binDir) {
-  rmSync(path.join(binDir, shimFileName("synapse-sidecar")), { force: true });
-  retireLaunchdAgent();
-  await stopRunningSidecar();
-  const dbDir = process.env.SYNAPSE_DB_DIR ?? path.join(os.homedir(), ".synapse");
-  for (const name of ["sidecar.json", "sidecar.lock", "token"]) rmSync(path.join(dbDir, name), { force: true });
-}
-
 assertNodeFloor("synapse");
-// A rebuild over an old dist would keep files no source produces any more, such as v0.4's sidecar.js.
+// tsc never deletes output, so a rebuild over an old dist would keep files no source produces any more.
 rmSync(path.join(here, "dist"), { recursive: true, force: true });
 installAndBuild(here);
 
@@ -72,8 +33,6 @@ const onPath = process.platform === "win32"
   ? pathEntries.some((entry) => entry.toLowerCase() === binDir.toLowerCase())
   : pathEntries.includes(binDir);
 if (!onPath) console.log(`NOTE: add ${binDir} to your PATH`);
-
-await retireSidecar(binDir);
 
 console.log("Point your MCP host at the stdio command: synapse-bridge");
 console.log("Restart host sessions that were open during this install; they keep running the build they started with");

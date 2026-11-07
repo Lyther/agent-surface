@@ -114,28 +114,20 @@ Routed worker mode is ON only when `.agent-surface/workflows/<run_id>/run.json` 
 2. Start from `boss.context_capsule`; inspect deltas unless evidence is missing, stale, contradictory, or changed.
 3. For each active task, apply the gates its scope and risk call for before editing, and record the decisions that matter once, in `summary` and `decisions`.
 4. Keep autofix and generated-output refreshes inside FILESCOPE; repo-wide mutation needs BOSS scope and a recorded reason.
-5. When `task.patch_required=true`, wrap the task with `agent-surface workflow patch begin/end/verify`; otherwise record ordinary diff evidence and mark it ineligible for partial merge.
-6. Run task verify commands through `agent-surface run --task <task_id> --class <class> --timeout <ms> --out .agent-surface/workflows/<run_id>/rounds/round-<round_id>/evidence/<task_id> -- <command...>`.
-7. A corrected or pivoted task is `PASS` only when its AC and verify gates pass; a checkpoint that finds no required edit may also be `PASS`, with the inspected delta and decisions recorded.
-8. Apply Blocker Discipline before marking a task blocked, and never skip ahead after a blocker.
-9. Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and the latest copy `.agent-surface/workflows/<run_id>/worker.json` in the normal `workflow.worker.schema.json` shape.
-10. Set `workflow.owner = "dev-chore"` and `workflow.next_command = "workflow-reviewer"`, then run `agent-surface workflow apply --role dev-chore --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`. Never hand-edit `run.json`.
+5. Run task verify commands and record each in `verify_results`; save the output the reviewer needs under `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/evidence/<task_id>/` and list it in `evidence_refs`.
+6. A corrected or pivoted task is `PASS` only when its AC and verify gates pass; a checkpoint that finds no required edit may also be `PASS`, with the inspected delta and decisions recorded.
+7. Apply Blocker Discipline before marking a task blocked, and never skip ahead after a blocker.
+8. Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and the latest copy `.agent-surface/workflows/<run_id>/worker.json` in the normal `workflow.worker.schema.json` shape.
+9. Set `workflow.owner = "dev-chore"` and `workflow.next_command = "workflow-reviewer"`, then run `agent-surface workflow apply --role dev-chore --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`. Never hand-edit `run.json`.
 
-Edit only the worker artifact, assigned files, and per-task patch and evidence files; the role's event comes from `workflow apply`. A completed task makes its quality decisions inspectable:
+Edit only the worker artifact, assigned files, and evidence files; the role's event comes from `workflow apply`. A completed task makes its quality decisions inspectable:
 
 ```json
 {
   "task_id": "T1",
   "status": "PASS",
-  "patch_required": true,
   "summary": "PIVOTED: reused the existing session boundary and removed a parallel token cache",
   "files_changed": ["src/session.ts"],
-  "name_status_ref": ".agent-surface/workflows/<run_id>/rounds/round-001/patches/T1.name-status.txt",
-  "patch_ref": ".agent-surface/workflows/<run_id>/rounds/round-001/patches/T1.patch",
-  "patch_hash": "sha256:...",
-  "pre_tree_hash": "1111111111111111111111111111111111111111",
-  "post_tree_hash": "2222222222222222222222222222222222222222",
-  "applies_cleanly": true,
   "evidence_refs": [],
   "verify_results": [],
   "self_audit": [
