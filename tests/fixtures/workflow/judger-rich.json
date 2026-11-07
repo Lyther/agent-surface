@@ -14,8 +14,8 @@
         }
       ],
       "disposition": "ACCEPT",
-      "patch_isolation": {
-        "patch_or_commit_present": true,
+      "isolation": {
+        "own_worktree_or_commits": true,
         "dependencies_accepted": true,
         "applies_without_rejected_hunks": true,
         "shared_setup_task_accepted": true
@@ -27,12 +27,12 @@
         {
           "ac_id": "AC1",
           "status": "UNKNOWN",
-          "evidence": "no runner evidence"
+          "evidence": "no verify evidence"
         }
       ],
       "disposition": "REWORK",
-      "patch_isolation": {
-        "patch_or_commit_present": false,
+      "isolation": {
+        "own_worktree_or_commits": false,
         "dependencies_accepted": true,
         "applies_without_rejected_hunks": false,
         "shared_setup_task_accepted": true
@@ -53,7 +53,7 @@
     {
       "owner": "WORKER",
       "task_id": "T2",
-      "action": "Re-run verify and capture hashed evidence",
+      "action": "Re-run verify and save its output",
       "verify": "npm test"
     }
   ],

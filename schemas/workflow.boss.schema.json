@@ -80,8 +80,7 @@
           "filescope",
           "depends_on",
           "ac",
-          "verify",
-          "patch_required"
+          "verify"
         ],
         "properties": {
           "task_id": {
@@ -195,9 +194,6 @@
             "items": {
               "$ref": "#/$defs/verifyCommand"
             }
-          },
-          "patch_required": {
-            "type": "boolean"
           }
         },
         "additionalProperties": true

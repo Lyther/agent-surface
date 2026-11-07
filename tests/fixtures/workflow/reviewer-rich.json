@@ -21,15 +21,12 @@
         {
           "cmd": "npm test",
           "exit_code": 0,
-          "evidence_ref": ".agent-surface/workflows/run-fixture-001/rounds/round-001/evidence/T1/test.evidence.json",
-          "tree_hash": "1111111111111111111111111111111111111111"
+          "evidence_ref": ".agent-surface/workflows/run-fixture-001/rounds/round-001/evidence/T1/npm-test.log"
         }
       ],
-      "patch_isolation": {
-        "patch_hash_valid": true,
+      "isolation": {
         "filescope_respected": true,
-        "dependencies_accepted": true,
-        "applies_without_rejected_hunks": true
+        "dependencies_accepted": true
       },
       "issues": []
     },
@@ -42,7 +39,7 @@
         {
           "id": "AC1",
           "status": "UNKNOWN",
-          "evidence": "missing runner evidence"
+          "evidence": "missing verify evidence"
         }
       ],
       "issues": [
@@ -50,7 +47,7 @@
           "severity": "blocker",
           "title": "missing evidence",
           "evidence": "no evidence_refs for completed task",
-          "fix": "re-run verify with hashed evidence"
+          "fix": "re-run verify and save its output"
         }
       ]
     }
@@ -72,7 +69,6 @@
     "filescope_respected": true,
     "stop_reason_consistent": true,
     "cross_task_coherent": true,
-    "evidence_hashes_valid": true,
     "secrets_redacted": true
   },
   "run_state_update": {

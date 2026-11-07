@@ -9,7 +9,7 @@
       "status": "REJECT",
       "reason": "Missing behavior proof.",
       "evidence_refs": [
-        ".agent-surface/workflows/run-fixture-001/rounds/round-001/evidence/T2/check.evidence.json"
+        ".agent-surface/workflows/run-fixture-001/rounds/round-001/evidence/T2/check.log"
       ]
     }
   ],

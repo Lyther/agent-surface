@@ -30,13 +30,11 @@ export async function exists(file) {
 }
 
 // What a command was given, in order: options, the values that follow their flags, and the words that
-// are neither. A value follows its flag even when it starts with `-`; `--` ends the options only for a
-// command that hands the rest on (`rest`, as `run` does) and is an option elsewhere.
-function givenArgs(args, { values = [], rest = false }) {
+// are neither. A value follows its flag even when it starts with `-`, and `--` is an option like any other.
+function givenArgs(args, { values = [] }) {
   const given = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === "--" && rest) break;
     if (values.includes(arg)) {
       given.push({ kind: "option", arg }, { kind: "value", arg: args[index + 1], of: arg });
       index += 1;
@@ -55,13 +53,13 @@ export function helpRequested(args, spec = {}) {
 // subcommand, or a one-value option given again. An option takes one value, so `--target a b` and
 // `--target a --target b` each read `a` alone where the option is not a list.
 export function rejectUnknownArgs(command, args, spec = {}) {
-  const { values = [], switches = [], lists = [], repeatable = [] } = spec;
+  const { values = [], switches = [], lists = [] } = spec;
   const given = givenArgs(args, spec);
   const seen = new Set();
   for (const [index, { kind, arg }] of given.entries()) {
     if (kind === "word") {
       const flag = given[index - 1]?.kind === "value" ? given[index - 1].of : null;
-      const hint = lists.includes(flag) ? `; ${flag} takes a comma-separated list` : repeatable.includes(flag) ? `; repeat ${flag} for each value` : "";
+      const hint = lists.includes(flag) ? `; ${flag} takes a comma-separated list` : "";
       fail(`unexpected argument for ${command}: ${arg}${hint}`);
     }
     if (kind !== "option" || switches.includes(arg)) continue;
@@ -69,7 +67,7 @@ export function rejectUnknownArgs(command, args, spec = {}) {
       const known = [...values, ...switches];
       fail(`unknown option for ${command}: ${arg}; ${known.length > 0 ? `it accepts ${known.join(", ")}` : "it takes no options"}`);
     }
-    if (seen.has(arg) && !lists.includes(arg) && !repeatable.includes(arg)) fail(`${arg} is given twice; ${command} reads one value`);
+    if (seen.has(arg) && !lists.includes(arg)) fail(`${arg} is given twice; ${command} reads one value`);
     seen.add(arg);
   }
 }
@@ -136,10 +134,6 @@ export function canonicalJson(value) {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
   }
   return JSON.stringify(value);
-}
-
-export function safeTimestamp(value) {
-  return value.replace(/[:.]/g, "-");
 }
 
 export function safeFilename(value) {

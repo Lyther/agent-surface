@@ -32,10 +32,9 @@ Resolve `<run_id>` from `.agent-surface/workflows/current.json`, then run `agent
 4. A root `worker.json`, `reviewer.json`, `judger.json`, or `rescue.json` fails its schema; doctor checks nothing else about these files.
 5. Task buckets in `run.json` overlap, hold a task ID that no event-backed BOSS artifact defines, or miss a task from the latest event-backed BOSS. Prior-round accepted/closed IDs may remain.
 6. `agents.json`, when present, fails `workflow.monitor.v2`, names another run or an unknown task, gives concurrent writers a shared workspace or overlapping filescope, exceeds the retry budget, holds a stalled agent, lists a materialized output that is missing, outside the run, empty, a control file, older than the attempt, or future-dated, has out-of-order or future timestamps, or exceeds the first-output, no-progress, or role timeout.
-7. A `rounds/**/*.patch.json` fails the patch schema, points outside the run or at a missing file, or has a `patch_hash` that differs from its patch file.
-8. An active run's `run.json.workflow_next_command` differs from the latest event's `to`, meaning `run.json` was edited by hand or an apply did not finish.
+7. An active run's `run.json.workflow_next_command` differs from the latest event's `to`, meaning `run.json` was edited by hand or an apply did not finish.
 
-Verify by hand, because the command does not: `current.json`; branch and base commit against git; parent artifact hashes; evidence files and their hashes; that every non-boss role artifact was applied (an unapplied artifact passes); non-boss canonical round copies; `.cursor/.workflow/` copies; and that `.agent-surface/workflows/` is gitignored.
+Verify by hand, because the command does not: `current.json`; branch and base commit against git; parent artifact hashes; evidence files; that every non-boss role artifact was applied (an unapplied artifact passes); non-boss canonical round copies; `.cursor/.workflow/` copies; and that `.agent-surface/workflows/` is gitignored.
 
 ## Rules
 

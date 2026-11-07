@@ -95,7 +95,7 @@ function planLacks(plan, patterns, label) {
   const joined = status([...project, "--category development"]);
   assert.equal(joined.status, 1, joined.stderr);
   assert.match(joined.stderr, /unknown option for install: --category development;/);
-  // `--` ends the options only for run; elsewhere it would hide a typo from this check.
+  // `--` is not an end-of-options marker, so it cannot hide a typo from this check.
   const hidden = status([...project, "--", "--categroy", "development"]);
   assert.equal(hidden.status, 1, hidden.stderr);
   assert.match(hidden.stderr, /unknown option for install: --;/);
@@ -107,7 +107,6 @@ function planLacks(plan, patterns, label) {
   assert.deepEqual(readdirSync(dest), [], "a rejected install writes nothing");
   assert.match(status(["build", "--target", "codex", "cursor"]).stderr, /^ERROR: unexpected argument for build: cursor$/m);
   assert.match(status(["build", "--target", "codex", "--target", "cursor"]).stderr, /^ERROR: --target is given twice; build reads one value$/m);
-  assert.match(status(["workflow", "patch", "begin", "--run", "r1", "--file", "a", "b"]).stderr, /unexpected argument for workflow patch begin: b; repeat --file for each value$/m);
   assert.match(status(["build", "--target", "codex", "--bogus"]).stderr, /unknown option for build: --bogus; it accepts --target, --dry-run/);
   assert.match(status(["check", "skills", "--json"]).stderr, /unknown option for check skills: --json; it takes no options/);
   assert.match(status(["check", "bogus"]).stderr, /^ERROR: unexpected argument for check: bogus$/m);
@@ -115,17 +114,13 @@ function planLacks(plan, patterns, label) {
   // options that belong to the real one.
   assert.match(status(["check", "generted", "--target", "codex"]).stderr, /^ERROR: unexpected argument for check: generted$/m);
   assert.match(status(["workflow", "doctor", "stray", "--run", "r1"]).stderr, /unexpected argument for workflow doctor: stray$/m);
-  assert.match(status(["workflow", "patch", "verify", "--run", "r1", "--file", "a"]).stderr, /unknown option for workflow patch verify: --file;/);
-  assert.match(status(["workflow", "doctr", "--run", "r1"]).stderr, /workflow requires init, doctor, apply, close, or patch/);
+  assert.match(status(["workflow", "doctr", "--run", "r1"]).stderr, /workflow requires init, doctor, apply, or close/);
   assert.match(status(["bogus", "--flag"]).stderr, /unknown command: bogus/);
   assert.match(run(["install", "--help"]), /^Usage:$/m);
-  // A value that looks like an option, `--help` included, is still a value, and everything after `--`
-  // belongs to the command `run` wraps.
+  // A value that looks like an option, `--help` included, is still a value.
   assert.match(run(["install", "--target", "codex", "--scope", "project", "--dest", "-odd", "--dry-run"]), /^root: .*[\\/]-odd$/m);
   assert.match(run(["install", "--target", "codex", "--scope", "project", "--dest", "--help", "--dry-run"]), /^root: .*[\\/]--help$/m);
   assert.match(status(["commands", "--phase", "--help"]).stderr, /unsupported command phase: --help/);
-  const evidence = status(["run", "--task", "t1", "--class", "read_only", "--timeout", "10000", "--out", path.join(dest, "evidence"), "--", process.execPath, "--version"]);
-  assert.equal(evidence.status, 0, evidence.stderr);
   rmSync(dest, { recursive: true, force: true });
 }
 

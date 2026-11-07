@@ -11,7 +11,7 @@ Compare candidate implementations from parallel workers, branches, worktrees, or
 
 When invoked from `workflow-orchestrator` or `ops-swarm`, the workflow ledger is the authority:
 
-- Read `run_id`, task IDs, filescope, verify commands, patch manifests, and packet evidence from the active workflow run. Swarm packet reports and worktree refs are evidence, not merge approval.
+- Read `run_id`, task IDs, filescope, verify commands, and packet evidence from the active workflow run. Swarm packet reports and worktree refs are evidence, not merge approval.
 - Preserve task IDs and artifact refs in the final handoff. `dev-converge` is a worker route for consolidation work, not a new workflow role.
 - If candidates share unisolated hunks or generated outputs, stop and request serial rework instead of forcing a merge.
 

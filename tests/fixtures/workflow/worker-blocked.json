@@ -7,7 +7,6 @@
     {
       "task_id": "T1",
       "status": "BLOCKED",
-      "patch_required": true,
       "summary": "verify command could not be selected from repo metadata",
       "files_changed": [],
       "evidence_refs": [],
@@ -26,7 +25,6 @@
     {
       "task_id": "T2",
       "status": "BLOCKED",
-      "patch_required": true,
       "summary": "dependency addition needs unresolved risk review",
       "files_changed": [],
       "evidence_refs": [],

@@ -58,7 +58,6 @@
       "isolation": "serial_required",
       "suggested_runtime": "claude-code",
       "subagent_suitable": false,
-      "patch_required": true,
       "plan": [
         {
           "step_id": 1,

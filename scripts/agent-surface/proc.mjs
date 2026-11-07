@@ -2,9 +2,7 @@
 // don't repeat encoding/cwd/error handling.
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import process from "node:process";
 import { root } from "./registry.mjs";
-import { fail } from "./util.mjs";
 
 export function commandVersion(command, args) {
   const result = spawnSync(command, args, { encoding: "utf8" });
@@ -39,25 +37,6 @@ export function gitValue(args) {
   const result = spawnSync("git", args, { encoding: "utf8" });
   if (result.status !== 0) return null;
   return result.stdout.trim() || null;
-}
-
-export function gitOutput(args, env = process.env, input = undefined) {
-  const result = spawnSync("git", args, {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    env,
-    input,
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  if (result.status !== 0) {
-    fail(`git ${args.join(" ")} failed:\n${result.stdout}${result.stderr}`);
-  }
-  return result.stdout;
-}
-
-// Pass -z: line output quotes non-ASCII paths (core.quotePath), so callers would miss those files.
-export function gitNulFields(args) {
-  return gitOutput(args).split("\0").filter(Boolean);
 }
 
 export function gitIgnoredPaths(paths) {

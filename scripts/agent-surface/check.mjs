@@ -9,7 +9,7 @@ import path from "node:path";
 import process from "node:process";
 import { readCommands } from "./commands.mjs";
 import { approximateTokens } from "./format.mjs";
-import { directDirectories, files, filesUnder } from "./fs-tree.mjs";
+import { directDirectories, files } from "./fs-tree.mjs";
 import { readFileIfExists } from "./io.mjs";
 import { gitIgnoredPaths, gitStagedGitlinkMap, gitSubmoduleStatusMap } from "./proc.mjs";
 import { readAssetCategories, readOptionalServices, readSourceKinds, relative, root } from "./registry.mjs";
@@ -18,7 +18,7 @@ import { readRules } from "./rules.mjs";
 import { readSkills } from "./skills.mjs";
 import { readSubagents, subagentValidationErrors } from "./source-primitives.mjs";
 import { CODEX_PLUGIN_NAME, CODEX_PLUGIN_SCHEMA, generatedOutputMinimums, producerEmitsFor, sourceKindPolicy, targetOutputs, targetProducers, targets } from "./targets.mjs";
-import { argValue, exists, fail, globMatches, isPathInside, isSafeTargetName, sha256 } from "./util.mjs";
+import { argValue, exists, fail, globMatches, isSafeTargetName } from "./util.mjs";
 
 export const commandMetadataFields = new Set(["name", "aliases", "phase", "description"]);
 export const skillMetadataFields = new Set(["name", "description", "license", "compatibility", "metadata", "allowed-tools"]);
@@ -41,7 +41,6 @@ export const workflowSchemaFiles = [
   "workflow.event.schema.json",
   "workflow.current.schema.json",
   "workflow.monitor.schema.json",
-  "workflow.patch.schema.json",
 ];
 
 export const registrySchemaFiles = [
@@ -74,7 +73,6 @@ export const workflowFixtureFiles = [
   { schema: "workflow.event.schema.json", file: "tests/fixtures/workflow/event.json" },
   { schema: "workflow.current.schema.json", file: "tests/fixtures/workflow/current.json" },
   { schema: "workflow.monitor.schema.json", file: "tests/fixtures/workflow/monitor.json" },
-  { schema: "workflow.patch.schema.json", file: "tests/fixtures/workflow/patch-verified.json" },
 ];
 
 export const workflowRuntimeNames = new Set([
@@ -300,9 +298,6 @@ export function checkBossArtifactCoherence(data, source, errors) {
     }
     if (typeof task.parallel_group === "string" && task.subagent_suitable === true) {
       errors.push(`${prefix}: parallel_group and subagent_suitable=true are mutually exclusive fan-out modes`);
-    }
-    if ((typeof task.parallel_group === "string" || task.isolation === "separate_worktree") && task.patch_required !== true) {
-      errors.push(`${prefix}: parallel or separate-worktree tasks require patch_required=true`);
     }
 
     const runtime = task.suggested_runtime;
@@ -1228,41 +1223,6 @@ export function validateGeneratedTarget(target, outputs) {
 export async function validateWorkflowJson(file, validate, errors) {
   if (!(await exists(file))) return;
   await readWorkflowJson(file, validate, errors);
-}
-
-export async function validateWorkflowPatchManifests(runDir, validate, errors) {
-  const patchRoot = path.join(runDir, "rounds");
-  if (!(await exists(patchRoot))) return;
-  const manifests = (await filesUnder(patchRoot, [".json"]))
-    .filter((file) => path.basename(file).endsWith(".patch.json"));
-
-  for (const manifestPath of manifests) {
-    const manifest = await readWorkflowJson(manifestPath, validate, errors);
-    if (!manifest) continue;
-    const manifestRef = path.relative(runDir, manifestPath);
-
-    for (const key of ["patch_ref", "name_status_ref"]) {
-      if (!manifest[key]) continue;
-      const refPath = path.resolve(process.cwd(), manifest[key]);
-      if (!isPathInside(runDir, refPath)) {
-        errors.push(`${manifestRef}: ${key} must stay inside workflow run directory`);
-      }
-      if (!(await exists(refPath))) {
-        errors.push(`${manifestRef}: ${key} target missing: ${manifest[key]}`);
-      }
-    }
-
-    if (manifest.patch_ref && manifest.patch_hash) {
-      const patchPath = path.resolve(process.cwd(), manifest.patch_ref);
-      const patchContent = await readFileIfExists(patchPath);
-      if (patchContent !== null) {
-        const actualHash = `sha256:${sha256(patchContent)}`;
-        if (actualHash !== manifest.patch_hash) {
-          errors.push(`${manifestRef}: patch_hash does not match patch_ref content`);
-        }
-      }
-    }
-  }
 }
 
 export function outputSourceKindError(output, sourceKindsConfig) {

@@ -16,10 +16,6 @@
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
     },
-    "gitTreeHash": {
-      "type": "string",
-      "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
-    },
     "verification": {
       "type": "object",
       "required": [
@@ -70,27 +66,6 @@
         "duration_ms": {
           "type": "integer",
           "minimum": 0
-        },
-        "tree_hash": {
-          "$ref": "#/$defs/gitTreeHash"
-        },
-        "stdout_ref": {
-          "$ref": "#/$defs/safePath"
-        },
-        "stdout_hash": {
-          "$ref": "#/$defs/hash"
-        },
-        "stderr_ref": {
-          "$ref": "#/$defs/safePath"
-        },
-        "stderr_hash": {
-          "$ref": "#/$defs/hash"
-        },
-        "redaction": {
-          "enum": [
-            "none",
-            "applied"
-          ]
         }
       },
       "additionalProperties": false
@@ -135,42 +110,10 @@
         "required": [
           "task_id",
           "status",
-          "patch_required",
           "files_changed",
           "evidence_refs"
         ],
         "allOf": [
-          {
-            "if": {
-              "properties": {
-                "status": {
-                  "const": "PASS"
-                },
-                "patch_required": {
-                  "const": true
-                }
-              },
-              "required": [
-                "status",
-                "patch_required"
-              ]
-            },
-            "then": {
-              "required": [
-                "name_status_ref",
-                "patch_ref",
-                "patch_hash",
-                "pre_tree_hash",
-                "post_tree_hash",
-                "applies_cleanly"
-              ],
-              "properties": {
-                "applies_cleanly": {
-                  "const": true
-                }
-              }
-            }
-          },
           {
             "if": {
               "properties": {
@@ -207,9 +150,6 @@
               "DEFERRED"
             ]
           },
-          "patch_required": {
-            "type": "boolean"
-          },
           "files_changed": {
             "type": "array",
             "uniqueItems": true,
@@ -219,24 +159,6 @@
           },
           "summary": {
             "type": "string"
-          },
-          "name_status_ref": {
-            "$ref": "#/$defs/safePath"
-          },
-          "patch_ref": {
-            "$ref": "#/$defs/safePath"
-          },
-          "patch_hash": {
-            "$ref": "#/$defs/hash"
-          },
-          "pre_tree_hash": {
-            "$ref": "#/$defs/gitTreeHash"
-          },
-          "post_tree_hash": {
-            "$ref": "#/$defs/gitTreeHash"
-          },
-          "applies_cleanly": {
-            "type": "boolean"
           },
           "evidence_refs": {
             "type": "array",

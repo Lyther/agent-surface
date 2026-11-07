@@ -23,8 +23,7 @@
           "class": "build_test",
           "timeout_ms": 120000
         }
-      ],
-      "patch_required": true
+      ]
     }
   ],
   "workflow": {
