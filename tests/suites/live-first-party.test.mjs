@@ -11,14 +11,13 @@
 //   5. LIFECYCLE: reinstall while a synapse session is open — the case Windows makes distinct,
 //      since a running process there can hold the files an install rewrites — then start again
 //
-// Everything runs in a disposable home. The first install also replaces a seeded v0.4 sidecar
-// layout, which proves the hand-over removes what that version left behind.
+// Everything runs in a disposable home.
 //
 // Opt-in (network: npm install for both packages): AGENT_SURFACE_LIVE_FIRST_PARTY=1. Without it
 // this skips, so the default suite stays hermetic and offline.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,19 +37,10 @@ if (enabled) {
   const home = path.join(dir, "home");
   const dest = path.join(dir, "project");
   const configPath = path.join(dest, ".factory", "mcp.json");
-  const binDir = path.join(home, ".local", "bin");
-  const v04Leftovers = [
-    path.join(binDir, windows ? "synapse-sidecar.cmd" : "synapse-sidecar"),
-    path.join(home, ".synapse", "sidecar.json"),
-    path.join(home, ".synapse", "sidecar.lock"),
-    path.join(home, ".synapse", "token"),
-  ];
 
   // os.homedir() reads USERPROFILE on Windows and HOME elsewhere; both are set so the installer,
   // the launcher and the servers all agree on where the disposable home is.
-  // An inherited SYNAPSE_DB_DIR would point the installer's v0.4 hand-over at the developer's own files.
-  const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("SYNAPSE_")));
-  const installEnv = { ...inherited, HOME: home, USERPROFILE: home };
+  const installEnv = { ...process.env, HOME: home, USERPROFILE: home };
   const install = (label) => {
     const result = spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", "--service", "synapse", "--service", "grimoire", "-y"], { encoding: "utf8", env: installEnv });
     console.log(result.stdout);
@@ -94,19 +84,11 @@ if (enabled) {
   try {
     mkdirSync(home, { recursive: true });
     mkdirSync(dest, { recursive: true });
-    // A v0.4 install's leftovers. The discovery file names a url nothing serves, so the hand-over finds no
-    // sidecar to stop and only removes the files.
-    mkdirSync(binDir, { recursive: true });
-    mkdirSync(path.join(home, ".synapse"), { recursive: true });
-    for (const file of v04Leftovers) writeFileSync(file, "");
-    writeFileSync(v04Leftovers[1], JSON.stringify({ url: "http://127.0.0.1:9/mcp", pid: 0 }));
 
     // ---- phase 1: install through the product's own provisioning ------------------------
     const first = install("install");
     assert.match(first, /provisioning: ok agent-surface repo build \(mcps\/synapse\/install\.mjs\)/, "synapse was built by its registry recipe on this platform");
     assert.match(first, /provisioning: ok agent-surface repo build \(mcps\/grimoire\/install\.mjs\)/, "grimoire was built by its registry recipe on this platform");
-
-    for (const file of v04Leftovers) assert.ok(!existsSync(file), `the v0.4 hand-over removed ${file}`);
 
     const servers = JSON.parse(readFileSync(configPath, "utf8")).mcpServers;
     for (const id of ["synapse", "grimoire"]) assert.ok(servers[id], `${id} was not wired: ${first}`);
@@ -124,7 +106,6 @@ if (enabled) {
     const synapse = await startServer(servers.synapse, { name: "synapse", tools: ["memory_remember", "memory_recall", "lock_acquire"] });
     const grimoire = await startServer(servers.grimoire, { name: "grimoire", tools: ["grimoire_search", "grimoire_get"] });
     console.log(`live-first-party: started synapse ${synapse.serverInfo.version} (${synapse.names.length} tools) and grimoire ${grimoire.serverInfo.version} (${grimoire.names.length} tools)`);
-    assert.ok(!existsSync(v04Leftovers[1]), "starting synapse-bridge starts no sidecar");
 
     // ---- phase 3: the wired servers do their job ------------------------------------------
     // Synapse: what one session stores, a later session gets back. The record is written into the

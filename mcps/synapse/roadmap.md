@@ -2,7 +2,7 @@
 
 Status: IMPLEMENTED (v0.5.0)
 Source architecture: [architecture.md](architecture.md)
-Last updated: 2026-11-05
+Last updated: 2026-11-07
 
 v0.4 shipped as `synapse-v0.4.0`; its history is in git. This plan replaces its machinery. Grimoire's changes are in [../grimoire/roadmap.md](../grimoire/roadmap.md). Both land in one PR, in the order set in [docs/roadmap.md](../../docs/roadmap.md#phase-mcp-s-synapse-and-grimoire-simplification).
 
@@ -80,7 +80,7 @@ Exit gate: a host config that runs `synapse-bridge` gets 7 tools and a working r
     - A lease acquired after waiting on another process's write runs its full TTL from when the write lock was won.
     - A lock held by one process is refused to another until it is released or expires.
   - Acceptance evidence: the test passes.
-- [x] `S1.5` Hand over from v0.4 at install.
+- [x] `S1.5` Hand over from v0.4 at install (retired in S5.1).
   - Files: `install.mjs`.
   - Scope:
     - clean `dist` before the build, so no stale `sidecar.js` remains;
@@ -151,9 +151,17 @@ Exit gate: each of the three hosts is PASS, or BLOCKED with the exact blocker (f
   - a hook note for the three targets in `docs/reference/targets.md`.
 - [x] `S4.2` Pass the integration gate in [docs/roadmap.md](../../docs/roadmap.md#phase-mcp-s-synapse-and-grimoire-simplification).
 
+## Phase S5: Retire the v0.4 Hand-over
+
+Objective: remove what S1.2 and S1.5 kept for one release.
+
+- [x] `S5.1` Delete the hand-over and drop `operations`.
+  - Files: `install.mjs`, `stop-sidecar.mjs` (deleted), `src/model.ts`, `schema.sql`, `test/store.test.ts`.
+  - Scope: the install no longer stops a v0.4 sidecar or deletes its launcher, discovery, token or launchd files; opening a store file drops `operations`.
+  - Acceptance evidence: a v0.4 fixture DB opens with every memory and lock row intact and without `operations`, and new rows continue its id sequence; `host-acceptance.mjs` passes on all three hosts.
+
 ## Later / Not Now
 
-- Delete `stop-sidecar.mjs` and the hand-over, and drop v0.4's `operations` table, one release after this ships.
 - Add idle wake for Claude Code through `asyncRewake`, if a workflow needs an idle agent to react unprompted.
 - Add Pi and OpenCode adapters through their native extension APIs, if those hosts run alongside others.
 - Add a tool-result fallback, if ADR-13 is revisited.

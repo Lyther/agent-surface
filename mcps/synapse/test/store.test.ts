@@ -432,12 +432,11 @@ CREATE TABLE operations (id TEXT PRIMARY KEY, result TEXT NOT NULL, created_at I
 CREATE INDEX idx_operations_created ON operations(created_at);
 `;
 
-test("a v0.4 database opens with every row intact, and a v0.4 writer still running keeps writing", () => {
+test("a v0.4 database opens with every memory and lock intact, and without its operations table", () => {
   const { store, P, cleanup } = setup();
-  // Stands in for a v0.4 sidecar that outlives the upgrade: its own connection, the v0.4 statements.
   const old = new DatabaseSync(P);
   try {
-    old.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000");
+    old.exec("PRAGMA journal_mode=WAL");
     old.exec(V04_SCHEMA);
     old.prepare("INSERT INTO meta(key,value) VALUES('schema_version','1')").run();
     const v04Remember = (ts: number, content: string, operation: string): void => {
@@ -450,6 +449,7 @@ test("a v0.4 database opens with every row intact, and a v0.4 writer still runni
     v04Remember(900, "v04 decision kept across the upgrade", "op-1");
     v04Remember(950, "v04 lesson kept across the upgrade", "op-2");
     old.prepare("INSERT INTO locks(glob,agent_id,acquired_at,expires_at) VALUES(?,?,?,?)").run("src/held.ts", "old-agent#b1", 900, 10_000_000);
+    old.close();
 
     const recalled = store.recall(recall(P, { query: "upgrade", tags: ["v04"], mode: "full" }));
     assert.deepEqual(recalled.results.map((r) => (r as FullMemory).content).sort(), ["v04 decision kept across the upgrade", "v04 lesson kept across the upgrade"]);
@@ -457,10 +457,11 @@ test("a v0.4 database opens with every row intact, and a v0.4 writer still runni
     const written = store.remember({ projectDbPath: P, agentId: "new-agent", content: "first write after the upgrade" });
     assert.equal(written.id, 3, "new rows continue the v0.4 id sequence");
 
-    v04Remember(1100, "v04 write after the upgrade", "op-3");
-    assert.deepEqual(old.prepare("SELECT id FROM operations ORDER BY id").all().map((r) => (r as { id: string }).id), ["op-1", "op-2", "op-3"]);
-    const latest = store.recall(recall(P, { query: "after upgrade", mode: "full" }));
-    assert.deepEqual(latest.results.map((r) => (r as FullMemory).content).sort(), ["first write after the upgrade", "v04 write after the upgrade"]);
-    assert.equal((old.prepare("PRAGMA integrity_check").get() as { integrity_check: string }).integrity_check, "ok");
-  } finally { old.close(); cleanup(); }
+    const check = new DatabaseSync(P, { readOnly: true });
+    try {
+      const tables = check.prepare("SELECT name FROM sqlite_master WHERE name LIKE '%operations%'").all();
+      assert.deepEqual(tables, [], "v0.4's operations table and its index are dropped");
+      assert.equal((check.prepare("PRAGMA integrity_check").get() as { integrity_check: string }).integrity_check, "ok");
+    } finally { check.close(); }
+  } finally { if (old.isOpen) old.close(); cleanup(); }
 });

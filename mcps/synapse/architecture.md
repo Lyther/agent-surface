@@ -2,7 +2,7 @@
 
 Status: IMPLEMENTED (v0.5.0). It replaced the v0.4 sidecar design; proofs are under Quality Scenarios and Fitness Gates, and the remaining debt under Risks.
 Source: the user's decisions of 2026-11-04, recorded below as ADR-11 to ADR-17. [concept-zero.md](concept-zero.md) is historical: its problem framing stands and its mechanism is superseded.
-Last updated: 2026-11-05
+Last updated: 2026-11-07
 
 ## Executive Decision
 
@@ -33,12 +33,12 @@ The design does not wake an idle agent; that agent sees news after its first too
   - Verification gate: Q-01 per host.
 - `G-02` Goal: keep the memory contract and the data.
   - Evidence: the user's decision to keep the global store and locks; the current store suite.
-  - Architecture impact: `store.ts`, `tools.ts` and `contract.ts` keep their contracts minus the operation and push plumbing. v0.4 DBs open unchanged; their `operations` table stays for one release.
-  - Verification gate: the store suite, plus a v0.4 fixture DB that opens with every memory and lock row intact.
+  - Architecture impact: `store.ts`, `tools.ts` and `contract.ts` keep their contracts minus the operation and push plumbing. A v0.4 DB opens with its memory and lock rows intact and loses only its unread `operations` table.
+  - Verification gate: the store suite, plus a v0.4 fixture DB that opens with every memory and lock row intact and without `operations`.
 - `G-03` Goal: fewer mechanisms, meaning no long-lived process, network listener or lifecycle management.
   - Evidence: the user's direction to remove over-design; peer#3's recommendation 1.
   - Architecture impact: `sidecar.ts`, `bridge.ts`, `bootstrap.ts`, `redactor.ts` and their tests are deleted.
-  - Verification gate: the source tree below matches the repository, and no `synapse-sidecar` exists after install.
+  - Verification gate: the source tree below matches the repository.
 - `G-04` Goal: no person in the acceptance loop.
   - Evidence: the user, 2026-11-04.
   - Verification gate: every roadmap acceptance step is a command.
@@ -127,8 +127,7 @@ Trust boundary: one local user and cooperating agents. Nothing listens on the ne
   - It prints the context JSON or nothing, and exits 0.
   - On an internal error it exits 1 with one stderr line; on all three hosts the session goes on and the model does not see it (S0.1).
   - It never exits 2, which hosts treat as a blocking signal.
-- **`npm run install:synapse`**: cleans and rebuilds `dist`, links `synapse-bridge` and `synapse-hook`, and removes the `synapse-sidecar` link.
-  - For the v0.4 hand-over, it stops a running sidecar with `stop-sidecar.mjs` and deletes `~/.synapse/{sidecar.json,sidecar.lock,token}`. That hand-over code is deleted one release later.
+- **`npm run install:synapse`**: cleans and rebuilds `dist`, and links `synapse-bridge` and `synapse-hook`.
   - Running host sessions keep their old server process until restarted.
 - **`agent-surface install --category mcps`** for `claude-code`, `codex` or `droid`: merges the Synapse MCP entry as today and, from S2, one PostToolUse hook entry.
 
@@ -151,7 +150,7 @@ Trust boundary: one local user and cooperating agents. Nothing listens on the ne
 mcps/synapse/
   src/
     contract.ts    - Tool I/O schemas, DTOs, LIMITS, SERVER_INSTRUCTIONS, IStore. Pure. Invariant: 7 tools.
-    model.ts       - Row types, mappers, SCHEMA_SQL (adds hook_cursors; no longer creates operations), external-id codec. No I/O.
+    model.ts       - Row types, mappers, SCHEMA_SQL (adds hook_cursors, drops v0.4's operations), external-id codec. No I/O.
     store.ts       - The only SQLite code: per-project and global DBs, FTS5 recall, locks, forget scrub, read-only cross-project access, claimUnseen. No MCP. Tests: store, hook, multiprocess.
     tools.ts       - Tool specs and dispatcher for one session.
     server.ts      - Stdio MCP server for one host session; bin `synapse-bridge`. Tests: server, roots-routing, multiprocess.
@@ -161,7 +160,7 @@ mcps/synapse/
     fsguard.ts     - Owner-only data directory.
     clock.ts       - Clock seam for tests.
   test/
-    store.test.ts         - Store rules, including a v0.4 file opened beside a v0.4 writer.
+    store.test.ts         - Store rules, including a v0.4 file's upgrade.
     server.test.ts        - A spawned server lists 7 tools, round-trips remember→recall and exits on stdin close.
     roots-routing.test.ts - Project routing by env, MCP roots and cwd.
     multiprocess.test.ts  - Q-03.
@@ -170,9 +169,8 @@ mcps/synapse/
     fixtures/hooks/*.json - Real PostToolUse payloads from each host (S0.1), scrubbed of secrets and home paths.
   scripts/host-acceptance.mjs - The Q-01 run per host. One model call per host; run on demand, not by npm test.
   schema.sql       - DDL mirror of SCHEMA_SQL.
-  install.mjs      - Build, bin links, v0.4 hand-over.
+  install.mjs      - Build and bin links.
   require-node.mjs - Stops build and test with a clear message under a Node older than 22.17.
-  stop-sidecar.mjs - DEPRECATED: used only by the v0.4 hand-over; deleted one release later.
   package.json     - Bins `synapse-bridge` → dist/src/server.js and `synapse-hook` → dist/src/hook.js.
 
 scripts/agent-surface/
@@ -186,7 +184,7 @@ scripts/agent-surface/targets.mjs - The Codex entry approves Synapse's tools by 
 ## Data and State
 
 - **`memory`, `locks` and `meta`:** unchanged.
-- **`operations`:** no longer created, and left in place in v0.4 files for one release. A v0.4 sidecar that outlives the upgrade, because the install could not stop it, keeps writing it beside the new servers; the release after drops the table with the hand-over.
+- **`operations`:** v0.4's retry records, which nothing reads. Opening a file drops the table; once it is gone, the statement takes no write lock, so the hook's per-call open stays read-only.
 - **`hook_cursors`** (new, in the project DB):
   - `receiver TEXT PRIMARY KEY`: the host `session_id`, plus `:agent_id` for a subagent;
   - `project_after INTEGER NOT NULL`;
@@ -245,11 +243,11 @@ scripts/agent-surface/targets.mjs - The Codex entry approves Synapse's tools by 
 
 ## Quality Scenarios and Fitness Gates
 
-- Q-01: `node scripts/host-acceptance.mjs [claude] [codex] [droid]` reports PASS, FAIL, or BLOCKED with the reason, per host. Passed 2026-11-05 on Claude Code 2.1.309, Codex 0.166.0 and Droid 1.2.0; the versions and models are in the README.
+- Q-01: `node scripts/host-acceptance.mjs [claude] [codex] [droid]` reports PASS, FAIL, or BLOCKED with the reason, per host. Passed 2026-11-07 on Claude Code 2.1.311, Codex 0.166.0 and Droid 1.6.0; the versions and models are in the README.
 - Q-02: the concurrent-claim case in `hook.test.ts` (six hook processes, each record once).
 - Q-03: `multiprocess.test.ts`: a writer SIGKILLed with hundreds of writes queued loses no acknowledged record, the FTS index matches the memory table, and a lease runs from when its write lock is won.
 - Q-04: the S0.4 measurement, recorded under Risks.
-- G-02: the store suite and the v0.4 file case, which keeps writing through a v0.4 connection after the new store opens it.
+- G-02: the store suite and the v0.4 file case, which opens with every memory and lock row intact and without `operations`.
 
 ## Architecture Decisions
 
@@ -288,7 +286,6 @@ scripts/agent-surface/targets.mjs - The Codex entry approves Synapse's tools by 
   - Impact: one redundant line.
   - Revisit if agents act on their own echoed records.
 - **Per-call cost:** on 2026-11-05 (Apple M3 Pro, Node 26.13, other builds running), 100 runs took p50 163 ms and p95 199 ms with a project DB and nothing new, and p50 162 ms and p95 210 ms without one. Bare Node startup was p50 114 ms of that, zod's import about 28 ms and `git rev-parse` 7 ms. The host waits for the hook after every tool call; revisit the import graph if that delay matters.
-- **Debt:** `stop-sidecar.mjs`, the hand-over in `install.mjs`, and v0.4's `operations` table. Delete them, and drop the table, one release after this ships.
 
 ## Implementation Guardrails
 

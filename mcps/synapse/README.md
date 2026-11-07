@@ -51,7 +51,7 @@ The namespace resolves as: **`SYNAPSE_PROJECT`** (a path) → else the **git roo
 
 `synapse` ships through the agent-surface registry as a **first-party MCP** (no submodule pin):
 
-1. **`npm run install:synapse`** (repo root) builds synapse and links `synapse-bridge` and `synapse-hook` into `~/.local/bin`; the databases under `~/.synapse` persist. There is no service on any platform. The installer also removes what v0.4 left behind: it stops a running v0.4 sidecar, deletes the `synapse-sidecar` link and `~/.synapse/{sidecar.json,sidecar.lock,token}`, and on macOS retires the `local.synapse` launchd agent. When a v0.4 sidecar does not answer within a second or reports another pid, the installer stops nothing and warns; stop that process yourself.
+1. **`npm run install:synapse`** (repo root) builds synapse and links `synapse-bridge` and `synapse-hook` into `~/.local/bin`; the databases under `~/.synapse` persist. There is no service on any platform.
 2. **`agent-surface build` / `install`** writes or safely merges the `synapse` stdio entry into all 25 generated MCP hosts; [docs/reference/targets.md](../../docs/reference/targets.md) is the per-host matrix. For Claude Code, Codex and Droid it also merges one PostToolUse entry that runs `~/.local/bin/synapse-hook`, beside any hooks already there: `.claude/settings.json`, `.codex/hooks.json`, and `.factory/hooks.json` (or `.factory/settings.json` when that file holds the hooks and `hooks.json` does not exist), under the user's home or the project. A rerun changes nothing. The Codex entry also approves Synapse's tools by default, because the generated `approval_policy = "never"` refuses any MCP call that needs approval.
 3. **Codex**: trust the hook once with `/hooks` in an interactive session. Codex runs an untrusted hook nowhere, and the entry stays the same across Synapse upgrades.
 4. **External or secret-bearing MCPs** remain opt-in: a non-first-party MCP service renders only when requested with `--category mcps --service <id>`.
@@ -65,11 +65,11 @@ Antigravity desktop and DSH intentionally have no generated Synapse route. Use t
 
 `node mcps/synapse/scripts/host-acceptance.mjs [claude[=model]] [codex[=model]] [droid[=model]]` (after `npm run build`; droid needs `FACTORY_API_KEY`) runs each host headless in a temp project with the hook registered at project scope and no Synapse MCP server. Another agent writes a random marker while the session sleeps; PASS means the session repeats the marker, its cursor has passed it, and one more hook run prints nothing. Rerun it when a host's major version changes.
 
-| Host | Version | Result (2026-11-05) |
+| Host | Version | Result (2026-11-07) |
 |---|---|---|
-| Claude Code | 2.1.309 | PASS (`claude -p`, sonnet) |
-| Codex | codex-cli 0.166.0 | PASS (`codex exec --dangerously-bypass-hook-trust`, gpt-6-luna) |
-| Droid | 1.2.0 | PASS (`droid exec`, deepseek-v4.1-flash) |
+| Claude Code | 2.1.311 | PASS (`claude -p`, sonnet) |
+| Codex | codex-cli 0.166.0 | PASS (`codex exec --dangerously-bypass-hook-trust`, gpt-6-astra) |
+| Droid | 1.6.0 | PASS (`droid exec`, deepseek-v4.1-flash) |
 
 Interactive sessions load the same hook files as these headless runs, per each host's hook documentation: Claude Code reads its settings files in both modes; Codex reads `hooks.json` in both but runs a hook only once it is trusted (step 3); Droid reads `hooks.json`, or `settings.json` without it, in both.
 

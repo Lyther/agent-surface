@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS locks (
   expires_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_locks_expiry ON locks(expires_at);
+DROP TABLE IF EXISTS operations;
 CREATE TABLE IF NOT EXISTS hook_cursors (
   receiver TEXT PRIMARY KEY,
   project_after INTEGER NOT NULL,
