@@ -1156,6 +1156,25 @@ SUBSTITUTE_JUSTIFICATION
   }
 }
 
+// Antigravity runs its own imported copy of the plugin, not the staged files, so an install that
+// changes them names the import command, and one that changes nothing stays quiet.
+{
+  const dest = mkdtempSync(ownTmp("antigravity-import-note-"));
+  try {
+    const plugin = path.join(dest, "antigravity-cli", "plugins", "agent-surface");
+    const install = () => run(["install", "--target", "antigravity-cli", "--scope", "user", "--dest", dest]);
+    const first = install();
+    assert.ok(existsSync(path.join(plugin, "plugin.json")), "the note names the staged plugin");
+    assert.ok(
+      first.split("\n").some((line) => line.startsWith("NOTE: ") && line.endsWith(`agy plugin install "${plugin}"`)),
+      `an install that writes the plugin prints its import step:\n${first.slice(-600)}`,
+    );
+    assert.doesNotMatch(install(), /agy plugin install/, "an install that changes nothing prints no import step");
+  } finally {
+    rmSync(dest, { recursive: true, force: true });
+  }
+}
+
 /*
 SUBSTITUTE_JUSTIFICATION
 - substitute: seeded obsolete .cline/mcp.json and cline-manifest.json inputs for user- and project-scope migration cases
