@@ -1833,6 +1833,8 @@ for (const fx of [
   { target: "qoder", rel: ".qoder/settings.json", seed: '{"mcpServers":null}\n', error: /mcpServers must be an object/ },
   { target: "qoder", rel: ".qoder/settings.json", seed: '{"mcpServers":{},"mcpServers":{}}\n', error: /duplicate/ },
   { target: "codex", rel: ".codex/config.toml", seed: "[mcp_servers.synapse\n", error: /invalid TOML/ },
+  // The parser quotes the failing line, so its message must not reach the output: that line can hold a credential.
+  { target: "codex", rel: ".codex/config.toml", seed: "[mcp_servers.custom.env]\nTOKEN = not-a-real-credential\n", error: /invalid TOML: Error parsing TOML \(2, 9\)/, hidden: "not-a-real-credential" },
   { target: "goose", scope: "user", rel: ".config/goose/config.yaml", seed: "extensions:\n  synapse: [\n", error: /invalid YAML/ },
   { target: "kiro", scope: "user", rel: ".kiro/settings/permissions.yaml", seed: "rules: {}\n", error: /rules must be a sequence/ },
 ]) {
@@ -1846,6 +1848,7 @@ for (const fx of [
     const result = status(args);
     assert.notEqual(result.status, 0, fx.target);
     assert.match(result.stdout + result.stderr, fx.error, fx.target);
+    if (fx.hidden) assert.ok(!(result.stdout + result.stderr).includes(fx.hidden), `${fx.target}: the error output repeats the config's text`);
     assert.equal(readFileSync(file, "utf8"), fx.seed, fx.target + ": invalid config stays untouched");
   } finally {
     rmSync(dest, { recursive: true, force: true });
