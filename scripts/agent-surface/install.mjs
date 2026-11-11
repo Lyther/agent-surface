@@ -1776,6 +1776,7 @@ function printInstallPlan(plan) {
       const addInstructions = item.addInstructions ?? item.instructions;
       const removeInstructions = item.removeInstructions ?? [];
       const addMcpServers = item.addMcpServers ?? [];
+      const removeMcpServers = item.removeMcpServers ?? [];
       if (addInstructions.length > 0) {
         console.log(`  ${item.relativeOutput} instructions += ${addInstructions.join(", ")}`);
       }
@@ -1785,6 +1786,9 @@ function printInstallPlan(plan) {
       if (addMcpServers.length > 0) {
         console.log(`  ${item.relativeOutput} MCP += ${addMcpServers.join(", ")}`);
       }
+      if (removeMcpServers.length > 0) {
+        console.log(`  ${item.relativeOutput} MCP -= ${removeMcpServers.join(", ")}`);
+      }
       printKeptMcpServers(item);
       for (const [property, value] of Object.entries(item.rootProperties ?? {})) {
         console.log(`  ${item.relativeOutput} ${property} := ${JSON.stringify(value)}`);
@@ -1792,6 +1796,7 @@ function printInstallPlan(plan) {
       if (addInstructions.length === 0
         && removeInstructions.length === 0
         && addMcpServers.length === 0
+        && removeMcpServers.length === 0
         && Object.keys(item.rootProperties ?? {}).length === 0) {
         console.log(`  ${item.relativeOutput} config unchanged`);
       }

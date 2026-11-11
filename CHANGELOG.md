@@ -104,6 +104,7 @@ Notable changes to agent-surface and its first-party MCP services. Format: [Keep
 
 ### Fixed
 
+- **Install plans show Kilo's MCP removals** - when a resync removes MCP servers it recorded in Kilo's config, the plan now prints `kilo.jsonc MCP -= <ids>`, as it already did for the other hosts. Before, the plan said `config unchanged` while the install removed them, as happened to `ida-pro-mcp` when it left the cybersecurity category.
 - **Grimoire indexes packs that ship images** - a supporting file that is not UTF-8 text now stays out of the index and its skill's manifest; before, one such file failed the whole build, as tech-leads-club's `demo` skill and its `wallpaper.jpg` did. A `SKILL.md` that is not UTF-8 still fails it.
 - **External skills keep their stylesheets and `NOTICE`** - skill files now ship `.css` and bare `NOTICE` files, which Apache-2.0 requires a redistribution to carry, and first-party and external skills share that one allowlist. The 1 MB per-file limit, which had no recorded basis, is gone, since archify's 1,020,040-byte generated validator stopped every build; the 200 MB total stays.
 - **`install` prints Antigravity's import step** - Antigravity runs the copy `agy plugin install` imported, not the staged plugin `install` updates, and only the generated plugin README said so, so redistributions left Antigravity on months-old skills. An `antigravity-cli` install that changes the staged plugin now prints `agy plugin install <plugin dir>`; one that changes nothing stays quiet.

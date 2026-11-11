@@ -585,6 +585,34 @@ SUBSTITUTE_JUSTIFICATION
   }
 }
 
+// Kilo's config merge prints its own plan lines. A resync that removes an MCP server it recorded
+// must say so, as the other hosts' plans do, instead of calling the config unchanged.
+{
+  const dest = mkdtempSync(path.join(os.tmpdir(), "agent-surface-kilo-prune-"));
+  try {
+    const configPath = path.join(dest, ".config", "kilo", "kilo.jsonc");
+    const manifestPath = path.join(dest, ".agent-surface", "kilo-manifest.json");
+    const resync = ["install", "--target", "kilo", "--scope", "user", "--dest", dest, "--category", "cybersecurity"];
+    run(resync);
+    const config = parseJsonc(readFileSync(configPath, "utf8"));
+    config.mcp["old-cyber"] = { type: "local", command: ["remove-me"] };
+    writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const configEntry = manifest.config_entries.find((entry) => entry.path === ".config/kilo/kilo.jsonc");
+    configEntry.ids.push("old-cyber");
+    configEntry.asset_categories["old-cyber"] = "cybersecurity";
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const plan = run([...resync, "--dry-run"]);
+    assert.match(plan, /^ {2}\.config\/kilo\/kilo\.jsonc MCP -= old-cyber$/m, "the plan names the server the resync removes");
+    assert.doesNotMatch(plan, /kilo\.jsonc config unchanged/, "a plan that removes a server does not call the config unchanged");
+    run(resync);
+    assert.equal(Object.hasOwn(parseJsonc(readFileSync(configPath, "utf8")).mcp, "old-cyber"), false, "the resync removes it");
+  } finally {
+    rmSync(dest, { recursive: true, force: true });
+  }
+}
+
 // SUBSTITUTE_JUSTIFICATION
 // - substitute: retired Gemini/VSCodium manifests and config in a disposable user root
 // - replaces: real profiles previously managed by the removed Gemini and VSCodium targets, including a stale path now owned by Kilo
