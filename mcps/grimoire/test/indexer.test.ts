@@ -42,6 +42,33 @@ test("non-UTF-8 SKILL.md fails instead of being silently corrupted", () => {
   }
 });
 
+test("a non-UTF-8 supporting file is left out while its skill and text files are indexed", () => {
+  const dir = join(tmpdir(), `grimoire-binary-file-${process.pid}-${Date.now()}`);
+  const pack = join(dir, "pack");
+  const skillDir = join(pack, "skills", "demo-skill");
+  const out = join(dir, "out");
+  mkdirSync(join(skillDir, "assets"), { recursive: true });
+  writeFileSync(join(skillDir, "SKILL.md"), "---\nname: demo-skill\ndescription: Records a feature demo.\n---\nRun assets/record.sh.\n");
+  writeFileSync(join(skillDir, "assets", "record.sh"), "#!/bin/sh\necho recording\n");
+  // A JPEG header: the image assets upstream packs ship beside their scripts.
+  writeFileSync(join(skillDir, "assets", "wallpaper.jpg"), Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]));
+  try {
+    const res = buildIndex({ packs: [{ serviceId: "fixture", path: pack }], outDir: out });
+    assert.equal(res.skills, 1, "the skill is indexed");
+    assert.equal(res.files, 1, "only the text supporting file is stored");
+    assert.deepEqual(res.skipped, [], "leaving out a binary file skips no skill");
+    const store = new Store({ dir: out });
+    try {
+      const script = store.fileGet("fixture:demo-skill", "assets/record.sh");
+      assert.equal(script.status, "ok");
+      if (script.status === "ok") assert.equal(script.file.content, "#!/bin/sh\necho recording\n");
+      assert.equal(store.fileGet("fixture:demo-skill", "assets/wallpaper.jpg").status, "NOT_FOUND", "binary content is never served as text");
+    } finally { store.close(); }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a symbolic SKILL.md is skipped with its reason while the rest of the pack is indexed", () => {
   const dir = join(tmpdir(), `grimoire-symbolic-skill-${process.pid}-${Date.now()}`);
   const pack = join(dir, "pack");

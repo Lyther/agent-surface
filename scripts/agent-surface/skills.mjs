@@ -8,8 +8,9 @@ import { relative, root } from "./registry.mjs";
 
 // A skill is a directory, so it may carry the material its SKILL.md references. Companion files are
 // admitted by the same extension allowlist the external packs use and read as UTF-8 text: what ships
-// is reviewable source, and binary assets are simply not carried rather than carried unverified.
-export const SKILL_RESOURCE_EXTENSIONS = [".md", ".mdx", ".json", ".yaml", ".yml", ".toml", ".txt", ".html", ".sh", ".py", ".js", ".mjs", ".ts", ".ps1", "LICENSE"];
+// is reviewable source, and binary assets are simply not carried rather than carried unverified. A bare
+// NOTICE is admitted because Apache-2.0 requires a redistribution to carry the work's NOTICE file.
+export const SKILL_RESOURCE_EXTENSIONS = [".md", ".mdx", ".json", ".yaml", ".yml", ".toml", ".txt", ".html", ".css", ".sh", ".py", ".js", ".mjs", ".ts", ".ps1", "LICENSE", "NOTICE"];
 
 export async function readSkills() {
   const skillRoot = path.join(root, "skills");

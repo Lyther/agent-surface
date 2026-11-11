@@ -219,7 +219,7 @@ planHas(qwenCodeExternalPlan, [
   /\.qwen\/skills\/book-study\/SKILL\.md/,
   /\.qwen\/skills\/sigma\/SKILL\.md/,
 ], "qwen-code explicit external packs");
-planLacks(qwenCodeExternalPlan, [/skills\/archify\//, /karpathy-guidelines/, /skill-forge/, /skills\/ctf-ai-ml\//], "qwen-code general external packs");
+planLacks(qwenCodeExternalPlan, [/skills\/archify\//, /skill-forge/, /skills\/ctf-ai-ml\//], "qwen-code general external packs");
 
 const qwenCodeDevelopmentPlan = dryRun("qwen-code", ["--category", "development"]);
 planHas(qwenCodeDevelopmentPlan, [
@@ -235,14 +235,17 @@ planHas(qwenCodeDevelopmentPlan, [
   /\.qwen\/skills\/no-ai-slop\/LICENSE <- external\/no-ai-slop\/LICENSE$/m,
   /\.qwen\/skills\/skill-forge\/LICENSE <- external\/sanyuan-skills\/LICENSE$/m,
   /\.qwen\/skills\/archify\/LICENSE <- external\/archify\/archify\/LICENSE$/m,
+  /\.qwen\/skills\/archify\/NOTICE <- external\/archify\/archify\/NOTICE$/m,
   /\.qwen\/skills\/diagram-design\/THIRD_PARTY_LICENSES\.md <- external\/diagram-design\/THIRD_PARTY_LICENSES\.md$/m,
 ], "qwen-code development skills carry their upstream license and notices");
+planHas(qwenCodeDevelopmentPlan, [
+  /\.qwen\/skills\/archify\/explainer\/reader\.css <- external\/archify\/archify\/explainer\/reader\.css$/m,
+], "an external skill keeps the stylesheet its pages load");
 planLacks(qwenCodeDevelopmentPlan, [/archify\/LICENSE <- external\/archify\/LICENSE$/m], "a skill's own LICENSE wins over the pack license_file");
 planLacks(qwenCodeDevelopmentPlan, [
   /skills\/ops-ask\//,
   /skills\/book-study\//,
   /skills\/ctf-ai-ml\//,
-  /karpathy-guidelines/,
   /code-review-expert/,
 ], "qwen-code development isolation");
 
@@ -252,7 +255,7 @@ planHas(qwenCodeCybersecurityPlan, [
   /\.qwen\/skills\/redteam-boundary-policy\/SKILL\.md/,
   /\.qwen\/settings\.json MCP \+= fenjing, ida-pro-mcp, openosint/,
 ], "qwen-code cybersecurity assets");
-planLacks(qwenCodeCybersecurityPlan, [/karpathy-guidelines/, /skills\/stellaris-design\//, /pentest-ai/], "qwen-code cybersecurity isolation");
+planLacks(qwenCodeCybersecurityPlan, [/skills\/stellaris-design\//, /pentest-ai/], "qwen-code cybersecurity isolation");
 
 const qwenCodePentestAiPlan = dryRun("qwen-code", ["--category", "mcps", "--service", "pentest-ai"]);
 planHas(qwenCodePentestAiPlan, [/\.qwen\/settings\.json MCP \+= pentest-ai/], "qwen-code explicit pentest-ai MCP");
@@ -262,11 +265,11 @@ planHas(qwenCodeChromePlan, [/\.qwen\/settings\.json MCP \+= chrome-devtools/], 
 
 const qwenCodeModdingPlan = dryRun("qwen-code", ["--category", "modding"]);
 planHas(qwenCodeModdingPlan, [/\.qwen\/skills\/stellaris-design\/SKILL\.md/], "qwen-code modding assets");
-planLacks(qwenCodeModdingPlan, [/skills\/ctf-ai-ml\//, /karpathy-guidelines/], "qwen-code modding isolation");
+planLacks(qwenCodeModdingPlan, [/skills\/ctf-ai-ml\//], "qwen-code modding isolation");
 
 const qwenCodeAllPlan = dryRun("qwen-code", ["--category", "all"]);
 planHas(qwenCodeAllPlan, [/\.qwen\/skills\/ops-ask\/SKILL\.md/], "qwen-code all general outputs");
-planLacks(qwenCodeAllPlan, [/skills\/archify\//, /skills\/ctf-ai-ml\//, /skills\/stellaris-design\//, /karpathy-guidelines/], "qwen-code all keeps opt-in assets explicit");
+planLacks(qwenCodeAllPlan, [/skills\/archify\//, /skills\/ctf-ai-ml\//, /skills\/stellaris-design\//], "qwen-code all keeps opt-in assets explicit");
 
 const antigravityCliModdingPlan = dryRun("antigravity-cli", ["--category", "modding"]);
 planHas(antigravityCliModdingPlan, [
@@ -474,7 +477,6 @@ writeFileSync(
 const syncPlan = run(["install", "--target", "droid", "--dest", syncDest, "--dry-run"]);
 assert.match(syncPlan, /planned stale managed removals:/);
 assert.match(syncPlan, /\.factory\/skills\/ghost-descoped-skill\/SKILL\.md/);
-assert.doesNotMatch(syncPlan, /\.agents\/skills\/karpathy-guidelines\/SKILL\.md/);
 assert.doesNotMatch(syncPlan, /\.agents\/skills\/ctf-ai-ml\/SKILL\.md/);
 const externalSyncPlan = run(["install", "--target", "droid", "--dest", syncDest, "--category", "external", "--dry-run"]);
 assert.match(externalSyncPlan, /\.factory\/skills\/ghost-descoped-skill\/SKILL\.md/);
@@ -683,7 +685,6 @@ assert.match(liveInstall, /^installed:$/m);
 assert.match(readFileSync(path.join(liveDest, ".cline", "skills", "ops-ask", "SKILL.md"), "utf8"), /^---\nname: ops-ask\n/);
 assert.equal(existsSync(path.join(liveDest, ".cline", "skills", "workflow-boss", "SKILL.md")), false);
 assert.equal(existsSync(path.join(liveDest, ".cline", "agents", "boss.yaml")), false);
-assert.equal(existsSync(path.join(liveDest, ".cline", "skills", "karpathy-guidelines", "SKILL.md")), false);
 assert.match(readFileSync(path.join(liveDest, ".clineignore"), "utf8"), /agent-surface canonical AI-tool ignore baseline/);
 const liveManifest = JSON.parse(readFileSync(path.join(liveDest, ".agent-surface", "cline-manifest.json"), "utf8"));
 assert.equal(liveManifest.target, "cline");
@@ -696,7 +697,6 @@ run(["install", "--target", "cline", "--dest", liveDest, "--category", "developm
 assert.match(readFileSync(path.join(liveDest, ".cline", "skills", "workflow-boss", "SKILL.md"), "utf8"), /^---\nname: workflow-boss\n/);
 assert.match(readFileSync(path.join(liveDest, ".cline", "skills", "verify-readiness", "SKILL.md"), "utf8"), /^---\nname: verify-readiness\n/);
 assert.match(readFileSync(path.join(liveDest, ".cline", "agents", "boss.yaml"), "utf8"), /^---\nname: boss\n/);
-assert.equal(existsSync(path.join(liveDest, ".cline", "skills", "karpathy-guidelines", "SKILL.md")), false);
 rmSync(liveDest, { recursive: true, force: true });
 
 const kimiCodeDest = ownTmp("kimi-code-live");
@@ -839,7 +839,6 @@ assert.equal(clineUserScope.status, 0, `${clineUserScope.stdout}${clineUserScope
 assert.match(clineUserScope.stdout, /\.cline\/skills\/ops-ask\/SKILL\.md <- skills\/ops-ask\/SKILL\.md/);
 assert.match(clineUserScope.stdout, /Documents\/Cline\/Rules\/agent-surface\.md <- rules\/\*\.mdc/);
 assert.doesNotMatch(clineUserScope.stdout, /workflow-boss|ops-nuke|agents\/boss\.yaml/);
-assert.doesNotMatch(clineUserScope.stdout, /\.cline\/skills\/karpathy-guidelines\/SKILL\.md/);
 assert.match(clineUserScope.stdout, /\.cline\/data\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
 assert.match(clineUserScope.stdout, /Code\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
 assert.match(clineUserScope.stdout, /Cursor\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
@@ -2065,11 +2064,6 @@ for (const [id, service] of Object.entries(JSON.parse(readFileSync(path.join(roo
     assert.equal(packedPaths.has(file), true, `npm package missing ${id} license or notice ${file}`);
   }
 }
-assert.equal(
-  [...packedPaths].some((file) => file.startsWith("external/andrej-karpathy-skills/")),
-  false,
-  "npm package includes source-only Karpathy checkout",
-);
 assert.equal(
   [...packedPaths].some((file) => file.includes("/code-review-expert/")),
   false,
