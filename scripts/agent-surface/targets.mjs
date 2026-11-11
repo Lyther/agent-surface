@@ -14,6 +14,7 @@ import { assetCategoryAllowed, assetCategoryFor, packageVersion, readAssetCatego
 import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityCliSubagent, renderAntigravityWorkflow, renderClaudeSubagent, renderClineSubagent, renderClineWorkflow, renderCodexSubagent, renderCopilotSubagent, renderCursorCommand, renderCursorSubagent, renderDeepAgentsSubagent, renderDroidCommand, renderDroidSubagent, renderGooseRecipe, renderGrokBuildSubagent, renderInstructionDocument, renderKiloRuleDocument, renderKiloSubagent, renderKiloWorkflow, renderKimiCodeSubagent, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderQwenCodeSubagent, renderScopedRuleReferenceDocument, renderTraeSubagent, renderVanillaSkill, renderVsCodeInstructionDocument, renderVsCodeScopedInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
 import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, claudeRulesDocument, clineAgentRoot, clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexInstructionPath, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildAgentRoot, grokBuildInstructionPath, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piMcpPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleFolder, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
 import { readRulesForContext } from "./rules.mjs";
+import { SKILL_RESOURCE_EXTENSIONS } from "./skills.mjs";
 import { ignoreOutputs, subagentOutputs } from "./source-primitives.mjs";
 import { SYNAPSE_ROUTING_ENV } from "./synapse-hook.mjs";
 import { exists, fail, isPathInside, isSafeRelativePath } from "./util.mjs";
@@ -912,8 +913,6 @@ export const generatedOutputMinimums = new Map([
   ["zed", 250],
 ]);
 
-export const MAX_EXTERNAL_FILE_BYTES = 1_000_000;
-
 export const MAX_EXTERNAL_TOTAL_BYTES = 200_000_000;
 
 export const MAX_EXTERNAL_FILES = 50_000;
@@ -1086,14 +1085,13 @@ export async function externalSkillOutputs(adapter, context) {
     || selectedAssetCategories(context.categoryFilter).size > 0;
   const roots = await externalSkillRoots({ includeOptional, context });
   const outputRoot = outputRootFor(externalOutputRoot, context);
-  const textExtensions = [".md", ".mdx", ".json", ".yaml", ".yml", ".toml", ".txt", ".html", ".sh", ".py", ".js", ".mjs", ".ts", ".ps1", "LICENSE"];
 
   let totalBytes = 0;
   for (const { root: sourceRoot, serviceName, assetCategory, licenseFile, noticeFiles } of roots) {
     const skillName = path.basename(sourceRoot);
-    const skillFiles = (await filesUnder(sourceRoot, textExtensions)).map((file) => [file, path.relative(sourceRoot, file)]);
-    // The text allowlist admits a bare LICENSE only; a skill's own COPYING, LICENCE or LICENSE-MIT
-    // ships as well, since it outranks the pack's license.
+    const skillFiles = (await filesUnder(sourceRoot, SKILL_RESOURCE_EXTENSIONS)).map((file) => [file, path.relative(sourceRoot, file)]);
+    // Among license files the allowlist admits a bare LICENSE only; a skill's own COPYING, LICENCE or
+    // LICENSE-MIT ships as well, since it outranks the pack's license.
     const rootLicenses = (await readdir(sourceRoot, { withFileTypes: true }))
       .filter((entry) => entry.isFile() && SKILL_LICENSE_RE.test(entry.name)).map((entry) => entry.name).sort();
     for (const name of rootLicenses) {
@@ -1122,10 +1120,6 @@ export async function externalSkillOutputs(adapter, context) {
         fail(`${detail}; pack ${serviceName} would be truncated`);
       }
       const size = (await stat(file)).size;
-      if (size > MAX_EXTERNAL_FILE_BYTES) {
-        const detail = `oversized external file (${size} bytes): ${relative(file)}`;
-        fail(`pack ${serviceName}: ${detail}`);
-      }
       if (totalBytes + size > MAX_EXTERNAL_TOTAL_BYTES) {
         const detail = `external skill total-size cap reached (${MAX_EXTERNAL_TOTAL_BYTES} bytes)`;
         fail(`${detail}; pack ${serviceName} would be truncated`);

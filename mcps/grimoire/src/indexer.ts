@@ -19,12 +19,20 @@ export interface BuildResult { skills: number; files: number; skipped: { pack: s
 
 const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false });
 
-function readUtf8Text(file: string, label: string): string {
+// null when the bytes are not UTF-8; a failed read still throws.
+function decodeUtf8(file: string): string | null {
+  const bytes = readFileSync(file);
   try {
-    return utf8.decode(readFileSync(file));
+    return utf8.decode(bytes);
   } catch {
-    throw new Error(`${label} is not UTF-8 text: ${file}`);
+    return null;
   }
+}
+
+function readUtf8Text(file: string, label: string): string {
+  const text = decodeUtf8(file);
+  if (text === null) throw new Error(`${label} is not UTF-8 text: ${file}`);
+  return text;
 }
 
 export const DEFAULT_SKILLS_REL = "skills";
@@ -158,7 +166,10 @@ export function buildIndex(opts: { packs: PackSpec[]; outDir?: string }): BuildR
         result.skills++;
 
         for (const rel of listSupportingFiles(skillDir)) {
-          const content = readUtf8Text(join(skillDir, rel), `pack ${pack.serviceId}: supporting file`);
+          // grimoire_file_get serves text, so an image or archive beside a skill's scripts is left out
+          // instead of failing every pack's index.
+          const content = decodeUtf8(join(skillDir, rel));
+          if (content === null) continue;
           const size = Buffer.byteLength(content, "utf8");
           insFile.run(id, rel, content, size);
           result.files++;

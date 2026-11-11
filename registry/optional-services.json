@@ -215,7 +215,7 @@
       "status": "optional",
       "source_url": "https://github.com/tt-a1i/archify",
       "path": "external/archify",
-      "commit": "06dd052602dd9a369e4d034e24faef0917b5a60c",
+      "commit": "7e45f36c66de1254d5ad6ba1d878f6499ea269fd",
       "kind": "skill-pack",
       "optional": true,
       "skill_roots": [
@@ -234,7 +234,7 @@
       "status": "required",
       "source_url": "https://github.com/ljagiello/ctf-skills",
       "path": "external/ctf-skills",
-      "commit": "36c72e53a96a035791821caff7440882ea0f5c57",
+      "commit": "e79be2925d1612e8a97070d6201e300286672370",
       "kind": "skill-pack",
       "optional": false,
       "skill_roots": [
@@ -293,7 +293,7 @@
       "status": "optional",
       "source_url": "https://github.com/tech-leads-club/agent-skills",
       "path": "external/tech-leads-club",
-      "commit": "6df68d52028b9261058231e0f4998048c0352f45",
+      "commit": "e74dc8a7e8d59bb36f267afd089580e0858e224a",
       "kind": "source-pack",
       "optional": true,
       "index_root": "packages/skills-catalog/skills",
@@ -313,7 +313,7 @@
       "status": "optional",
       "source_url": "https://github.com/alibaba/open-code-review",
       "path": "external/open-code-review",
-      "commit": "3694a716c30e09a724ae39a37d4e307bbd6e902b",
+      "commit": "db5db6bec62ee45c02171a12e043b8239223aa07",
       "kind": "skill-pack",
       "optional": true,
       "skill_roots": [
@@ -351,7 +351,7 @@
       "status": "optional",
       "source_url": "https://github.com/cathrynlavery/diagram-design",
       "path": "external/diagram-design",
-      "commit": "0a8ea20ae69b33a5edce6018eedd3a9d26e90c1c",
+      "commit": "f2496acbde9f45ccb55c24d4f75210c8a1355df8",
       "kind": "skill-pack",
       "optional": true,
       "skill_roots": [
@@ -412,7 +412,7 @@
       "status": "optional",
       "source_url": "https://github.com/trailofbits/skills",
       "path": "external/trailofbits-skills",
-      "commit": "d3323cefbcf645678b8dc481de204b02ad3d02dc",
+      "commit": "e4dd0bb5b15535f7c5a0834187dffba6ac37e4ff",
       "kind": "source-pack",
       "optional": true,
       "index_root": "plugins/static-analysis/skills",

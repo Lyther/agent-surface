@@ -1,9 +1,6 @@
 [submodule "external/sanyuan-skills"]
 	path = external/sanyuan-skills
 	url = https://github.com/sanyuan0704/sanyuan-skills.git
-[submodule "external/andrej-karpathy-skills"]
-	path = external/andrej-karpathy-skills
-	url = https://github.com/multica-ai/andrej-karpathy-skills.git
 [submodule "external/ctf-skills"]
 	path = external/ctf-skills
 	url = https://github.com/ljagiello/ctf-skills.git
@@ -22,51 +19,9 @@
 [submodule "external/archify"]
 	path = external/archify
 	url = https://github.com/tt-a1i/archify.git
-[submodule "external/addyosmani-agent-skills"]
-	path = external/addyosmani-agent-skills
-	url = https://github.com/addyosmani/agent-skills.git
-[submodule "external/ecc"]
-	path = external/ecc
-	url = https://github.com/affaan-m/ECC.git
-[submodule "external/x64dbg-mcp-server"]
-	path = external/x64dbg-mcp-server
-	url = https://github.com/duty1g/x64dbg-mcp-server.git
-[submodule "external/understand-anything"]
-	path = external/understand-anything
-	url = https://github.com/Egonex-AI/Understand-Anything.git
-[submodule "external/raptor"]
-	path = external/raptor
-	url = https://github.com/gadievron/raptor.git
-[submodule "external/graphify"]
-	path = external/graphify
-	url = https://github.com/Graphify-Labs/graphify.git
-[submodule "external/dsh-pentest"]
-	path = external/dsh-pentest
-	url = https://github.com/howmp/dsh-pentest.git
-[submodule "external/caveman"]
-	path = external/caveman
-	url = https://github.com/JuliusBrussee/caveman.git
-[submodule "external/mattpocock-skills"]
-	path = external/mattpocock-skills
-	url = https://github.com/mattpocock/skills.git
-[submodule "external/ida-skill"]
-	path = external/ida-skill
-	url = https://github.com/miunasu/IDA-Skill.git
-[submodule "external/superpowers"]
-	path = external/superpowers
-	url = https://github.com/obra/superpowers.git
-[submodule "external/rtk"]
-	path = external/rtk
-	url = https://github.com/rtk-ai/rtk.git
-[submodule "external/claude-red"]
-	path = external/claude-red
-	url = https://github.com/SnailSploit/Claude-Red.git
 [submodule "external/trailofbits-skills"]
 	path = external/trailofbits-skills
 	url = https://github.com/trailofbits/skills.git
-[submodule "external/reverse-skill"]
-	path = external/reverse-skill
-	url = https://github.com/zhaoxuya520/reverse-skill.git
 [submodule "external/tech-leads-club"]
 	path = external/tech-leads-club
 	url = https://github.com/tech-leads-club/agent-skills.git
