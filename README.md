@@ -86,6 +86,8 @@ node scripts/agent-surface.mjs install --target <t> --scope user --dry-run
 
 For all assets with only the two primary MCPs, run the general full sync, then `--category external`, then `--category development,cybersecurity,private,modding --service synapse,grimoire`. The initial full sync removes previously managed optional MCP entries; a service-filtered install by itself is additive and does not uninstall unselected services.
 
+[REA](docs/runbooks/rea.md) adds optional reverse-engineering tools through `--category mcps --service rea`. Build the reviewed source revision first; the installer detects it and registers `rea mcp` without adding it to any default or asset-category profile.
+
 ## First-party MCP services
 
 Built from `mcps/`, installed once, then auto-wired (non-destructive merge) into all 25 MCP-capable hosts across JSON/TOML/YAML config families - see [docs/reference/targets.md](docs/reference/targets.md):
