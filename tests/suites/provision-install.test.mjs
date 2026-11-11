@@ -294,6 +294,24 @@ try {
   assert.ok(!existsSync(path.join(blockHome, ".local", "bin", "agent-surface-mcp-env")), "no launcher is materialized for a blocked install");
   assert.ok(!existsSync(mcpLaunchScriptCopy(blockHome)), "no launcher copy is written for a blocked install");
 
+  // ---- a launch binary agent-surface cannot install: report it, wire nothing ----
+  // ida-pro-mcp needs a licensed IDA Pro, so its idalib-mcp prerequisite has no recipe. Naming the
+  // service where that binary is absent drops it and reports non-zero instead of wiring a server
+  // that cannot start.
+  {
+    const home = path.join(dir, "ida-home");
+    const dest = path.join(dir, "ida-proj");
+    mkdirSync(home, { recursive: true });
+    mkdirSync(dest, { recursive: true });
+    const ida = spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", "--service", "ida-pro-mcp"], {
+      encoding: "utf8",
+      env: { PATH: "/usr/bin:/bin", HOME: home, USERPROFILE: home },
+    });
+    assert.equal(ida.status, 1, `an absent launch binary with no recipe reports non-zero: ${ida.stderr || ida.stdout}`);
+    assert.match(ida.stdout, /mcp prerequisites unmet: missing required prerequisites with no \S+ recipe: ida-pro-mcp\/idalib-mcp$/m);
+    assert.ok(!existsSync(path.join(dest, ".factory", "mcp.json")), "nothing is wired for the dropped service");
+  }
+
   // ---- satisfied prerequisites → wire openosint with the RESOLVED ABSOLUTE launch path (P1) ------
   // Real-environment integration evidence (peer#3): symlink the developer's ACTUAL openosint uv-tool
   // env into the disposable HOME so the extras are probed in the REAL interpreter against the REAL

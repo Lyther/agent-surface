@@ -636,6 +636,15 @@
       "commit": "3c97954d74d70063ba076411570a33118a9d691f",
       "kind": "mcp",
       "optional": true,
+      "provisioning": {
+        "prerequisites": [
+          {
+            "id": "idalib-mcp",
+            "kind": "launch-binary",
+            "detect": { "command": "idalib-mcp" }
+          }
+        ]
+      },
       "mcp": {
         "server": {
           "type": "stdio",
@@ -647,12 +656,12 @@
         "validation_hint": "PyPI 1.4.0 does not provide idalib-mcp. Install ida-pro-mcp from pinned upstream revision 3c97954d74d70063ba076411570a33118a9d691f (2.0.0), activate a licensed IDA Pro 8.3+ idalib environment, then list the idalib MCP tools and open a disposable analysis database."
       },
       "local_wiring": [
-        "MCP-capable runtimes: opt-in cybersecurity MCP named ida-pro-mcp over stdio."
+        "MCP-capable runtimes: explicit opt-in MCP named ida-pro-mcp over stdio."
       ],
       "notes": [
         "Provides live IDA and headless idalib analysis; complements the methodology served by rev-skills.",
         "The configured idalib-mcp entrypoint comes from pinned upstream 2.0.0; the latest PyPI release remains 1.4.0 and does not provide it.",
-        "Agent-surface does not install or license IDA Pro. The executable remains unavailable until the operator installs the Python package and activates idalib."
+        "Agent-surface does not install or license IDA Pro, so the service belongs to no asset category and is wired only when selected with --category mcps --service ida-pro-mcp. Its idalib-mcp prerequisite has no recipe: when the executable is on PATH the installer wires its absolute path, and when it is not the install skips the service and reports it instead of wiring a server that cannot start."
       ]
     },
     "openosint": {

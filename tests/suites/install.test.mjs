@@ -253,9 +253,9 @@ const qwenCodeCybersecurityPlan = dryRun("qwen-code", ["--category", "cybersecur
 planHas(qwenCodeCybersecurityPlan, [
   /\.qwen\/skills\/ctf-ai-ml\/SKILL\.md/,
   /\.qwen\/skills\/redteam-boundary-policy\/SKILL\.md/,
-  /\.qwen\/settings\.json MCP \+= fenjing, ida-pro-mcp, openosint/,
+  /\.qwen\/settings\.json MCP \+= fenjing, openosint$/m,
 ], "qwen-code cybersecurity assets");
-planLacks(qwenCodeCybersecurityPlan, [/skills\/stellaris-design\//, /pentest-ai/], "qwen-code cybersecurity isolation");
+planLacks(qwenCodeCybersecurityPlan, [/skills\/stellaris-design\//, /pentest-ai/, /ida-pro-mcp/], "qwen-code cybersecurity isolation");
 
 const qwenCodePentestAiPlan = dryRun("qwen-code", ["--category", "mcps", "--service", "pentest-ai"]);
 planHas(qwenCodePentestAiPlan, [/\.qwen\/settings\.json MCP \+= pentest-ai/], "qwen-code explicit pentest-ai MCP");
@@ -530,7 +530,7 @@ rmSync(relocateDest, { recursive: true, force: true });
 
 /*
 SUBSTITUTE_JUSTIFICATION
-- substitute: a disposable Qwen user root with one previously owned categorized MCP id
+- substitute: a disposable Qwen user root with previously owned categorized MCP ids
 - replaces: the operator's live Qwen skills, MCP config, and install manifest
 - necessity: category resync must exercise removal and preservation without changing the operator profile or source registry
 - real-option: the production installer, source packs, config merger, and filesystem are used; only prior owned state is controlled
@@ -556,24 +556,27 @@ SUBSTITUTE_JUSTIFICATION
 
     const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
     settings.mcpServers["old-cyber"] = { command: "remove-me", args: [] };
+    // Installs made while ida-pro-mcp was in the category wired it and recorded it as cybersecurity.
+    settings.mcpServers["ida-pro-mcp"] = { command: "idalib-mcp", args: ["--stdio"] };
     writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     const configEntry = manifest.config_entries.find((entry) => entry.path === ".qwen/settings.json");
     assert.deepEqual(configEntry.asset_categories, {
       fenjing: "cybersecurity",
-      "ida-pro-mcp": "cybersecurity",
       openosint: "cybersecurity",
     });
-    configEntry.ids.push("old-cyber");
+    configEntry.ids.push("old-cyber", "ida-pro-mcp");
     configEntry.asset_categories["old-cyber"] = "cybersecurity";
+    configEntry.asset_categories["ida-pro-mcp"] = "cybersecurity";
     writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
     run(["install", "--target", "qwen-code", "--scope", "user", "--dest", dest, "--category", "cybersecurity"]);
-    assert.equal(Object.hasOwn(JSON.parse(readFileSync(settingsPath, "utf8")).mcpServers, "old-cyber"), false);
+    const resynced = JSON.parse(readFileSync(settingsPath, "utf8")).mcpServers;
+    assert.equal(Object.hasOwn(resynced, "old-cyber"), false);
+    assert.equal(Object.hasOwn(resynced, "ida-pro-mcp"), false, "the next cybersecurity install removes the ida-pro-mcp entry an earlier one wired");
     run(["install", "--target", "qwen-code", "--scope", "user", "--dest", dest, "--category", "mcps"]);
     const mcpServers = JSON.parse(readFileSync(settingsPath, "utf8")).mcpServers;
     assert.equal(Object.hasOwn(mcpServers, "fenjing"), true);
-    assert.equal(Object.hasOwn(mcpServers, "ida-pro-mcp"), true);
     assert.equal(Object.hasOwn(mcpServers, "openosint"), true);
     run(["install", "--target", "qwen-code", "--scope", "user", "--dest", dest, "--category", "external"]);
     assert.equal(existsSync(cyberSkill), true);
