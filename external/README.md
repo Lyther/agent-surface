@@ -20,6 +20,7 @@ Every submodule backs an entry in `registry/optional-services.json` and follows 
 | `external/hack-skills` | https://github.com/yaklang/hack-skills | `hack-skills`: source-pack, indexed by Grimoire |
 | `external/no-ai-slop` | https://github.com/petergyang/no-ai-slop.git | `no-ai-slop`: skill-pack (opt-in), copy-editing that preserves voice/meaning |
 | `external/open-code-review` | https://github.com/alibaba/open-code-review.git | `open-code-review`: skill-pack (opt-in), only open-code-review-delegate distributed; delegate needs the `ocr` CLI |
+| `external/rea` | https://github.com/morluto/rea.git | `rea`: opt-in MCP; build the pinned source using the [REA setup guide](../docs/runbooks/rea.md) |
 | `external/rev-skills` | https://github.com/Lyther/rev-skills.git | `rev-skills`: source-pack, indexed by Grimoire |
 | `external/sanyuan-skills` | https://github.com/sanyuan0704/sanyuan-skills.git | `sanyuan-skills`: skill-pack (opt-in); `sanyuan-development-skills`: skill-pack (opt-in) |
 | `external/tech-leads-club` | https://github.com/tech-leads-club/agent-skills.git | `tech-leads-club`: source-pack (opt-in), tech-leadership catalog under parenthesized categories, indexed by Grimoire |

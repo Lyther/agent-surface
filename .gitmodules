@@ -34,3 +34,6 @@
 [submodule "external/diagram-design"]
 	path = external/diagram-design
 	url = https://github.com/cathrynlavery/diagram-design.git
+[submodule "external/rea"]
+	path = external/rea
+	url = https://github.com/morluto/rea.git

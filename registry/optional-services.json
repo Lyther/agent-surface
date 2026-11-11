@@ -633,6 +633,7 @@
     "rea": {
       "status": "optional-caution",
       "source_url": "https://github.com/morluto/rea",
+      "path": "external/rea",
       "commit": "5fde39454e5457448c87b107c0fc034d1674a74b",
       "kind": "mcp",
       "optional": true,

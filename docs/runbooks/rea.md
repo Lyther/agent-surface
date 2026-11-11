@@ -4,16 +4,15 @@
 
 ## Install the reviewed source
 
-Use revision [`5fde39454e5457448c87b107c0fc034d1674a74b`](https://github.com/morluto/rea/tree/5fde39454e5457448c87b107c0fc034d1674a74b). The npm release `rea-agents@6.8.0` is older despite sharing the version number: it lacks tool-family selection and includes affected runtime dependencies. The registry records the reviewed revision; executable detection does not verify an existing installation's revision.
+The `external/rea` submodule pins revision [`5fde39454e5457448c87b107c0fc034d1674a74b`](https://github.com/morluto/rea/tree/5fde39454e5457448c87b107c0fc034d1674a74b), matching the service registry. The npm release `rea-agents@6.8.0` is older despite sharing the version number: it lacks tool-family selection and includes affected runtime dependencies. Executable detection does not verify an existing installation's revision.
 
 Build this revision with **Node 24.22.1**. Its build scripts use `stripTypeScriptTypes({mode: "transform"})`, which Node 26 removed. Upstream declares runtime support for Node 22.23.4+, 24.22.1+, and 26.12.1+ within its supported major lines. Use the same Node 24 installation for the commands below and for `agent-surface install`, whose runtime launcher supplies Node to the child.
 
-Linux also needs a procps-compatible `ps`. These commands use an unused installation directory on macOS/Linux:
+Linux also needs a procps-compatible `ps`. Run these commands on macOS/Linux from an agent-surface checkout you intend to keep; the launcher points into its submodule:
 
 ```sh
-git clone https://github.com/morluto/rea.git "$HOME/.local/share/rea"
-cd "$HOME/.local/share/rea"
-git checkout --detach 5fde39454e5457448c87b107c0fc034d1674a74b
+git submodule update --init -- external/rea
+cd external/rea
 npm ci --ignore-scripts
 npm run build
 npm prune --omit=dev --omit=optional --ignore-scripts
