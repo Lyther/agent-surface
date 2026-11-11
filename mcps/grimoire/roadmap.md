@@ -1,6 +1,6 @@
 # Roadmap — grimoire
 
-Status: G1 IMPLEMENTED · Source: [architecture.md](architecture.md) · Last updated: 2026-11-05
+Status: G1 IMPLEMENTED · Source: [architecture.md](architecture.md) · Last updated: 2026-11-11
 
 v0.1 shipped as `grimoire-v0.1.0`; its history is in git. G1 removes the machinery by which the index checked itself and keeps the search-quality gates. It lands in the same PR as [Synapse's plan](../synapse/roadmap.md), in the order set in [docs/roadmap.md](../../docs/roadmap.md#phase-mcp-s-synapse-and-grimoire-simplification).
 
@@ -55,4 +55,4 @@ Exit gate: `npm test` in `mcps/grimoire` passes, including the real-pack and hel
 - **Hybrid or embedding retrieval:** only if an eval floor fails or higher recall is required.
 - **More packs:** add them through `served_by`, with the same native Agent-Skill contract.
 - **`resource_link`:** once client support is consistent.
-- **Binary supporting files:** unsupported; indexing fails clearly on non-UTF-8 bytes.
+- **Binary supporting files:** left out of the index and their skill's manifest, since `grimoire_file_get` serves text; serve them only if a skill needs its images or archives through Grimoire.
