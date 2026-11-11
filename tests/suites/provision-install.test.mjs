@@ -18,6 +18,19 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 const cli = path.join(root, "scripts", "agent-surface.mjs");
 const dir = mkdtempSync(path.join(os.tmpdir(), "as-prov-install-"));
 
+// REA is selected by name, never by a general or asset-category install.
+for (const categories of [undefined, ["mcps"], ["development"], ["cybersecurity"]]) {
+  const entries = await selectedMcpServiceEntries(true, {
+    mode: "build", scope: "user", categoryFilter: categories && new Set(categories),
+  });
+  assert.ok(!entries.some(([id]) => id === "rea"), "REA stays opt-in");
+}
+const reaEntries = await selectedMcpServiceEntries(true, {
+  mode: "build", scope: "user", categoryFilter: new Set(["mcps"]), optionalServices: new Set(["rea"]),
+});
+assert.deepEqual(reaEntries.map(([id]) => id), ["rea"]);
+assert.deepEqual(reaEntries[0][1].mcp.server, { type: "stdio", command: "rea", args: ["mcp"] });
+
 // ---- excludeServices is the single wiring-exclusion chokepoint --------------------
 // A service dropped for failed provisioning must vanish from the entry list WITHOUT being reported as
 // a "missing" explicitly-requested service (exclusion happens after the request is validated).
@@ -295,20 +308,20 @@ try {
   assert.ok(!existsSync(mcpLaunchScriptCopy(blockHome)), "no launcher copy is written for a blocked install");
 
   // ---- a launch binary agent-surface cannot install: report it, wire nothing ----
-  // ida-pro-mcp needs a licensed IDA Pro, so its idalib-mcp prerequisite has no recipe. Naming the
-  // service where that binary is absent drops it and reports non-zero instead of wiring a server
-  // that cannot start.
-  {
-    const home = path.join(dir, "ida-home");
-    const dest = path.join(dir, "ida-proj");
+  // These services use an existing installation. An absent executable must not produce a broken
+  // host entry or trigger a package-manager install.
+  for (const [service, binary] of [["ida-pro-mcp", "idalib-mcp"], ["rea", "rea"]]) {
+    const home = path.join(dir, `${service}-home`);
+    const dest = path.join(dir, `${service}-proj`);
     mkdirSync(home, { recursive: true });
     mkdirSync(dest, { recursive: true });
-    const ida = spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", "--service", "ida-pro-mcp"], {
+    const result = spawnSync(process.execPath, [cli, "install", "--target", "droid", "--dest", dest, "--category", "mcps", "--service", service], {
       encoding: "utf8",
       env: { PATH: "/usr/bin:/bin", HOME: home, USERPROFILE: home },
     });
-    assert.equal(ida.status, 1, `an absent launch binary with no recipe reports non-zero: ${ida.stderr || ida.stdout}`);
-    assert.match(ida.stdout, /mcp prerequisites unmet: missing required prerequisites with no \S+ recipe: ida-pro-mcp\/idalib-mcp$/m);
+    assert.equal(result.status, 1, `an absent launch binary with no recipe reports non-zero: ${result.stderr || result.stdout}`);
+    assert.match(result.stdout, new RegExp(`mcp prerequisites unmet: missing required prerequisites with no \\S+ recipe: ${service}/${binary}$`, "m"));
+    assert.doesNotMatch(result.stdout, /provisioning: (ok|FAILED)/, "no package manager is run");
     assert.ok(!existsSync(path.join(dest, ".factory", "mcp.json")), "nothing is wired for the dropped service");
   }
 

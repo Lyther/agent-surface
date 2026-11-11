@@ -630,6 +630,48 @@
         "MOMO owns installation and application readiness for the fenjing executable and pins the compatible MCP v1 dependency."
       ]
     },
+    "rea": {
+      "status": "optional-caution",
+      "source_url": "https://github.com/morluto/rea",
+      "commit": "5fde39454e5457448c87b107c0fc034d1674a74b",
+      "kind": "mcp",
+      "optional": true,
+      "provisioning": {
+        "prerequisites": [
+          {
+            "id": "rea",
+            "kind": "launch-binary",
+            "detect": {
+              "command": "rea",
+              "paths": [
+                "~/.local/bin/rea",
+                "~/.local/bin/rea.cmd"
+              ]
+            }
+          }
+        ]
+      },
+      "mcp": {
+        "server": {
+          "type": "stdio",
+          "command": "rea",
+          "args": [
+            "mcp"
+          ]
+        },
+        "validation_hint": "Follow docs/runbooks/rea.md to build the reviewed source revision, then select --category mcps --service rea. REA requires Node ^22.23.4, ^24.22.1 or >=26.12.1; Linux also needs procps. List tools and analyze a disposable JavaScript application over the generated stdio command."
+      },
+      "local_wiring": [
+        "MCP-capable runtimes: explicit opt-in MCP named rea over stdio."
+      ],
+      "notes": [
+        "Reverse Engineer Anything adds executable JavaScript/Electron analysis and optional native-analysis providers alongside the methodology served by rev-skills.",
+        "The reviewed source revision is newer than npm rea-agents 6.8.0, which lacks tool-family controls and contains affected runtime dependencies. The setup guide builds the source pin without carrying optional Frida into the runtime installation; no npm release is installed automatically.",
+        "REA belongs to no asset category. The installer detects its executable, wires its absolute path through the existing runtime launcher when needed, and reports an absent executable without writing a broken MCP entry. Detection does not attest the installed revision.",
+        "The full upstream tool catalog remains available. Native providers, Frida and browser/device integrations have their own prerequisites; listing a tool does not establish that its backend is installed. Static JavaScript analysis needs no model API key.",
+        "Agent-surface owns host registration. Do not also run rea setup to rewrite those same host configs or distribute REA's oversized skill body into native skill roots."
+      ]
+    },
     "ida-pro-mcp": {
       "status": "optional-caution",
       "source_url": "https://github.com/mrexodia/ida-pro-mcp",
