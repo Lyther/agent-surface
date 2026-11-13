@@ -208,7 +208,7 @@ clean: ## Remove build output
 ## TypeScript on Node
 
 - Requirements: Node.js 22.18 or later with npm.
-- Generate: `npm init -y`, then `npm pkg delete main`, `npm pkg set type=module`, and `npm pkg set 'engines.node=>=22.18'`. Applications add `npm pkg set private=true --json`. Set `license` to the chosen SPDX identifier, or to `UNLICENSED` for a private project.
+- Generate: `npm init -y`, then `npm pkg delete main`, `npm pkg set type=module`, and `npm pkg set 'engines.node=>=22.18'`. Applications and private projects add `npm pkg set private=true --json`. Set `license` to the chosen SPDX identifier, or to `UNLICENSED` for a private project.
 - Dev tools (`mvp` and up): `npm install --save-dev typescript @types/node eslint @eslint/js typescript-eslint prettier`.
 - Layout: `src/index.ts` and `test/<name>.test.ts`; relative imports carry the `.ts` extension.
 - CI setup step: `actions/setup-node` with `node-version-file: package.json`.
