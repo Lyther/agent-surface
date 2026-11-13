@@ -22,7 +22,7 @@ alwaysApply: true
 ## Formatting
 
 - The repo's config (`pyproject.toml`/`ruff.toml`, `.editorconfig`, `.golangci.yml`, `rustfmt.toml`, `eslint.config.*`, `.shellcheckrc`) is the single source of style for editor, pre-commit, and CI. Keep each setting in one place and pin the same tool version everywhere.
-- Run formatters and linters through pre-commit (`pre-commit install` in each clone) so they gate every commit against the staged snapshot; never `--no-verify`.
+- When the repo uses pre-commit or Git hooks, install them (`pre-commit install`) so they gate commits against the staged snapshot; never `--no-verify`.
 - Format on save only with the gate's tool and config, and open each repo as its own editor root so the tool finds that repo's config. When editor output differs from the gate, fix the editor config once instead of hand-fixing files.
 - Never lint or reformat generated code or test fixtures; exclude them in config.
 

@@ -28,11 +28,11 @@ These differ from a model's defaults; fix the underlying issue. Genuine exceptio
 
 ## Types
 
-Keep changed public contracts fully annotated. Use newtypes / Pydantic models for domain-distinct or invariant-bearing values; `dataclass(frozen=True, slots=True)` for validated internal data. Explicit `T | None` returns; raise only for unexpected cases.
+Keep changed public contracts annotated. Use `dataclass`, `TypedDict`, or the repo's model library for structured data, and explicit `T | None` returns; raise only for unexpected cases.
 
 ## Errors
 
-Define a meaningful exception hierarchy per package/domain (`ServiceError` → `ValidationError`, `NotFoundError`), not `Error(str)`.
+Raise specific exception types (or the package's domain error) with context rather than generic `Exception("...")`.
 
 ## Toolchain gate
 

@@ -24,32 +24,17 @@ description: "Apply strict TypeScript engineering rules before code is accepted.
    npm test
    ```
 
-5. Report in the format below.
+5. Report findings, fixes, and gate status.
 
 ## Output
 
 ```text
-1. Understanding
-Task: [the task in your own words]
-Constraints: [from context]
-Ambiguities: [anything unclear; ask if critical]
-
-2. Design
-DATA MODELS:
-[Zod schemas for boundaries]
-[TypeScript types/interfaces for internal]
-ERROR STRATEGY:
-[Error classes and handling]
-DEPENDENCIES:
-[Each package with justification]
-
-3. Implementation
-[Complete, working code: all files, all functions, all tests]
-
-4. Verification
-Toolchain commands: [list]
-typecheck: [PASS/FAIL]
-lint: [PASS or specific issues]
-format:check: [PASS/FAIL]
-test: [PASS with count]
+Verdict: <BLOCKER | MAJOR | MINOR | CLEAN>
+Findings: <file:line and issue, or none>
+Fixes: <change made per finding, or none>
+Verification:
+- typecheck: PASS/FAIL/not available
+- lint: PASS/FAIL/not available
+- format:check: PASS/FAIL/not available
+- test: PASS/FAIL/not available
 ```
