@@ -35,23 +35,21 @@ These differ from a model's defaults; fix the underlying issue rather than suppr
 Run in order; each green before the next. Prefer repository scripts (`make check`); otherwise:
 
 ```bash
-out=$(gofumpt -l .) && test -z "$out" && out=$(goimports -l .) && test -z "$out"   # fails on unformatted files or a missing tool
-go vet ./...
-golangci-lint run ./...          # strict set below — not the 6-linter minimum
-govulncheck ./...                # known-vuln deps — blocking
-go test -race -count=1 ./...
+golangci-lint run ./...          # includes govet, gofumpt, and goimports when configured below
+go test ./...                    # add -race -count=1 when concurrency or shared state is involved
 ```
 
-Install tools via repo-pinned tooling (`tools.go`, `mise`, CI image); avoid unpinned `go install ...@latest`. For pre-commit, use the maintained `TekWizely/pre-commit-golang` (pin a rev); `dnephin/pre-commit-golang` was archived 2025-03-12 — do not use it.
+When `golangci-lint` is not configured, run `out=$(gofmt -l .) && test -z "$out"` (or `gofumpt`/`goimports` if installed) and `go vet ./...` before `go test`. Security: `govulncheck ./...`.
 
-### golangci-lint config (strict set)
+Install tools via repo-pinned tooling (`go get -tool`, `mise`, CI image); avoid unpinned `go install ...@latest`. For pre-commit, use the maintained `TekWizely/pre-commit-golang` (pin a rev) or local task targets; `dnephin/pre-commit-golang` was archived 2025-03-12 — do not use it.
 
-For greenfield projects with no existing config, seed `.golangci.yml` from this recipe; preserve any stricter config already present.
+### golangci-lint config
+
+For greenfield projects with no existing config, seed `.golangci.yml` from this correctness-focused set; preserve any stricter config already present.
 
 ```yaml
 version: "2"
 run:
-  timeout: 5m
   modules-download-mode: readonly
 linters:
   enable:
@@ -60,35 +58,17 @@ linters:
     - errcheck
     - errorlint
     - exhaustive
+    - gocritic
+    - gosec
     - govet
+    - ineffassign
     - nilerr
     - nilnil
     - rowserrcheck
     - sqlclosecheck
     - staticcheck
-    - gocritic
-    - gosimple
-    - ineffassign
-    - misspell
     - unconvert
-    - unparam
     - unused
-    - usestdlibvars
-    - cyclop
-    - funlen
-    - gocognit
-    - nestif
-    - gosec
-    - prealloc
-    - dupl
-    - goconst
-    - revive
-  settings:
-    cyclop: { max-complexity: 15 }
-    funlen: { lines: 80, statements: 50 }
-    gocognit: { min-complexity: 20 }
-    nestif: { min-complexity: 5 }
-    gocritic: { enabled-tags: [diagnostic, performance, style] }
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
@@ -96,4 +76,4 @@ formatters:
   enable: [gofumpt, goimports]
 ```
 
-Pin the golangci-lint version and the CI action explicitly (v2 schema). Add `issues.exclude-dirs` for vendored fixtures so linters skip non-code YAML. Validate the config with `golangci-lint config verify`; convert a v1 config with `golangci-lint migrate`.
+Pin the golangci-lint version and the CI action explicitly (v2 schema). Exclude vendored fixtures with `linters.exclusions.paths` and `formatters.exclusions.paths` so linters skip non-code YAML. Validate the config with `golangci-lint config verify`; convert a v1 config with `golangci-lint migrate`.
