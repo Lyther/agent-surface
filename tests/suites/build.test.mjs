@@ -227,8 +227,9 @@ const explorerWorker = [
   {
     explorer: path.join(root, "dist", "claude-code", ".claude", "agents", "explorer.md"),
     worker: path.join(root, "dist", "claude-code", ".claude", "agents", "worker.md"),
-    explorerOk: (t) => /^tools: Read, Glob, Grep$/m.test(t),
-    workerOk: (t) => /^tools: Read, Glob, Grep, Edit, Write, Bash$/m.test(t),
+    explorerOk: (t) => /^tools: Read, Glob, Grep, WebFetch, WebSearch, Skill$/m.test(t),
+    // An omitted `tools` inherits every tool the session offers, MCP tools included.
+    workerOk: (t) => !/^tools:/m.test(t),
   },
   {
     explorer: path.join(root, "dist", "codex", ".codex", "agents", "explorer.toml"),

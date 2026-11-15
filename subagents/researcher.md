@@ -1,11 +1,11 @@
 ---
 name: researcher
 description: "Resolve questions that depend on current documentation, upstream source, papers, or competing factual claims. Return primary evidence and its implications for the task."
-access: read-only
+access: read-write-shell
 targets:
   claude-code: true
   codex: true
-  deepagents: false
+  deepagents: true
   cline: true
   cursor: true
   droid: true

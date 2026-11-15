@@ -49,7 +49,7 @@
             "~/.claude/agents/<name>.md",
             ".claude/agents/<name>.md"
           ],
-          "notes": "Normalized subagents map access levels to Claude Code tool lists. No model or permissionMode is written, so each agent follows CLAUDE_CODE_SUBAGENT_MODEL or the parent's model and runs in the session's permission mode; read-only roles stay read-only through their tool list."
+          "notes": "Read-only roles list Read, Glob, Grep, WebFetch, WebSearch and Skill; shell roles list no tools, so they inherit every tool the session offers, MCP tools included. No model or permissionMode is written, so each agent follows CLAUDE_CODE_SUBAGENT_MODEL or the parent's model and runs in the session's permission mode."
         },
         "mcp": {
           "support": "native",
@@ -149,7 +149,7 @@
             "~/.codex/agents/<name>.toml",
             ".codex/agents/<name>.toml"
           ],
-          "notes": "Custom agents render as standalone TOML with name, description, developer_instructions, and sandbox_mode. Writable shell workers use danger-full-access; read-only roles remain read-only. Project paths only via --dest."
+          "notes": "Custom agents render as standalone TOML with name, description, developer_instructions, and sandbox_mode. Writable shell workers use danger-full-access; read-only roles remain read-only. Project paths only via --dest. The generated explorer replaces Codex's built-in explorer role, which sets no model or effort of its own (codex-cli 0.167.2, 2026-11-15)."
         },
         "rules": {
           "support": "native",
@@ -253,7 +253,7 @@
             "~/.deepagents/agent/agents/<name>/AGENTS.md",
             ".deepagents/agents/<name>/AGENTS.md"
           ],
-          "notes": "Deep Agents Code subagent files cannot configure per-subagent tools, so only the read-write-shell worker profile is emitted."
+          "notes": "Deep Agents Code subagent files cannot configure per-subagent tools, so only the roles with shell access are emitted."
         },
         "mcp": {
           "support": "native",

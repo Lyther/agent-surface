@@ -16,13 +16,13 @@ export async function renderKiloWorkflow(source) {
 // No subagent renderer writes a model or a permission mode: the session's own configuration picks both.
 // Claude Code ranks a definition's `model`, `inherit` included, above CLAUDE_CODE_SUBAGENT_MODEL, and
 // an unset `permissionMode` inherits the session's mode. Read-only roles stay read-only through `tools`.
-export function renderClaudeSubagent(source) {
-  const mapped = claudeSubagentAccess(source.metadata.access);
+export function renderClaudeSubagent(source, access = claudeSubagentAccess) {
+  const mapped = access(source.metadata.access);
   return [
     "---",
     `name: ${source.metadata.name}`,
     `description: "${quotedScalar(source.metadata.description)}"`,
-    `tools: ${mapped.tools}`,
+    ...(mapped.tools ? [`tools: ${mapped.tools}`] : []),
     "---",
     "",
     source.body.trim(),
@@ -567,15 +567,31 @@ export function cursorSubagentReadonly(access) {
   fail(`cursor subagent access ${access} is not representable; use read-only or read-write-shell`);
 }
 
+// Claude Code's `tools` is an allowlist: a role that lists tools gets no MCP tool, skill or web tool it
+// leaves out, and one that lists none inherits every tool the session offers, MCP tools included. So the
+// read-only roles add the web and skill tools their work uses, and the shell role, each host's full-access
+// equivalent, lists none.
 export function claudeSubagentAccess(access) {
-  if (access === "read-only") return { tools: "Read, Glob, Grep" };
-  if (access === "read-write") return { tools: "Read, Glob, Grep, Edit, Write" };
-  if (access === "read-write-shell") return { tools: "Read, Glob, Grep, Edit, Write, Bash" };
+  if (access === "read-only") return { tools: "Read, Glob, Grep, WebFetch, WebSearch, Skill" };
+  if (access === "read-write") return { tools: "Read, Glob, Grep, WebFetch, WebSearch, Skill, Edit, Write" };
+  if (access === "read-write-shell") return {};
   fail(`unsupported subagent access: ${access}`);
 }
 
+// Qoder and Grok Build take Claude-style tool names, but their web and skill tool names and what an omitted
+// list inherits are not established, so they keep the plain lists.
+export function claudeStyleSubagentAccess(access) {
+  const tools = { "read-only": "Read, Glob, Grep", "read-write": "Read, Glob, Grep, Edit, Write", "read-write-shell": "Read, Glob, Grep, Edit, Write, Bash" }[access];
+  if (!tools) fail(`unsupported subagent access: ${access}`);
+  return { tools };
+}
+
+export function renderQoderSubagent(source) {
+  return renderClaudeSubagent(source, claudeStyleSubagentAccess);
+}
+
 export function grokBuildSubagentAccess(access) {
-  const { tools } = claudeSubagentAccess(access);
+  const { tools } = claudeStyleSubagentAccess(access);
   const capabilityMode = { "read-only": "read-only", "read-write": "read-write", "read-write-shell": "all" }[access];
   return { tools, capabilityMode };
 }
