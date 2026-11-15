@@ -49,7 +49,7 @@
             "~/.claude/agents/<name>.md",
             ".claude/agents/<name>.md"
           ],
-          "notes": "Normalized subagents map access levels to Claude Code tool lists and native permission modes; writable shell workers use bypassPermissions while read-only roles keep read-only tools."
+          "notes": "Normalized subagents map access levels to Claude Code tool lists. No model or permissionMode is written, so each agent follows CLAUDE_CODE_SUBAGENT_MODEL or the parent's model and runs in the session's permission mode; read-only roles stay read-only through their tool list."
         },
         "mcp": {
           "support": "native",
@@ -1280,7 +1280,7 @@
             "~/.qoder/agents/<name>.md",
             ".qoder/agents/<name>.md"
           ],
-          "notes": "Normalized access maps to native tool allowlists and permissionMode values."
+          "notes": "Normalized access maps to native tool allowlists. No permissionMode is written, so each agent inherits the session's mode, which full installs default to bypass_permissions."
         },
         "mcp": {
           "support": "native",

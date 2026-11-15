@@ -13,9 +13,9 @@ export async function renderKiloWorkflow(source) {
   return source.body;
 }
 
-// No subagent renderer writes a model: the host's own configuration picks it. Claude Code ranks a
-// definition's `model`, `inherit` included, above CLAUDE_CODE_SUBAGENT_MODEL, so writing one would
-// override that setting.
+// No subagent renderer writes a model or a permission mode: the session's own configuration picks both.
+// Claude Code ranks a definition's `model`, `inherit` included, above CLAUDE_CODE_SUBAGENT_MODEL, and
+// an unset `permissionMode` inherits the session's mode. Read-only roles stay read-only through `tools`.
 export function renderClaudeSubagent(source) {
   const mapped = claudeSubagentAccess(source.metadata.access);
   return [
@@ -23,7 +23,6 @@ export function renderClaudeSubagent(source) {
     `name: ${source.metadata.name}`,
     `description: "${quotedScalar(source.metadata.description)}"`,
     `tools: ${mapped.tools}`,
-    `permissionMode: ${mapped.permissionMode}`,
     `maxTurns: ${mapped.maxTurns}`,
     "---",
     "",
@@ -572,9 +571,9 @@ export function cursorSubagentReadonly(access) {
 }
 
 export function claudeSubagentAccess(access) {
-  if (access === "read-only") return { tools: "Read, Glob, Grep", permissionMode: "plan", maxTurns: 20 };
-  if (access === "read-write") return { tools: "Read, Glob, Grep, Edit, Write", permissionMode: "acceptEdits", maxTurns: 30 };
-  if (access === "read-write-shell") return { tools: "Read, Glob, Grep, Edit, Write, Bash", permissionMode: "bypassPermissions", maxTurns: 40 };
+  if (access === "read-only") return { tools: "Read, Glob, Grep", maxTurns: 20 };
+  if (access === "read-write") return { tools: "Read, Glob, Grep, Edit, Write", maxTurns: 30 };
+  if (access === "read-write-shell") return { tools: "Read, Glob, Grep, Edit, Write, Bash", maxTurns: 40 };
   fail(`unsupported subagent access: ${access}`);
 }
 

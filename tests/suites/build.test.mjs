@@ -227,7 +227,7 @@ const bossWorker = [
   {
     boss: path.join(root, "dist", "claude-code", ".claude", "agents", "boss.md"),
     worker: path.join(root, "dist", "claude-code", ".claude", "agents", "worker.md"),
-    bossOk: (t) => /^tools: Read, Glob, Grep$/m.test(t) && /^permissionMode: plan$/m.test(t),
+    bossOk: (t) => /^tools: Read, Glob, Grep$/m.test(t),
     workerOk: (t) => /^tools: Read, Glob, Grep, Edit, Write, Bash$/m.test(t),
   },
   {
@@ -257,7 +257,7 @@ const bossWorker = [
   {
     boss: path.join(root, "dist", "qoder", ".qoder", "agents", "boss.md"),
     worker: path.join(root, "dist", "qoder", ".qoder", "agents", "worker.md"),
-    bossOk: (t) => /^tools: Read, Glob, Grep$/m.test(t) && /^permissionMode: plan$/m.test(t),
+    bossOk: (t) => /^tools: Read, Glob, Grep$/m.test(t),
     workerOk: (t) => /^tools: Read, Glob, Grep, Edit, Write, Bash$/m.test(t),
   },
   {
@@ -304,12 +304,14 @@ for (const row of bossWorker) {
   assert.equal(row.workerOk(readFileSync(row.worker, "utf8")), true, `worker contract: ${row.worker}`);
 }
 
-// The host's own configuration picks a subagent's model, so no generated agent names one: Claude Code
-// ranks a definition's `model`, `inherit` included, above CLAUDE_CODE_SUBAGENT_MODEL.
+// The session's own configuration picks a subagent's model and permission mode, so no generated agent
+// names either: Claude Code ranks a definition's `model`, `inherit` included, above
+// CLAUDE_CODE_SUBAGENT_MODEL, and an unset `permissionMode` inherits the session's mode.
 for (const [target, adapter] of Object.entries(targets)) {
   for (const output of await subagentOutputs(adapter)) {
     const header = output.content.split(/\n(?:---|developer_instructions = )/, 1)[0];
     assert.doesNotMatch(header, /^model\s*[:=]/m, `${target} pins a model in ${output.relativeOutput}`);
+    assert.doesNotMatch(header, /^permissionMode\s*:/m, `${target} pins a permission mode in ${output.relativeOutput}`);
   }
 }
 
