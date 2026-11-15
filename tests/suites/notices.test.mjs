@@ -71,7 +71,7 @@ assert.equal(gooseXdgConfigNotice("zed", [gooseConfigMerge], gooseRoot, { XDG_CO
 // OpenCode reads its user root under XDG_CONFIG_HOME, and OpenCode 2 reads OPENCODE_CONFIG_DIR in its
 // place, so only a user root the client would not read earns a notice.
 const opencodeUserWrite = { relativeOutput: path.join(".config", "opencode", "AGENTS.md") };
-const opencodeProjectWrite = { relativeOutput: path.join(".opencode", "agents", "boss.md") };
+const opencodeProjectWrite = { relativeOutput: path.join(".opencode", "agents", "explorer.md") };
 const opencodeRoot = path.join(os.tmpdir(), "agent-surface-notice-opencode");
 const opencodeCodes = (target, writes, env) => opencodeConfigRootNotices(target, writes, [], opencodeRoot, env).map((notice) => notice.code);
 assert.deepEqual(opencodeCodes("opencode", [opencodeUserWrite], { XDG_CONFIG_HOME: elsewhere }), ["OPENCODE_XDG_CONFIG_HOME_SET"]);

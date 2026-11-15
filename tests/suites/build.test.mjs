@@ -60,39 +60,39 @@ const mustExist = [
   ["codex", path.join(".codex", "AGENTS.md")],
   ["cline", path.join(".cline", "skills", "verify-readiness", "SKILL.md")],
   ["cline", path.join("Documents", "Cline", "Rules", "agent-surface.md")],
-  ["cline", path.join(".cline", "agents", "boss.yaml")],
+  ["cline", path.join(".cline", "agents", "explorer.yaml")],
   ["kilo", path.join(".config", "kilo", "kilo.jsonc")],
   ["kilo", path.join(".kilo", "skills", "verify-readiness", "SKILL.md")],
   ["kimi-code", path.join("skills", "workflow-runtime", "SKILL.md")],
   ["kimi-code", "AGENTS.md"],
-  ["kimi-code", path.join("agents", "boss.md")],
+  ["kimi-code", path.join("agents", "explorer.md")],
   ["kimi-code", "config.toml"],
   ["kimi-code", "mcp.json"],
   ["dsh", path.join(".dsh", "skills", "workflow-runtime", "SKILL.md")],
   ["qoder", path.join(".qoder", "skills", "workflow-runtime", "SKILL.md")],
-  ["qoder", path.join(".qoder", "agents", "boss.md")],
+  ["qoder", path.join(".qoder", "agents", "explorer.md")],
   ["qoder", path.join(".qoder", "settings.json")],
   ["qwen-code", path.join(".qwen", "skills", "workflow-runtime", "SKILL.md")],
-  ["qwen-code", path.join(".qwen", "agents", "boss.md")],
+  ["qwen-code", path.join(".qwen", "agents", "explorer.md")],
   ["qwen-code", path.join(".qwen", "settings.json")],
   ["kiro", path.join(".kiro", "skills", "workflow-runtime", "SKILL.md")],
-  ["kiro", path.join(".kiro", "agents", "boss.md")],
+  ["kiro", path.join(".kiro", "agents", "explorer.md")],
   ["kiro", path.join(".kiro", "settings", "mcp.json")],
   ["kiro", path.join(".kiro", "settings", "permissions.yaml")],
-  ["copilot", path.join(".copilot", "agents", "boss.agent.md")],
+  ["copilot", path.join(".copilot", "agents", "explorer.agent.md")],
   ["copilot", path.join(".copilot", "mcp-config.json")],
   ["antigravity-cli", path.join("antigravity-cli", "plugins", "agent-surface", "plugin.json")],
-  ["trae", path.join(".trae-cn", "agents", "boss.md")],
+  ["trae", path.join(".trae-cn", "agents", "explorer.md")],
   ["trae", path.join(".trae", "skills", "workflow-runtime", "SKILL.md")],
   ["trae", path.join(".trae", "user_rules.md")],
-  ["trae-cn", path.join(".trae-cn", "agents", "boss.md")],
+  ["trae-cn", path.join(".trae-cn", "agents", "explorer.md")],
   ["trae-cn", path.join(".trae-cn", "skills", "workflow-runtime", "SKILL.md")],
   ["trae-cn", path.join(".trae-cn", "user_rules", "00-precedence-and-safety.md")],
-  ["trae-cli", path.join(".trae", "agents", "boss.md")],
+  ["trae-cli", path.join(".trae", "agents", "explorer.md")],
   ["trae-cli", path.join(".trae", "skills", "workflow-runtime", "SKILL.md")],
   ["trae-cli", path.join(".trae", "traecli.toml")],
   ["trae-cli", path.join(".trae", "rules", "00-precedence-and-safety.md")],
-  ["grok-build", path.join(".grok", "agents", "boss.md")],
+  ["grok-build", path.join(".grok", "agents", "explorer.md")],
   ["grok-build", path.join(".grok", "AGENTS.md")],
   ["openhands", path.join(".openhands", "mcp.json")],
   ["goose", path.join(".config", "goose", "config.yaml")],
@@ -222,85 +222,85 @@ const ignoresCheck = run(["check", "ignores"]);
 assert.match(ignoresCheck, /ignores check: ok/);
 assert.match(ignoresCheck, /emitters 3 \(cline, cursor, kilo\)/);
 
-// Read-only boss must not carry write/shell; worker must.
-const bossWorker = [
+// Read-only explorer must not carry write/shell; worker must.
+const explorerWorker = [
   {
-    boss: path.join(root, "dist", "claude-code", ".claude", "agents", "boss.md"),
+    explorer: path.join(root, "dist", "claude-code", ".claude", "agents", "explorer.md"),
     worker: path.join(root, "dist", "claude-code", ".claude", "agents", "worker.md"),
-    bossOk: (t) => /^tools: Read, Glob, Grep$/m.test(t),
+    explorerOk: (t) => /^tools: Read, Glob, Grep$/m.test(t),
     workerOk: (t) => /^tools: Read, Glob, Grep, Edit, Write, Bash$/m.test(t),
   },
   {
-    boss: path.join(root, "dist", "codex", ".codex", "agents", "boss.toml"),
+    explorer: path.join(root, "dist", "codex", ".codex", "agents", "explorer.toml"),
     worker: path.join(root, "dist", "codex", ".codex", "agents", "worker.toml"),
-    bossOk: (t) => /^sandbox_mode = "read-only"$/m.test(t),
+    explorerOk: (t) => /^sandbox_mode = "read-only"$/m.test(t),
     workerOk: (t) => /^sandbox_mode = "danger-full-access"$/m.test(t),
   },
   {
-    boss: path.join(root, "dist", "cline", ".cline", "agents", "boss.yaml"),
+    explorer: path.join(root, "dist", "cline", ".cline", "agents", "explorer.yaml"),
     worker: path.join(root, "dist", "cline", ".cline", "agents", "worker.yaml"),
-    bossOk: (t) => /^ {2}- read_file$/m.test(t) && !/^ {2}- execute_command$/m.test(t),
+    explorerOk: (t) => /^ {2}- read_file$/m.test(t) && !/^ {2}- execute_command$/m.test(t),
     workerOk: (t) => /^ {2}- execute_command$/m.test(t) && /^ {2}- write_to_file$/m.test(t),
   },
   {
-    boss: path.join(root, "dist", "kilo", ".config", "kilo", "agents", "boss.md"),
+    explorer: path.join(root, "dist", "kilo", ".config", "kilo", "agents", "explorer.md"),
     worker: path.join(root, "dist", "kilo", ".config", "kilo", "agents", "worker.md"),
-    bossOk: (t) => /^ {2}"\*": deny$/m.test(t) && /^ {2}"read": allow$/m.test(t),
+    explorerOk: (t) => /^ {2}"\*": deny$/m.test(t) && /^ {2}"read": allow$/m.test(t),
     workerOk: (t) => /^ {2}"\*": allow$/m.test(t),
   },
   {
-    boss: path.join(root, "dist", "kimi-code", "agents", "boss.md"),
+    explorer: path.join(root, "dist", "kimi-code", "agents", "explorer.md"),
     worker: path.join(root, "dist", "kimi-code", "agents", "worker.md"),
-    bossOk: (t) => /^ {2}- "Read"$/m.test(t) && !/^ {2}- "Bash"$/m.test(t),
+    explorerOk: (t) => /^ {2}- "Read"$/m.test(t) && !/^ {2}- "Bash"$/m.test(t),
     workerOk: (t) => /^ {2}- "\*"$/m.test(t),
   },
   {
-    boss: path.join(root, "dist", "qoder", ".qoder", "agents", "boss.md"),
+    explorer: path.join(root, "dist", "qoder", ".qoder", "agents", "explorer.md"),
     worker: path.join(root, "dist", "qoder", ".qoder", "agents", "worker.md"),
-    bossOk: (t) => /^tools: Read, Glob, Grep$/m.test(t),
+    explorerOk: (t) => /^tools: Read, Glob, Grep$/m.test(t),
     workerOk: (t) => /^tools: Read, Glob, Grep, Edit, Write, Bash$/m.test(t),
   },
   {
-    boss: path.join(root, "dist", "qwen-code", ".qwen", "agents", "boss.md"),
+    explorer: path.join(root, "dist", "qwen-code", ".qwen", "agents", "explorer.md"),
     worker: path.join(root, "dist", "qwen-code", ".qwen", "agents", "worker.md"),
-    bossOk: (t) => /^approvalMode: plan$/m.test(t) && !/^ {2}- run_shell_command$/m.test(t),
+    explorerOk: (t) => /^approvalMode: plan$/m.test(t) && !/^ {2}- run_shell_command$/m.test(t),
     workerOk: (t) => /^approvalMode: yolo$/m.test(t) && /^ {2}- run_shell_command$/m.test(t),
   },
   {
-    boss: path.join(root, "dist", "kiro", ".kiro", "agents", "boss.md"),
+    explorer: path.join(root, "dist", "kiro", ".kiro", "agents", "explorer.md"),
     worker: path.join(root, "dist", "kiro", ".kiro", "agents", "worker.md"),
-    bossOk: (t) => /^tools: \["read"\]$/m.test(t) && !/capability: all/.test(t),
+    explorerOk: (t) => /^tools: \["read"\]$/m.test(t) && !/capability: all/.test(t),
     workerOk: (t) => /^tools: \["\*"\]$/m.test(t) && /capability: all/.test(t) && /effect: allow/.test(t),
   },
   {
-    boss: path.join(root, "dist", "copilot", ".copilot", "agents", "boss.agent.md"),
+    explorer: path.join(root, "dist", "copilot", ".copilot", "agents", "explorer.agent.md"),
     worker: path.join(root, "dist", "copilot", ".copilot", "agents", "worker.agent.md"),
-    bossOk: (t) => /^tools: \["read", "search"\]$/m.test(t),
+    explorerOk: (t) => /^tools: \["read", "search"\]$/m.test(t),
     workerOk: (t) => /^tools: \["\*"\]$/m.test(t),
   },
   {
-    boss: path.join(root, "dist", "grok-build", ".grok", "agents", "boss.md"),
+    explorer: path.join(root, "dist", "grok-build", ".grok", "agents", "explorer.md"),
     worker: path.join(root, "dist", "grok-build", ".grok", "agents", "worker.md"),
-    bossOk: (t) => /^tools: Read, Glob, Grep$/m.test(t) && /^capabilityMode: read-only$/m.test(t) && /^mcpInheritance: none$/m.test(t) && !/^(?:model|permissionMode):/m.test(t),
+    explorerOk: (t) => /^tools: Read, Glob, Grep$/m.test(t) && /^capabilityMode: read-only$/m.test(t) && /^mcpInheritance: none$/m.test(t) && !/^(?:model|permissionMode):/m.test(t),
     workerOk: (t) => /^tools: Read, Glob, Grep, Edit, Write, Bash$/m.test(t) && /^capabilityMode: all$/m.test(t) && /^mcpInheritance: none$/m.test(t) && !/^(?:model|permissionMode):/m.test(t),
   },
   {
-    boss: path.join(root, "dist", "trae", ".trae-cn", "agents", "boss.md"),
+    explorer: path.join(root, "dist", "trae", ".trae-cn", "agents", "explorer.md"),
     worker: path.join(root, "dist", "trae", ".trae-cn", "agents", "worker.md"),
-    bossOk: (t) => /^tools: Read, Glob, Grep, Skill$/m.test(t),
+    explorerOk: (t) => /^tools: Read, Glob, Grep, Skill$/m.test(t),
     workerOk: (t) => /^tools: Read, Glob, Grep, Skill, Edit, Write, Bash$/m.test(t),
   },
   {
-    boss: path.join(root, "dist", "antigravity-cli", "antigravity-cli", "plugins", "agent-surface", "agents", "boss.md"),
+    explorer: path.join(root, "dist", "antigravity-cli", "antigravity-cli", "plugins", "agent-surface", "agents", "explorer.md"),
     worker: path.join(root, "dist", "antigravity-cli", "antigravity-cli", "plugins", "agent-surface", "agents", "worker.md"),
-    bossOk: (t) => /^ {2}- view_file$/m.test(t) && /^ {2}- list_dir$/m.test(t)
+    explorerOk: (t) => /^ {2}- view_file$/m.test(t) && /^ {2}- list_dir$/m.test(t)
       && /^ {2}- grep_search$/m.test(t) && !/read_file|list_directory/.test(t),
     workerOk: (t) => /^ {2}- replace_file_content$/m.test(t) && /^ {2}- write_to_file$/m.test(t)
       && /^ {2}- run_command$/m.test(t),
   },
 ];
-for (const row of bossWorker) {
-  assert.equal(row.bossOk(readFileSync(row.boss, "utf8")), true, `boss contract: ${row.boss}`);
+for (const row of explorerWorker) {
+  assert.equal(row.explorerOk(readFileSync(row.explorer, "utf8")), true, `explorer contract: ${row.explorer}`);
   assert.equal(row.workerOk(readFileSync(row.worker, "utf8")), true, `worker contract: ${row.worker}`);
 }
 
@@ -410,7 +410,7 @@ assert.match(run(["check", "subagents"]), /subagents check: ok/);
 // The subagent cases rewrite a tracked source, so they run in a disposable checkout; the build
 // cases there need the populated packs.
 const subagentSandbox = disposableCheckout({ linkSubmodules: true });
-const subagentSourcePath = path.join(subagentSandbox.root, "subagents", "boss.md");
+const subagentSourcePath = path.join(subagentSandbox.root, "subagents", "explorer.md");
 const subagentSourceOriginal = readFileSync(subagentSourcePath, "utf8");
 try {
   writeFileSync(subagentSourcePath, subagentSourceOriginal.replace(/description:.*\n/, ""));

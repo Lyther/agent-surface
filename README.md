@@ -60,6 +60,18 @@ tests/       - Suites behind `npm test`: build, check, install matrix, MCP wirin
 external/    - Reviewed git-submodule sources; registries decide what is distributed or indexed
 ```
 
+The development profile includes five subagent roles:
+
+| Role | Useful assignment |
+|---|---|
+| `explorer` | Locate and explain code, interfaces, and call paths. |
+| `researcher` | Resolve a question using current primary sources and relevant probes. |
+| `worker` | Deliver an implementation or artifact and check its behavior. |
+| `reviewer` | Independently assess a change, design, or assumption. |
+| `verifier` | Run a specific acceptance scenario or substantial test task. |
+
+These are choices for delegation, not a required sequence. The parent handles planning and integration, selects the model for each assignment, and can use the same role with different domain skills. Small tasks can stay in the parent.
+
 ## Commands
 
 ```bash

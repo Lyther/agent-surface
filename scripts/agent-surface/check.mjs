@@ -994,13 +994,13 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".agents", "skills", "ops-nuke", "SKILL.md"), /^---\nname: ops-nuke\n/);
     requireContains(path.join(".agents", "skills", "ops-nuke", "agents", "openai.yaml"), /allow_implicit_invocation: false/);
     requireContains(path.join(".agents", "skills", "ops-ask", "agents", "openai.yaml"), /allow_implicit_invocation: true/);
-    requireContains(path.join(".codex", "agents", "boss.toml"), /^name = "boss"\n/);
+    requireContains(path.join(".codex", "agents", "explorer.toml"), /^name = "explorer"\n/);
     requireContains(path.join(".codex", "AGENTS.md"), /agent-surface global Codex rules/);
   } else if (target === "deepagents") {
     requireContains(path.join(".deepagents", "agent", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".deepagents", "agent", "AGENTS.md"), /agent-surface Deep Agents Code rules/);
     requireContains(path.join(".deepagents", "agent", "agents", "worker", "AGENTS.md"), /^---\nname: worker\n/);
-    if (byPath.has(path.join(".deepagents", "agent", "agents", "boss", "AGENTS.md"))) {
+    if (byPath.has(path.join(".deepagents", "agent", "agents", "explorer", "AGENTS.md"))) {
       errors.push("Deep Agents must not emit read-only subagents as unrestricted AGENTS.md subagents");
     }
   } else if (target === "goose") {
@@ -1013,7 +1013,7 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".grok", "config.toml"), /^\[ui\]$/m);
     requireContains(path.join(".grok", "config.toml"), /^permission_mode = "always-approve"$/m);
     requireContains(path.join(".grok", "config.toml"), /^\[mcp_servers\.synapse\]$/m);
-    requireContains(path.join(".grok", "agents", "boss.md"), /^---\nname: boss\n[\s\S]*^capabilityMode: read-only$/m);
+    requireContains(path.join(".grok", "agents", "explorer.md"), /^---\nname: explorer\n[\s\S]*^capabilityMode: read-only$/m);
     requireContains(path.join(".grok", "agents", "worker.md"), /^capabilityMode: all$/m);
   } else if (target === "dsh") {
     requireContains(path.join(".dsh", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
@@ -1036,7 +1036,7 @@ export function validateGeneratedTarget(target, outputs) {
     requirePath(path.join(".cline", "skills", "ops-flow", "SKILL.md"));
     requirePath(path.join("Documents", "Cline", "Workflows", "ops-nuke.md"));
     requireContains(path.join("Documents", "Cline", "Rules", "agent-surface.md"), /agent-surface Cline global rules/);
-    requireContains(path.join(".cline", "agents", "boss.yaml"), /^---\nname: boss\n/);
+    requireContains(path.join(".cline", "agents", "explorer.yaml"), /^---\nname: explorer\n/);
     const mcp = requireJson(path.join(".cline", "data", "settings", "cline_mcp_settings.json"));
     if (mcp && mcp.mcpServers?.synapse?.command !== "~/.local/bin/synapse-bridge") {
       errors.push("Cline synapse MCP must use the first-party local bridge binary");
@@ -1048,7 +1048,7 @@ export function validateGeneratedTarget(target, outputs) {
   } else if (target === "kilo") {
     requirePath(path.join(".kilo", "skills", "ops-flow", "SKILL.md"));
     requirePath(path.join(".config", "kilo", "commands", "ops-nuke.md"));
-    requireContains(path.join(".config", "kilo", "agents", "boss.md"), /^---\ndescription: "/);
+    requireContains(path.join(".config", "kilo", "agents", "explorer.md"), /^---\ndescription: "/);
     requireContains(path.join(".config", "kilo", "kilo.jsonc"), /"~\/\.config\/kilo\/rules\/00-precedence-and-safety\.md"/);
     requireContains(path.join(".config", "kilo", "rules", "00-precedence-and-safety.md"), /Precedence and Safety/);
     requireContains(path.join(".config", "kilo", "references", "rules", "10-python.md"), /Scoped agent-surface reference/);
@@ -1061,8 +1061,8 @@ export function validateGeneratedTarget(target, outputs) {
     requireNotContains(path.join("skills", "ops-flow", "SKILL.md"), /disableModelInvocation/);
     requireContains(path.join("skills", "ops-nuke", "SKILL.md"), /type: flow\ndisableModelInvocation: true/);
     requireContains("AGENTS.md", /agent-surface Kimi Code rules/);
-    requireContains(path.join("agents", "boss.md"), /^---\nname: boss\n/);
-    requireContains(path.join("agents", "boss.md"), /^ {2}- "Read"$/m);
+    requireContains(path.join("agents", "explorer.md"), /^---\nname: explorer\n/);
+    requireContains(path.join("agents", "explorer.md"), /^ {2}- "Read"$/m);
     requireContains(path.join("agents", "worker.md"), /^ {2}- "\*"$/m);
     requireContains("config.toml", /^default_permission_mode = "auto"$/m);
     requireContains("config.toml", /^merge_all_available_skills = true$/m);
@@ -1078,7 +1078,7 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".qoder", "commands", "ops-nuke.md"), /^---\nname: ops-nuke\n/);
     requireContains(path.join(".qoder", "commands", "ops-nuke.md"), /^disable-model-invocation: true$/m);
     requireContains(path.join(".qoder", "AGENTS.md"), /agent-surface Qoder rules/);
-    requireContains(path.join(".qoder", "agents", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join(".qoder", "agents", "explorer.md"), /^---\nname: explorer\n/);
     const settings = requireJson(path.join(".qoder", "settings.json"));
     if (settings?.general?.defaultPermissionMode !== "bypass_permissions") {
       errors.push("Qoder must default to bypass_permissions");
@@ -1091,7 +1091,7 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".qwen", "commands", "ops-nuke.md"), /^---\ndescription: "/);
     requireContains(path.join(".qwen", "commands", "ops-nuke.md"), /^disable-model-invocation: true$/m);
     requireContains(path.join(".qwen", "QWEN.md"), /agent-surface Qwen Code rules/);
-    requireContains(path.join(".qwen", "agents", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join(".qwen", "agents", "explorer.md"), /^---\nname: explorer\n/);
     const settings = requireJson(path.join(".qwen", "settings.json"));
     if (settings?.tools?.approvalMode !== "yolo") errors.push("Qwen Code must default to yolo approval mode");
     if (settings?.mcpServers?.synapse && Object.hasOwn(settings.mcpServers.synapse, "type")) {
@@ -1101,9 +1101,9 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".kiro", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".kiro", "steering", "command-ops-nuke.md"), /^---\ninclusion: manual\n---/);
     requireContains(path.join(".kiro", "steering", "00-precedence-and-safety.md"), /^---\ninclusion: always\n---/);
-    requireContains(path.join(".kiro", "agents", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join(".kiro", "agents", "explorer.md"), /^---\nname: explorer\n/);
     // Skills only: a file:// steering resource would load every steering file, manual workflows included.
-    requireContains(path.join(".kiro", "agents", "boss.md"), /^resources:\n  - "skill:\/\/\.kiro\/skills\/\*\*\/SKILL\.md"\n  - "skill:\/\/~\/\.kiro\/skills\/\*\*\/SKILL\.md"\n---$/m);
+    requireContains(path.join(".kiro", "agents", "explorer.md"), /^resources:\n  - "skill:\/\/\.kiro\/skills\/\*\*\/SKILL\.md"\n  - "skill:\/\/~\/\.kiro\/skills\/\*\*\/SKILL\.md"\n---$/m);
     requireContains(path.join(".kiro", "settings", "permissions.yaml"), /^rules:\n  - capability: all\n    effect: allow\n$/);
     const mcp = requireJson(path.join(".kiro", "settings", "mcp.json"));
     if (mcp?.mcpServers?.synapse && Object.hasOwn(mcp.mcpServers.synapse, "type")) {
@@ -1116,7 +1116,7 @@ export function validateGeneratedTarget(target, outputs) {
     const plugin = requireJson(path.join("antigravity-cli", "plugins", "agent-surface", "plugin.json"));
     if (plugin && plugin.name !== "agent-surface") errors.push("Antigravity CLI plugin name must be agent-surface");
     requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
-    requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "agents", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "agents", "explorer.md"), /^---\nname: explorer\n/);
     requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "rules", "00-precedence-and-safety.md"), /Antigravity CLI plugin rule/);
     // Antigravity CLI documents slash invocation; the generic renderer's `$name` default is Codex's.
     requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "skills", "ops-nuke", "SKILL.md"), /Use explicit invocation: `\/ops-nuke`\./);
@@ -1124,14 +1124,14 @@ export function validateGeneratedTarget(target, outputs) {
   } else if (target === "cursor") {
     requirePath(path.join(".cursor", "skills", "ops-flow", "SKILL.md"));
     requirePath(path.join(".cursor", "commands", "ops-nuke.md"));
-    requireContains(path.join(".cursor", "agents", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join(".cursor", "agents", "explorer.md"), /^---\nname: explorer\n/);
     requirePath(path.join(".cursor", "rules", "00-precedence-and-safety.mdc"));
     requireContains(".cursorignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "droid") {
     requirePath(path.join(".agents", "skills", "ops-flow", "SKILL.md"));
     // Without a frontmatter description Droid lists the body's first line, "## OBJECTIVE".
     requireContains(path.join(".factory", "commands", "ops-nuke.md"), /^---\ndescription: "[^"]+"\n---\n\n## OBJECTIVE\n/);
-    requireContains(path.join(".factory", "droids", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join(".factory", "droids", "explorer.md"), /^---\nname: explorer\n/);
     requireContains(path.join(".factory", "AGENTS.md"), /agent-surface Droid rules/);
     const mcp = requireJson(path.join(".factory", "mcp.json"));
     if (mcp && mcp.mcpServers?.synapse?.command !== "~/.local/bin/synapse-bridge") {
@@ -1146,7 +1146,7 @@ export function validateGeneratedTarget(target, outputs) {
     // Copilot CLI documents slash invocation, so its manual skills must not print Codex's `$name`.
     requireContains(path.join(".copilot", "skills", "ops-nuke", "SKILL.md"), /Use explicit invocation: `\/ops-nuke`\./);
     requireContains(path.join(".copilot", "copilot-instructions.md"), /agent-surface GitHub Copilot instructions/);
-    requireContains(path.join(".copilot", "agents", "boss.agent.md"), /^---\nname: boss\n/);
+    requireContains(path.join(".copilot", "agents", "explorer.agent.md"), /^---\nname: explorer\n/);
     const mcp = requireJson(path.join(".copilot", "mcp-config.json"));
     if (mcp?.mcpServers?.synapse?.type !== "stdio") {
       errors.push("Copilot CLI stdio MCP entries must use the standard stdio type");
@@ -1172,21 +1172,21 @@ export function validateGeneratedTarget(target, outputs) {
     requirePath(path.join(".config", "opencode", "skills", "ops-flow", "SKILL.md"));
     // OpenCode lists a command with its frontmatter description, and with none when it is missing.
     requireContains(path.join(".config", "opencode", "commands", "ops-nuke.md"), /^---\ndescription: "[^"]+"\n---\n\n## OBJECTIVE\n/);
-    requireContains(path.join(".config", "opencode", "agents", "boss.md"), /^---\ndescription: "/);
+    requireContains(path.join(".config", "opencode", "agents", "explorer.md"), /^---\ndescription: "/);
   } else if (target === "trae") {
     requireContains(path.join(".trae", "user_rules.md"), /agent-surface Trae user rules/);
     requirePath(path.join(".trae", "skills", "ops-flow", "SKILL.md"));
-    requireContains(path.join(".trae-cn", "agents", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join(".trae-cn", "agents", "explorer.md"), /^---\nname: explorer\n/);
   } else if (target === "trae-cn") {
     requirePath(path.join(".trae-cn", "user_rules", "00-precedence-and-safety.md"));
     requirePath(path.join(".trae-cn", "skills", "ops-flow", "SKILL.md"));
-    requireContains(path.join(".trae-cn", "agents", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join(".trae-cn", "agents", "explorer.md"), /^---\nname: explorer\n/);
   } else if (target === "trae-cli") {
     requirePath(path.join(".trae", "skills", "ops-flow", "SKILL.md"));
     requireContains(path.join(".trae", "rules", "00-precedence-and-safety.md"), /^alwaysApply: true$/m);
     requirePath(path.join(".trae", "rules", "10-python.md"));
     requirePath(path.join(".trae", "references", "rules", "10-python.md"));
-    requireContains(path.join(".trae", "agents", "boss.md"), /^---\nname: boss\n/);
+    requireContains(path.join(".trae", "agents", "explorer.md"), /^---\nname: explorer\n/);
     requireContains(path.join(".trae", "traecli.toml"), /^approval_policy = "never"$/m);
     requireContains(path.join(".trae", "traecli.toml"), /^default_permissions = ":danger-full-access"$/m);
     requireContains(path.join(".trae", "traecli.toml"), /^\[mcp_servers\.synapse\]$/m);

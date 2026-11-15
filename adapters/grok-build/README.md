@@ -6,7 +6,7 @@ Outputs:
 
 - `.grok/skills/<name>/SKILL.md`
 - `.grok/skills/<external-skill>/...`
-- `.grok/agents/<name>.md` for the six subagents, with `--category development`
+- `.grok/agents/<name>.md` for the five subagents, with `--category development`
 - `~/.grok/AGENTS.md` at user scope, which Grok loads as global instructions, or the project's root `AGENTS.md`, plus `.grok/references/rules/<rule>.md`
 - `.grok/config.toml` with `mcp_servers`; user-scope installs also set `ui.permission_mode = "always-approve"`
 

@@ -131,7 +131,7 @@ planHas(clinePlan, [
   /\.cline\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/,
   /\.clinerules\/workflows\/ops-nuke\.md <- commands\/ops-nuke\.md/,
   /\.clinerules\/agent-surface\.md <- rules\/\*\.mdc/,
-  /\.cline\/agents\/boss\.yaml <- subagents\/boss\.md/,
+  /\.cline\/agents\/explorer\.yaml <- subagents\/explorer\.md/,
   /\.agent-surface\/cline-manifest\.json/,
 ], "cline");
 planLacks(clinePlan, [/cline_mcp_settings\.json MCP/], "cline");
@@ -158,7 +158,7 @@ planHas(kiloPlan, [
   /\.kilo\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/,
   /\.kilo\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/,
   /\.kilo\/rules\/03-project-defaults\.md <- rules\/03-project-defaults\.mdc/,
-  /\.kilo\/agents\/boss\.md <- subagents\/boss\.md/,
+  /\.kilo\/agents\/explorer\.md <- subagents\/explorer\.md/,
   /kilo\.jsonc instructions \+= \.kilo\/rules\/02-agent-workflow\.md/,
 ], "kilo");
 planLacks(kiloPlan, [/^  AGENTS\.md <- rules\/\*\.mdc$/m, /kilo\.jsonc instructions \+= .*14-shell/], "kilo");
@@ -166,7 +166,7 @@ planLacks(kiloPlan, [/^  AGENTS\.md <- rules\/\*\.mdc$/m, /kilo\.jsonc instructi
 const kimiCodeDevelopmentPlan = dryRun("kimi-code", ["--category", "development"]);
 planHas(kimiCodeDevelopmentPlan, [
   /\.kimi-code\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/,
-  /\.kimi-code\/agents\/boss\.md <- subagents\/boss\.md/,
+  /\.kimi-code\/agents\/explorer\.md <- subagents\/explorer\.md/,
 ], "kimi-code development");
 const kimiCodePlan = dryRun("kimi-code");
 planHas(kimiCodePlan, [/\.kimi-code\/mcp\.json MCP \+= grimoire, synapse/], "kimi-code");
@@ -192,7 +192,7 @@ const qoderDevelopmentPlan = dryRun("qoder", ["--category", "development"]);
 planHas(qoderDevelopmentPlan, [
   /\.qoder\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/,
   /\.qoder\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/,
-  /\.qoder\/agents\/boss\.md <- subagents\/boss\.md/,
+  /\.qoder\/agents\/explorer\.md <- subagents\/explorer\.md/,
 ], "qoder development");
 const qoderPlan = dryRun("qoder");
 planHas(qoderPlan, [
@@ -207,7 +207,7 @@ planHas(qwenCodePlan, [
 planLacks(qwenCodePlan, [
   /skills\/workflow-boss\//,
   /commands\/ops-nuke/,
-  /subagents\/boss/,
+  /subagents\/explorer/,
   /skills\/archify\//,
   /skills\/book-study\//,
   /skills\/ctf-ai-ml\//,
@@ -225,7 +225,7 @@ const qwenCodeDevelopmentPlan = dryRun("qwen-code", ["--category", "development"
 planHas(qwenCodeDevelopmentPlan, [
   /\.qwen\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/,
   /\.qwen\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/,
-  /\.qwen\/agents\/boss\.md <- subagents\/boss\.md/,
+  /\.qwen\/agents\/explorer\.md <- subagents\/explorer\.md/,
   /\.qwen\/skills\/archify\/SKILL\.md/,
   /\.qwen\/skills\/skill-forge\/SKILL\.md/,
   /\.qwen\/skills\/skill-review\/SKILL\.md/,
@@ -341,7 +341,7 @@ const kiroDevelopmentPlan = dryRun("kiro", ["--category", "development"]);
 planHas(kiroDevelopmentPlan, [
   /\.kiro\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/,
   /\.kiro\/steering\/command-ops-nuke\.md <- commands\/ops-nuke\.md/,
-  /\.kiro\/agents\/boss\.md <- subagents\/boss\.md/,
+  /\.kiro\/agents\/explorer\.md <- subagents\/explorer\.md/,
 ], "kiro development");
 const kiroPlan = dryRun("kiro");
 planHas(kiroPlan, [
@@ -353,19 +353,19 @@ assert.notEqual(geminiPlan.status, 0);
 assert.match(`${geminiPlan.stdout}${geminiPlan.stderr}`, /unsupported install target: gemini-cli/);
 
 for (const [target, patterns] of [
-  ["claude-code", [/\.claude\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/, /\.claude\/agents\/boss\.md <- subagents\/boss\.md/]],
-  ["cursor", [/\.cursor\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/, /\.cursor\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/, /\.cursor\/agents\/boss\.md <- subagents\/boss\.md/]],
+  ["claude-code", [/\.claude\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/, /\.claude\/agents\/explorer\.md <- subagents\/explorer\.md/]],
+  ["cursor", [/\.cursor\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/, /\.cursor\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/, /\.cursor\/agents\/explorer\.md <- subagents\/explorer\.md/]],
   ["droid", [/\.agents\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/, /\.factory\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/]],
   ["codex", [/\.agents\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/]],
   ["openhands", [/\.agents\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/]],
   ["antigravity-cli", [/antigravity-cli\/plugins\/agent-surface\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/]],
-  ["copilot", [/\.github\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/, /\.github\/agents\/boss\.agent\.md <- subagents\/boss\.md/]],
+  ["copilot", [/\.github\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/, /\.github\/agents\/explorer\.agent\.md <- subagents\/explorer\.md/]],
   ["goose", [/\.goose\/recipes\/ship-commit\.yaml <- commands\/ship-commit\.md/]],
 ]) {
   planHas(dryRun(target, ["--category", "development"]), patterns, `${target} development`);
 }
 planHas(dryRun("grok-build"), [/\.grok\/config\.toml MCP \+= grimoire, synapse/], "grok-build default");
-planHas(dryRun("grok-build", ["--category", "development"]), [/\.grok\/agents\/boss\.md <- subagents\/boss\.md/, /\.grok\/agents\/worker\.md <- subagents\/worker\.md/], "grok-build development");
+planHas(dryRun("grok-build", ["--category", "development"]), [/\.grok\/agents\/explorer\.md <- subagents\/explorer\.md/, /\.grok\/agents\/worker\.md <- subagents\/worker\.md/], "grok-build development");
 
 // OpenHands MCP is user-scope only on project dry-run.
 planLacks(dryRun("openhands"), [/\.openhands\/mcp\.json MCP/], "openhands project");
@@ -715,7 +715,7 @@ const liveInstall = run(["install", "--target", "cline", "--dest", liveDest]);
 assert.match(liveInstall, /^installed:$/m);
 assert.match(readFileSync(path.join(liveDest, ".cline", "skills", "ops-ask", "SKILL.md"), "utf8"), /^---\nname: ops-ask\n/);
 assert.equal(existsSync(path.join(liveDest, ".cline", "skills", "workflow-boss", "SKILL.md")), false);
-assert.equal(existsSync(path.join(liveDest, ".cline", "agents", "boss.yaml")), false);
+assert.equal(existsSync(path.join(liveDest, ".cline", "agents", "explorer.yaml")), false);
 assert.match(readFileSync(path.join(liveDest, ".clineignore"), "utf8"), /agent-surface canonical AI-tool ignore baseline/);
 const liveManifest = JSON.parse(readFileSync(path.join(liveDest, ".agent-surface", "cline-manifest.json"), "utf8"));
 assert.equal(liveManifest.target, "cline");
@@ -727,7 +727,7 @@ assert.equal(Object.hasOwn(liveManifest.managed[0], "sha256"), false);
 run(["install", "--target", "cline", "--dest", liveDest, "--category", "development"]);
 assert.match(readFileSync(path.join(liveDest, ".cline", "skills", "workflow-boss", "SKILL.md"), "utf8"), /^---\nname: workflow-boss\n/);
 assert.match(readFileSync(path.join(liveDest, ".cline", "skills", "verify-readiness", "SKILL.md"), "utf8"), /^---\nname: verify-readiness\n/);
-assert.match(readFileSync(path.join(liveDest, ".cline", "agents", "boss.yaml"), "utf8"), /^---\nname: boss\n/);
+assert.match(readFileSync(path.join(liveDest, ".cline", "agents", "explorer.yaml"), "utf8"), /^---\nname: explorer\n/);
 rmSync(liveDest, { recursive: true, force: true });
 
 const kimiCodeDest = ownTmp("kimi-code-live");
@@ -869,7 +869,7 @@ const clineUserScope = status(["install", "--target", "cline", "--scope", "user"
 assert.equal(clineUserScope.status, 0, `${clineUserScope.stdout}${clineUserScope.stderr}`);
 assert.match(clineUserScope.stdout, /\.cline\/skills\/ops-ask\/SKILL\.md <- skills\/ops-ask\/SKILL\.md/);
 assert.match(clineUserScope.stdout, /Documents\/Cline\/Rules\/agent-surface\.md <- rules\/\*\.mdc/);
-assert.doesNotMatch(clineUserScope.stdout, /workflow-boss|ops-nuke|agents\/boss\.yaml/);
+assert.doesNotMatch(clineUserScope.stdout, /workflow-boss|ops-nuke|agents\/explorer\.yaml/);
 assert.match(clineUserScope.stdout, /\.cline\/data\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
 assert.match(clineUserScope.stdout, /Code\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
 assert.match(clineUserScope.stdout, /Cursor\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
@@ -883,7 +883,7 @@ assert.equal(clineDevelopmentUserScope.status, 0, `${clineDevelopmentUserScope.s
 assert.match(clineDevelopmentUserScope.stdout, /\.cline\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/);
 assert.match(clineDevelopmentUserScope.stdout, /Documents\/Cline\/Workflows\/ops-nuke\.md <- commands\/ops-nuke\.md/);
 assert.match(clineDevelopmentUserScope.stdout, /Documents\/Cline\/Rules\/references\/rules\/14-shell\.md <- rules\/14-shell\.mdc/);
-assert.match(clineDevelopmentUserScope.stdout, /\.cline\/agents\/boss\.yaml <- subagents\/boss\.md/);
+assert.match(clineDevelopmentUserScope.stdout, /\.cline\/agents\/explorer\.yaml <- subagents\/explorer\.md/);
 
 const kiloUserScope = status(["install", "--target", "kilo", "--scope", "user", "--dry-run"], { env: userScopeEnv });
 assert.equal(kiloUserScope.status, 0, `${kiloUserScope.stdout}${kiloUserScope.stderr}`);
@@ -891,7 +891,7 @@ assert.match(kiloUserScope.stdout, /\.kilo\/skills\/ops-ask\/SKILL\.md <- skills
 assert.doesNotMatch(kiloUserScope.stdout, /\.config\/kilo\/AGENTS\.md <- rules\/\*\.mdc/);
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/00-precedence-and-safety\.md <- rules\/00-precedence-and-safety\.mdc/);
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/01-response-style\.md <- rules\/01-response-style\.mdc/);
-assert.doesNotMatch(kiloUserScope.stdout, /workflow-boss|ops-nuke|references\/rules\/14-shell|agents\/boss\.md/);
+assert.doesNotMatch(kiloUserScope.stdout, /workflow-boss|ops-nuke|references\/rules\/14-shell|agents\/explorer\.md/);
 assert.match(kiloUserScope.stdout, /\.config\/kilo\/kilo\.jsonc instructions \+= ~\/\.config\/kilo\/rules\/00-precedence-and-safety\.md, ~\/\.config\/kilo\/rules\/01-response-style\.md/);
 assert.doesNotMatch(kiloUserScope.stdout, /skills\.paths/);
 assert.doesNotMatch(kiloUserScope.stdout, /permission\.skill/);
@@ -908,7 +908,7 @@ assert.equal(kiloDevelopmentUserScope.status, 0, `${kiloDevelopmentUserScope.std
 assert.match(kiloDevelopmentUserScope.stdout, /\.kilo\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/);
 assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/);
 assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/references\/rules\/14-shell\.md <- rules\/14-shell\.mdc/);
-assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/agents\/boss\.md <- subagents\/boss\.md/);
+assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/agents\/explorer\.md <- subagents\/explorer\.md/);
 assert.match(kiloDevelopmentUserScope.stdout, /kilo\.jsonc instructions \+= ~\/\.config\/kilo\/rules\/02-agent-workflow\.md, .*~\/\.config\/kilo\/rules\/06-test-policy\.md/);
 
 const kimiCodeHome = path.join(userScopeHome, "custom-kimi-home");
@@ -918,7 +918,7 @@ const kimiCodeUserScope = status(["install", "--target", "kimi-code", "--scope",
 assert.equal(kimiCodeUserScope.status, 0, `${kimiCodeUserScope.stdout}${kimiCodeUserScope.stderr}`);
 assert.match(kimiCodeUserScope.stdout, new RegExp(`^root: ${kimiCodeHome.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
 assert.match(kimiCodeUserScope.stdout, /skills\/ops-ask\/SKILL\.md <- skills\/ops-ask\/SKILL\.md/);
-assert.doesNotMatch(kimiCodeUserScope.stdout, /workflow-boss|agents\/boss\.md/);
+assert.doesNotMatch(kimiCodeUserScope.stdout, /workflow-boss|agents\/explorer\.md/);
 assert.match(kimiCodeUserScope.stdout, /^  config\.toml default_permission_mode := "auto"$/m);
 assert.match(kimiCodeUserScope.stdout, /^  config\.toml merge_all_available_skills := true$/m);
 assert.match(kimiCodeUserScope.stdout, /^  mcp\.json MCP \+= grimoire, synapse$/m);
@@ -929,7 +929,7 @@ const claudeUserScope = status(["install", "--target", "claude-code", "--scope",
 assert.equal(claudeUserScope.status, 0, `${claudeUserScope.stdout}${claudeUserScope.stderr}`);
 assert.doesNotMatch(claudeUserScope.stdout, /\.mcp\.json/);
 assert.match(claudeUserScope.stdout, /\.claude\/skills\/ops-ask\/SKILL\.md <- skills\/ops-ask\/SKILL\.md/);
-assert.doesNotMatch(claudeUserScope.stdout, /\.claude\/agents\/boss\.md/);
+assert.doesNotMatch(claudeUserScope.stdout, /\.claude\/agents\/explorer\.md/);
 
 const openhandsUserScope = status(["install", "--target", "openhands", "--scope", "user", "--dry-run"], { env: userScopeEnv });
 assert.equal(openhandsUserScope.status, 0, `${openhandsUserScope.stdout}${openhandsUserScope.stderr}`);
@@ -1811,12 +1811,12 @@ for (const fx of [
   const dest = mkdtempSync(ownTmp("trae-project-agents-"));
   try {
     run(["install", "--target", "trae", "--scope", "project", "--dest", dest]);
-    assert.equal(existsSync(path.join(dest, ".trae", "agents", "boss.md")), false);
+    assert.equal(existsSync(path.join(dest, ".trae", "agents", "explorer.md")), false);
     const nativeRule = readFileSync(path.join(dest, ".trae", "rules", "00-precedence-and-safety.md"), "utf8");
     assert.match(nativeRule, /^alwaysApply: true$/m);
     assert.equal(existsSync(path.join(dest, ".trae", "user_rules.md")), false, "no Trae edition reads a project user_rules.md");
     run(["install", "--target", "trae", "--scope", "project", "--dest", dest, "--category", "development"]);
-    assert.equal(existsSync(path.join(dest, ".trae", "agents", "boss.md")), true);
+    assert.equal(existsSync(path.join(dest, ".trae", "agents", "explorer.md")), true);
     assert.equal(existsSync(path.join(dest, ".trae", "skills", "workflow-runtime", "SKILL.md")), true);
     assert.equal(existsSync(path.join(dest, ".traecli")), false, "Trae CLI 1.0 routes are not written");
   } finally {

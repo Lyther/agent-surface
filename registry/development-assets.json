@@ -67,11 +67,10 @@
     "14-shell"
   ],
   "subagents": [
-    "adversary",
-    "analyzer",
-    "boss",
+    "explorer",
     "researcher",
     "reviewer",
+    "verifier",
     "worker"
   ],
   "services": [
