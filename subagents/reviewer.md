@@ -1,11 +1,10 @@
 ---
 name: reviewer
 description: "Independently assess a patch, design, or claim for consequential mistakes. Use for a focused second opinion, including counterexamples to a specific assumption."
-access: read-only
 targets:
   claude-code: true
   codex: true
-  deepagents: false
+  deepagents: true
   cline: true
   cursor: true
   droid: true

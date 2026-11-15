@@ -222,99 +222,23 @@ const ignoresCheck = run(["check", "ignores"]);
 assert.match(ignoresCheck, /ignores check: ok/);
 assert.match(ignoresCheck, /emitters 3 \(cline, cursor, kilo\)/);
 
-// Read-only explorer must not carry write/shell; worker must.
-const explorerWorker = [
-  {
-    explorer: path.join(root, "dist", "claude-code", ".claude", "agents", "explorer.md"),
-    worker: path.join(root, "dist", "claude-code", ".claude", "agents", "worker.md"),
-    explorerOk: (t) => /^tools: Read, Glob, Grep, WebFetch, WebSearch, Skill$/m.test(t),
-    // An omitted `tools` inherits every tool the session offers, MCP tools included.
-    workerOk: (t) => !/^tools:/m.test(t),
-  },
-  {
-    explorer: path.join(root, "dist", "codex", ".codex", "agents", "explorer.toml"),
-    worker: path.join(root, "dist", "codex", ".codex", "agents", "worker.toml"),
-    explorerOk: (t) => /^sandbox_mode = "read-only"$/m.test(t),
-    workerOk: (t) => /^sandbox_mode = "danger-full-access"$/m.test(t),
-  },
-  {
-    explorer: path.join(root, "dist", "cline", ".cline", "agents", "explorer.yaml"),
-    worker: path.join(root, "dist", "cline", ".cline", "agents", "worker.yaml"),
-    explorerOk: (t) => /^ {2}- read_file$/m.test(t) && !/^ {2}- execute_command$/m.test(t),
-    workerOk: (t) => /^ {2}- execute_command$/m.test(t) && /^ {2}- write_to_file$/m.test(t),
-  },
-  {
-    explorer: path.join(root, "dist", "kilo", ".config", "kilo", "agents", "explorer.md"),
-    worker: path.join(root, "dist", "kilo", ".config", "kilo", "agents", "worker.md"),
-    explorerOk: (t) => /^ {2}"\*": deny$/m.test(t) && /^ {2}"read": allow$/m.test(t),
-    workerOk: (t) => /^ {2}"\*": allow$/m.test(t),
-  },
-  {
-    explorer: path.join(root, "dist", "kimi-code", "agents", "explorer.md"),
-    worker: path.join(root, "dist", "kimi-code", "agents", "worker.md"),
-    explorerOk: (t) => /^ {2}- "Read"$/m.test(t) && !/^ {2}- "Bash"$/m.test(t),
-    workerOk: (t) => /^ {2}- "\*"$/m.test(t),
-  },
-  {
-    explorer: path.join(root, "dist", "qoder", ".qoder", "agents", "explorer.md"),
-    worker: path.join(root, "dist", "qoder", ".qoder", "agents", "worker.md"),
-    explorerOk: (t) => /^tools: Read, Glob, Grep$/m.test(t),
-    workerOk: (t) => /^tools: Read, Glob, Grep, Edit, Write, Bash$/m.test(t),
-  },
-  {
-    explorer: path.join(root, "dist", "qwen-code", ".qwen", "agents", "explorer.md"),
-    worker: path.join(root, "dist", "qwen-code", ".qwen", "agents", "worker.md"),
-    explorerOk: (t) => /^approvalMode: plan$/m.test(t) && !/^ {2}- run_shell_command$/m.test(t),
-    workerOk: (t) => /^approvalMode: yolo$/m.test(t) && /^ {2}- run_shell_command$/m.test(t),
-  },
-  {
-    explorer: path.join(root, "dist", "kiro", ".kiro", "agents", "explorer.md"),
-    worker: path.join(root, "dist", "kiro", ".kiro", "agents", "worker.md"),
-    explorerOk: (t) => /^tools: \["read"\]$/m.test(t) && !/capability: all/.test(t),
-    workerOk: (t) => /^tools: \["\*"\]$/m.test(t) && /capability: all/.test(t) && /effect: allow/.test(t),
-  },
-  {
-    explorer: path.join(root, "dist", "copilot", ".copilot", "agents", "explorer.agent.md"),
-    worker: path.join(root, "dist", "copilot", ".copilot", "agents", "worker.agent.md"),
-    explorerOk: (t) => /^tools: \["read", "search"\]$/m.test(t),
-    workerOk: (t) => /^tools: \["\*"\]$/m.test(t),
-  },
-  {
-    explorer: path.join(root, "dist", "grok-build", ".grok", "agents", "explorer.md"),
-    worker: path.join(root, "dist", "grok-build", ".grok", "agents", "worker.md"),
-    explorerOk: (t) => /^tools: Read, Glob, Grep$/m.test(t) && /^capabilityMode: read-only$/m.test(t) && /^mcpInheritance: none$/m.test(t) && !/^(?:model|permissionMode):/m.test(t),
-    workerOk: (t) => /^tools: Read, Glob, Grep, Edit, Write, Bash$/m.test(t) && /^capabilityMode: all$/m.test(t) && /^mcpInheritance: none$/m.test(t) && !/^(?:model|permissionMode):/m.test(t),
-  },
-  {
-    explorer: path.join(root, "dist", "trae", ".trae-cn", "agents", "explorer.md"),
-    worker: path.join(root, "dist", "trae", ".trae-cn", "agents", "worker.md"),
-    explorerOk: (t) => /^tools: Read, Glob, Grep, Skill$/m.test(t),
-    workerOk: (t) => /^tools: Read, Glob, Grep, Skill, Edit, Write, Bash$/m.test(t),
-  },
-  {
-    explorer: path.join(root, "dist", "antigravity-cli", "antigravity-cli", "plugins", "agent-surface", "agents", "explorer.md"),
-    worker: path.join(root, "dist", "antigravity-cli", "antigravity-cli", "plugins", "agent-surface", "agents", "worker.md"),
-    explorerOk: (t) => /^ {2}- view_file$/m.test(t) && /^ {2}- list_dir$/m.test(t)
-      && /^ {2}- grep_search$/m.test(t) && !/read_file|list_directory/.test(t),
-    workerOk: (t) => /^ {2}- replace_file_content$/m.test(t) && /^ {2}- write_to_file$/m.test(t)
-      && /^ {2}- run_command$/m.test(t),
-  },
-];
-for (const row of explorerWorker) {
-  assert.equal(row.explorerOk(readFileSync(row.explorer, "utf8")), true, `explorer contract: ${row.explorer}`);
-  assert.equal(row.workerOk(readFileSync(row.worker, "utf8")), true, `worker contract: ${row.worker}`);
-}
-
-// The session's own configuration picks a subagent's model, permission mode and run length, so no
-// generated agent names any of them: Claude Code ranks a definition's `model`, `inherit` included, above
-// CLAUDE_CODE_SUBAGENT_MODEL, an unset `permissionMode` inherits the session's mode, and a turn cap
-// stops a subagent mid-task.
+// Every role runs with the session's tools and permissions, as it does with the session's model and
+// permission mode: Claude Code ranks a definition's `model`, `inherit` included, above
+// CLAUDE_CODE_SUBAGENT_MODEL, an unset `permissionMode` inherits the session's mode, and a turn cap stops
+// a subagent mid-task. Kiro alone keeps a wildcard and an allow rule, which leave a subagent at the parent
+// session's policy because Kiro applies the stricter of the two.
+const accessField = /^(?:tools|disallowedTools|permission|permissions|readonly|sandbox_mode|approvalMode|capabilityMode|mcpInheritance)\s*[:=]/m;
 for (const [target, adapter] of Object.entries(targets)) {
   for (const output of await subagentOutputs(adapter)) {
     const header = output.content.split(/\n(?:---|developer_instructions = )/, 1)[0];
     assert.doesNotMatch(header, /^model\s*[:=]/m, `${target} pins a model in ${output.relativeOutput}`);
     assert.doesNotMatch(header, /^permissionMode\s*:/m, `${target} pins a permission mode in ${output.relativeOutput}`);
     assert.doesNotMatch(header, /^(?:maxTurns|steps)\s*:/m, `${target} caps the turns in ${output.relativeOutput}`);
+    if (target === "kiro") {
+      assert.match(header, /^tools: \["\*"\]\npermissions:\n {2}rules:\n {4}- capability: all\n {6}effect: allow$/m, output.relativeOutput);
+    } else {
+      assert.doesNotMatch(header, accessField, `${target} sets tools or permissions in ${output.relativeOutput}`);
+    }
   }
 }
 
@@ -322,6 +246,7 @@ const roleNames = async (target) => (await subagentOutputs(targets[target])).map
 // Droid's built-in explorer and worker run on its light and medium subagent models, and a custom droid of
 // the same name replaces the built-in and runs on the parent's model (droid 1.12.1), so neither is generated.
 assert.deepEqual(await roleNames("droid"), ["researcher", "reviewer", "verifier"]);
+assert.deepEqual(await roleNames("deepagents"), ["explorer", "researcher", "reviewer", "verifier", "worker"]);
 
 // First-party MCP auto-wire across host config families (sample of each shape).
 const mcpAbs = {
@@ -427,18 +352,6 @@ try {
   writeFileSync(subagentSourcePath, subagentSourceOriginal);
 }
 
-// Cursor cannot express read-write without shell; refuse, do not silently grant shell.
-try {
-  writeFileSync(subagentSourcePath, subagentSourceOriginal.replace("access: read-only", "access: read-write"));
-  const cursorRefusal = subagentSandbox.status(["build", "--target", "cursor"]);
-  assert.notEqual(cursorRefusal.status, 0);
-  assert.match(`${cursorRefusal.stdout}${cursorRefusal.stderr}`, /not representable/);
-  const codexRefusal = subagentSandbox.status(["build", "--target", "codex"]);
-  assert.notEqual(codexRefusal.status, 0);
-  assert.match(`${codexRefusal.stdout}${codexRefusal.stderr}`, /not representable/);
-} finally {
-  writeFileSync(subagentSourcePath, subagentSourceOriginal);
-}
 subagentSandbox.remove();
 run(["build", "--target", "all"]);
 

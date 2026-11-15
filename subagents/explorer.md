@@ -1,11 +1,10 @@
 ---
 name: explorer
 description: "Locate and explain code, interfaces, and call paths for a concrete repository question. Use when several searches or file reads would distract from the parent's task."
-access: read-only
 targets:
   claude-code: true
   codex: true
-  deepagents: false
+  deepagents: true
   cline: true
   cursor: true
   droid: false

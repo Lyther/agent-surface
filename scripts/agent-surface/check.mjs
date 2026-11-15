@@ -1000,9 +1000,7 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".deepagents", "agent", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".deepagents", "agent", "AGENTS.md"), /agent-surface Deep Agents Code rules/);
     requireContains(path.join(".deepagents", "agent", "agents", "worker", "AGENTS.md"), /^---\nname: worker\n/);
-    if (byPath.has(path.join(".deepagents", "agent", "agents", "explorer", "AGENTS.md"))) {
-      errors.push("Deep Agents must not emit read-only subagents as unrestricted AGENTS.md subagents");
-    }
+    requireContains(path.join(".deepagents", "agent", "agents", "explorer", "AGENTS.md"), /^---\nname: explorer\n/);
   } else if (target === "goose") {
     requireContains(path.join(".agents", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".agents", "skills", "ops-nuke", "SKILL.md"), /disable-model-invocation: true/);
@@ -1013,8 +1011,7 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".grok", "config.toml"), /^\[ui\]$/m);
     requireContains(path.join(".grok", "config.toml"), /^permission_mode = "always-approve"$/m);
     requireContains(path.join(".grok", "config.toml"), /^\[mcp_servers\.synapse\]$/m);
-    requireContains(path.join(".grok", "agents", "explorer.md"), /^---\nname: explorer\n[\s\S]*^capabilityMode: read-only$/m);
-    requireContains(path.join(".grok", "agents", "worker.md"), /^capabilityMode: all$/m);
+    requireContains(path.join(".grok", "agents", "explorer.md"), /^---\nname: explorer\ndescription: "[^"]+"\n---\n/);
   } else if (target === "dsh") {
     requireContains(path.join(".dsh", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     if (outputs.some((output) => output.source.startsWith("commands/"))) {
@@ -1061,9 +1058,7 @@ export function validateGeneratedTarget(target, outputs) {
     requireNotContains(path.join("skills", "ops-flow", "SKILL.md"), /disableModelInvocation/);
     requireContains(path.join("skills", "ops-nuke", "SKILL.md"), /type: flow\ndisableModelInvocation: true/);
     requireContains("AGENTS.md", /agent-surface Kimi Code rules/);
-    requireContains(path.join("agents", "explorer.md"), /^---\nname: explorer\n/);
-    requireContains(path.join("agents", "explorer.md"), /^ {2}- "Read"$/m);
-    requireContains(path.join("agents", "worker.md"), /^ {2}- "\*"$/m);
+    requireContains(path.join("agents", "explorer.md"), /^---\nname: explorer\ndescription: "[^"]+"\n---\n/);
     requireContains("config.toml", /^default_permission_mode = "auto"$/m);
     requireContains("config.toml", /^merge_all_available_skills = true$/m);
     const mcp = requireJson("mcp.json");

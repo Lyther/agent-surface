@@ -1,7 +1,6 @@
 ---
 name: worker
 description: "Complete an assigned implementation or artifact, including ordinary debugging and relevant checks. Use for work with a clear outcome that can progress independently."
-access: read-write-shell
 targets:
   claude-code: true
   codex: true

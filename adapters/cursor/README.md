@@ -15,6 +15,6 @@ Native surfaces:
 
 First-party MCP wiring (Synapse and Grimoire) is generated and safely merged. External or secret-bearing MCPs remain opt-in.
 
-The current subagent batch emits `subagents/{explorer,researcher,reviewer,verifier,worker}.md` to `.cursor/agents/*.md` with Cursor's documented Markdown frontmatter fields `name`, `description`, `readonly` and `is_background`. `model` is left out, which Cursor documents as `inherit`. Runtime launch probes must call `cursor agent ...`; do not use a bare `agent` command because Grok Build also has an `agent`-named surface.
+The current subagent batch emits `subagents/{explorer,researcher,reviewer,verifier,worker}.md` to `.cursor/agents/*.md` with Cursor's documented Markdown frontmatter fields `name`, `description` and `is_background`. `model` is left out, which Cursor documents as `inherit`, and so is `readonly`, which defaults to `false`, so each agent runs with the session's tools. Runtime launch probes must call `cursor agent ...`; do not use a bare `agent` command because Grok Build also has an `agent`-named surface.
 
 Canonical skills remain available for Cursor's automatic skill discovery. Only available high-impact workflows remain native commands. Cursor's current docs cover commands only through `/migrate-to-skills`, which converts user-level and workspace-level commands and keeps their explicit invocation; command loading is not runtime-tested.

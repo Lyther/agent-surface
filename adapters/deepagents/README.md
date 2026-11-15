@@ -13,16 +13,16 @@ Deep Agents Code target for `agent-surface`.
 - scoped language rules -> references:
   - user: `~/.deepagents/<agent>/references/rules/<rule>.md`
   - project: `.deepagents/references/rules/<rule>.md`
-- `subagents/worker.md` -> Deep Agents Code worker subagent:
-  - user: `~/.deepagents/<agent>/agents/worker/AGENTS.md`
-  - project: `.deepagents/agents/worker/AGENTS.md`
+- `subagents/*.md` -> Deep Agents Code subagents:
+  - user: `~/.deepagents/<agent>/agents/<name>/AGENTS.md`
+  - project: `.deepagents/agents/<name>/AGENTS.md`
 - first-party Synapse and Grimoire MCP -> `.deepagents/.mcp.json` by default; external MCP services render with their asset category (for example `--category development` adds chrome-devtools) or with `--category mcps --service <id>`.
 
 `<agent>` defaults to `agent` and can be changed with `--agent <name>`.
 
 ## Intentional limits
 
-Deep Agents Code subagent files support `name`, `description`, optional `model`, and a markdown system prompt. They do not support per-subagent tool restrictions in `AGENTS.md` frontmatter, so read-only roles are not emitted. The `worker` profile is emitted because its normalized access is `read-write-shell`, matching inherited Deep Agents Code tools.
+Deep Agents Code subagent files support `name`, `description`, optional `model`, and a markdown system prompt, and no per-subagent tool settings, so every role runs with the tools it inherits.
 
 External skill packs render only when the optional-service entry declares `skill_roots`. `anthropic-cybersecurity-skills` is kept as a pinned source asset but is not emitted into Deep Agents Code skill roots by default.
 

@@ -38,7 +38,7 @@ An explicit `--dest` relocates the selected scope, including conventional VS Cod
 
 Kimi Code discovers directory-form skills from the Kimi-specific user and project roots. Canonical skills are emitted unchanged and remain model-invocable. Available high-impact commands declare `type: flow` and `disableModelInvocation: true`, so they require explicit `/skill:<name>` invocation. Full user installs also set `merge_all_available_skills = true`; Kimi reads `config.toml` only from `KIMI_CODE_HOME`, so project installs write no copy of it.
 
-Custom agent files contain Kimi's `name`, `description`, and `tools` frontmatter plus the source prompt. Read-only roles allow Kimi's inspection, search, web, todo, question, and skill tools; read-write roles add file editing; shell workers allow the full tool surface. The files are intended for Kimi's native sub-agent delegation. `--agent` or `--agent-file` can also select one as the main agent in print mode or the TUI; agent-surface does not configure that.
+Custom agent files contain Kimi's `name` and `description` frontmatter plus the source prompt; with no `tools` list, Kimi keeps every tool. The files are intended for Kimi's native sub-agent delegation. `--agent` or `--agent-file` can also select one as the main agent in print mode or the TUI; agent-surface does not configure that.
 
 Kimi's TUI, web runtime, and extension share `config.toml`, `mcp.json`, authentication state, and sessions when they use the same `KIMI_CODE_HOME`. They must not operate on the same session concurrently because the shared session store has no cross-process lock.
 

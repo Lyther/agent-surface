@@ -13,7 +13,6 @@ let subagentSourceCache;
 let subagentSchemaValidator;
 
 const subagentTargets = ["claude-code", "codex", "deepagents", "cline", "cursor", "droid", "kilo", "kimi-code", "qoder", "qwen-code", "kiro", "copilot", "trae", "antigravity-cli", "antigravity", "opencode", "grok-build"];
-const subagentAccessValues = new Set(["read-only", "read-write", "read-write-shell"]);
 const subagentNamePattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
 export async function checkIgnores(targets) {
@@ -234,10 +233,6 @@ async function validateSubagents(subagents) {
     if (metadata.description === undefined) errors.push(`${prefix}: missing required field description`);
     if (typeof metadata.description === "string" && metadata.description.trim().length < 30) {
       errors.push(`${prefix}: description must be specific, not terse`);
-    }
-    if (metadata.access === undefined) errors.push(`${prefix}: missing required field access`);
-    if (metadata.access !== undefined && !subagentAccessValues.has(metadata.access)) {
-      errors.push(`${prefix}: access must be one of read-only | read-write | read-write-shell`);
     }
     if (!metadata.targets || typeof metadata.targets !== "object" || Array.isArray(metadata.targets)) {
       errors.push(`${prefix}: missing required map targets`);

@@ -1,9 +1,8 @@
 // Per-target render functions: source (command/rule/subagent) + context -> native string.
-// Pure text transforms (+ small format/access helpers); no fs, no producers.
+// Pure text transforms (+ small format helpers); no fs, no producers.
 import path from "node:path";
 import { quotedScalar, tomlMultilineString } from "./format.mjs";
 import { readRulesForContext } from "./rules.mjs";
-import { fail } from "./util.mjs";
 
 export async function renderClineWorkflow(source) {
   return source.body;
@@ -13,16 +12,15 @@ export async function renderKiloWorkflow(source) {
   return source.body;
 }
 
-// No subagent renderer writes a model or a permission mode: the session's own configuration picks both.
-// Claude Code ranks a definition's `model`, `inherit` included, above CLAUDE_CODE_SUBAGENT_MODEL, and
-// an unset `permissionMode` inherits the session's mode. Read-only roles stay read-only through `tools`.
-export function renderClaudeSubagent(source, access = claudeSubagentAccess) {
-  const mapped = access(source.metadata.access);
+// No subagent renderer sets a model or permission mode or narrows the session's tools and permissions, so
+// every role runs with what the session grants. Claude Code ranks a definition's `model`, `inherit`
+// included, above CLAUDE_CODE_SUBAGENT_MODEL; every host but Kiro gives an agent that lists no tools the
+// session's tools, and Codex agent files cannot set the sandbox or approval policy at all.
+export function renderMarkdownSubagent(source) {
   return [
     "---",
     `name: ${source.metadata.name}`,
     `description: "${quotedScalar(source.metadata.description)}"`,
-    ...(mapped.tools ? [`tools: ${mapped.tools}`] : []),
     "---",
     "",
     source.body.trim(),
@@ -30,29 +28,12 @@ export function renderClaudeSubagent(source, access = claudeSubagentAccess) {
   ].join("\n");
 }
 
-export function renderClineSubagent(source) {
-  const tools = clineSubagentAccess(source.metadata.access);
-  return [
-    "---",
-    `name: ${source.metadata.name}`,
-    `description: "${quotedScalar(source.metadata.description)}"`,
-    "tools:",
-    ...tools.map((tool) => `  - ${tool}`),
-    "---",
-    "",
-    source.body.trim(),
-    "",
-  ].join("\n");
-}
-
-export function renderKiloSubagent(source) {
-  const mapped = kiloSubagentAccess(source.metadata.access);
+// OpenCode and its fork Kilo name an agent after its file; `mode: subagent` keeps it out of the primary list.
+export function renderOpenCodeSubagent(source) {
   return [
     "---",
     `description: "${quotedScalar(source.metadata.description)}"`,
     "mode: subagent",
-    "permission:",
-    ...Object.entries(mapped.permissions).map(([permission, action]) => `  ${JSON.stringify(permission)}: ${action}`),
     "---",
     "",
     source.body.trim(),
@@ -60,103 +41,24 @@ export function renderKiloSubagent(source) {
   ].join("\n");
 }
 
-export function renderKimiCodeSubagent(source) {
-  const tools = kimiCodeSubagentTools(source.metadata.access);
-  return [
-    "---",
-    `name: ${source.metadata.name}`,
-    `description: "${quotedScalar(source.metadata.description)}"`,
-    "tools:",
-    ...tools.map((tool) => `  - "${quotedScalar(tool)}"`),
-    "---",
-    "",
-    source.body.trim(),
-    "",
-  ].join("\n");
-}
-
-// Grok Build reads camelCase agent frontmatter. capabilityMode is the typed, fail-closed tier; the
-// tools allowlist narrows it but fails open on an unknown entry. No permissionMode (only
-// bypassPermissions is wired, and it escalates).
-export function renderGrokBuildSubagent(source) {
-  const mapped = grokBuildSubagentAccess(source.metadata.access);
-  return [
-    "---",
-    `name: ${source.metadata.name}`,
-    `description: "${quotedScalar(source.metadata.description)}"`,
-    `tools: ${mapped.tools}`,
-    `capabilityMode: ${mapped.capabilityMode}`,
-    "mcpInheritance: none",
-    "---",
-    "",
-    source.body.trim(),
-    "",
-  ].join("\n");
-}
-
-export function renderQwenCodeSubagent(source) {
-  const mapped = qwenCodeSubagentAccess(source.metadata.access);
-  return [
-    "---",
-    `name: ${source.metadata.name}`,
-    `description: "${quotedScalar(source.metadata.description)}"`,
-    `approvalMode: ${mapped.approvalMode}`,
-    "tools:",
-    ...mapped.tools.map((tool) => `  - ${tool}`),
-    "---",
-    "",
-    source.body.trim(),
-    "",
-  ].join("\n");
-}
-
-// No file:// steering resource: Kiro CLI's V3 engine adds steering by inclusion before each model call
-// for every agent, custom ones included, while a file:// resource adds every file it matches whatever
-// its inclusion, manual workflows included.
+// Kiro's custom-agent reference does not say what an omitted `tools` grants, so each role lists the
+// wildcard and an allow rule; a delegated agent's calls also meet the parent session's policy, and the
+// stricter result wins. No file:// steering resource: Kiro CLI's V3 engine adds steering by inclusion
+// before each model call for every agent, custom ones included, while a file:// resource adds every file
+// it matches whatever its inclusion, manual workflows included.
 export function renderKiroSubagent(source) {
-  const mapped = kiroSubagentAccess(source.metadata.access);
   return [
     "---",
     `name: ${source.metadata.name}`,
     `description: "${quotedScalar(source.metadata.description)}"`,
-    `tools: ${JSON.stringify(mapped.tools)}`,
+    'tools: ["*"]',
     "permissions:",
     "  rules:",
-    ...mapped.capabilities.flatMap((capability) => [
-      `    - capability: ${capability}`,
-      "      effect: allow",
-    ]),
+    "    - capability: all",
+    "      effect: allow",
     "resources:",
     '  - "skill://.kiro/skills/**/SKILL.md"',
     '  - "skill://~/.kiro/skills/**/SKILL.md"',
-    "---",
-    "",
-    source.body.trim(),
-    "",
-  ].join("\n");
-}
-
-export function renderCopilotSubagent(source) {
-  const tools = copilotSubagentTools(source.metadata.access);
-  return [
-    "---",
-    `name: ${source.metadata.name}`,
-    `description: "${quotedScalar(source.metadata.description)}"`,
-    `tools: [${tools.map((tool) => JSON.stringify(tool)).join(", ")}]`,
-    "---",
-    "",
-    source.body.trim(),
-    "",
-  ].join("\n");
-}
-
-export function renderTraeSubagent(source) {
-  const tools = traeSubagentTools(source.metadata.access);
-  return [
-    "---",
-    `name: ${source.metadata.name}`,
-    `description: "${quotedScalar(source.metadata.description)}"`,
-    `tools: ${tools.join(", ")}`,
     "---",
     "",
     source.body.trim(),
@@ -169,38 +71,7 @@ export function renderCursorSubagent(source) {
     "---",
     `name: ${source.metadata.name}`,
     `description: "${quotedScalar(source.metadata.description)}"`,
-    `readonly: ${cursorSubagentReadonly(source.metadata.access)}`,
     "is_background: false",
-    "---",
-    "",
-    source.body.trim(),
-    "",
-  ].join("\n");
-}
-
-export function renderAntigravityCliSubagent(source) {
-  const tools = antigravityCliSubagentTools(source.metadata.access);
-  return [
-    "---",
-    `name: ${source.metadata.name}`,
-    `description: "${quotedScalar(source.metadata.description)}"`,
-    "tools:",
-    ...tools.map((tool) => `  - ${tool}`),
-    "---",
-    "",
-    source.body.trim(),
-    "",
-  ].join("\n");
-}
-
-export function renderDroidSubagent(source) {
-  const tools = droidSubagentAccess(source.metadata.access);
-  return [
-    "---",
-    `name: ${source.metadata.name}`,
-    `description: "${quotedScalar(source.metadata.description)}"`,
-    "tools:",
-    ...tools.map((tool) => `  - ${tool}`),
     "---",
     "",
     source.body.trim(),
@@ -212,36 +83,8 @@ export function renderCodexSubagent(source) {
   return [
     `name = "${quotedScalar(source.metadata.name)}"`,
     `description = "${quotedScalar(source.metadata.description)}"`,
-    `sandbox_mode = "${codexSubagentSandboxMode(source.metadata.access)}"`,
     "",
     `developer_instructions = ${tomlMultilineString(source.body.trim())}`,
-    "",
-  ].join("\n");
-}
-
-export function renderDeepAgentsSubagent(source) {
-  return [
-    "---",
-    `name: ${source.metadata.name}`,
-    `description: "${quotedScalar(source.metadata.description)}"`,
-    "---",
-    "",
-    source.body.trim(),
-    "",
-  ].join("\n");
-}
-
-export function renderOpenCodeSubagent(source) {
-  const mapped = opencodeSubagentAccess(source.metadata.access);
-  return [
-    "---",
-    `description: "${quotedScalar(source.metadata.description)}"`,
-    "mode: subagent",
-    "permission:",
-    ...Object.entries(mapped).map(([permission, action]) => `  ${JSON.stringify(permission)}: ${action}`),
-    "---",
-    "",
-    source.body.trim(),
     "",
   ].join("\n");
 }
@@ -557,153 +400,4 @@ export function yamlLiteralBlock(value, indent) {
   const lines = String(value).replace(/\s+$/u, "").split(/\r?\n/);
   if (lines.length === 0 || (lines.length === 1 && lines[0] === "")) return `${indent}`;
   return lines.map((line) => `${indent}${line}`).join("\n");
-}
-
-export function cursorSubagentReadonly(access) {
-  if (access === "read-only") return true;
-  if (access === "read-write-shell") return false;
-  // Cursor `readonly` is binary: it blocks edits and state-changing shell together,
-  // so it cannot express read-write without shell. Refuse rather than silently grant shell.
-  fail(`cursor subagent access ${access} is not representable; use read-only or read-write-shell`);
-}
-
-// Claude Code's `tools` is an allowlist: a role that lists tools gets no MCP tool, skill or web tool it
-// leaves out, and one that lists none inherits every tool the session offers, MCP tools included. So the
-// read-only roles add the web and skill tools their work uses, and the shell role, each host's full-access
-// equivalent, lists none.
-export function claudeSubagentAccess(access) {
-  if (access === "read-only") return { tools: "Read, Glob, Grep, WebFetch, WebSearch, Skill" };
-  if (access === "read-write") return { tools: "Read, Glob, Grep, WebFetch, WebSearch, Skill, Edit, Write" };
-  if (access === "read-write-shell") return {};
-  fail(`unsupported subagent access: ${access}`);
-}
-
-// Qoder and Grok Build take Claude-style tool names, but their web and skill tool names and what an omitted
-// list inherits are not established, so they keep the plain lists.
-export function claudeStyleSubagentAccess(access) {
-  const tools = { "read-only": "Read, Glob, Grep", "read-write": "Read, Glob, Grep, Edit, Write", "read-write-shell": "Read, Glob, Grep, Edit, Write, Bash" }[access];
-  if (!tools) fail(`unsupported subagent access: ${access}`);
-  return { tools };
-}
-
-export function renderQoderSubagent(source) {
-  return renderClaudeSubagent(source, claudeStyleSubagentAccess);
-}
-
-export function grokBuildSubagentAccess(access) {
-  const { tools } = claudeStyleSubagentAccess(access);
-  const capabilityMode = { "read-only": "read-only", "read-write": "read-write", "read-write-shell": "all" }[access];
-  return { tools, capabilityMode };
-}
-
-export function clineSubagentAccess(access) {
-  const readOnly = ["read_file", "search_files", "use_skill"];
-  if (access === "read-only") return readOnly;
-  const readWrite = [...readOnly, "replace_in_file", "write_to_file"];
-  if (access === "read-write") return readWrite;
-  if (access === "read-write-shell") return [...readWrite, "execute_command"];
-  fail(`unsupported subagent access: ${access}`);
-}
-
-export function codexSubagentSandboxMode(access) {
-  if (access === "read-only") return "read-only";
-  if (access === "read-write-shell") return "danger-full-access";
-  // Codex sandbox modes do not separate file writes from shell execution.
-  // Refuse the intermediate tier instead of silently granting command access.
-  if (access === "read-write") fail("codex subagent access read-write is not representable; use read-only or read-write-shell");
-  fail(`unsupported subagent access: ${access}`);
-}
-
-export function kiloSubagentAccess(access) {
-  const inspect = { "*": "deny", read: "allow", glob: "allow", grep: "allow", skill: "allow" };
-  if (access === "read-only") return { permissions: inspect };
-  if (access === "read-write") return { permissions: { ...inspect, edit: "allow" } };
-  if (access === "read-write-shell") return { permissions: { "*": "allow" } };
-  fail(`unsupported subagent access: ${access}`);
-}
-
-export function kimiCodeSubagentTools(access) {
-  const readOnly = [
-    "Read",
-    "ReadMediaFile",
-    "Grep",
-    "Glob",
-    "WebSearch",
-    "FetchURL",
-    "TodoList",
-    "AskUserQuestion",
-    "Skill",
-  ];
-  if (access === "read-only") return readOnly;
-  if (access === "read-write") return [...readOnly, "Write", "Edit"];
-  if (access === "read-write-shell") return ["*"];
-  fail(`unsupported subagent access: ${access}`);
-}
-
-export function qwenCodeSubagentAccess(access) {
-  const readOnly = ["read_file", "grep_search", "glob", "web_fetch"];
-  if (access === "read-only") return { approvalMode: "plan", tools: readOnly };
-  const readWrite = [...readOnly, "write_file", "edit"];
-  if (access === "read-write") return { approvalMode: "auto-edit", tools: readWrite };
-  if (access === "read-write-shell") {
-    return { approvalMode: "yolo", tools: [...readWrite, "run_shell_command"] };
-  }
-  fail(`unsupported subagent access: ${access}`);
-}
-
-export function kiroSubagentAccess(access) {
-  if (access === "read-only") return { tools: ["read"], capabilities: ["fs_read"] };
-  if (access === "read-write") return { tools: ["read", "write"], capabilities: ["fs_read", "fs_write"] };
-  if (access === "read-write-shell") return { tools: ["*"], capabilities: ["all"] };
-  fail(`unsupported subagent access: ${access}`);
-}
-
-export function copilotSubagentTools(access) {
-  if (access === "read-only") return ["read", "search"];
-  if (access === "read-write") return ["read", "search", "edit"];
-  if (access === "read-write-shell") return ["*"];
-  fail(`unsupported subagent access: ${access}`);
-}
-
-export function traeSubagentTools(access) {
-  const readOnly = ["Read", "Glob", "Grep", "Skill"];
-  if (access === "read-only") return readOnly;
-  const readWrite = [...readOnly, "Edit", "Write"];
-  if (access === "read-write") return readWrite;
-  if (access === "read-write-shell") return [...readWrite, "Bash"];
-  fail(`unsupported subagent access: ${access}`);
-}
-
-export function antigravityCliSubagentTools(access) {
-  const readOnly = ["view_file", "list_dir", "grep_search"];
-  if (access === "read-only") return readOnly;
-  const readWrite = [...readOnly, "replace_file_content", "write_to_file"];
-  if (access === "read-write") return readWrite;
-  if (access === "read-write-shell") return [...readWrite, "run_command"];
-  fail(`unsupported subagent access: ${access}`);
-}
-
-export function droidSubagentAccess(access) {
-  const readOnly = ["Read", "LS", "Grep", "Glob"];
-  if (access === "read-only") return readOnly;
-  const readWrite = [...readOnly, "Create", "Edit", "ApplyPatch"];
-  if (access === "read-write") return readWrite;
-  if (access === "read-write-shell") return [...readWrite, "Execute"];
-  fail(`unsupported subagent access: ${access}`);
-}
-
-export function opencodeSubagentAccess(access) {
-  const inspect = {
-    "*": "deny",
-    read: "allow",
-    glob: "allow",
-    grep: "allow",
-    list: "allow",
-    lsp: "allow",
-    skill: "allow",
-  };
-  if (access === "read-only") return inspect;
-  if (access === "read-write") return { ...inspect, edit: "allow" };
-  if (access === "read-write-shell") return { "*": "allow" };
-  fail(`unsupported subagent access: ${access}`);
 }

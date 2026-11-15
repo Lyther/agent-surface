@@ -1,7 +1,6 @@
 ---
 name: verifier
 description: "Check a specific behavior or completion claim through real execution. Use for an independent acceptance scenario or a test run whose setup and output merit a separate context."
-access: read-write-shell
 targets:
   claude-code: true
   codex: true
