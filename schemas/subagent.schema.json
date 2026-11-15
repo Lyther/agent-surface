@@ -5,8 +5,6 @@
   "required": [
     "name",
     "description",
-    "access",
-    "model",
     "targets"
   ],
   "properties": {
@@ -17,17 +15,6 @@
     "description": {
       "type": "string",
       "minLength": 30
-    },
-    "access": {
-      "enum": [
-        "read-only",
-        "read-write",
-        "read-write-shell"
-      ]
-    },
-    "model": {
-      "type": "string",
-      "minLength": 1
     },
     "targets": {
       "type": "object",

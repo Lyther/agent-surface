@@ -49,7 +49,7 @@
             "~/.claude/agents/<name>.md",
             ".claude/agents/<name>.md"
           ],
-          "notes": "Normalized subagents map access levels to Claude Code tool lists and native permission modes; writable shell workers use bypassPermissions while read-only roles keep read-only tools."
+          "notes": "Every role lists no tools, so each inherits every tool the session offers, MCP tools included. No model or permissionMode is written, so each agent follows CLAUDE_CODE_SUBAGENT_MODEL or the parent's model and runs in the session's permission mode."
         },
         "mcp": {
           "support": "native",
@@ -149,7 +149,7 @@
             "~/.codex/agents/<name>.toml",
             ".codex/agents/<name>.toml"
           ],
-          "notes": "Custom agents render as standalone TOML with name, description, developer_instructions, and sandbox_mode. Writable shell workers use danger-full-access; read-only roles remain read-only. Project paths only via --dest."
+          "notes": "Custom agents render as standalone TOML with name, description and developer_instructions. An agent file cannot set sandbox_mode or approval_policy, so a subagent runs with the parent turn's. Project paths only via --dest. The generated explorer replaces Codex's built-in explorer role, which sets no model or effort of its own (codex-cli 0.167.2, 2026-11-15)."
         },
         "rules": {
           "support": "native",
@@ -253,7 +253,7 @@
             "~/.deepagents/agent/agents/<name>/AGENTS.md",
             ".deepagents/agents/<name>/AGENTS.md"
           ],
-          "notes": "Deep Agents Code subagent files cannot configure per-subagent tools, so only the read-write-shell worker profile is emitted."
+          "notes": "Deep Agents Code subagent files take no tool settings, so every role runs with the tools it inherits."
         },
         "mcp": {
           "support": "native",
@@ -423,7 +423,7 @@
             "~/.grok/agents/<name>.md",
             ".grok/agents/<name>.md"
           ],
-          "notes": "Normalized access maps to a typed capabilityMode (read-only, read-write or all) narrowed by a tools allowlist, with mcpInheritance none. No model is written, so the child inherits the parent's model, and no permissionMode, since Grok wires only bypassPermissions. Grok always also loads .claude/agents: within one directory the native file wins, but a project or deeper .claude/agents copy shadows a user-scope native agent. grok 1.0.44 lists all six from .grok/agents in a clean project and beside .claude/agents copies (grok inspect --json, 2026-09-30); tool enforcement on a spawned child is not yet observed."
+          "notes": "Agents carry only name, description and the prompt: Grok reads an empty tools list as every tool, an absent capabilityMode as no ceiling, and an absent mcpInheritance as all servers (grok-build source, 2026-11-15). No model is written, so the child inherits the parent's model, and no permissionMode, since Grok wires only bypassPermissions. Grok always also loads .claude/agents: within one directory the native file wins, but a project or deeper .claude/agents copy shadows a user-scope native agent. grok 1.0.44 lists all six from .grok/agents in a clean project and beside .claude/agents copies (grok inspect --json, 2026-09-30)."
         },
         "external": {
           "support": "native",
@@ -789,7 +789,7 @@
             "~/.cline/agents/*.yaml",
             ".cline/agents/*.yaml"
           ],
-          "notes": "The agent-surface subagents/*.md source primitive compiles to Cline Configured Agents. Cline only discovers .yaml/.yml definitions; generated tool allowlists preserve normalized read-only, read-write, and shell access. These definitions are distinct from the built-in spawn_agent runtime tool."
+          "notes": "The agent-surface subagents/*.md source primitive compiles to Cline Configured Agents. Cline only discovers .yaml/.yml definitions; the generated ones list no tools, and Cline gives such an agent every built-in tool (runtime-builder.ts at d3ecc48). These definitions are distinct from the built-in spawn_agent runtime tool."
         },
         "ignores": {
           "support": "native",
@@ -991,7 +991,7 @@
             "~/.config/kilo/agents/<name>.md",
             ".kilo/agents/<name>.md"
           ],
-          "notes": "Subagents render as Kilo mode: subagent markdown. Read-only roles deny all capabilities by default and allow only read/search/skill tools; writable shell workers allow the full tool surface."
+          "notes": "Subagents render as Kilo mode: subagent markdown with no permission block, so they follow the session's permission rules, which full installs set to allow everything."
         },
         "ignores": {
           "support": "native",
@@ -1116,7 +1116,7 @@
             "$KIMI_CODE_HOME/agents/<name>.md",
             ".kimi-code/agents/<name>.md"
           ],
-          "notes": "Custom agent Markdown maps normalized access to Kimi tool allowlists. The generated profiles are available to native delegation; --agent can also select one as the main agent in print mode or the TUI, which agent-surface does not configure."
+          "notes": "Custom agent Markdown carries name and description and no tools list, which Kimi documents as keeping every tool. The generated profiles are available to native delegation; --agent can also select one as the main agent in print mode or the TUI, which agent-surface does not configure."
         },
         "mcp": {
           "support": "native",
@@ -1280,7 +1280,7 @@
             "~/.qoder/agents/<name>.md",
             ".qoder/agents/<name>.md"
           ],
-          "notes": "Normalized access maps to native tool allowlists and permissionMode values."
+          "notes": "Agents list no tools, which Qoder documents as the current tool set, and no permissionMode, so each agent inherits the session's mode, which full installs default to bypass_permissions."
         },
         "mcp": {
           "support": "native",
@@ -1385,7 +1385,7 @@
             "~/.qwen/agents/<name>.md",
             ".qwen/agents/<name>.md"
           ],
-          "notes": "Normalized access maps to native tool names and plan, auto-edit, or yolo approvalMode."
+          "notes": "Agents list no tools or approvalMode: Qwen Code gives such a subagent every parent tool, MCP tools included, and the parent's yolo or auto-edit mode; plan stays plan, and default mode in a trusted folder becomes auto-edit."
         },
         "mcp": {
           "support": "native",
@@ -1506,7 +1506,7 @@
             "~/.kiro/agents/<name>.md",
             ".kiro/agents/<name>.md"
           ],
-          "notes": "V3-format Markdown agents use tool tags, skill resources and capability permissions, and list no steering: Kiro's custom-agent reference says custom agents inherit the default steering, and Kiro CLI 2.32.0's V3 engine adds steering by inclusion for every agent and lists the generated ones as modes and delegate commands. Kiro's steering page still shows file:// steering resources for custom agents, and the IDE is not runtime-tested."
+          "notes": "V3-format Markdown agents list the * tool wildcard, an allow-all capability rule and skill resources, and no steering. Kiro's reference does not say what an omitted tools list grants, and a delegated agent's calls also meet the parent session's policy, where the stricter result wins. Kiro's custom-agent reference says custom agents inherit the default steering, and Kiro CLI 2.32.0's V3 engine adds steering by inclusion for every agent and lists the generated ones as modes and delegate commands. Kiro's steering page still shows file:// steering resources for custom agents, and the IDE is not runtime-tested."
         },
         "mcp": {
           "support": "native",
@@ -1669,7 +1669,7 @@
           "paths": [
             "~/.gemini/antigravity-cli/plugins/agent-surface/agents/<name>.md"
           ],
-          "notes": "Normalized subagents are included inside the plugin package."
+          "notes": "Normalized subagents are included inside the plugin package. They list no tools, so each gets Antigravity CLI's default agent toolset (agy 1.5.9)."
         },
         "rules": {
           "support": "native",
@@ -1773,7 +1773,7 @@
             "~/.config/opencode/agents/<name>.md",
             ".opencode/agents/<name>.md"
           ],
-          "notes": "Subagents render as OpenCode agent markdown using current permission fields. Read-only roles deny all capabilities by default and allow only read/search/skill tools; writable shell workers allow the full tool surface."
+          "notes": "Subagents render as OpenCode agent markdown with no permission rules, so the global rules apply, which full installs set to allow everything."
         },
         "rules": {
           "support": "native",
@@ -2094,7 +2094,7 @@
           "paths": [
             "~/.cursor/agents/<name>.md"
           ],
-          "notes": "Cursor readonly is binary; unsupported intermediate write-only tiers are refused."
+          "notes": "Agents omit readonly, which defaults to false, so each runs with the session's tools."
         },
         "ignores": {
           "support": "native",
@@ -2196,7 +2196,7 @@
           "paths": [
             ".factory/droids/<name>.md"
           ],
-          "notes": "Normalized subagents render as Droid definitions."
+          "notes": "Droids list no tools, which Droid documents as all tools, and no model, so each runs on the parent's model. The explorer and worker are not generated: a custom droid replaces the same-named built-in, and droid 1.12.1 routes its built-in explorer and worker to the light and medium subagent models but a custom droid to the parent's model (installed resolver, 2026-11-15)."
         },
         "mcp": {
           "support": "native",
@@ -2309,7 +2309,7 @@
             "~/.copilot/agents/<name>.agent.md",
             ".github/agents/<name>.agent.md"
           ],
-          "notes": "Normalized access maps to Copilot tool aliases; headless full autonomy is supplied with --allow-all because Copilot has no equivalent persistent default setting."
+          "notes": "Agents list no tools, which Copilot documents as enabling every available tool; headless full autonomy is supplied with --allow-all because Copilot has no equivalent persistent default setting."
         },
         "external": {
           "support": "native",
@@ -2391,7 +2391,7 @@
             "~/.trae-cn/agents/<name>.md",
             ".trae/agents/<name>.md"
           ],
-          "notes": "The international subagents page documents ~/.trae-cn/agents, the same text as the CN page, so the route is co-owned with trae-cn; IDE discovery may need the Subagents directory beta toggle. Not runtime-tested."
+          "notes": "The international subagents page documents ~/.trae-cn/agents, the same text as the CN page, so the route is co-owned with trae-cn; IDE discovery may need the Subagents directory beta toggle. Agents list no tools, which the docs say loads every available tool. Not runtime-tested."
         },
         "skills": {
           "support": "native",
@@ -2482,7 +2482,7 @@
             "~/.trae-cn/agents/<name>.md",
             ".trae/agents/<name>.md"
           ],
-          "notes": "Documented CN route, co-owned with trae; IDE discovery may need the Subagents directory beta toggle. Not runtime-tested."
+          "notes": "Documented CN route, co-owned with trae; IDE discovery may need the Subagents directory beta toggle. Agents list no tools, which the docs say loads every available tool. Not runtime-tested."
         },
         "skills": {
           "support": "native",
@@ -2578,7 +2578,7 @@
             "~/.trae/agents/<name>.md",
             ".trae/agents/<name>.md"
           ],
-          "notes": "The paths come from the installed traecli 0.201.6 binary; project agents load only in trusted projects. traecli 0.207.1 and 0.209.1 list the user agents (offline prompt render, 2026-10-19); project agents are not runtime-tested."
+          "notes": "The paths come from the installed traecli 0.201.6 binary; project agents load only in trusted projects. traecli 0.207.1 and 0.209.1 list the user agents (offline prompt render, 2026-10-19); project agents are not runtime-tested. traecli 0.207.1 ignores an agent's tools field with a warning, so none is written."
         },
         "skills": {
           "support": "native",

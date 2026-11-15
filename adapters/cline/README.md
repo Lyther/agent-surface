@@ -45,11 +45,7 @@ Safe reusable procedures are native Agent Skills and can be selected through Cli
 | `external` | pinned external skill packs | Agent Skill directories |
 | `mcps` | registry-backed MCP services | shared MCP settings |
 
-The repository therefore does have a `subagents` source primitive. For Cline, that primitive compiles to Configured Agents in `.cline/agents/*.yaml`. Cline Configured Agents contain `name`, `description`, an optional tool allowlist, and a non-empty prompt body. The adapter translates normalized subagent access into Cline tool aliases:
-
-- `read-only`: read, search, and skill activation
-- `read-write`: read-only tools plus editor tools
-- `read-write-shell`: read-write tools plus command execution
+The repository therefore does have a `subagents` source primitive. For Cline, that primitive compiles to Configured Agents in `.cline/agents/*.yaml`. Cline Configured Agents contain `name`, `description`, an optional tool allowlist, and a non-empty prompt body. The generated agents list no tools, so Cline gives each every built-in tool.
 
 Configured Agents are distinct from Cline's built-in `spawn_agent` delegation and persistent agent teams. `spawn_agent` is runtime behavior and needs no generated definition file; agent-team state is created and owned by Cline at runtime.
 

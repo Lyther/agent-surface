@@ -6,7 +6,7 @@ Outputs:
 
 - `.grok/skills/<name>/SKILL.md`
 - `.grok/skills/<external-skill>/...`
-- `.grok/agents/<name>.md` for the six subagents, with `--category development`
+- `.grok/agents/<name>.md` for the five subagents, with `--category development`
 - `~/.grok/AGENTS.md` at user scope, which Grok loads as global instructions, or the project's root `AGENTS.md`, plus `.grok/references/rules/<rule>.md`
 - `.grok/config.toml` with `mcp_servers`; user-scope installs also set `ui.permission_mode = "always-approve"`
 
@@ -14,7 +14,7 @@ Grok loads a project's `AGENTS.md`, skills, MCP servers and hooks only after the
 
 The installer merges owned TOML fields and MCP tables while preserving unrelated top-level values, table siblings, and user-owned MCP servers. Project installs do not write the user-scoped UI permission default. The obsolete `.grok/settings.json` route is no longer generated.
 
-Agents use Grok's camelCase frontmatter. Each normalized access tier maps to the typed `capabilityMode` (`read-only`, `read-write`, or `all` for shell access), narrowed by a `tools` allowlist of Claude-style names that Grok maps to its own tools, with `mcpInheritance: none`: Grok keeps its MCP meta-tools (`search_tool`, `use_tool`) under any `tools` allowlist, so this is what keeps the children MCP-free, as in the Claude Code render these tool lists come from. No `model` is written, so a child inherits the parent session's model, and no `permissionMode`, because Grok wires only `bypassPermissions`, which would escalate the child.
+Agents carry only `name`, `description` and the prompt. Grok reads an empty `tools` list as every tool, an absent `capabilityMode` as no ceiling and an absent `mcpInheritance` as all MCP servers, so each child runs with the parent's tools. No `model` is written, so a child inherits the parent session's model, and no `permissionMode`, because Grok wires only `bypassPermissions`, which would escalate the child.
 
 Grok always also loads `.claude/agents`, with no setting to turn that off. Within one directory the native file wins, so a project with both targets installed uses these agents; a project `.claude/agents` copy, or one in a deeper directory, shadows a user-scope native agent. Grok's bundled `reviewer` role adds high reasoning effort to any agent named `reviewer`.
 

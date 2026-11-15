@@ -13,7 +13,7 @@ Implemented target paths:
 - user: `~/.codex/references/rules/<rule>.md` for scoped language references
 - user (project via `--dest`) merge: `.codex/config.toml` `[mcp_servers.{synapse,grimoire}]`, plus `approval_policy = "never"` and `sandbox_mode = "danger-full-access"`
 
-Canonical skills and explicit-only high-impact workflows share the Agent Skills root. Their `agents/openai.yaml` sets `allow_implicit_invocation` to `true` or `false`; explicit-only workflows remain available through `$<name>` but Codex does not invoke them automatically. Custom agents render as standalone TOML files with `name`, `description`, `developer_instructions`, and `sandbox_mode`.
+Canonical skills and explicit-only high-impact workflows share the Agent Skills root. Their `agents/openai.yaml` sets `allow_implicit_invocation` to `true` or `false`; explicit-only workflows remain available through `$<name>` but Codex does not invoke them automatically. Custom agents render as standalone TOML files with `name`, `description` and `developer_instructions`; an agent file cannot set `sandbox_mode` or `approval_policy`, so each subagent runs with the parent turn's.
 
 External skill packs render only when the optional-service entry declares `skill_roots`. `anthropic-cybersecurity-skills` is kept as a pinned source asset but is not emitted into Codex skill roots by default.
 

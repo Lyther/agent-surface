@@ -12,7 +12,7 @@ User scope:
 
 Project scope uses `.github/skills`, `.github/agents`, `.github/copilot-instructions.md`, and `.mcp.json`. Copilot CLI loads a project's `.mcp.json` only once the folder is trusted: on 1.0.98, `copilot mcp list` printed `No MCP servers configured.` for a generated project until the folder was listed in `trustedFolders` in `~/.copilot/config.json`. Canonical and reviewed external skills use the same native skill roots. High-impact workflows remain explicit-invocation skills.
 
-Custom-agent access maps to Copilot's `read`, `search`, `edit`, and `*` tool aliases. Copilot has no persistent allow-all setting equivalent to other hosts; headless real runs must pass `--allow-all` (or `COPILOT_ALLOW_ALL=true`) and record that invocation.
+Custom agents list no `tools`, which Copilot reads as every available tool. Copilot has no persistent allow-all setting equivalent to other hosts; headless real runs must pass `--allow-all` (or `COPILOT_ALLOW_ALL=true`) and record that invocation.
 
 First-party secretless MCP servers are non-destructively merged as command-plus-args entries. External or secret-bearing MCP services remain opt-in.
 

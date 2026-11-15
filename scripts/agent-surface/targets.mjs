@@ -11,7 +11,7 @@ import { directDirectories, filesUnder } from "./fs-tree.mjs";
 import { MCP_ENV_LAUNCHER, mcpLauncherInvocation, optionalServiceMcpServers, renderMcpConfig } from "./merge.mjs";
 import { normalizeExternalSkillFile } from "./postprocess.mjs";
 import { assetCategoryAllowed, assetCategoryFor, packageVersion, readAssetCategories, readOptionalServices, relative, root, selectedAssetCategories } from "./registry.mjs";
-import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityCliSubagent, renderAntigravityWorkflow, renderClaudeSubagent, renderClineSubagent, renderClineWorkflow, renderCodexSubagent, renderCopilotSubagent, renderCursorCommand, renderCursorSubagent, renderDeepAgentsSubagent, renderDroidCommand, renderDroidSubagent, renderGooseRecipe, renderGrokBuildSubagent, renderInstructionDocument, renderKiloRuleDocument, renderKiloSubagent, renderKiloWorkflow, renderKimiCodeSubagent, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderQwenCodeSubagent, renderScopedRuleReferenceDocument, renderTraeSubagent, renderVanillaSkill, renderVsCodeInstructionDocument, renderVsCodeScopedInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
+import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityWorkflow, renderClineWorkflow, renderCodexSubagent, renderCursorCommand, renderCursorSubagent, renderDroidCommand, renderGooseRecipe, renderInstructionDocument, renderKiloRuleDocument, renderKiloWorkflow, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderMarkdownSubagent, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderScopedRuleReferenceDocument, renderVanillaSkill, renderVsCodeInstructionDocument, renderVsCodeScopedInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
 import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, claudeRulesDocument, clineAgentRoot, clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexInstructionPath, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildAgentRoot, grokBuildInstructionPath, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piMcpPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleFolder, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
 import { readRulesForContext } from "./rules.mjs";
 import { SKILL_RESOURCE_EXTENSIONS } from "./skills.mjs";
@@ -41,7 +41,7 @@ export const targets = {
     commandOutputRoot: ".claude/skills",
     commandOutputName: codexSkillOutputName,
     renderCommand: renderManualClaudeSkill,
-    renderSubagent: renderClaudeSubagent,
+    renderSubagent: renderMarkdownSubagent,
     installRoot: installRootUserOrProject,
     mcpConfig: {
       relativeOutput: claudeMcpPath,
@@ -104,7 +104,7 @@ export const targets = {
     commandOutputRoot: deepagentsSkillRoot,
     commandOutputName: codexSkillOutputName,
     renderCommand: renderManualPortableSkill,
-    renderSubagent: renderDeepAgentsSubagent,
+    renderSubagent: renderMarkdownSubagent,
     installRoot: installRootUserOrProject,
     staticOutputs: deepagentsStaticOutputs,
     mcpConfig: {
@@ -163,7 +163,7 @@ export const targets = {
     commandOutputRoot: grokBuildSkillRoot,
     commandOutputName: codexSkillOutputName,
     renderCommand: renderManualPortableSkill,
-    renderSubagent: renderGrokBuildSubagent,
+    renderSubagent: renderMarkdownSubagent,
     installRoot: installRootUserOrProject,
     staticOutputs: grokBuildStaticOutputs,
     mcpConfig: {
@@ -247,7 +247,7 @@ export const targets = {
     staticRenders: ["rules"],
     commandOutputRoot: clineWorkflowRoot,
     renderCommand: renderClineWorkflow,
-    renderSubagent: renderClineSubagent,
+    renderSubagent: renderMarkdownSubagent,
     installRoot: installRootUserOrProject,
     ignoreFilename: ".clineignore",
     staticOutputs: clineStaticOutputs,
@@ -317,7 +317,7 @@ export const targets = {
     renderSkill: renderVanillaSkill,
     commandOutputRoot: kiloWorkflowRoot,
     renderCommand: renderKiloWorkflow,
-    renderSubagent: renderKiloSubagent,
+    renderSubagent: renderOpenCodeSubagent,
     installRoot: installRootUserOrProject,
     ignoreFilename: ".kilocodeignore",
     staticOutputs: kiloStaticOutputs,
@@ -347,7 +347,7 @@ export const targets = {
     commandOutputRoot: kimiCodeSkillRoot,
     commandOutputName: codexSkillOutputName,
     renderCommand: renderManualKimiCodeSkill,
-    renderSubagent: renderKimiCodeSubagent,
+    renderSubagent: renderMarkdownSubagent,
     installRoot: installRootKimiCode,
     staticOutputs: kimiCodeStaticOutputs,
     // Earlier project installs wrote .kimi-code/AGENTS.md beside the root AGENTS.md Kimi Code also reads.
@@ -411,7 +411,7 @@ export const targets = {
     commandOutputRoot: qoderCommandRoot,
     commandOutputName: flatMarkdownCommandOutputName,
     renderCommand: renderNativeMarkdownCommand,
-    renderSubagent: renderClaudeSubagent,
+    renderSubagent: renderMarkdownSubagent,
     installRoot: installRootUserOrProject,
     staticOutputs: qoderStaticOutputs,
     mcpConfig: {
@@ -439,7 +439,7 @@ export const targets = {
     commandOutputRoot: qwenCodeCommandRoot,
     commandOutputName: flatMarkdownCommandOutputName,
     renderCommand: renderQwenCodeCommand,
-    renderSubagent: renderQwenCodeSubagent,
+    renderSubagent: renderMarkdownSubagent,
     installRoot: installRootUserOrProject,
     staticOutputs: qwenCodeStaticOutputs,
     // Earlier project installs wrote a root QWEN.md beside the shared AGENTS.md Qwen Code also reads.
@@ -515,7 +515,7 @@ export const targets = {
     commandOutputRoot: path.join("antigravity-cli", "plugins", "agent-surface", "skills"),
     commandOutputName: codexSkillOutputName,
     renderCommand: renderManualSlashSkill,
-    renderSubagent: renderAntigravityCliSubagent,
+    renderSubagent: renderMarkdownSubagent,
     installRoot: installRootAntigravityCli,
     staticOutputs: antigravityCliStaticOutputs,
     mcpConfig: {
@@ -572,7 +572,7 @@ export const targets = {
     staticRenders: ["rules"],
     commandOutputRoot: path.join(".factory", "commands"),
     renderCommand: renderDroidCommand,
-    renderSubagent: renderDroidSubagent,
+    renderSubagent: renderMarkdownSubagent,
     installRoot: installRootUserOrProject,
     staticOutputs: droidStaticOutputs,
     mcpConfig: {
@@ -596,7 +596,7 @@ export const targets = {
     commandOutputRoot: copilotSkillRoot,
     commandOutputName: codexSkillOutputName,
     renderCommand: renderManualSlashSkill,
-    renderSubagent: renderCopilotSubagent,
+    renderSubagent: renderMarkdownSubagent,
     staticRenders: ["instructions"],
     installRoot: installRootUserOrProject,
     staticOutputs: copilotStaticOutputs,
@@ -718,7 +718,7 @@ export const targets = {
     commandOutputRoot: traeSkillRoot,
     commandOutputName: codexSkillOutputName,
     renderCommand: renderManualPortableSkill,
-    renderSubagent: renderTraeSubagent,
+    renderSubagent: renderMarkdownSubagent,
     staticRenders: ["rules"],
     installRoot: installRootHomeOnly,
     staticOutputs: traeStaticOutputs,
@@ -756,7 +756,7 @@ export const targets = {
     commandOutputRoot: traeCnSkillRoot,
     commandOutputName: codexSkillOutputName,
     renderCommand: renderManualPortableSkill,
-    renderSubagent: renderTraeSubagent,
+    renderSubagent: renderMarkdownSubagent,
     staticRenders: ["rules"],
     installRoot: installRootHomeOnly,
     staticOutputs: traeCnStaticOutputs,
@@ -782,7 +782,7 @@ export const targets = {
     commandOutputRoot: traeSkillRoot,
     commandOutputName: codexSkillOutputName,
     renderCommand: renderManualPortableSkill,
-    renderSubagent: renderTraeSubagent,
+    renderSubagent: renderMarkdownSubagent,
     staticRenders: ["rules"],
     installRoot: installRootHomeOnly,
     staticOutputs: traeCliStaticOutputs,

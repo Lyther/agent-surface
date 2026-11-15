@@ -60,6 +60,18 @@ tests/       - Suites behind `npm test`: build, check, install matrix, MCP wirin
 external/    - Reviewed git-submodule sources; registries decide what is distributed or indexed
 ```
 
+The development profile includes five subagent roles:
+
+| Role | Useful assignment |
+|---|---|
+| `explorer` | Locate and explain code, interfaces, and call paths. |
+| `researcher` | Resolve a question using current primary sources and relevant probes. |
+| `worker` | Deliver an implementation or artifact and check its behavior. |
+| `reviewer` | Independently assess a change, design, or assumption. |
+| `verifier` | Run a specific acceptance scenario or substantial test task. |
+
+These are choices for delegation, not a required sequence. The parent handles planning and integration and can use the same role with different domain skills; each host's own settings pick a subagent's model. Small tasks can stay in the parent.
+
 ## Commands
 
 ```bash
@@ -103,7 +115,7 @@ Built from `mcps/`, installed once, then auto-wired (non-destructive merge) into
 
 Architecture-heavy work can stage model independence without the formal ledger: `arch-roadmap` (family A) -> `dev-spec` (fresh family B) -> `dev-core` (family A at xhigh/max) -> pause -> `dev-feature` (family A at lower effort or family C). `dev-core` proves one runnable architectural spine and stops before feature breadth.
 
-`workflow-runtime` treats generated artifacts, skill discovery, provider authentication, permission mode, tool execution, world-state materialization, output shape, and MCP calls as separate gates. This user distribution launches writable workers with each host's full-access equivalent while preserving read-only tool profiles for reviewer and analysis roles. Kilo and OpenCode config explicitly disables automatic session sharing. Kimi Code uses terminal Auto mode and the extension's highest persistent mode, YOLO. Codex receives canonical and manual workflows through its standard `.agents/skills` root: canonical skills, including the private `ops-server` skill when installed, allow implicit invocation, while the five committed high-impact workflows set `allow_implicit_invocation: false` and remain available through explicit `$<name>` invocation.
+`workflow-runtime` treats generated artifacts, skill discovery, provider authentication, permission mode, tool execution, world-state materialization, output shape, and MCP calls as separate gates. Generated subagents take the session's tools and permission mode on every host. Kilo and OpenCode config explicitly disables automatic session sharing. Kimi Code uses terminal Auto mode and the extension's highest persistent mode, YOLO. Codex receives canonical and manual workflows through its standard `.agents/skills` root: canonical skills, including the private `ops-server` skill when installed, allow implicit invocation, while the five committed high-impact workflows set `allow_implicit_invocation: false` and remain available through explicit `$<name>` invocation.
 
 ## More
 
