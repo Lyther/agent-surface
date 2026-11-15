@@ -1131,7 +1131,11 @@ export function validateGeneratedTarget(target, outputs) {
     requirePath(path.join(".agents", "skills", "ops-flow", "SKILL.md"));
     // Without a frontmatter description Droid lists the body's first line, "## OBJECTIVE".
     requireContains(path.join(".factory", "commands", "ops-nuke.md"), /^---\ndescription: "[^"]+"\n---\n\n## OBJECTIVE\n/);
-    requireContains(path.join(".factory", "droids", "explorer.md"), /^---\nname: explorer\n/);
+    requireContains(path.join(".factory", "droids", "researcher.md"), /^---\nname: researcher\n/);
+    // A custom droid replaces the same-named built-in, whose explorer and worker run on Droid's light and
+    // medium subagent models, with one on the parent's model.
+    requireAbsent(path.join(".factory", "droids", "explorer.md"));
+    requireAbsent(path.join(".factory", "droids", "worker.md"));
     requireContains(path.join(".factory", "AGENTS.md"), /agent-surface Droid rules/);
     const mcp = requireJson(path.join(".factory", "mcp.json"));
     if (mcp && mcp.mcpServers?.synapse?.command !== "~/.local/bin/synapse-bridge") {

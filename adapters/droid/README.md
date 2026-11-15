@@ -27,7 +27,7 @@ The Droid adapter wires selected optional upstream projects instead of leaving t
 
 The adapter does not copy whole upstream repositories into Droid output. It copies native skill directories and the MCP registration needed for Droid to use them.
 
-Generated Droid subagents render as normalized droid definitions without extra skill or MCP restrictions.
+Generated Droid subagents render as normalized droid definitions without extra skill or MCP restrictions. The explorer and worker are not generated: a custom droid replaces Droid's same-named built-in, which runs on the light or medium subagent model, with one on the parent's model.
 
 External skill directories are optional: they render only when the corresponding `external/*` submodule checkout is present.
 

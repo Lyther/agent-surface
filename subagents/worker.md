@@ -8,7 +8,7 @@ targets:
   deepagents: true
   cline: true
   cursor: true
-  droid: true
+  droid: false
   kilo: true
   kimi-code: true
   qoder: true

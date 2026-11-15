@@ -2196,7 +2196,7 @@
           "paths": [
             ".factory/droids/<name>.md"
           ],
-          "notes": "Normalized subagents render as Droid definitions."
+          "notes": "Normalized subagents render as Droid definitions. The explorer and worker are not generated: a custom droid replaces the same-named built-in, and droid 1.12.1 routes its built-in explorer and worker to the light and medium subagent models but a custom droid to the parent's model (installed resolver, 2026-11-15)."
         },
         "mcp": {
           "support": "native",
