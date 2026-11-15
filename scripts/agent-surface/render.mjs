@@ -13,6 +13,9 @@ export async function renderKiloWorkflow(source) {
   return source.body;
 }
 
+// No subagent renderer writes a model: the host's own configuration picks it. Claude Code ranks a
+// definition's `model`, `inherit` included, above CLAUDE_CODE_SUBAGENT_MODEL, so writing one would
+// override that setting.
 export function renderClaudeSubagent(source) {
   const mapped = claudeSubagentAccess(source.metadata.access);
   return [
@@ -20,7 +23,6 @@ export function renderClaudeSubagent(source) {
     `name: ${source.metadata.name}`,
     `description: "${quotedScalar(source.metadata.description)}"`,
     `tools: ${mapped.tools}`,
-    `model: ${source.metadata.model}`,
     `permissionMode: ${mapped.permissionMode}`,
     `maxTurns: ${mapped.maxTurns}`,
     "---",
@@ -47,13 +49,10 @@ export function renderClineSubagent(source) {
 
 export function renderKiloSubagent(source) {
   const mapped = kiloSubagentAccess(source.metadata.access);
-  const lines = [
+  return [
     "---",
     `description: "${quotedScalar(source.metadata.description)}"`,
     "mode: subagent",
-  ];
-  if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
-  lines.push(
     "permission:",
     ...Object.entries(mapped.permissions).map(([permission, action]) => `  ${JSON.stringify(permission)}: ${action}`),
     `steps: ${mapped.steps}`,
@@ -61,14 +60,10 @@ export function renderKiloSubagent(source) {
     "",
     source.body.trim(),
     "",
-  );
-  return lines.join("\n");
+  ].join("\n");
 }
 
 export function renderKimiCodeSubagent(source) {
-  if (source.metadata.model !== "inherit") {
-    fail(`kimi-code subagent model ${source.metadata.model} is not representable; use inherit`);
-  }
   const tools = kimiCodeSubagentTools(source.metadata.access);
   return [
     "---",
@@ -84,12 +79,9 @@ export function renderKimiCodeSubagent(source) {
 }
 
 // Grok Build reads camelCase agent frontmatter. capabilityMode is the typed, fail-closed tier; the
-// tools allowlist narrows it but fails open on an unknown entry. No model (the child inherits the
-// parent's) and no permissionMode (only bypassPermissions is wired, and it escalates).
+// tools allowlist narrows it but fails open on an unknown entry. No permissionMode (only
+// bypassPermissions is wired, and it escalates).
 export function renderGrokBuildSubagent(source) {
-  if (source.metadata.model !== "inherit") {
-    fail(`grok-build subagent model ${source.metadata.model} is not representable; use inherit`);
-  }
   const mapped = grokBuildSubagentAccess(source.metadata.access);
   return [
     "---",
@@ -108,22 +100,18 @@ export function renderGrokBuildSubagent(source) {
 
 export function renderQwenCodeSubagent(source) {
   const mapped = qwenCodeSubagentAccess(source.metadata.access);
-  const lines = [
+  return [
     "---",
     `name: ${source.metadata.name}`,
     `description: "${quotedScalar(source.metadata.description)}"`,
     `approvalMode: ${mapped.approvalMode}`,
-  ];
-  if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
-  lines.push(
     "tools:",
     ...mapped.tools.map((tool) => `  - ${tool}`),
     "---",
     "",
     source.body.trim(),
     "",
-  );
-  return lines.join("\n");
+  ].join("\n");
 }
 
 // No file:// steering resource: Kiro CLI's V3 engine adds steering by inclusion before each model call
@@ -131,14 +119,11 @@ export function renderQwenCodeSubagent(source) {
 // its inclusion, manual workflows included.
 export function renderKiroSubagent(source) {
   const mapped = kiroSubagentAccess(source.metadata.access);
-  const lines = [
+  return [
     "---",
     `name: ${source.metadata.name}`,
     `description: "${quotedScalar(source.metadata.description)}"`,
     `tools: ${JSON.stringify(mapped.tools)}`,
-  ];
-  if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
-  lines.push(
     "permissions:",
     "  rules:",
     ...mapped.capabilities.flatMap((capability) => [
@@ -152,8 +137,7 @@ export function renderKiroSubagent(source) {
     "",
     source.body.trim(),
     "",
-  );
-  return lines.join("\n");
+  ].join("\n");
 }
 
 export function renderCopilotSubagent(source) {
@@ -189,7 +173,6 @@ export function renderCursorSubagent(source) {
     "---",
     `name: ${source.metadata.name}`,
     `description: "${quotedScalar(source.metadata.description)}"`,
-    `model: ${source.metadata.model}`,
     `readonly: ${cursorSubagentReadonly(source.metadata.access)}`,
     "is_background: false",
     "---",
@@ -205,7 +188,6 @@ export function renderAntigravityCliSubagent(source) {
     "---",
     `name: ${source.metadata.name}`,
     `description: "${quotedScalar(source.metadata.description)}"`,
-    `model: ${source.metadata.model}`,
     "tools:",
     ...tools.map((tool) => `  - ${tool}`),
     "---",
@@ -221,7 +203,6 @@ export function renderDroidSubagent(source) {
     "---",
     `name: ${source.metadata.name}`,
     `description: "${quotedScalar(source.metadata.description)}"`,
-    `model: ${source.metadata.model}`,
     "tools:",
     ...tools.map((tool) => `  - ${tool}`),
     "---",
@@ -232,53 +213,41 @@ export function renderDroidSubagent(source) {
 }
 
 export function renderCodexSubagent(source) {
-  const lines = [
+  return [
     `name = "${quotedScalar(source.metadata.name)}"`,
     `description = "${quotedScalar(source.metadata.description)}"`,
     `sandbox_mode = "${codexSubagentSandboxMode(source.metadata.access)}"`,
-  ];
-  if (source.metadata.model !== "inherit") lines.push(`model = "${quotedScalar(source.metadata.model)}"`);
-  lines.push(
     "",
     `developer_instructions = ${tomlMultilineString(source.body.trim())}`,
     "",
-  );
-  return lines.join("\n");
+  ].join("\n");
 }
 
 export function renderDeepAgentsSubagent(source) {
-  const lines = [
+  return [
     "---",
     `name: ${source.metadata.name}`,
     `description: "${quotedScalar(source.metadata.description)}"`,
-  ];
-  if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
-  lines.push(
     "---",
     "",
     source.body.trim(),
     "",
-  );
-  return lines.join("\n");
+  ].join("\n");
 }
 
 export function renderOpenCodeSubagent(source) {
   const mapped = opencodeSubagentAccess(source.metadata.access);
-  const lines = [
+  return [
     "---",
     `description: "${quotedScalar(source.metadata.description)}"`,
     "mode: subagent",
-  ];
-  if (source.metadata.model !== "inherit") lines.push(`model: ${source.metadata.model}`);
-  lines.push(
     "permission:",
     ...Object.entries(mapped).map(([permission, action]) => `  ${JSON.stringify(permission)}: ${action}`),
     "---",
     "",
     source.body.trim(),
     "",
-  );
-  return lines.join("\n");
+  ].join("\n");
 }
 
 export async function renderCursorCommand(source) {

@@ -2,7 +2,6 @@
 name: analyzer
 description: "Systems analyst for turning evidence into constraints, tradeoffs, invariants, and a minimal implementation strategy."
 access: read-only
-model: inherit
 targets:
   claude-code: true
   codex: true

@@ -239,8 +239,6 @@ async function validateSubagents(subagents) {
     if (metadata.access !== undefined && !subagentAccessValues.has(metadata.access)) {
       errors.push(`${prefix}: access must be one of read-only | read-write | read-write-shell`);
     }
-    if (metadata.model === undefined) errors.push(`${prefix}: missing required field model`);
-    if (metadata.model !== undefined && typeof metadata.model !== "string") errors.push(`${prefix}: model must be a string`);
     if (!metadata.targets || typeof metadata.targets !== "object" || Array.isArray(metadata.targets)) {
       errors.push(`${prefix}: missing required map targets`);
     } else {

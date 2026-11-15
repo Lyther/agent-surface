@@ -5,6 +5,7 @@ import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { vsCodeUserRoot } from "../../scripts/agent-surface/roots.mjs";
 import { readSkills } from "../../scripts/agent-surface/skills.mjs";
+import { subagentOutputs } from "../../scripts/agent-surface/source-primitives.mjs";
 import { codexOpenAiAgentPolicyOutput, produceSkillOutputs, targets } from "../../scripts/agent-surface/targets.mjs";
 import {
   assertCodexAgentTomlParses,
@@ -301,6 +302,15 @@ const bossWorker = [
 for (const row of bossWorker) {
   assert.equal(row.bossOk(readFileSync(row.boss, "utf8")), true, `boss contract: ${row.boss}`);
   assert.equal(row.workerOk(readFileSync(row.worker, "utf8")), true, `worker contract: ${row.worker}`);
+}
+
+// The host's own configuration picks a subagent's model, so no generated agent names one: Claude Code
+// ranks a definition's `model`, `inherit` included, above CLAUDE_CODE_SUBAGENT_MODEL.
+for (const [target, adapter] of Object.entries(targets)) {
+  for (const output of await subagentOutputs(adapter)) {
+    const header = output.content.split(/\n(?:---|developer_instructions = )/, 1)[0];
+    assert.doesNotMatch(header, /^model\s*[:=]/m, `${target} pins a model in ${output.relativeOutput}`);
+  }
 }
 
 // First-party MCP auto-wire across host config families (sample of each shape).

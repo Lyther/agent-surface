@@ -2,7 +2,6 @@
 name: adversary
 description: "Counterexample generator for finding design holes, hidden coupling, unsafe assumptions, and failure paths before merge."
 access: read-only
-model: inherit
 targets:
   claude-code: true
   codex: true

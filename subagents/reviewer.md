@@ -2,7 +2,6 @@
 name: reviewer
 description: "Independent quality gate for reviewing completed code changes against task intent, tests, docs, security, and maintainability."
 access: read-only
-model: inherit
 targets:
   claude-code: true
   codex: true

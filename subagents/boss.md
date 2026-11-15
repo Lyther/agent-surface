@@ -2,7 +2,6 @@
 name: boss
 description: "Workflow controller profile for decomposing user goals into bounded tasks with isolation, acceptance criteria, and routing hints."
 access: read-only
-model: inherit
 targets:
   claude-code: true
   codex: true

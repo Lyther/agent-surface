@@ -2,7 +2,6 @@
 name: worker
 description: "Scoped implementation worker for making bounded code or documentation changes with local verification and clean handoff."
 access: read-write-shell
-model: inherit
 targets:
   claude-code: true
   codex: true

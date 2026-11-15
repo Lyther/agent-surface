@@ -2,7 +2,6 @@
 name: researcher
 description: "Evidence researcher for external docs, local probes, repo history, and implementation options before code changes."
 access: read-only
-model: inherit
 targets:
   claude-code: true
   codex: true
