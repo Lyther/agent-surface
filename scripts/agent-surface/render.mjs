@@ -23,7 +23,6 @@ export function renderClaudeSubagent(source) {
     `name: ${source.metadata.name}`,
     `description: "${quotedScalar(source.metadata.description)}"`,
     `tools: ${mapped.tools}`,
-    `maxTurns: ${mapped.maxTurns}`,
     "---",
     "",
     source.body.trim(),
@@ -54,7 +53,6 @@ export function renderKiloSubagent(source) {
     "mode: subagent",
     "permission:",
     ...Object.entries(mapped.permissions).map(([permission, action]) => `  ${JSON.stringify(permission)}: ${action}`),
-    `steps: ${mapped.steps}`,
     "---",
     "",
     source.body.trim(),
@@ -89,7 +87,6 @@ export function renderGrokBuildSubagent(source) {
     `tools: ${mapped.tools}`,
     `capabilityMode: ${mapped.capabilityMode}`,
     "mcpInheritance: none",
-    `maxTurns: ${mapped.maxTurns}`,
     "---",
     "",
     source.body.trim(),
@@ -571,16 +568,16 @@ export function cursorSubagentReadonly(access) {
 }
 
 export function claudeSubagentAccess(access) {
-  if (access === "read-only") return { tools: "Read, Glob, Grep", maxTurns: 20 };
-  if (access === "read-write") return { tools: "Read, Glob, Grep, Edit, Write", maxTurns: 30 };
-  if (access === "read-write-shell") return { tools: "Read, Glob, Grep, Edit, Write, Bash", maxTurns: 40 };
+  if (access === "read-only") return { tools: "Read, Glob, Grep" };
+  if (access === "read-write") return { tools: "Read, Glob, Grep, Edit, Write" };
+  if (access === "read-write-shell") return { tools: "Read, Glob, Grep, Edit, Write, Bash" };
   fail(`unsupported subagent access: ${access}`);
 }
 
 export function grokBuildSubagentAccess(access) {
-  const { tools, maxTurns } = claudeSubagentAccess(access);
+  const { tools } = claudeSubagentAccess(access);
   const capabilityMode = { "read-only": "read-only", "read-write": "read-write", "read-write-shell": "all" }[access];
-  return { tools, capabilityMode, maxTurns };
+  return { tools, capabilityMode };
 }
 
 export function clineSubagentAccess(access) {
@@ -603,9 +600,9 @@ export function codexSubagentSandboxMode(access) {
 
 export function kiloSubagentAccess(access) {
   const inspect = { "*": "deny", read: "allow", glob: "allow", grep: "allow", skill: "allow" };
-  if (access === "read-only") return { permissions: inspect, steps: 20 };
-  if (access === "read-write") return { permissions: { ...inspect, edit: "allow" }, steps: 30 };
-  if (access === "read-write-shell") return { permissions: { "*": "allow" }, steps: 40 };
+  if (access === "read-only") return { permissions: inspect };
+  if (access === "read-write") return { permissions: { ...inspect, edit: "allow" } };
+  if (access === "read-write-shell") return { permissions: { "*": "allow" } };
   fail(`unsupported subagent access: ${access}`);
 }
 

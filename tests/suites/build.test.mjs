@@ -304,14 +304,16 @@ for (const row of bossWorker) {
   assert.equal(row.workerOk(readFileSync(row.worker, "utf8")), true, `worker contract: ${row.worker}`);
 }
 
-// The session's own configuration picks a subagent's model and permission mode, so no generated agent
-// names either: Claude Code ranks a definition's `model`, `inherit` included, above
-// CLAUDE_CODE_SUBAGENT_MODEL, and an unset `permissionMode` inherits the session's mode.
+// The session's own configuration picks a subagent's model, permission mode and run length, so no
+// generated agent names any of them: Claude Code ranks a definition's `model`, `inherit` included, above
+// CLAUDE_CODE_SUBAGENT_MODEL, an unset `permissionMode` inherits the session's mode, and a turn cap
+// stops a subagent mid-task.
 for (const [target, adapter] of Object.entries(targets)) {
   for (const output of await subagentOutputs(adapter)) {
     const header = output.content.split(/\n(?:---|developer_instructions = )/, 1)[0];
     assert.doesNotMatch(header, /^model\s*[:=]/m, `${target} pins a model in ${output.relativeOutput}`);
     assert.doesNotMatch(header, /^permissionMode\s*:/m, `${target} pins a permission mode in ${output.relativeOutput}`);
+    assert.doesNotMatch(header, /^(?:maxTurns|steps)\s*:/m, `${target} caps the turns in ${output.relativeOutput}`);
   }
 }
 
