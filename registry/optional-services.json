@@ -811,6 +811,76 @@
         ]
       }
     },
+    "pentestagent": {
+      "status": "optional-caution",
+      "source_url": "https://github.com/GH05TCREW/pentestagent",
+      "commit": "87d763a9c830597e9b8c1d56293300f6961beec2",
+      "kind": "mcp",
+      "optional": true,
+      "provisioning": {
+        "prerequisites": [
+          {
+            "id": "pentestagent",
+            "kind": "launch-binary",
+            "optional": true,
+            "detect": {
+              "command": "pentestagent",
+              "paths": [
+                "~/.local/bin/pentestagent",
+                "~/.local/bin/pentestagent.exe"
+              ]
+            }
+          }
+        ]
+      },
+      "mcp": {
+        "server": {
+          "type": "stdio",
+          "command": "pentestagent",
+          "args": [
+            "mcp_server",
+            "--type",
+            "stdio",
+            "--no-rag",
+            "--no-mcp"
+          ]
+        },
+        "validation_hint": "Build and install the pinned GH05TCREW/PentestAgent console script, set OPENAI_API_KEY, OPENAI_API_BASE and PENTESTAGENT_MODEL for the chosen OpenAI-compatible provider, then call the host MCP status command and list the pentest-mcp tools. Per-task target and scope are run_task_async arguments, deliberately absent from the launch command."
+      },
+      "credentials": {
+        "required": [
+          {
+            "name": "OPENAI_API_KEY",
+            "description": "OpenAI-compatible provider key the delegate's LiteLLM client uses"
+          },
+          {
+            "name": "OPENAI_API_BASE",
+            "description": "OpenAI-compatible provider endpoint, e.g. the dev-box LiteLLM gateway; Ollama Cloud is canceled"
+          },
+          {
+            "name": "PENTESTAGENT_MODEL",
+            "description": "Model id the delegate runs, e.g. openai/<model>; the upstream has no default and requires it"
+          }
+        ],
+        "optional": [
+          {
+            "name": "OPENAI_BASE_URL",
+            "description": "Lower-precedence base-URL alias the delegate also reads"
+          }
+        ]
+      },
+      "local_wiring": [
+        "MCP-capable runtimes: explicit opt-in MCP named pentestagent over stdio."
+      ],
+      "notes": [
+        "GH05TCREW/PentestAgent is a distinct upstream from 0xSteph/pentest-ai: package 0.2.0, advertised pentest-mcp 1.0.0, MCP protocol 2024-11-05.",
+        "Distributed only with --category mcps --service pentestagent; never category-enabled or part of the default distribution.",
+        "Detection-only prerequisite: build the pinned wheel out of band (uv build --wheel; uv pip install the console script). No build recipe is declared, so a missing binary wires the bare command and installs nothing, like pentest-ai.",
+        "Unlike pentest-ai over MCP, this delegate runs its own LLM: mcp_server applies OPENAI_API_BASE to an openai/<model> and calls the provider itself, so it needs OPENAI_API_KEY, OPENAI_API_BASE and PENTESTAGENT_MODEL (no upstream default). These travel through the resolved credential env-file, since a registry server declares no env.",
+        "Upstream graceful cancel_task is defective; rely on environment-level stop (for example docker stop) for truthful cancellation and cleanup.",
+        "Per-task target and scope are run_task_async arguments, not a network authorization filter and not part of the launch command."
+      ]
+    },
     "pentest-ai": {
       "status": "optional-caution",
       "source_url": "https://github.com/0xSteph/pentest-ai",
