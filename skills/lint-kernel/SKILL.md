@@ -137,7 +137,7 @@ Subject:
 
 Body:
 
-- Lead with the user-visible impact: the affected workload or configuration and the observable failure, then the mechanism; for a fix, say why downstream users need the backport and how they recognize the problem.
+- Describe the specific bug and its fix, sized to the patch: what fails, under which condition, then what the change does. A small fix needs two short paragraphs. Leave out speculative consequences, code walkthroughs and history the diff already shows; maintainers send over-long changelogs back for a respin.
 - Imperative mood; no "this patch", "I"/"we", or past tense describing the change.
 - Name the underlying invariant (e.g. "subpool used_hpages accounting"), not one triggering symptom.
 - Wrap at 75 columns; never wrap or split a tag (`Fixes:`, `Closes:`, `Link:`).
