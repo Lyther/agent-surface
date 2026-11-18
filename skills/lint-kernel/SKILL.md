@@ -25,6 +25,8 @@ Otherwise say no kernel lint applies and use the repository's own C tooling.
 
    ```bash
    # Style gate: --strict for new code; add --no-tree for a lone .patch outside a kernel tree.
+   # Add --max-line-length=80 for netdev and wireless, whose CI checks at 80 columns.
+   # Check a copy of a mail outside the repo: given a git-tracked path, checkpatch reads it as a source file.
    scripts/checkpatch.pl --strict --codespell <file-or-patch>
    # Sparse. C=2 checks every source; C=1 checks only recompiled files, often none on a warm tree.
    make C=2 W=1 <touched-subdir>/
@@ -45,13 +47,14 @@ Otherwise say no kernel lint applies and use the repository's own C tooling.
    # Against the review base you established (often a subsystem tree; origin/master is not universal).
    git format-patch -M --base=<review-base> --cover-letter -o outgoing/ <review-base>..
    # Keep the defaults: git fallback adds history-derived reviewers that MAINTAINERS alone does not list.
+   # Run it on mails outside git's tracked paths: a tracked path is looked up as a source file.
    scripts/get_maintainer.pl --no-rolestats outgoing/*.patch
    # MAINTAINERS-only inspection, never for deriving recipients:
    #   scripts/get_maintainer.pl --nogit --no-git-fallback outgoing/*.patch
    echo "Proposed: git send-email --to=<maintainer> --cc=<list> outgoing/*.patch"
    ```
 
-   Never pipe recipients into `git send-email` or run it: print the plan and stop. SMTP traffic needs explicit user authorization, and the user runs the send. A root `.get_maintainer.conf` is prepended to the arguments, so explicit flags win; read it before trusting output whose flags you did not fully set. Splice notes below `---` into the exported files; never hand-build a mail. Compare recipient runs under `PERL_HASH_SEED=0 PERL_PERTURB_KEYS=0`; unseeded runs break history ties at random. `K:` patterns match all text before the diff, so rewording can change recipients.
+   Never pipe recipients into `git send-email` or run it: print the plan and stop. SMTP traffic needs explicit user authorization, and the user runs the send. A root `.get_maintainer.conf` is prepended to the arguments, so explicit flags win; read it before trusting output whose flags you did not fully set. Splice notes below `---` into the exported files; never hand-build a mail. Compare recipient runs under `PERL_HASH_SEED=0 PERL_PERTURB_KEYS=0`; unseeded runs break history ties at random. `K:` patterns match all text before the diff, so rewording can change recipients. Netdev and wireless CI also run `get_maintainer.pl` over the notes below `---`: never name a compiler there, since the CLANG/LLVM `K:` entry adds its maintainers.
 5. When the fix may reach stable, answer six questions separately: affected range, target branches, prerequisite investigation, application, build, behavioral evidence. History searches (`git log -S`/`-G`, `git describe --contains`) give leads to read, not verdicts; they misreport renames, reverts, and substring matches. An affected branch that needs an adapted patch or a prerequisite is not an excluded branch. Procedure: `references/backport-review.md`.
 6. Before `git format-patch` for a public list:
    - Rerun `qa-trace` with the error path, not the happy path, as the entry point.
@@ -83,6 +86,7 @@ Fix every checkpatch CHECK, WARNING, and ERROR.
 - Release every lock on every exit path; no double lock; document lock ordering.
 - Balance `rcu_read_lock`/`rcu_read_unlock`; free an RCU-protected pointer only with `kfree_rcu` or after `synchronize_rcu`.
 - Use `WARN_ON_ONCE` plus an error return, not `BUG_ON`, for runtime-recoverable conditions.
+- When a fix checks one call's return value, check every other call of that helper in the file and every caller of a function whose return type changes; reviewers ask about the other call sites.
 
 ### Memory and API
 
@@ -134,6 +138,8 @@ Subject:
 - `subsystem: imperative summary` of at most 70-75 characters, saying what changes and why; no period, no Conventional Commits prefix (`feat:`, `fix:`, `chore:`), no filename.
 - Give each patch in a series a unique summary; it becomes a global identifier.
 - The version tag counts public sends: after a public v1 and v2, the next public revision is v3, even if an internal v2 was never sent.
+- After the subsystem prefix, follow the case the file's `git log --oneline` uses; netdev and wireless take a lowercase verb.
+- Send a bug present in mainline as one patch to its fix tree (`[PATCH net]`, `[PATCH wireless]`), never one mail per tree: the maintainers resolve merge conflicts. A posting that applies only to a driver tree uses plain `[PATCH]` with `base-commit:` naming that tree.
 
 Body:
 
@@ -144,25 +150,28 @@ Body:
 - Make it self-contained for a reviewer who never saw earlier versions; one problem per patch, and past about three short paragraphs consider splitting.
 - Cite commits as `12-hex ("oneline summary")`, never a bare SHA.
 - No pointers to future RFCs; those belong in cover letters or follow-up threads.
-- When a tool helped, end the body with "AI assistance was used." Never list what the tool did.
-- Net-tree fixes also state discovery and testing in the body (`maintainer-netdev.rst`, "Bug fixes"), e.g. "Found by code review and not reproduced; compile-tested only."
+- Describe each changed call by what happens to its value: a readback whose value is discarded is checked for its error, not "before its output is used".
+- Disclose tool help once, where the subsystem wants it, without listing what the tool did:
+  - net and net-next: the discovery and testing sentence that `maintainer-netdev.rst` ("Bug fixes") requires in the body carries it, e.g. "Found by an AI code review agent; not triggered. Compile-tested with W=1."; add no separate "AI assistance was used." line.
+  - Where the maintainer keeps tool mentions out of the changelog (this author's wireless and Bluetooth mails): "AI assistance was used." as the last note below `---`, after any runtime test note.
+  - Elsewhere: end the body with "AI assistance was used."
 
 Trailers, in this order with no blank lines between:
 
-- `Fixes: <12-hex> ("oneline")` for bug fixes. Verify the SHA exists and is reachable from the base you actually target (often a subsystem tree; `origin/master` is not universal). Non-ancestry is a lead (unfetched tree, rebased or cherry-picked history), not proof the tag is wrong; report `MISS` without a tree to check.
+- `Fixes: <12-hex> ("oneline")` for bug fixes. Verify the SHA exists and is reachable from the base you actually target (often a subsystem tree; `origin/master` is not universal). Non-ancestry is a lead (unfetched tree, rebased or cherry-picked history), not proof the tag is wrong; report `MISS` without a tree to check. Take the target from `git log -S` on the faulting line, not `git blame` alone: a commit that removes and re-adds the line only moved it, and a restore that runs after the faulting call does not protect it.
 - `Reported-by:`, `Closes:`, `Link:` only with real attribution; prefer lore.kernel.org URLs for `Link:`.
-- `Cc: <stable@vger.kernel.org> # 5.14.x` only when a backport is intended. A `Fixes:` naming a commit in a released kernel needs that decision made explicitly: without the `Cc:`, Greg's patch bot asks for a resend, and older releases get the fix only if AUTOSEL or the stable team's scripts select it; to keep it out of stable, add `Cc: <stable+noautosel@kernel.org> # reason`, where the reason is mandatory. That reason says why no stable tree should take the fix (hardening, no reachable bug); a dependency or a conflict is never that reason. The single version already means "and newer", so a trailing `+` is redundant, and an absent annotation is not a defect when `Fixes:` implies the range. Give each prerequisite its own line, `Cc: <stable@vger.kernel.org> # 5.7.x: <12-hex>: <subject>`, after checking that the fix needs it to build or work, not just to apply; when a subsystem's gitlint caps line length (Bluetooth CI: 80 columns), shorten the subject, never the SHA. An in-series prerequisite already tagged for stable needs no line. When the prerequisites are refactors or features that stable would not take, write `# needs adjustments for <= X.Y` instead of listing them. For an unpublished vulnerability use `stable@kernel.org`, after reading `references/submission-policy.md`: it protects one channel and does not make the mail private.
+- `Cc: <stable@vger.kernel.org> # 5.14.x` only when a backport is intended. A `Fixes:` naming a commit in a released kernel needs that decision made explicitly: without the `Cc:`, Greg's patch bot asks for a resend, and older releases get the fix only if AUTOSEL or the stable team's scripts select it; to keep it out of stable, add `Cc: <stable+noautosel@kernel.org> # reason`, where the reason is mandatory. That reason says why no stable tree should take the fix (hardening, no reachable bug); a dependency or a conflict is never that reason. The single version already means "and newer", so a trailing `+` is redundant, and an absent annotation is not a defect when `Fixes:` implies the range. Give each prerequisite its own line, `Cc: <stable@vger.kernel.org> # 5.7.x: <12-hex>: <subject>`, after checking that the fix needs it to build or work, not just to apply; when a subsystem's gitlint caps line length (Bluetooth CI: 80 columns), shorten the subject, never the SHA. An in-series prerequisite already tagged for stable needs no line. When the prerequisites are refactors or features that stable would not take, write `# needs adjustments for <= X.Y` instead of listing them. For an unpublished vulnerability use `stable@kernel.org`, after reading `references/submission-policy.md`: it protects one channel and does not make the mail private. Never pair `Cc: stable` with a not-tested disclaimer; say what testing was done. netdev takes the tag too: `maintainer-netdev.rst` ("Stable tree") dropped its old ban, so check the target tree's docs before applying a remembered subsystem rule.
 - `Reviewed-by:`, `Tested-by:`, `Acked-by:` only when real; never invent one.
 - No `Assisted-by:`; mainline docs dropped it (`references/submission-policy.md`).
 - `Signed-off-by:` is mandatory (DCO 1.1, `git commit -s`) and certified by a human; an agent never adds it.
 
 Trailers live in the commit object, so correcting one rewrites every later hash and invalidates a prepared series: report trailer problems, never rewrite them silently.
 
-Put `Changes in vN:` below `---`, between `Signed-off-by:` and the diffstat, never in the commit body: a brief bullet list of the previous-to-current delta that omits designs never sent publicly.
+Put `Changes in vN:` below `---`, between `Signed-off-by:` and the diffstat, never in the commit body: a brief bullet list of the previous-to-current delta that omits designs never sent publicly. Write cover letters and `Changes in vN:` in the third person, with no "your" and no guess at how a maintainer numbered or read the patches; a pure style change gets one line, "minor style cleanup in f()".
 
 Below `---`, keep only what a maintainer acts on: test status, runtime results, base or dependency facts. No defensive caveats.
 
-Inside the patch, place one short comment per branch where it explains the local action rather than one long composed comment above a multi-branch `if`; when a comment makes the reader track several counters and locks at once, split it or let the code structure carry the explanation.
+Keep only the comments the code needs, one line where it fits, and drop any that restate the code. Inside the patch, place one short comment per branch where it explains the local action rather than one long composed comment above a multi-branch `if`; when a comment makes the reader track several counters and locks at once, split it or let the code structure carry the explanation.
 
 Email: plain text through `git send-email`, a new top-level thread per revision, shallow threading within a series, and trimmed inline replies; checklist in `references/email-plumbing.md`.
 
@@ -189,7 +198,7 @@ Subject:      [subsystem: imperative short description]
 Sign-off:     [Signed-off-by present? yes/no; human-certified]
 Fixes:        [hex: subject; present? yes/no/n-a; ancestor check PASS/MISS]
 Cc stable:    [yes # 6.1.x / noautosel # reason / no / n-a]
-Disclosure:   ["AI assistance was used." in body / n-a]
+Disclosure:   [netdev discovery sentence / last note below --- / body line / n-a]
 Other tags:   [Reported-by, Reviewed-by, Tested-by, Acked-by; real ones only]
 Trailer corrections needed: [report only; never rewrite]
 

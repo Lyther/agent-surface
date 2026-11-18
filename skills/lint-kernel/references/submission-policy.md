@@ -16,7 +16,7 @@ The assistant must never send anything itself. Prepare, report, and stop.
 
 ## AI disclosure
 
-The disclosure is the one body line in `SKILL.md`. No `Assisted-by:`: mainline dropped it from the
+The disclosure follows the subsystem rules under "Body" in `SKILL.md`. No `Assisted-by:`: mainline dropped it from the
 docs in 1e035297ffda ("docs: remove Assisted-by references"). Later mainline commits still carry
 it, so this is a convention, not an upstream ban.
 
