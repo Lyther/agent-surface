@@ -617,11 +617,6 @@ SUBSTITUTE_JUSTIFICATION
     .filter((entry) => entry.isFile())
     .map((entry) => path.relative(dest, path.join(entry.parentPath, entry.name)))
     .sort();
-  const manifest = (dest, target) => {
-    const parsed = JSON.parse(readFileSync(path.join(dest, ".agent-surface", `${target}-manifest.json`), "utf8"));
-    delete parsed.generated_at;
-    return parsed;
-  };
   try {
     const plan = run([...installArgs(single, "--category", "everything"), "--dry-run"]);
     assert.match(plan, /^categories: everything$/m);
@@ -632,8 +627,24 @@ SUBSTITUTE_JUSTIFICATION
     run(installArgs(sequenced, "--category", "development,cybersecurity,private,modding"));
     run(installArgs(single, "--category", "everything"));
     assert.deepEqual(files(single), files(sequenced), "one run writes the paths the three-step sequence writes");
-    for (const target of ["codex", "kilo"]) {
-      assert.deepEqual(manifest(single, target), manifest(sequenced, target), `${target} manifest matches the sequence`);
+    // Every other file must match byte for byte. The merged host configs are the exception: each run
+    // merges into the file the earlier steps left, so key order may differ and they compare parsed.
+    // Manifests carry a run timestamp, so they compare without it.
+    const parsedFiles = new Map([
+      [path.join(".codex", "config.toml"), (text) => TOML.parse(text)],
+      [path.join(".config", "kilo", "kilo.jsonc"), (text) => parseJsonc(text, "kilo")],
+      ...["codex", "kilo"].map((target) => [path.join(".agent-surface", `${target}-manifest.json`), (text) => {
+        const parsed = JSON.parse(text);
+        delete parsed.generated_at;
+        return parsed;
+      }]),
+    ]);
+    for (const file of files(single)) {
+      const left = readFileSync(path.join(single, file));
+      const right = readFileSync(path.join(sequenced, file));
+      const parse = parsedFiles.get(file);
+      if (parse) assert.deepEqual(parse(left.toString("utf8")), parse(right.toString("utf8")), `${file} matches the sequence`);
+      else assert.ok(left.equals(right), `${file} has the same bytes as the sequence`);
     }
     const mcpIds = (dest) => Object.keys(TOML.parse(readFileSync(path.join(dest, ".codex", "config.toml"), "utf8")).mcp_servers).sort();
     assert.deepEqual(mcpIds(single), ["chrome-devtools", "fenjing", "grimoire", "openosint", "synapse"]);
