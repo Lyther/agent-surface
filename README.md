@@ -13,9 +13,13 @@ git submodule update --init --recursive   # external skill packs; check and test
 npm ci
 npm run check                      # validate source, registry, generated output
 npm run install:mcps               # installs, builds and links the Synapse/Grimoire servers the tests need
+# one-time prerequisite for npm test: installs OpenOSINT (and uv, if absent) so the Qwen MCP case finds them
+node scripts/agent-surface.mjs install --target droid --dest "$(mktemp -d)" --category mcps --service openosint -y
 npm test                           # integration tests
 npm run build -- --target all      # render every target into dist/
 ```
+
+`-y` lets the install run the prerequisite recipes: `uv` comes from Homebrew when `brew` is on PATH (macOS), otherwise from Astral's standalone installer (`curl`, into `~/.local/bin`; the only route on Linux), then `uv tool install openosint==2.27.0` with its provider extras. Both need network access and write to your real profile; skip them only if `uv` and `openosint-mcp` are already installed.
 
 Preview an install before touching disk, then apply it:
 
