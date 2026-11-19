@@ -416,6 +416,27 @@ const overlappingWritersDoctor = status(["workflow", "doctor", "--run", "run-fix
 assert.notEqual(overlappingWritersDoctor.status, 0);
 assert.match(`${overlappingWritersDoctor.stdout}${overlappingWritersDoctor.stderr}`, /concurrent writers .* have overlapping filescope/);
 
+// Scope spellings that name the same files must still collide; disjoint ones must not.
+const filescopePairs = [
+  [["src/example.js"], ["./src/example.js"], true],
+  [["src/example*.js"], ["src/example.js"], true],
+  [["src\\example.js"], ["src/lib/../example.js"], true],
+  [["src/*.js"], ["src/deep/file.js"], true],
+  [["src/example.js"], ["src/example.js"], true],
+  [["src/a.js"], ["src/b.js"], false],
+  [["src/*.js"], ["lib/*.js"], false],
+];
+for (const [leftScope, rightScope, overlaps] of filescopePairs) {
+  const pair = structuredClone(overlappingWriters);
+  pair.agents[0].filescope = leftScope;
+  pair.agents[1].filescope = rightScope;
+  writeFileSync(path.join(workflowRunDir, "agents.json"), `${JSON.stringify(pair, null, 2)}\n`);
+  const pairDoctor = status(["workflow", "doctor", "--run", "run-fixture-001"], { cwd: workflowDest });
+  const pairOutput = `${pairDoctor.stdout}${pairDoctor.stderr}`;
+  assert.equal(/have overlapping filescope/.test(pairOutput), overlaps, `${leftScope} vs ${rightScope}: ${pairOutput}`);
+  if (overlaps) assert.equal(pairDoctor.status, 1);
+}
+
 const staleMonitor = structuredClone(workflowMonitor);
 staleMonitor.policy.time_to_first_output_ms = 1000;
 staleMonitor.policy.no_progress_timeout_ms = 1000;

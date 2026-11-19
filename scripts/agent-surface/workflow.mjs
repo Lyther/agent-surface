@@ -559,17 +559,25 @@ async function workflowMonitorErrors(monitor, runData, runDir, nowMs = Date.now(
 }
 
 function filescopesOverlap(leftFiles, rightFiles) {
+  // POSIX-normalize, then keep only the static directory prefix of a glob: no glob
+  // matcher is pinned (path.matchesGlob warns as experimental in Node 22), so a
+  // literal and a glob that share a directory conservatively count as overlapping.
   const normalize = (value) => {
-    let normalized = value.replaceAll("\\", "/");
-    const wildcardIndex = normalized.search(/[?*[\]]/);
-    if (wildcardIndex >= 0) normalized = normalized.slice(0, wildcardIndex);
-    return normalized.replace(/\/+$/, "") || ".";
+    const segments = [];
+    for (const segment of value.replaceAll("\\", "/").split("/")) {
+      if (segment === "" || segment === ".") continue;
+      if (segment === "..") segments.pop();
+      else segments.push(segment);
+    }
+    const wildcardIndex = segments.findIndex((segment) => /[?*[\]]/.test(segment));
+    return wildcardIndex >= 0 ? segments.slice(0, wildcardIndex) : segments;
   };
+  const isPrefix = (shorter, longer) => shorter.every((segment, index) => segment === longer[index]);
   for (const leftValue of leftFiles ?? []) {
     const left = normalize(leftValue);
     for (const rightValue of rightFiles ?? []) {
       const right = normalize(rightValue);
-      if (left === "." || right === "." || left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`)) return true;
+      if (left.length <= right.length ? isPrefix(left, right) : isPrefix(right, left)) return true;
     }
   }
   return false;
