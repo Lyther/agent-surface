@@ -9,8 +9,10 @@ It is a **source compiler**, not an app: there is no `src/`. Typed source primit
 ## Quick start
 
 ```bash
+git submodule update --init --recursive   # external skill packs; check and tests read them
 npm ci
 npm run check                      # validate source, registry, generated output
+npm run install:mcps               # installs, builds and links the Synapse/Grimoire servers the tests need
 npm test                           # integration tests
 npm run build -- --target all      # render every target into dist/
 ```
