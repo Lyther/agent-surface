@@ -2,6 +2,7 @@
 // per-agent CLIs, first-party MCP launchers, Grimoire index presence, Synapse hook registration, and
 // stored target notices).
 // Read-only probes.
+import { readdir, readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -12,6 +13,7 @@ import { allStoredNotices, localDate, noticeHeading } from "./notices.mjs";
 import { commandVersion } from "./proc.mjs";
 import { root } from "./registry.mjs";
 import { SYNAPSE_HOOK_TARGETS, synapseHookStatus } from "./synapse-hook.mjs";
+import { antigravityCliImportedPlugin, antigravityCliStagedPlugin } from "./roots.mjs";
 import { kiloRuleInstructionRoot } from "./targets.mjs";
 import { exists } from "./util.mjs";
 
@@ -28,6 +30,8 @@ export async function doctor() {
     "antigravity-workflows",
     (await exists(path.join(os.homedir(), ".gemini", "antigravity", "global_workflows"))) ? "present" : "missing",
   ]);
+  const antigravityImport = await antigravityImportStatus();
+  if (antigravityImport !== null) checks.push(["antigravity-cli-import", antigravityImport]);
   checks.push(["claude", commandVersion("claude", ["--version"])]);
   checks.push(["codex", commandVersion("codex", ["--version"])]);
   checks.push(["kilo", commandVersion("kilo", ["--version"])]);
@@ -74,4 +78,47 @@ async function kiloConfigStatus() {
   // Earlier installs wrote this form, which Kilo resolves against the project directory.
   else if (instructions.includes("./rules/00-precedence-and-safety.md")) markers.push("rule entries never load; rerun a general user install");
   return markers.length > 0 ? `present (${markers.join(", ")})` : "present";
+}
+
+// Antigravity runs the copy `agy plugin install` imported, and install updates only the staged one,
+// so a stale import stayed invisible here (missed on 2026-11-07 and 2026-11-18). Silent unless both
+// copies exist; never runs agy.
+const IMPORT_DIFF_EXAMPLES = 5;
+
+async function antigravityImportStatus() {
+  const staged = path.join(os.homedir(), ".gemini", antigravityCliStagedPlugin);
+  const imported = path.join(os.homedir(), antigravityCliImportedPlugin);
+  if (!(await exists(staged)) || !(await exists(imported))) return null;
+
+  try {
+    const [stagedFiles, importedFiles] = [await pluginFileSizes(staged), await pluginFileSizes(imported)];
+    const changed = [];
+    const onlyImported = [];
+    const onlyStaged = [];
+    for (const [rel, size] of importedFiles) {
+      if (!stagedFiles.has(rel)) onlyImported.push(rel);
+      else if (stagedFiles.get(rel) !== size || !(await sameBytes(path.join(staged, rel), path.join(imported, rel)))) changed.push(rel);
+    }
+    for (const rel of stagedFiles.keys()) if (!importedFiles.has(rel)) onlyStaged.push(rel);
+    if (changed.length + onlyImported.length + onlyStaged.length === 0) return "matches";
+    const examples = [...changed, ...onlyImported, ...onlyStaged].slice(0, IMPORT_DIFF_EXAMPLES).join(", ");
+    return `differs (${changed.length} changed, ${onlyImported.length} only imported, ${onlyStaged.length} only staged; e.g. ${examples}); run agy plugin install "${staged}"`;
+  } catch (error) {
+    return `cannot compare (${error.message})`;
+  }
+}
+
+// Relative path -> size of every file; empty folders and Finder's .DS_Store are not plugin content.
+async function pluginFileSizes(base, relative = "", out = new Map()) {
+  for (const entry of await readdir(path.join(base, relative), { withFileTypes: true })) {
+    if (entry.name === ".DS_Store") continue;
+    const rel = path.join(relative, entry.name);
+    if (entry.isDirectory()) await pluginFileSizes(base, rel, out);
+    else if (entry.isFile()) out.set(rel, (await stat(path.join(base, rel))).size);
+  }
+  return out;
+}
+
+async function sameBytes(left, right) {
+  return (await readFile(left)).equals(await readFile(right));
 }

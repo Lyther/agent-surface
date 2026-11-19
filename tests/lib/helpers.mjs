@@ -46,8 +46,8 @@ export const clineUserMcpRoutes = [
   )),
 ].sort();
 
-// An all-target plan prints one line per planned file, and npm pack JSON lists every packaged
-// file; both outgrow Node's 1 MiB default capture.
+// An all-target plan against an empty root prints one line per file it would write, and npm pack
+// JSON lists every packaged file; both outgrow Node's 1 MiB default capture.
 export const MAX_CAPTURE_BYTES = 64 * 1024 * 1024;
 
 export function run(args, options = {}) {

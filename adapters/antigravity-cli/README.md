@@ -9,7 +9,7 @@ Packages canonical skills, explicit high-impact workflow skills, rules, scoped r
 - `~/.gemini/antigravity-cli/plugins/agent-surface/references/rules/<rule>.md`
 - `~/.gemini/antigravity-cli/plugins/agent-surface/mcp_config.json`
 
-Validate and register the staged plugin after every install that changes it, since Antigravity keeps running its imported copy until then; `install` prints the `agy plugin install` step when it does:
+Validate and register the staged plugin after every install that changes it, since Antigravity keeps running its imported copy until then; `install` prints the `agy plugin install` step when it does, and `doctor` reports `antigravity-cli-import: differs` when the imported copy at `~/.gemini/config/plugins/agent-surface` no longer matches the staged one:
 
 ```bash
 agy plugin validate ~/.gemini/antigravity-cli/plugins/agent-surface

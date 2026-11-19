@@ -724,6 +724,45 @@ assert.ok(clineWrote);
 assert.equal(Number(clineWrote[1]), liveManifest.managed.length);
 assert.equal(Object.hasOwn(liveManifest.managed[0], "managed_by"), false);
 assert.equal(Object.hasOwn(liveManifest.managed[0], "sha256"), false);
+// The plan counts what it would do and lists only what changes; an unchanged file is a count.
+{
+  const planCountsOf = (text) => Object.fromEntries([...text.matchAll(/^counts: (.+)$/gm)][0][1].split(", ").map((part) => {
+    const match = part.match(/^(.+) (\d+)$/);
+    return [match[1], Number(match[2])];
+  }));
+  const replan = run(["install", "--target", "cline", "--dest", liveDest, "--dry-run"]);
+  assert.match(replan, new RegExp(`^  unchanged: ${liveManifest.managed.length} \\(not listed\\)$`, "m"));
+  assert.doesNotMatch(replan, /^  \S+ <- /m, "a fully installed root plans no write lines");
+  assert.deepEqual(planCountsOf(replan), { write: 0, unchanged: liveManifest.managed.length, remove: 0, retain: 0, "config merges": 0, blocked: 0 });
+  assert.equal(replan.match(/^plan total:/gm), null, "one plan prints no total");
+
+  const edited = path.join(liveDest, ".cline", "skills", "ops-ask", "SKILL.md");
+  const original = readFileSync(edited, "utf8");
+  writeFileSync(edited, `${original}\nlocal edit\n`);
+  try {
+    const dirty = run(["install", "--target", "cline", "--dest", liveDest, "--dry-run"]);
+    assert.deepEqual([...dirty.matchAll(/^  (\S+) <- /gm)].map((match) => match[1]), [path.join(".cline", "skills", "ops-ask", "SKILL.md")]);
+    assert.equal(planCountsOf(dirty).write, 1);
+    assert.match(dirty, new RegExp(`^  unchanged: ${liveManifest.managed.length - 1} \\(not listed\\)$`, "m"));
+  } finally {
+    writeFileSync(edited, original);
+  }
+
+  const pair = run(["install", "--target", "cline,kilo", "--scope", "user", "--dest", ownTmp("plan-total"), "--dry-run"]);
+  const perTarget = [...pair.matchAll(/^counts: (.+)$/gm)].map((match) => match[1]);
+  assert.equal(perTarget.length, 2);
+  const summed = {};
+  for (const line of perTarget) {
+    for (const part of line.split(", ")) {
+      const [, label, count] = part.match(/^(.+) (\d+)$/);
+      summed[label] = (summed[label] ?? 0) + Number(count);
+    }
+  }
+  const total = pair.match(/^plan total: (.+)$/m);
+  assert.ok(total, pair);
+  assert.equal(total[1], Object.entries(summed).map(([label, count]) => `${label} ${count}`).join(", "));
+}
+
 run(["install", "--target", "cline", "--dest", liveDest, "--category", "development"]);
 assert.match(readFileSync(path.join(liveDest, ".cline", "skills", "workflow-boss", "SKILL.md"), "utf8"), /^---\nname: workflow-boss\n/);
 assert.match(readFileSync(path.join(liveDest, ".cline", "skills", "verify-readiness", "SKILL.md"), "utf8"), /^---\nname: verify-readiness\n/);
@@ -2178,6 +2217,31 @@ assert.equal([...packedPaths].some((file) => file.startsWith(".agent-surface/"))
   } finally {
     rmSync(dest, { recursive: true, force: true });
     rmSync(packageDir, { recursive: true, force: true });
+  }
+}
+
+// `--target all` is the documented default run and the default scope is project. A host with no
+// project layout is left out of it visibly instead of failing the whole plan; naming it still fails.
+{
+  const projectCwd = mkdtempSync(path.join(os.tmpdir(), "agent-surface-all-project-"));
+  try {
+    const pinnedHomeOnly = ["antigravity", "antigravity-cli", "codex", "cursor", "trae", "trae-cli", "trae-cn", "vscode"];
+    const homeOnlyTargets = Object.keys(targets).filter((target) => targets[target].installRoot?.homeOnly === true).sort();
+    assert.deepEqual(homeOnlyTargets, pinnedHomeOnly, "the home-only set changes on purpose, with this list");
+    const implicit = status(["install", "--target", "all", "--dry-run"], { cwd: projectCwd });
+    const explicit = status(["install", "--target", "all", "--scope", "project", "--dry-run"], { cwd: projectCwd });
+    assert.equal(implicit.status, 0, implicit.stderr);
+    assert.equal(explicit.status, 0, explicit.stderr);
+    assert.equal(implicit.stdout, explicit.stdout);
+    const excluded = [...implicit.stdout.matchAll(/^(\S+): excluded from --target all at project scope/gm)].map((match) => match[1]).sort();
+    assert.deepEqual(excluded, pinnedHomeOnly);
+    assert.match(implicit.stdout, /^target: kimi-code$/m, "kimi-code has its own project root and stays planned");
+    for (const target of pinnedHomeOnly) assert.doesNotMatch(implicit.stdout, new RegExp(`^target: ${target}$`, "m"));
+    const named = status(["install", "--target", "codex,claude-code", "--dry-run"], { cwd: projectCwd });
+    assert.equal(named.status, 1);
+    assert.match(named.stderr, /codex install supports --scope user only unless --dest is supplied/);
+  } finally {
+    rmSync(projectCwd, { recursive: true, force: true });
   }
 }
 

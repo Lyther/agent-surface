@@ -25,6 +25,7 @@ import { pinnedNodePath } from "./mcp-shims.mjs";
 import { planSynapseHook } from "./synapse-hook.mjs";
 import { formatNotice, localDate, planNotices } from "./notices.mjs";
 import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
+import { antigravityCliStagedPlugin } from "./roots.mjs";
 import { readRules } from "./rules.mjs";
 import { adapterMcpConfigs, kiloRuleInstructionPaths, kiloRuleInstructionRoot, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets, withMcpServerOverrides } from "./targets.mjs";
 import { argValue, fail, isPathInside, isSafeRelativePath, isSafeTargetName, splitArgValues, uniqueStrings } from "./util.mjs";
@@ -94,12 +95,18 @@ export async function build(args) {
 
 export async function install(args) {
   const allTargetsSelected = installTargetsIncludeAll(args);
-  const excludedTargets = allTargetsSelected ? deprecatedTargets(await readTargetRegistry()) : [];
-  const selectedTargets = selectedInstallTargets(args).filter((target) => !excludedTargets.includes(target));
   const scope = argValue(args, "--scope") ?? "project";
+  const dest = argValue(args, "--dest");
+  const excludedTargets = allTargetsSelected ? deprecatedTargets(await readTargetRegistry()) : [];
+  // `install --target all` is the documented default run, and its default scope is project: a host
+  // with no project layout would fail the whole plan ("codex install supports --scope user only"),
+  // so `all` leaves it out and says so, while naming it explicitly still fails. --dest gives it a root.
+  const homeOnlyExcluded = allTargetsSelected && scope === "project" && !dest
+    ? Object.keys(targets).filter((target) => targets[target].installRoot?.homeOnly === true && !excludedTargets.includes(target))
+    : [];
+  const selectedTargets = selectedInstallTargets(args).filter((target) => !excludedTargets.includes(target) && !homeOnlyExcluded.includes(target));
   const dryRun = args.includes("--dry-run");
   const allowScopeRoot = args.includes("--allow-scope-root");
-  const dest = argValue(args, "--dest");
   const categoryFilter = installCategoryFilter(args);
   const optionalServices = optionalServiceFilter(args);
   const agentName = argValue(args, "--agent") ?? "agent";
@@ -160,9 +167,13 @@ export async function install(args) {
   for (const target of excludedTargets) {
     console.log(`${target}: excluded from --target all (deprecated); its installed files and manifest stay as they are; name --target ${target} to install it`);
   }
+  for (const target of homeOnlyExcluded) {
+    console.log(`${target}: excluded from --target all at project scope (no project layout); use --scope user or --dest, or name --target ${target}`);
+  }
   for (const plan of plans) {
     printInstallPlan(plan);
   }
+  if (plans.length > 1) console.log(`plan total: ${formatPlanCounts(sumPlanCounts(plans.map(planCounts)))}`);
   for (const item of rootBlocks(plans)) console.log(`install blocked: ${item}`);
   printCredentialPlan(credentials);
   printProvisioningPlan(provisioning);
@@ -1729,10 +1740,14 @@ function printInstallPlan(plan) {
     console.log("warnings:");
     for (const item of plan.warnings) console.log(`  ${item}`);
   }
+  console.log(`counts: ${formatPlanCounts(planCounts(plan))}`);
+  // Identical files are counted, not listed: a plan that names every unchanged file buries the few
+  // that change (a fully installed all-target plan was thousands of lines of "planned writes").
   console.log("planned writes:");
-  for (const item of plan.writes) {
+  for (const item of plan.writes.filter((write) => write.action !== "skip")) {
     console.log(`  ${path.relative(plan.installRoot, item.output)} <- ${item.source}`);
   }
+  console.log(`  unchanged: ${plan.writes.filter((write) => write.action === "skip").length} (not listed)`);
   const removes = plan.staleRemovalActions
     .filter((item) => item.action === "remove" || item.action === "missing")
     .map((item) => item.relativeOutput);
@@ -1827,6 +1842,29 @@ function printInstallPlan(plan) {
   } else {
     for (const item of [...plan.blocked, ...rootBlocked]) console.log(`  ${item}`);
   }
+}
+
+const PLAN_COUNT_LABELS = [["write", "write"], ["unchanged", "unchanged"], ["remove", "remove"], ["retain", "retain"], ["configMerges", "config merges"], ["blocked", "blocked"]];
+
+function planCounts(plan) {
+  const staleCount = (...actions) => plan.staleRemovalActions.filter((item) => actions.includes(item.action)).length;
+  return {
+    write: plan.writes.filter((item) => item.action === "write").length,
+    unchanged: plan.writes.filter((item) => item.action === "skip").length,
+    remove: staleCount("remove", "missing"),
+    retain: staleCount("retain"),
+    configMerges: plan.configMerges.filter((item) => item.action === "write" || item.action === "merge").length
+      + plan.hookMerges.filter((item) => item.action !== "skip").length,
+    blocked: plan.blocked.length + (plan.rootClaims.blocked.length > 0 ? 1 : 0),
+  };
+}
+
+function sumPlanCounts(counts) {
+  return Object.fromEntries(PLAN_COUNT_LABELS.map(([key]) => [key, counts.reduce((sum, item) => sum + item[key], 0)]));
+}
+
+function formatPlanCounts(counts) {
+  return PLAN_COUNT_LABELS.map(([key, label]) => `${label} ${counts[key]}`).join(", ");
 }
 
 function printKeptMcpServers(merge) {
@@ -1951,7 +1989,7 @@ async function applyInstallPlan(plan) {
   // Antigravity runs the copy `agy plugin install` imported, so a change to the staged plugin reaches it
   // only through another import; redistributions left it on months-old skills while nothing said so.
   if (plan.target === "antigravity-cli" && written + removed + configMerges > 0) {
-    const plugin = path.join(plan.installRoot, "antigravity-cli", "plugins", "agent-surface");
+    const plugin = path.join(plan.installRoot, antigravityCliStagedPlugin);
     console.log(`NOTE: Antigravity runs its imported copy of this plugin, not these files; import them with: agy plugin install "${plugin}"`);
   }
 }
