@@ -100,7 +100,7 @@ export class Store implements IStore {
   private globalDbPath: string;
   private dbDir: string | undefined;
   private rw = new Map<string, DatabaseSync>();
-  private ro = new Map<string, DatabaseSync | null>();
+  private ro = new Map<string, DatabaseSync>();
 
   constructor(opts: StoreOptions) {
     this.clock = opts.clock;
@@ -350,8 +350,11 @@ export class Store implements IStore {
     const path = resolveProjectRef(ref, this.dbDir);
     if (this.rw.has(path)) return this.rw.get(path)!; // already open RW (it's an active project)
     const cached = this.ro.get(path);
-    if (cached !== undefined) return cached;
-    const db = existsSync(path) ? openDb(path, true) : null;
+    if (cached) return cached;
+    // Cache only opened handles: a missing database is rechecked on the next read, so a long-lived
+    // session sees the related project once it writes its first record.
+    if (!existsSync(path)) return null;
+    const db = openDb(path, true);
     this.ro.set(path, db);
     return db;
   }
@@ -425,6 +428,6 @@ export class Store implements IStore {
 
   close(): void {
     for (const db of this.rw.values()) db.close();
-    for (const db of this.ro.values()) db?.close();
+    for (const db of this.ro.values()) db.close();
   }
 }

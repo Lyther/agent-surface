@@ -124,6 +124,22 @@ test("memory_remember exposes stale supersedes as typed INVALID_INPUT", () => {
   } finally { cleanup(); }
 });
 
+test("a long-lived reader sees a related project's first write after its database appears", () => {
+  const { store, dir, cleanup } = setup();
+  const localDb = join(dir, "local.sqlite");
+  const targetRoot = join(dir, "late-project");
+  mkdirSync(targetRoot);
+  const targetDb = resolveProjectRef(targetRoot, dir);
+  const writer = new Store({ clock: new FakeClock(2000), dbDir: dir, globalDbPath: join(dir, "global.sqlite") });
+  try {
+    const before = store.recall(recall(localDb, { project: targetRoot, query: "late marker" }));
+    assert.equal(before.results.length, 0, "the related database does not exist yet");
+    writer.remember({ projectDbPath: targetDb, agentId: "remote", content: "late marker written after the first read" });
+    const after = store.recall(recall(localDb, { project: targetRoot, query: "late marker" }));
+    assert.equal(after.results.length, 1, "the same reader must see the record once the database exists");
+  } finally { writer.close(); cleanup(); }
+});
+
 test("project isolation: project B cannot recall A's memory; global is shared", () => {
   const { store, dir, cleanup } = setup();
   const A = join(dir, "projA.sqlite");
