@@ -944,6 +944,39 @@ if (process.platform !== "win32") {
   }
 }
 
+// Only an OPTIONAL prerequisite is missing (openosint-tools): headless without -y the apply runs no
+// recipe and wires from the current detection, so the preview must carry that wiring too. The
+// operator's real machine printed 25 config merges here that apply never wrote.
+if (process.platform !== "win32") {
+  const optionalHome = ownTmp("optional-gap-home");
+  rmSync(optionalHome, { recursive: true, force: true });
+  const bin = path.join(optionalHome, ".local", "bin");
+  const toolsDir = path.join(optionalHome, "uv-tools");
+  mkdirSync(path.join(toolsDir, "openosint", "bin"), { recursive: true });
+  mkdirSync(bin, { recursive: true });
+  mkdirSync(path.join(optionalHome, ".grimoire"), { recursive: true });
+  writeFileSync(path.join(optionalHome, ".grimoire", "index.sqlite"), "");
+  for (const launcher of ["synapse-bridge", "synapse-hook", "grimoire-server", "openosint-mcp"]) {
+    writeFileSync(path.join(bin, launcher), "#!/usr/bin/env node\n", { mode: 0o755 });
+  }
+  // The stand-ins answer detection only: uv names its tool directory, and the tool environment's
+  // interpreter finds every module except the optional lookup tools.
+  writeFileSync(path.join(bin, "uv"), `#!/bin/sh\n[ "$1" = tool ] && [ "$2" = dir ] && echo ${toolsDir}\nexit 0\n`, { mode: 0o755 });
+  writeFileSync(path.join(toolsDir, "openosint", "bin", "python"), '#!/bin/sh\ncase "$2" in *holehe*) exit 1;; esac\nexit 0\n', { mode: 0o755 });
+  const env = { ...process.env, HOME: optionalHome, USERPROFILE: optionalHome, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+  const args = ["install", "--target", "codex", "--scope", "user", "--dest", path.join(optionalHome, "dest"), "--category", "cybersecurity"];
+  try {
+    run(args, { env });
+    const preview = run([...args, "--dry-run"], { env });
+    assert.match(preview, /openosint-tools MISSING .*\(optional\)/, "the optional gap is what this case is about");
+    assert.match(preview, /^counts: .*config merges 0, blocked 0$/m);
+    assert.doesNotMatch(preview, /MCP \+=/);
+    assert.match(run(args, { env }), /^ {2}config merges: 0$/m);
+  } finally {
+    rmSync(optionalHome, { recursive: true, force: true });
+  }
+}
+
 const scopeRootDest = ownTmp("scope-root");
 rmSync(scopeRootDest, { recursive: true, force: true });
 mkdirSync(scopeRootDest, { recursive: true });

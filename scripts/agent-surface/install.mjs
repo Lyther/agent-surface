@@ -149,9 +149,17 @@ export async function install(args) {
 
   // The apply phase plans against resolved launcher paths; a plan built without them reads as a
   // config merge on an unchanged profile (the preview counted 22 merges where apply wrote none).
-  // When nothing needs provisioning no recipe can change those paths, so preview with the same
-  // wiring. A dry run still runs no recipe: this only re-plans from the read-only detection.
-  if (provisioning.actions.length === 0 && provisioning.blockers.length === 0) {
+  // When the apply would run no recipe (`proceed`: nothing missing, or only optional gaps headless
+  // without -y) it wires from this same detection, so preview with that wiring. A dry run still runs
+  // no recipe: this only re-plans from the read-only detection.
+  const applyDecision = provisioningDecision({
+    actions: provisioning.actions,
+    blockers: provisioning.blockers,
+    interactive: provisioning.interactive,
+    authorized: provisioning.authorized,
+    dryRun: false,
+  });
+  if (applyDecision.kind === "proceed") {
     const { failed, launchWiring } = wiringFromStatus(provisioning.status, provisioning.serviceEntries);
     plans = await buildInstallPlans({ ...planContext, excludeServices: failed.size > 0 ? failed : undefined, launchWiring });
   }
