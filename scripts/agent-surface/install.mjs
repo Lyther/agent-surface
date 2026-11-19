@@ -1844,14 +1844,16 @@ function printInstallPlan(plan) {
   }
 }
 
-const PLAN_COUNT_LABELS = [["write", "write"], ["unchanged", "unchanged"], ["remove", "remove"], ["retain", "retain"], ["configMerges", "config merges"], ["blocked", "blocked"]];
+const PLAN_COUNT_LABELS = [["write", "write"], ["unchanged", "unchanged"], ["remove", "remove"], ["alreadyGone", "already gone"], ["retain", "retain"], ["configMerges", "config merges"], ["blocked", "blocked"]];
 
 function planCounts(plan) {
   const staleCount = (...actions) => plan.staleRemovalActions.filter((item) => actions.includes(item.action)).length;
   return {
     write: plan.writes.filter((item) => item.action === "write").length,
     unchanged: plan.writes.filter((item) => item.action === "skip").length,
-    remove: staleCount("remove", "missing"),
+    // Full syncs re-list legacy-owned paths every run; those already absent delete nothing.
+    remove: staleCount("remove"),
+    alreadyGone: staleCount("missing"),
     retain: staleCount("retain"),
     configMerges: plan.configMerges.filter((item) => item.action === "write" || item.action === "merge").length
       + plan.hookMerges.filter((item) => item.action !== "skip").length,

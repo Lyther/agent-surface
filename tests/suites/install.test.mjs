@@ -733,7 +733,7 @@ assert.equal(Object.hasOwn(liveManifest.managed[0], "sha256"), false);
   const replan = run(["install", "--target", "cline", "--dest", liveDest, "--dry-run"]);
   assert.match(replan, new RegExp(`^  unchanged: ${liveManifest.managed.length} \\(not listed\\)$`, "m"));
   assert.doesNotMatch(replan, /^  \S+ <- /m, "a fully installed root plans no write lines");
-  assert.deepEqual(planCountsOf(replan), { write: 0, unchanged: liveManifest.managed.length, remove: 0, retain: 0, "config merges": 0, blocked: 0 });
+  assert.deepEqual(planCountsOf(replan), { write: 0, unchanged: liveManifest.managed.length, remove: 0, "already gone": 0, retain: 0, "config merges": 0, blocked: 0 });
   assert.equal(replan.match(/^plan total:/gm), null, "one plan prints no total");
 
   const edited = path.join(liveDest, ".cline", "skills", "ops-ask", "SKILL.md");
@@ -854,6 +854,7 @@ liveStaleManifest.managed.push({
   version: "0.1.0",
 });
 writeFileSync(liveStaleManifestPath, `${JSON.stringify(liveStaleManifest, null, 2)}\n`);
+assert.match(run(["install", "--target", "cline", "--dest", liveStaleDest, "--dry-run"]), /^counts: .*, remove 1, already gone 0, /m);
 const liveStaleInstall = run(["install", "--target", "cline", "--dest", liveStaleDest]);
 assert.match(liveStaleInstall, /removed stale: 1/);
 assert.equal(existsSync(liveStaleFile), false);
@@ -873,6 +874,10 @@ missingStaleManifest.managed.push({
   version: "0.1.0",
 });
 writeFileSync(missingStaleManifestPath, `${JSON.stringify(missingStaleManifest, null, 2)}\n`);
+// A removal whose file is already absent deletes nothing, so the plan counts it apart from removals.
+const missingStalePlan = run(["install", "--target", "cline", "--dest", missingStaleDest, "--dry-run"]);
+assert.match(missingStalePlan, /^counts: write 0, unchanged \d+, remove 0, already gone 1, retain 0, config merges 0, blocked 0$/m);
+assert.match(missingStalePlan, /^  \.clinerules[\\/]workflows[\\/]already-gone\.md$/m);
 const missingStaleInstall = run(["install", "--target", "cline", "--dest", missingStaleDest]);
 assert.match(missingStaleInstall, /^installed:$/m);
 assert.match(missingStaleInstall, /removed stale: 0/);
