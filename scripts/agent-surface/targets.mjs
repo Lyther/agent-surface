@@ -10,7 +10,7 @@ import path from "node:path";
 import { directDirectories, filesUnder } from "./fs-tree.mjs";
 import { MCP_ENV_LAUNCHER, mcpLauncherInvocation, optionalServiceMcpServers, renderMcpConfig } from "./merge.mjs";
 import { normalizeExternalSkillFile } from "./postprocess.mjs";
-import { assetCategoryAllowed, assetCategoryFor, packageVersion, readAssetCategories, readOptionalServices, relative, root, selectedAssetCategories } from "./registry.mjs";
+import { assetCategoryAllowed, assetCategoryFor, packageVersion, profileAssetCategories, readAssetCategories, readOptionalServices, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityWorkflow, renderClineWorkflow, renderCodexSubagent, renderCursorCommand, renderCursorSubagent, renderDroidCommand, renderGooseRecipe, renderInstructionDocument, renderKiloRuleDocument, renderKiloWorkflow, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderMarkdownSubagent, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderScopedRuleReferenceDocument, renderVanillaSkill, renderVsCodeInstructionDocument, renderVsCodeScopedInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
 import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, claudeRulesDocument, clineAgentRoot, clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexInstructionPath, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildAgentRoot, grokBuildInstructionPath, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piMcpPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleFolder, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
 import { readRulesForContext } from "./rules.mjs";
@@ -944,7 +944,7 @@ export function targetProducers(adapter) {
 }
 export async function targetOutputs(adapter, catalog, context) {
   const outputs = [];
-  const selectedCategories = selectedAssetCategories(context.categoryFilter);
+  const selectedCategories = profileAssetCategories(context);
   // The aggregate always-on instruction document is owned by whichever selected asset category
   // actually supplies always-on rules. Resolve it across the WHOLE selection (not just a single
   // category) so a combined install like `--category development,cybersecurity` still emits the
@@ -953,6 +953,10 @@ export async function targetOutputs(adapter, catalog, context) {
   const selectedRuleCategory = [...selectedCategories].find(
     (category) => contextRules.some((rule) => rule.assetCategory === category && rule.alwaysApply !== false),
   ) ?? null;
+
+  // A per-file baseline rule is explicitly uncategorized. A category run never emits one, so only the
+  // full profile must keep it uncategorized; the aggregate document it shares carries the category.
+  const ruleCategoryFallback = (output) => (context.fullProfile && output.assetCategory === null ? null : selectedRuleCategory);
 
   for (const producer of targetProducers(adapter)) {
     const produced = await producer.produce(catalog, context);
@@ -963,7 +967,7 @@ export async function targetOutputs(adapter, catalog, context) {
         producerId: producer.id,
         sourceKind,
         renderKind: output.renderKind ?? producerDefaultRenderKind(producer),
-        assetCategory: output.assetCategory ?? (sourceKind === "rules" ? selectedRuleCategory : undefined),
+        assetCategory: output.assetCategory ?? (sourceKind === "rules" ? ruleCategoryFallback(output) : undefined),
       };
     }));
   }
@@ -1081,6 +1085,7 @@ export async function externalSkillOutputs(adapter, context) {
   ) return [];
   const outputs = [];
   const includeOptional = context.mode !== "install"
+    || context.fullProfile === true
     || Boolean(context.categoryFilter?.has("external"))
     || selectedAssetCategories(context.categoryFilter).size > 0;
   const roots = await externalSkillRoots({ includeOptional, context });
@@ -1197,6 +1202,7 @@ export function withMcpServerOverrides(entries, mcpConfig, context) {
 
 export async function selectedMcpServiceEntries(defaultEnabled, context) {
   const selectedCategories = selectedAssetCategories(context.categoryFilter);
+  const fullProfile = context.fullProfile === true;
   const explicitMcp = context.categoryFilter?.has("mcps") || context.optionalServices || selectedCategories.size > 0;
   if (!defaultEnabled && !explicitMcp) return [];
 
@@ -1209,6 +1215,9 @@ export async function selectedMcpServiceEntries(defaultEnabled, context) {
     .filter(([id]) => !context.optionalServices || context.optionalServices.has(id))
     .filter(([id, service]) => {
       if (context.optionalServices) return true;
+      // The full profile wires the first-party baseline plus every categorized service; uncategorized
+      // optional services (rea, playwright, ...) still need an explicit --service install.
+      if (fullProfile) return assetCategoryFor(categories, "services", id) !== null || service.first_party === true;
       if (selectedCategories.size > 0) {
         const category = assetCategoryFor(categories, "services", id);
         return category !== null && selectedCategories.has(category);

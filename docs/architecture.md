@@ -187,7 +187,7 @@ The trial's interface track is **REQUIRED**: the accepted route uses the upstrea
 
 ### Runtime-Refresh Boundary
 
-Existing CLI grammar remains. `build`, `install`, `check`, `check generated`, `doctor`, `--target`, `--scope`, `--dest`, `--category` and `--service` retain their current meanings. No new profile flag, runtime updater, HTTP endpoint, JSON output mode or provider option is introduced by this design.
+Existing CLI grammar remains. `build`, `install`, `check`, `check generated`, `doctor`, `--target`, `--scope`, `--dest`, `--category` and `--service` retain their current meanings. The one new selector is `--category everything` (ADR-RT6). No runtime updater, HTTP endpoint, JSON output mode or provider option is introduced by this design.
 
 Proposed changes:
 
@@ -197,7 +197,7 @@ Proposed changes:
 - A target's native files are the external DTOs. Metadata/notices and source records are not copied wholesale into those files. Source command identity remains intact when its native representation becomes a manual skill or manual rule. Antigravity changes from a workflow to a rule; the artifact and invocation are not mislabeled as a skill.
 - `support`, `generation` and qualifications are not collapsed into a boolean. Historical or missing native proof is displayed precisely; output counts are not readiness scores.
 
-The existing overloaded category grammar remains: standalone `all` means general reset; domain/output-kind categories cannot be mixed; explicit services override domain-derived selection without promising removal of every unselected service. Clarity changes may expose these facts, not redefine them.
+The category grammar is: omitting `--category` is the general reset; standalone `everything` is the full profile (one full sync whose live set adds `external` and every asset category); `--category all` is retired; domain/output-kind categories cannot be mixed; explicit services override domain-derived selection without promising removal of every unselected service. Clarity changes may expose these facts, not redefine them.
 
 Generated output should remain deterministic for a fixed source/context. Advisory refresh is an explicit maintainer action; clocks, network feeds or locally installed client versions must not silently switch producers during `build`.
 
@@ -242,6 +242,10 @@ Status: PROPOSED. Small capability metadata and transient notices; no updater, v
 ### ADR-RT5: Protect destinations before writes and cleanup
 
 Status: PROPOSED. Every whole-file output reads ownership from all manifests in its install root: unowned files block instead of being overwritten or adopted, replacing another owner's category contribution is regenerated with a warning rather than vetoed, and cleanup retains files another owner still claims. A moved route's old owned file is retired with its replacement. No general content merge, backup store or claimed atomic rollback. This is required by reproduced installer behavior, not hypothetical local-host hardening.
+
+### ADR-RT6: One command for the full profile
+
+Status: ACCEPTED, 2026-11-19. `--category everything` plans one full, non-partial sync whose live outputs are the general baseline, `external` and the four asset categories, with the first-party and categorized MCPs and no optional service; it stands alone and rejects `--service`. `--category all` is retired. Basis: on 2026-11-18 an operator ran two of the three ordered installs, and the general sync's prune stripped the external packs from all 26 targets; for a one-line edit the pair deleted 21,613 files and rewrote 21,273. A single command cannot skip a step. Rejected: reading `all` as the full profile, which would silently change what existing scripts do.
 
 ## Risks, Revisit Triggers, and Guardrails
 

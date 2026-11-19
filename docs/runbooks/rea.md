@@ -33,7 +33,7 @@ node scripts/agent-surface.mjs install --target codex --scope user --category mc
 node scripts/agent-surface.mjs install --target codex --scope user --category mcps --service rea --allow-scope-root
 ```
 
-The installer checks `~/.local/bin/rea`, `~/.local/bin/rea.cmd` and `PATH`, then writes the resolved launch path through its existing runtime launcher where necessary. A missing executable reports an unmet prerequisite and leaves REA unwired. This service needs no model credential for static analysis, and the generated command receives no credential file. A later general full sync removes managed optional entries; reselect REA after that sync if wanted.
+The installer checks `~/.local/bin/rea`, `~/.local/bin/rea.cmd` and `PATH`, then writes the resolved launch path through its existing runtime launcher where necessary. A missing executable reports an unmet prerequisite and leaves REA unwired. This service needs no model credential for static analysis, and the generated command receives no credential file. A later general full sync removes managed optional entries, and `--category everything` does not wire REA either; reselect REA after either sync if wanted.
 
 The upstream full tool catalog is retained. For a focused session, supported source builds accept `REA_MCP_TOOL_FAMILIES` in the host's REA environment; see [upstream configuration](https://github.com/morluto/rea/blob/5fde39454e5457448c87b107c0fc034d1674a74b/docs/getting-started/installation.md). Family selection and hot/cold catalog refresh are not enabled by this integration.
 

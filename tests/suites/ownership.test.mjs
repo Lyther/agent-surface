@@ -215,7 +215,7 @@ try {
 
   // Every path several targets share renders identical bytes for one selection, so a joint plan
   // over all targets has no same-run conflict.
-  for (const selection of [[], ["--category", "development"], ["--category", "rules"]]) {
+  for (const selection of [[], ["--category", "development"], ["--category", "rules"], ["--category", "everything"]]) {
     const label = `project all ${selection.join(" ") || "general"}`;
     const plan = install(["--target", "all", "--scope", "project", "--dest", path.join(scratch, "all-project"), ...selection, "--dry-run"]);
     assert.equal(plan.code, 0, `${label}: ${plan.out}`);
