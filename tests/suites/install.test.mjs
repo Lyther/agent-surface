@@ -918,6 +918,32 @@ if (process.platform !== "win32") {
   }
 }
 
+// The repeat preview must equal the apply. The first-party launchers here are env-shebang scripts, so
+// apply wires them through the env launcher; a preview planned without that wiring counted a config
+// merge that apply then discarded.
+{
+  const launcherHome = ownTmp("repeat-preview-home");
+  rmSync(launcherHome, { recursive: true, force: true });
+  mkdirSync(path.join(launcherHome, ".local", "bin"), { recursive: true });
+  mkdirSync(path.join(launcherHome, ".grimoire"), { recursive: true });
+  writeFileSync(path.join(launcherHome, ".grimoire", "index.sqlite"), "");
+  for (const launcher of ["synapse-bridge", "synapse-hook", "grimoire-server"]) {
+    writeFileSync(path.join(launcherHome, ".local", "bin", launcher), "#!/usr/bin/env node\n", { mode: 0o755 });
+  }
+  const env = { ...process.env, HOME: launcherHome, USERPROFILE: launcherHome };
+  const dest = path.join(launcherHome, "dest");
+  const args = ["install", "--target", "codex", "--scope", "user", "--dest", dest];
+  try {
+    assert.match(run(args, { env }), /^ {2}config merges: 2$/m);
+    const preview = run([...args, "--dry-run"], { env });
+    assert.match(preview, /^counts: .*config merges 0, blocked 0$/m);
+    assert.doesNotMatch(preview, /MCP \+=/);
+    assert.match(run(args, { env }), /^ {2}config merges: 0$/m);
+  } finally {
+    rmSync(launcherHome, { recursive: true, force: true });
+  }
+}
+
 const scopeRootDest = ownTmp("scope-root");
 rmSync(scopeRootDest, { recursive: true, force: true });
 mkdirSync(scopeRootDest, { recursive: true });

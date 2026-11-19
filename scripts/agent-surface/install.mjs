@@ -133,7 +133,7 @@ export async function install(args) {
   }
 
   const planContext = { selectedTargets, allTargetsSelected, scope, dest, agentName, categoryFilter, optionalServices, envFilePath };
-  const plans = await buildInstallPlans(planContext);
+  let plans = await buildInstallPlans(planContext);
 
   // One credential plan drives interactive and headless installs. Reads existing values
   // (process env, then the scope's .env), classifies each selected MCP service's keys, and
@@ -146,6 +146,15 @@ export async function install(args) {
   // category-filtered run wires (an `--category external` skills install writes no MCP config at
   // all), and provisioning a server nobody is wiring would block the run over an irrelevant gap.
   const provisioning = resolveProvisioning({ serviceEntries: wiredServiceEntries(plans, credentials.serviceEntries), args });
+
+  // The apply phase plans against resolved launcher paths; a plan built without them reads as a
+  // config merge on an unchanged profile (the preview counted 22 merges where apply wrote none).
+  // When nothing needs provisioning no recipe can change those paths, so preview with the same
+  // wiring. A dry run still runs no recipe: this only re-plans from the read-only detection.
+  if (provisioning.actions.length === 0 && provisioning.blockers.length === 0) {
+    const { failed, launchWiring } = wiringFromStatus(provisioning.status, provisioning.serviceEntries);
+    plans = await buildInstallPlans({ ...planContext, excludeServices: failed.size > 0 ? failed : undefined, launchWiring });
+  }
 
   const blocked = [...plans.flatMap((plan) => plan.blocked.map((item) => `${plan.target}: ${item}`)), ...rootBlocks(plans)];
   // A category-filtered install must do real work across the selection: if no selected target
@@ -695,17 +704,21 @@ async function establishPrerequisites({ provisioning, planContext }) {
   // missing a required prerequisite is dropped, and every other service is wired from the SAME
   // detection — so a partial install never rewrites a working sibling's config with an unresolved
   // command (which would leave it launching a bare name with no wrapper and no browser path).
-  const failed = new Set(
-    finalStatus
-      .filter((service) => service.prerequisites.some((prereq) => !prereq.satisfied && !prereq.optional))
-      .map((service) => service.id),
-  );
+  const { failed, launchWiring } = wiringFromStatus(finalStatus, provisioning.serviceEntries);
   if (failed.size > 0) {
     console.log(`provisioning: skipping config for ${[...failed].sort().join(", ")} (existing config preserved)`);
   }
-  const launchWiring = resolveLaunchWiring(finalStatus, provisioning.serviceEntries);
   const plans = await buildInstallPlans({ ...planContext, excludeServices: failed.size > 0 ? failed : undefined, launchWiring });
   return { plans, failed, error };
+}
+
+function wiringFromStatus(status, serviceEntries) {
+  const failed = new Set(
+    status
+      .filter((service) => service.prerequisites.some((prereq) => !prereq.satisfied && !prereq.optional))
+      .map((service) => service.id),
+  );
+  return { failed, launchWiring: resolveLaunchWiring(status, serviceEntries) };
 }
 
 async function applyInteractiveCredentials(credentials, { scope }) {
