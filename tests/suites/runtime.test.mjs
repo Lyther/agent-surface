@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { status } from "../lib/helpers.mjs";
@@ -66,6 +66,13 @@ try {
   assert.ok(changed.endsWith(`run agy plugin install "${staged}"`), changed);
 
   writeFileSync(path.join(imported, "skills", "ops-ask", "SKILL.md"), "ask v1\n");
+  if (process.platform !== "win32") {
+    // Identical bytes, different executable state: the enabled copy cannot run the helper.
+    chmodSync(path.join(staged, "plugin.json"), 0o755);
+    chmodSync(path.join(imported, "plugin.json"), 0o644);
+    assert.match(importLine(), /^antigravity-cli-import: differs \(1 changed, 0 only imported, 0 only staged; e\.g\. plugin\.json\)/);
+    chmodSync(path.join(staged, "plugin.json"), 0o644);
+  }
   writeFileSync(path.join(imported, "skills", "ops-server.md"), "old\n");
   assert.match(importLine(), /^antigravity-cli-import: differs \(0 changed, 1 only imported, 0 only staged; e\.g\. skills\/ops-server\.md\)/);
 } finally {

@@ -2,7 +2,7 @@
 import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -882,6 +882,41 @@ const missingStaleInstall = run(["install", "--target", "cline", "--dest", missi
 assert.match(missingStaleInstall, /^installed:$/m);
 assert.match(missingStaleInstall, /removed stale: 0/);
 rmSync(missingStaleDest, { recursive: true, force: true });
+
+// A helper whose declared mode is executable must stay executable where it is installed. A mode-only
+// drift planned as "unchanged" left Antigravity's enabled copy stale with no reminder (605 unchanged,
+// zero writes, no import NOTE). No shipped companion is executable, so one source file is made
+// executable for the run and restored after it.
+if (process.platform !== "win32") {
+  const companion = path.join(root, "skills", "ops-docs", "references", "sop-template.md");
+  const companionMode = statSync(companion).mode;
+  chmodSync(companion, 0o755);
+  try {
+    for (const [target, scope, relative] of [
+      ["cline", "project", path.join(".cline", "skills", "ops-docs", "references", "sop-template.md")],
+      ["antigravity-cli", "user", path.join("antigravity-cli", "plugins", "agent-surface", "skills", "ops-docs", "references", "sop-template.md")],
+    ]) {
+      const dest = ownTmp(`mode-drift-${target}`);
+      rmSync(dest, { recursive: true, force: true });
+      const args = ["install", "--target", target, "--scope", scope, "--dest", dest];
+      run(args);
+      const installed = path.join(dest, relative);
+      assert.equal(statSync(installed).mode & 0o777, 0o755, `${target} installs the companion executable`);
+      chmodSync(installed, 0o644);
+      const plan = run([...args, "--dry-run"]);
+      assert.match(plan, /^counts: write 1, unchanged \d+,/m, target);
+      assert.ok(plan.includes(`  ${relative} <- skills/ops-docs/references/sop-template.md`), `${target} lists the drifted companion`);
+      const apply = run(args);
+      assert.match(apply, /^ {2}wrote: 1$/m, target);
+      assert.equal(statSync(installed).mode & 0o777, 0o755, `${target} apply restores the executable bit`);
+      if (target === "antigravity-cli") assert.match(apply, /^NOTE: Antigravity runs its imported copy/m);
+      assert.match(run([...args, "--dry-run"]), /^counts: write 0, /m, `${target} is unchanged once restored`);
+      rmSync(dest, { recursive: true, force: true });
+    }
+  } finally {
+    chmodSync(companion, companionMode & 0o777);
+  }
+}
 
 const scopeRootDest = ownTmp("scope-root");
 rmSync(scopeRootDest, { recursive: true, force: true });

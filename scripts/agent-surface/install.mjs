@@ -827,6 +827,8 @@ async function replaceFile(target, content, mode) {
 
 // Windows has no POSIX mode bits to set, and a failure to set one must not abort an install that
 // otherwise succeeded — the file is written either way, and its content is the deliverable.
+const isExecutable = (mode) => (mode & 0o111) !== 0;
+
 async function applyOutputMode(target, mode) {
   await chmod(target, mode).catch(() => { /* best effort on platforms without POSIX modes */ });
 }
@@ -951,7 +953,11 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       continue;
     }
 
-    item.action = current.toString("utf8") === item.content ? "skip" : "write";
+    // A declared mode is part of the output: a helper restored non-executable must plan as a write,
+    // or the plan says "unchanged" while the host's enabled copy stays unrunnable.
+    const modeDrifted = item.mode !== undefined && process.platform !== "win32"
+      && isExecutable((await stat(item.output)).mode) !== isExecutable(item.mode);
+    item.action = current.toString("utf8") === item.content && !modeDrifted ? "skip" : "write";
   }
 
   const partialInstall = categoryFilter !== null || optionalServices !== null;

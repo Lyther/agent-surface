@@ -91,13 +91,13 @@ async function antigravityImportStatus() {
   if (!(await exists(staged)) || !(await exists(imported))) return null;
 
   try {
-    const [stagedFiles, importedFiles] = [await pluginFileSizes(staged), await pluginFileSizes(imported)];
+    const [stagedFiles, importedFiles] = [await pluginFiles(staged), await pluginFiles(imported)];
     const changed = [];
     const onlyImported = [];
     const onlyStaged = [];
-    for (const [rel, size] of importedFiles) {
+    for (const [rel, file] of importedFiles) {
       if (!stagedFiles.has(rel)) onlyImported.push(rel);
-      else if (stagedFiles.get(rel) !== size || !(await sameBytes(path.join(staged, rel), path.join(imported, rel)))) changed.push(rel);
+      else if (stagedFiles.get(rel).size !== file.size || stagedFiles.get(rel).executable !== file.executable || !(await sameBytes(path.join(staged, rel), path.join(imported, rel)))) changed.push(rel);
     }
     for (const rel of stagedFiles.keys()) if (!importedFiles.has(rel)) onlyStaged.push(rel);
     if (changed.length + onlyImported.length + onlyStaged.length === 0) return "matches";
@@ -108,13 +108,17 @@ async function antigravityImportStatus() {
   }
 }
 
-// Relative path -> size of every file; empty folders and Finder's .DS_Store are not plugin content.
-async function pluginFileSizes(base, relative = "", out = new Map()) {
+// Relative path -> size and executable state of every file; empty folders and Finder's .DS_Store are not plugin content.
+async function pluginFiles(base, relative = "", out = new Map()) {
   for (const entry of await readdir(path.join(base, relative), { withFileTypes: true })) {
     if (entry.name === ".DS_Store") continue;
     const rel = path.join(relative, entry.name);
-    if (entry.isDirectory()) await pluginFileSizes(base, rel, out);
-    else if (entry.isFile()) out.set(rel, (await stat(path.join(base, rel))).size);
+    if (entry.isDirectory()) await pluginFiles(base, rel, out);
+    else if (entry.isFile()) {
+      const info = await stat(path.join(base, rel));
+      // Antigravity skips an unrunnable helper, so a lost executable bit is a real difference.
+      out.set(rel, { size: info.size, executable: process.platform !== "win32" && (info.mode & 0o111) !== 0 });
+    }
   }
   return out;
 }
