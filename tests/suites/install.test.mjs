@@ -2,12 +2,13 @@
 import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { parseJsonc, removeJsoncValue } from "../../scripts/agent-surface/jsonc.mjs";
+import { whichSync } from "../../scripts/agent-surface/provision.mjs";
 import { mergeCodexMcpToml, mergeJsonMcpConfig, mergeYamlMcpConfig } from "../../scripts/agent-surface/merge.mjs";
 import { writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
 import { mergeSynapseHook, planSynapseHook, synapseHookCommand, synapseHookLauncher, synapseHookStatus } from "../../scripts/agent-surface/synapse-hook.mjs";
@@ -995,29 +996,43 @@ if (process.platform !== "win32") {
     rmSync(required.home, { recursive: true, force: true });
   }
 
-  // OPTIONAL gap only: a real uv installs openosint with its required extras, without the optional
-  // lookup tools (holehe, sublist3r, sherlock), into the scratch HOME. uv's cache serves it; the
-  // network is used only on a cache miss. Without uv the case cannot run here.
-  const uvPath = ["/opt/homebrew/bin", "/usr/local/bin", ...(process.env.PATH ?? "").split(path.delimiter), path.join(os.homedir(), ".local", "bin")]
-    .map((dir) => path.join(dir, "uv")).find((candidate) => existsSync(candidate));
-  if (uvPath === undefined) {
-    console.log("install: uv not available; skipping the optional-gap preview case");
+  // OPTIONAL gap only. The suite stays offline, so the required-extras environment is not resolved
+  // again: the provisioned openosint tool environment (README, CI) is found read-only through the
+  // inherited `uv tool dir` and copied into the case's own UV_TOOL_DIR without the optional lookup
+  // tools. The real uv and the real interpreter then run the detection; every uv state directory
+  // lives inside the case home, so nothing is written outside it. Without that environment the case
+  // reports it and does not run, like the credential-delivery case in mcp-credential-launch.
+  const optionalTools = /^(holehe|sublist3r|sherlock)/i;
+  const uvPath = whichSync("uv");
+  const inheritedTools = uvPath === null ? null : spawnSync(uvPath, ["tool", "dir"], { encoding: "utf8" }).stdout?.trim();
+  const provisionedEnv = inheritedTools ? path.join(inheritedTools, "openosint") : null;
+  const provisionedMcp = provisionedEnv ? path.join(provisionedEnv, "bin", "openosint-mcp") : null;
+  if (provisionedMcp === null || !existsSync(provisionedMcp)) {
+    console.log("install: the provisioned openosint environment is unavailable here; skipping the optional-gap preview case");
   } else {
     const optional = launcherHome("optional-gap-home");
     try {
       const toolDir = path.join(optional.home, "uv-tools");
+      cpSync(provisionedEnv, path.join(toolDir, "openosint"), {
+        recursive: true,
+        verbatimSymlinks: true,
+        filter: (source) => !optionalTools.test(path.basename(source)),
+      });
+      symlinkSync(path.join(toolDir, "openosint", "bin", "openosint-mcp"), path.join(optional.bin, "openosint-mcp"));
       const env = {
         ...process.env,
         HOME: optional.home,
         USERPROFILE: optional.home,
         UV_TOOL_DIR: toolDir,
         UV_TOOL_BIN_DIR: optional.bin,
+        UV_CACHE_DIR: path.join(optional.home, "uv-cache"),
+        UV_PYTHON_INSTALL_DIR: path.join(optional.home, "uv-python"),
+        UV_OFFLINE: "1",
+        XDG_DATA_HOME: path.join(optional.home, ".local", "share"),
+        XDG_CACHE_HOME: path.join(optional.home, ".cache"),
+        XDG_CONFIG_HOME: path.join(optional.home, ".config"),
         PATH: cleanPath(optional.bin, path.dirname(uvPath)),
       };
-      const registry = JSON.parse(readFileSync(path.join(root, "registry", "optional-services.json"), "utf8"));
-      const extras = registry.services.openosint.provisioning.prerequisites.find((item) => item.id === "openosint-extras");
-      const recipe = extras.recipes[process.platform === "darwin" ? "darwin" : "linux"][0].run;
-      execFileSync(uvPath, recipe.slice(1), { env, stdio: "pipe" });
       const args = installArgs(optional.home);
       run(args, { env });
       const preview = run([...args, "--dry-run"], { env });
