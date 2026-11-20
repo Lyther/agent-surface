@@ -196,6 +196,12 @@ export async function install(args) {
   printProvisioningPlan(provisioning);
   if (runBlocker) console.log(`install blocked: ${runBlocker}`);
   if (credentialBlocker) console.log(`install blocked: ${credentialBlocker}`);
+  if (dryRun && applyDecision.kind === "block") {
+    // Shown, not failed: a dry run over a machine with missing prerequisites has always exited 0, and
+    // many callers preview on bare machines. The apply exits 1 on the same message and drops the
+    // affected services' merges, so the merges listed above are not definite.
+    console.log(`mcp prerequisites unmet: ${prerequisitesRefusal(provisioning.status)}`);
+  }
   if (unprovisionable) {
     console.log(`mcp prerequisites unmet: ${unprovisionable}`);
     process.exitCode = 1; // reported here; the apply phase drops those services and continues
@@ -704,7 +710,7 @@ async function establishPrerequisites({ provisioning, planContext }) {
   } else if (decision.kind === "install") {
     runRecipes();
   } else if (decision.kind === "block") {
-    error = `prerequisites missing; re-run with -y to install them, or install manually: ${formatProvisioningPlan(provisioning.status).join("; ").trim()}`;
+    error = prerequisitesRefusal(provisioning.status);
   }
   // decision.kind === "proceed": nothing to run; finalStatus stays the initial detection.
 
@@ -718,6 +724,10 @@ async function establishPrerequisites({ provisioning, planContext }) {
   }
   const plans = await buildInstallPlans({ ...planContext, excludeServices: failed.size > 0 ? failed : undefined, launchWiring });
   return { plans, failed, error };
+}
+
+function prerequisitesRefusal(status) {
+  return `prerequisites missing; re-run with -y to install them, or install manually: ${formatProvisioningPlan(status).join("; ").trim()}`;
 }
 
 function wiringFromStatus(status, serviceEntries) {

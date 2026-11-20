@@ -948,6 +948,45 @@ if (process.platform !== "win32") {
   }
 }
 
+// Headless without -y, a REQUIRED gap makes the apply refuse (exit 1) and keep that service's config;
+// the preview must carry the same refusal.
+if (process.platform !== "win32") {
+  const nodeDir = path.dirname(process.execPath);
+  const launcherHome = (name) => {
+    const home = ownTmp(name);
+    rmSync(home, { recursive: true, force: true });
+    const bin = path.join(home, ".local", "bin");
+    mkdirSync(bin, { recursive: true });
+    mkdirSync(path.join(home, ".grimoire"), { recursive: true });
+    writeFileSync(path.join(home, ".grimoire", "index.sqlite"), "");
+    for (const launcher of ["synapse-bridge", "synapse-hook", "grimoire-server"]) {
+      writeFileSync(path.join(bin, launcher), "#!/usr/bin/env node\n", { mode: 0o755 });
+    }
+    return { home, bin };
+  };
+  const installArgs = (home) => ["install", "--target", "codex", "--scope", "user", "--dest", path.join(home, "dest"), "--category", "cybersecurity"];
+  const cleanPath = (...dirs) => [...dirs, nodeDir, "/usr/bin", "/bin"].join(path.delimiter);
+  // REQUIRED gap: openosint-mcp is truly absent (and no uv on PATH to recipe it).
+  const required = launcherHome("required-gap-home");
+  try {
+    const env = { ...process.env, HOME: required.home, USERPROFILE: required.home, PATH: cleanPath(required.bin) };
+    const args = installArgs(required.home);
+    const first = status(args, { env });
+    assert.equal(first.status, 1, first.stdout);
+    const preview = status([...args, "--dry-run"], { env });
+    assert.equal(preview.status, 0, "a dry run reports the refusal without failing, as every dry run with missing prerequisites does");
+    assert.match(preview.stdout, /openosint-mcp MISSING/);
+    assert.match(preview.stdout, /^mcp prerequisites unmet: prerequisites missing; re-run with -y to install them/m);
+    const apply = status(args, { env });
+    assert.equal(apply.status, 1);
+    assert.match(apply.stdout, /^mcp prerequisites unmet: prerequisites missing; re-run with -y to install them/m);
+    assert.match(apply.stdout, /^ {2}config merges: 0$/m);
+  } finally {
+    rmSync(required.home, { recursive: true, force: true });
+  }
+
+}
+
 // Only an OPTIONAL prerequisite is missing (openosint-tools): headless without -y the apply runs no
 // recipe and wires from the current detection, so the preview must carry that wiring too. The
 // operator's real machine printed 25 config merges here that apply never wrote.
