@@ -6,7 +6,7 @@ import { parse as parseYaml } from "yaml";
 import { vsCodeUserRoot } from "../../scripts/agent-surface/roots.mjs";
 import { readSkills } from "../../scripts/agent-surface/skills.mjs";
 import { subagentOutputs } from "../../scripts/agent-surface/source-primitives.mjs";
-import { codexOpenAiAgentPolicyOutput, produceSkillOutputs, targets } from "../../scripts/agent-surface/targets.mjs";
+import { codexOpenAiAgentPolicyOutput, externalSkillOutputs, produceSkillOutputs, targets } from "../../scripts/agent-surface/targets.mjs";
 import {
   assertCodexAgentTomlParses,
   disposableCheckout,
@@ -389,7 +389,7 @@ run(["build", "--target", "all"]);
   const skillDir = path.join(".agents", "skills", "probe-skill");
   assert.ok(byOutput.has(path.join(skillDir, "SKILL.md")), "the skill itself is still produced");
   assert.equal(byOutput.get(path.join(skillDir, "references", "note.md"))?.content, "note", "a companion is emitted beside its skill with its own content");
-  assert.equal(byOutput.get(path.join(skillDir, "references", "note.md"))?.mode, undefined, "an ordinary companion declares no mode");
+  assert.equal(byOutput.get(path.join(skillDir, "references", "note.md"))?.mode, 0o644, "an ordinary companion declares 0644 so a lost execute bit is reset");
   assert.equal(byOutput.get(path.join(skillDir, "scripts", "run.sh"))?.mode, 0o755, "an executable companion declares the mode that keeps it runnable");
 
   // A metadata sidecar is not a skill directory: Codex's agents/openai.yaml gets no companions.
@@ -436,6 +436,12 @@ if (process.platform !== "win32" && existsSync(externalScriptRoot)) {
   const builtSkill = path.join(root, "dist", "antigravity-cli", "antigravity-cli", "plugins", "agent-surface", skillTail);
   assert.equal(modeOf(path.join(builtSkill, "scripts", "init_skill.py")), 0o755, "a built external companion stays executable");
   assert.equal(modeOf(path.join(builtSkill, "SKILL.md")), 0o644, "a built external document stays 0644");
+  // The producer declares the non-executable mode too, so an install over a copy that was once
+  // executable resets it instead of keeping the stale bit.
+  const externalOutputs = await externalSkillOutputs(targets["antigravity-cli"], { scope: "user", mode: "build", categoryFilter: null });
+  const declared = (suffix) => externalOutputs.find((output) => output.relativeOutput.endsWith(path.join(skillTail, suffix)))?.mode;
+  assert.equal(declared(path.join("scripts", "init_skill.py")), 0o755, "an executable external companion declares 0755");
+  assert.equal(declared("SKILL.md"), 0o644, "a non-executable external file declares 0644");
 
   const installDest = ownTempRoot("external-mode")("dest");
   const installed = status(["install", "--target", "antigravity-cli", "--dest", installDest, "--scope", "user", "--category", "development"]);

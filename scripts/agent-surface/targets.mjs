@@ -1037,7 +1037,7 @@ function skillCompanionOutputs(skill, relativeOutput, assetCategory) {
     source: resource.relativePath,
     relativeOutput: path.join(skillDirectory, resource.resourcePath),
     content: resource.text,
-    mode: resource.executable ? 0o755 : undefined,
+    mode: resource.executable ? 0o755 : 0o644,
     assetCategory,
   }));
 }
@@ -1132,8 +1132,9 @@ export async function externalSkillOutputs(adapter, context) {
         source: relative(file),
         relativeOutput: path.join(outputRoot, skillName, relativeFile),
         content: normalizeExternalSkillFile(relativeFile, await readFile(file, "utf8"), skillName),
-        // Without the source's executable bit a pack's companion script lands 0644 and fails with EACCES.
-        mode: (info.mode & 0o111) !== 0 ? 0o755 : undefined,
+        // Without the source's executable bit a pack's companion script lands 0644 and fails with EACCES; the
+        // explicit 0644 lets an install reset a bit the upstream dropped instead of keeping the old 0755.
+        mode: (info.mode & 0o111) !== 0 ? 0o755 : 0o644,
         assetCategory,
       });
     }
@@ -1578,7 +1579,7 @@ export async function codexPluginPackageOutputs(catalog, _context) {
         source: resource.relativePath,
         relativeOutput: path.join(skillRoot, resource.resourcePath),
         content: resource.text,
-        mode: resource.executable ? 0o755 : undefined,
+        mode: resource.executable ? 0o755 : 0o644,
       });
     }
   }

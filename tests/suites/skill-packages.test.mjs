@@ -8,7 +8,7 @@
 // The installer, the registry, and the skill sources are the real ones; only their location differs.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { root } from "../lib/helpers.mjs";
@@ -102,6 +102,15 @@ try {
     const exported = path.join(checkout, "dist", "codex-plugin", "plugins", "agent-surface", "skills", "ops-swarm", "references", "probe.sh");
     assert.ok(existsSync(exported), "the export package carries the executable companion");
     assert.equal(spawnSync(exported, { encoding: "utf8" }).stdout.trim(), "companion-ran", "and it runs straight out of the exported package");
+
+    // The mode is state to reconcile, not only to set: a source that loses its execute bit must stop
+    // being executable in an existing install and a rebuilt package, as it is in a fresh one.
+    chmodSync(script, 0o644);
+    install("codex");
+    assert.equal(statSync(installed).mode & 0o777, 0o644, "a companion that lost its execute bit loses it in an existing install");
+    const rebuilt = spawnSync(process.execPath, [cli, "build", "--target", "codex-plugin"], { cwd: checkout, encoding: "utf8" });
+    assert.equal(rebuilt.status, 0, `export rebuild failed: ${rebuilt.stderr || rebuilt.stdout}`);
+    assert.equal(statSync(exported).mode & 0o777, 0o644, "and in a rebuilt export package");
 
     rmSync(script);
     install("codex");
