@@ -948,10 +948,12 @@ if (process.platform !== "win32") {
   }
 }
 
-// Headless without -y, a REQUIRED gap makes the apply refuse (exit 1) and keep that service's config;
-// the preview must carry the same refusal.
+// Headless without -y, the apply never runs a recipe: it wires from the current detection, and a
+// REQUIRED gap makes it refuse (exit 1) and keep that service's config. The repeat preview must say
+// the same. Each case builds a scratch HOME from real executables: the first-party launchers are
+// env-shebang files, and uv is the real one with its tool directory and bin directory inside the
+// scratch HOME, so nothing is written to any real ~/.local/bin.
 if (process.platform !== "win32") {
-  const nodeDir = path.dirname(process.execPath);
   const launcherHome = (name) => {
     const home = ownTmp(name);
     rmSync(home, { recursive: true, force: true });
@@ -964,8 +966,10 @@ if (process.platform !== "win32") {
     }
     return { home, bin };
   };
+  const nodeDir = path.dirname(process.execPath);
   const installArgs = (home) => ["install", "--target", "codex", "--scope", "user", "--dest", path.join(home, "dest"), "--category", "cybersecurity"];
   const cleanPath = (...dirs) => [...dirs, nodeDir, "/usr/bin", "/bin"].join(path.delimiter);
+
   // REQUIRED gap: openosint-mcp is truly absent (and no uv on PATH to recipe it).
   const required = launcherHome("required-gap-home");
   try {
@@ -985,38 +989,40 @@ if (process.platform !== "win32") {
     rmSync(required.home, { recursive: true, force: true });
   }
 
-}
-
-// Only an OPTIONAL prerequisite is missing (openosint-tools): headless without -y the apply runs no
-// recipe and wires from the current detection, so the preview must carry that wiring too. The
-// operator's real machine printed 25 config merges here that apply never wrote.
-if (process.platform !== "win32") {
-  const optionalHome = ownTmp("optional-gap-home");
-  rmSync(optionalHome, { recursive: true, force: true });
-  const bin = path.join(optionalHome, ".local", "bin");
-  const toolsDir = path.join(optionalHome, "uv-tools");
-  mkdirSync(path.join(toolsDir, "openosint", "bin"), { recursive: true });
-  mkdirSync(bin, { recursive: true });
-  mkdirSync(path.join(optionalHome, ".grimoire"), { recursive: true });
-  writeFileSync(path.join(optionalHome, ".grimoire", "index.sqlite"), "");
-  for (const launcher of ["synapse-bridge", "synapse-hook", "grimoire-server", "openosint-mcp"]) {
-    writeFileSync(path.join(bin, launcher), "#!/usr/bin/env node\n", { mode: 0o755 });
-  }
-  // The stand-ins answer detection only: uv names its tool directory, and the tool environment's
-  // interpreter finds every module except the optional lookup tools.
-  writeFileSync(path.join(bin, "uv"), `#!/bin/sh\n[ "$1" = tool ] && [ "$2" = dir ] && echo ${toolsDir}\nexit 0\n`, { mode: 0o755 });
-  writeFileSync(path.join(toolsDir, "openosint", "bin", "python"), '#!/bin/sh\ncase "$2" in *holehe*) exit 1;; esac\nexit 0\n', { mode: 0o755 });
-  const env = { ...process.env, HOME: optionalHome, USERPROFILE: optionalHome, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
-  const args = ["install", "--target", "codex", "--scope", "user", "--dest", path.join(optionalHome, "dest"), "--category", "cybersecurity"];
-  try {
-    run(args, { env });
-    const preview = run([...args, "--dry-run"], { env });
-    assert.match(preview, /openosint-tools MISSING .*\(optional\)/, "the optional gap is what this case is about");
-    assert.match(preview, /^counts: .*config merges 0, blocked 0$/m);
-    assert.doesNotMatch(preview, /MCP \+=/);
-    assert.match(run(args, { env }), /^ {2}config merges: 0$/m);
-  } finally {
-    rmSync(optionalHome, { recursive: true, force: true });
+  // OPTIONAL gap only: a real uv installs openosint with its required extras, without the optional
+  // lookup tools (holehe, sublist3r, sherlock), into the scratch HOME. uv's cache serves it; the
+  // network is used only on a cache miss. Without uv the case cannot run here.
+  const uvPath = ["/opt/homebrew/bin", "/usr/local/bin", ...(process.env.PATH ?? "").split(path.delimiter), path.join(os.homedir(), ".local", "bin")]
+    .map((dir) => path.join(dir, "uv")).find((candidate) => existsSync(candidate));
+  if (uvPath === undefined) {
+    console.log("install: uv not available; skipping the optional-gap preview case");
+  } else {
+    const optional = launcherHome("optional-gap-home");
+    try {
+      const toolDir = path.join(optional.home, "uv-tools");
+      const env = {
+        ...process.env,
+        HOME: optional.home,
+        USERPROFILE: optional.home,
+        UV_TOOL_DIR: toolDir,
+        UV_TOOL_BIN_DIR: optional.bin,
+        PATH: cleanPath(optional.bin, path.dirname(uvPath)),
+      };
+      const registry = JSON.parse(readFileSync(path.join(root, "registry", "optional-services.json"), "utf8"));
+      const extras = registry.services.openosint.provisioning.prerequisites.find((item) => item.id === "openosint-extras");
+      const recipe = extras.recipes[process.platform === "darwin" ? "darwin" : "linux"][0].run;
+      execFileSync(uvPath, recipe.slice(1), { env, stdio: "pipe" });
+      const args = installArgs(optional.home);
+      run(args, { env });
+      const preview = run([...args, "--dry-run"], { env });
+      assert.match(preview, /openosint-tools MISSING .*\(optional\)/, "the optional gap is what this case is about");
+      assert.doesNotMatch(preview, /openosint-(mcp|extras) MISSING/);
+      assert.match(preview, /^counts: .*config merges 0, blocked 0$/m);
+      assert.doesNotMatch(preview, /MCP \+=/);
+      assert.match(run(args, { env }), /^ {2}config merges: 0$/m);
+    } finally {
+      rmSync(optional.home, { recursive: true, force: true });
+    }
   }
 }
 
