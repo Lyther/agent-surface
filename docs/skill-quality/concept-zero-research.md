@@ -67,10 +67,12 @@ Method: four research passes on 2026-11-20 (obra/superpowers, eval runners, host
 | `E-33` | What can a Claude Code plugin carry? | [plugins reference](https://code.claude.com/docs/en/plugins-reference) | 2026-11-20 | Skills, commands, agents, hooks, MCP servers and more; not always-on rules (a plugin-root `CLAUDE.md` is not loaded) and not permissions. | high | Rules and settings stay with the installer on Claude Code. |
 | `E-34` | Existing cross-host tools | [vercel-labs/skills](https://github.com/vercel-labs/skills) v1.9.0 (MIT); [rulesync](https://github.com/dyoshikawa/rulesync) v43.11.0 (MIT); ruler v0.3.46 (beta); [add-mcp](https://github.com/neon-solutions/add-mcp) v2.6.1 (Apache-2.0) | 2026-11 | `skills`: about 75 agents, skills only, lockfile, telemetry opt-out. rulesync: about 55 targets, rules, MCP, commands, subagents, skills, hooks and permissions; orphan sweep by diffing directories against sources, no per-file ownership manifest. add-mcp: 25 agents, MCP only, no ownership tracking. | medium | Partial adoption candidates. |
 | `E-35` | Does any tool match our guarantees? | same as `E-34` | 2026-11-20 | None documents per-file ownership with owned-only pruning, MCP merges that keep the operator's own fields and sibling entries, and provisioning of first-party services. rulesync's behaviour on operator-edited files needs a code read. | medium | Keep a thin custom layer for these guarantees. |
+| `E-36` | Does `skills` keep our guarantees? | vercel-labs/skills v1.9.0 (`50894c1`) source: `remove.ts`, `installer.ts`, `add.ts`, `telemetry.ts` | 2026-11-20 | Ownership is per skill directory, through lockfiles. Project removal has a hash guard; global and named removal delete whole directories without one. Install removes the target directory and copies, without checking the lock, so an unmanaged skill of the same name is replaced (`-y` skips the prompt). The default is a canonical copy in `.agents/skills` with symlinks. Telemetry goes to skills.sh unless `DISABLE_TELEMETRY` or `DO_NOT_TRACK` is set. It covers 23 of our 28 adapters, skills only. Owned-only pruning: partial. Refusing an unclaimed overwrite: no. MCP merge: no. Provisioning: no. | high (code read) | Not a replacement. Its shared-copy layout informs `SQ5.4`. |
+| `E-37` | Does rulesync keep our guarantees? | dyoshikawa/rulesync v43.11.0 (`cca7206`) source: `lib/orphan-sweep.ts`, `types/dir-feature-processor.ts`, `features/shared/shared-config-gateway.ts` | 2026-11-20 | No manifest. The opt-in `--delete` sweeps by diffing directories against the current run, so operator files inside a managed directory can be deleted. It writes over paths without a claim check. MCP: unowned top-level keys survive and JSONC edits keep comments, but the owned server map is rebuilt from source, so operator entries under it are dropped, and TOML comments are lost. No telemetry found. It covers 21 of our 28 adapters. Owned-only pruning: no. Refusing an unclaimed overwrite: no. MCP merge: partial. Provisioning: no. | high (code read) | Candidate C stays rejected; the custom ownership and merge layer stays. |
 
 ## Host Capability Matrix
 
-What a native plugin can carry on each researched host (S skills, C commands, A subagents, H hooks, M MCP, R always-on rules). Unlisted hosts (dsh, pool, qoder, trae, trae-cn, trae-cli, openhands, zed, deepagents) were not researched.
+What a native plugin can carry on each researched host (S skills, C commands, A subagents, H hooks, M MCP, R always-on rules). Rows for dsh, pool, qoder, the trae family, openhands, zed and deepagents were added on 2026-11-20 by `SQ5.1`, and items marked UNVERIFIED need a live host check.
 
 | Host | Plugin manager | Carries | Shared skill location |
 |---|---|---|---|
@@ -85,9 +87,23 @@ What a native plugin can carry on each researched host (S skills, C commands, A 
 | kiro | powers | S M | not confirmed |
 | windsurf | plugins | S R H M A | `.agents/skills`, `~/.agents/skills`; reads AGENTS.md |
 | goose | plugin namespace | S | `.agents/skills`, `~/.agents/skills` |
-| kimi-code | plugins (conflicting sources) | UNVERIFIED | `~/.agents/skills` |
+| kimi-code | resolved: Kimi Code `/plugins install, enable, disable, remove` (local directory, ZIP or GitHub URL); the legacy Python kimi-cli plugins carry tools only | S A C H M, plus a system prompt that acts as R | `~/.agents/skills` |
 | pi, grok-build | plugins | UNVERIFIED | pi: `.agents/skills` |
 | kilo, cline | none | — | kilo: `.agents/skills`, `~/.agents/skills` |
+| qoder | `qoder plugins install, update, uninstall, enable, disable`; marketplaces from a git URL, `owner/repo` or a local directory | S C A H M; not R | not documented |
+| openhands | SDK and CLI `/plugin install, enable, disable, uninstall`; no update | S C A H M | `.agents/skills`, `~/.agents/skills`, AGENTS.md |
+| dsh | Cordis modules loaded from a patch file; no install, update or uninstall commands | tools; MCP through a bundled client; other kinds UNVERIFIED | `.dsh/skills`, `.agents/skills`, `~/.dsh/skills`, `~/.agents/skills`; AGENTS.md chain |
+| zed | extensions | M only | UNVERIFIED |
+| pool | none found (docs partly read) | — | `.poolside/skills`, `~/.config/poolside/skills`, `.agents/skills`, `~/.agents/skills`; AGENTS.md |
+| trae, trae-cn | none documented | — (native skills, rules and MCP files) | `.agents/skills` read, `.trae/skills` preferred on a clash (UNVERIFIED) |
+| trae-cli | UNVERIFIED: two products share the name | UNVERIFIED | `.traecli/skills` (one report) |
+| deepagents | none found | — | UNVERIFIED |
+
+Plugin lifecycle commands, as fetched on 2026-11-20:
+- **claude-code:** `claude plugin install, update, uninstall, enable, disable` per scope, plus `claude plugin marketplace add, update, remove`; there is no update-all command.
+- **codex:** `codex plugin add, remove`, plus `codex plugin marketplace add, upgrade, remove`; this syntax is UNVERIFIED against the reference page.
+- **cursor:** through the editor UI only.
+- **kiro:** no update or uninstall command is documented.
 
 ## Superpowers Skill Map
 

@@ -621,7 +621,7 @@ Exit: every packet has a memo, and every selected hypothesis has a cohort decisi
 
 #### SQ4.1 Comparison Packets
 
-State: NOT STARTED. Depends on: none; read-only research that can start alongside SQ0. Covers: `G-SQ-05`, `ADR-SQ5`.
+State: COMPLETE 2026-11-20. Fourteen memos and a synthesis are in the private receipts (`.agent-surface/research/2026-11-20-sq4/`). The comparison is against Superpowers at `22f0b46`. The copy check found no shared runs of 10 or more words after paraphrasing. Its 62 hypotheses converge on seven themes, one of them an internal inconsistency: `dev-fix` and `dev-feature` stop after two attempts, rule 02 asks after three. Waiting on SQ4.2. Depends on: none; read-only research that can start alongside SQ0. Covers: `G-SQ-05`, `ADR-SQ5`.
 
 Run one `ops-swarm` packet per Superpowers skill: fourteen, excluding `diagnosing-superpowers`. Each packet reads the Superpowers skill with its references and our closest assets from the ledger's skill map. It writes a memo covering triggers, procedure, the failure modes addressed, evidence gates and outputs, and ends with testable hypotheses, each predicting a world-state effect.
 
@@ -661,7 +661,7 @@ Exit: every switched host has a parity record. The installer's documented scope 
 
 #### SQ5.1 Capability Matrix and Guarantees
 
-State: NOT STARTED. Depends on: none. Covers: `G-SQ-06`, `ADR-SQ4`.
+State: DOCUMENTATION RESEARCH COMPLETE 2026-11-20. The ledger matrix now covers every adapter. Items marked UNVERIFIED (trae-cli, the dsh lifecycle, zed's AGENTS.md handling, deepagents paths, the codex plugin syntax) need live host checks. Depends on: none. Covers: `G-SQ-06`, `ADR-SQ4`.
 
 Research the hosts the ledger left out: dsh, pool, qoder, the trae family, openhands, zed and deepagents. Resolve the conflicts on Kimi Code and on update and uninstall syntax. Then write the guarantees a route must meet:
 - owned-only pruning;
@@ -676,7 +676,7 @@ Exit: a matrix row for all 28 adapters, with sources.
 
 #### SQ5.2 Existing-Tool Read
 
-State: NOT STARTED. Depends on: none. Covers: `S-SQ-07`.
+State: CODE READ COMPLETE 2026-11-20 (`E-36`, `E-37`). Neither tool meets the ownership, overwrite, merge and provisioning guarantees. The live runs in disposable containers wait for the lab. Depends on: none. Covers: `S-SQ-07`.
 
 Read the rulesync and `skills` source for ownership, pruning and merge behaviour. Then run each on three hosts in disposable homes, against operator-edited files and sibling MCP entries.
 
