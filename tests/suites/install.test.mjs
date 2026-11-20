@@ -902,15 +902,19 @@ if (process.platform !== "win32") {
       run(args);
       const installed = path.join(dest, relative);
       assert.equal(statSync(installed).mode & 0o777, 0o755, `${target} installs the companion executable`);
-      chmodSync(installed, 0o644);
-      const plan = run([...args, "--dry-run"]);
-      assert.match(plan, /^counts: write 1, unchanged \d+,/m, target);
-      assert.ok(plan.includes(`  ${relative} <- skills/ops-docs/references/sop-template.md`), `${target} lists the drifted companion`);
-      const apply = run(args);
-      assert.match(apply, /^ {2}wrote: 1$/m, target);
-      assert.equal(statSync(installed).mode & 0o777, 0o755, `${target} apply restores the executable bit`);
-      if (target === "antigravity-cli") assert.match(apply, /^NOTE: Antigravity runs its imported copy/m);
-      assert.match(run([...args, "--dry-run"]), /^counts: write 0, /m, `${target} is unchanged once restored`);
+      // 0644 loses every execute bit; 0655 loses only the owner's, which still reads as executable to
+      // an any-bit test while the owner's own run fails with EACCES.
+      for (const drifted of [0o644, 0o655]) {
+        chmodSync(installed, drifted);
+        const plan = run([...args, "--dry-run"]);
+        assert.match(plan, /^counts: write 1, unchanged \d+,/m, `${target} ${drifted.toString(8)}`);
+        assert.ok(plan.includes(`  ${relative} <- skills/ops-docs/references/sop-template.md`), `${target} lists the drifted companion`);
+        const apply = run(args);
+        assert.match(apply, /^ {2}wrote: 1$/m, target);
+        assert.equal(statSync(installed).mode & 0o777, 0o755, `${target} apply restores the executable bits`);
+        if (target === "antigravity-cli") assert.match(apply, /^NOTE: Antigravity runs its imported copy/m);
+        assert.match(run([...args, "--dry-run"]), /^counts: write 0, /m, `${target} is unchanged once restored`);
+      }
       rmSync(dest, { recursive: true, force: true });
     }
   } finally {

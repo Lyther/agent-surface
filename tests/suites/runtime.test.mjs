@@ -71,7 +71,12 @@ try {
     chmodSync(path.join(staged, "plugin.json"), 0o755);
     chmodSync(path.join(imported, "plugin.json"), 0o644);
     assert.match(importLine(), /^antigravity-cli-import: differs \(1 changed, 0 only imported, 0 only staged; e\.g\. plugin\.json\)/);
+    // Losing only the owner's execute bit still leaves the enabled copy unrunnable.
+    chmodSync(path.join(staged, "plugin.json"), 0o755);
+    chmodSync(path.join(imported, "plugin.json"), 0o655);
+    assert.match(importLine(), /^antigravity-cli-import: differs \(1 changed, 0 only imported, 0 only staged; e\.g\. plugin\.json\)/);
     chmodSync(path.join(staged, "plugin.json"), 0o644);
+    chmodSync(path.join(imported, "plugin.json"), 0o644);
   }
   writeFileSync(path.join(imported, "skills", "ops-server.md"), "old\n");
   assert.match(importLine(), /^antigravity-cli-import: differs \(0 changed, 1 only imported, 0 only staged; e\.g\. skills\/ops-server\.md\)/);

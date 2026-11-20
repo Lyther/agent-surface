@@ -116,8 +116,8 @@ async function pluginFiles(base, relative = "", out = new Map()) {
     if (entry.isDirectory()) await pluginFiles(base, rel, out);
     else if (entry.isFile()) {
       const info = await stat(path.join(base, rel));
-      // Antigravity skips an unrunnable helper, so a lost executable bit is a real difference.
-      out.set(rel, { size: info.size, executable: process.platform !== "win32" && (info.mode & 0o111) !== 0 });
+      // Antigravity cannot run a helper that lost an execute bit (owner-only loss gives EACCES), so the exact bits are compared.
+      out.set(rel, { size: info.size, executable: process.platform === "win32" ? 0 : info.mode & 0o111 });
     }
   }
   return out;
