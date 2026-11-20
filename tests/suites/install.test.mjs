@@ -608,9 +608,10 @@ SUBSTITUTE_JUSTIFICATION
 // `--category everything` is one command for the three-step full distribution. A full distribution
 // run as the general sync plus `--category external` stripped the external packs from every target, so
 // the single run must reach exactly the state the ordered sequence reaches from a clean root, and
-// re-running it must change nothing. On an existing profile the two differ by design: `everything` is
-// one pass, so operator edits on a managed MCP entry survive, while the sequence's general step
-// removes the entry and the category step recreates it.
+// re-running it must change nothing. On an existing profile the two differ by design: `everything`
+// is one pass, so a host keeps the fields its merge does not render (Codex keeps `enabled = false` on a
+// managed entry; the sequence's general step removes the entry), while a renderer resets the fields it
+// writes (Kilo's and OpenCode's `enabled`, Goose's `enabled` and `timeout`).
 {
   const sequenced = mkdtempSync(path.join(os.tmpdir(), "agent-surface-everything-sequence-"));
   const single = mkdtempSync(path.join(os.tmpdir(), "agent-surface-everything-single-"));
