@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSyn
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { shimFileName } from "../../scripts/agent-surface/mcp-shims.mjs";
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 export const cli = path.join(root, "scripts", "agent-surface.mjs");
@@ -255,12 +256,14 @@ export function assertCodexAgentTomlParses() {
 // prerequisite is missing, and the dry run previews exactly that, so a test that reads planned MCP
 // routes needs a home where nothing is missing. Plain files, not substitutes: detection reads them
 // and nothing runs them.
-export function writeFirstPartyLaunchers(home) {
+// Names follow the production shim naming (`.cmd` on Windows, where an extensionless file is not
+// executable); `platform` lets a test check the Windows fixture from any host.
+export function writeFirstPartyLaunchers(home, platform = process.platform) {
   const bin = path.join(home, ".local", "bin");
   mkdirSync(bin, { recursive: true });
   mkdirSync(path.join(home, ".grimoire"), { recursive: true });
   writeFileSync(path.join(home, ".grimoire", "index.sqlite"), "");
   for (const launcher of ["synapse-bridge", "synapse-hook", "grimoire-server"]) {
-    writeFileSync(path.join(bin, launcher), "#!/usr/bin/env node\n", { mode: 0o755 });
+    writeFileSync(path.join(bin, shimFileName(launcher, platform)), "#!/usr/bin/env node\n", { mode: 0o755 });
   }
 }

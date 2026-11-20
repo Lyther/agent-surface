@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { status } from "../lib/helpers.mjs";
+import { detectPrerequisite } from "../../scripts/agent-surface/provision.mjs";
+import { root, status, writeFirstPartyLaunchers } from "../lib/helpers.mjs";
 
 // doctor's first-party lines describe the home it runs under: the Grimoire index, the synapse-hook
 // launcher, and each hook host's user-scope entry, first absent and then present.
@@ -82,6 +83,28 @@ try {
   assert.match(importLine(), /^antigravity-cli-import: differs \(0 changed, 1 only imported, 0 only staged; e\.g\. skills\/ops-server\.md\)/);
 } finally {
   rmSync(importHome, { recursive: true, force: true });
+}
+
+// The route fixtures' launchers must satisfy the production detector under each platform's naming
+// rule: Windows rejects an extensionless file, so a fixture written for it needs the .cmd names.
+{
+  const services = JSON.parse(readFileSync(path.join(root, "registry", "optional-services.json"), "utf8")).services;
+  const launcherIds = ["synapse-bridge", "synapse-hook", "grimoire-server"];
+  const prerequisites = Object.values(services).flatMap((service) => service.provisioning?.prerequisites ?? [])
+    .filter((prereq) => launcherIds.includes(prereq.id));
+  assert.equal(prerequisites.length, launcherIds.length);
+  for (const platform of ["win32", process.platform]) {
+    const home = mkdtempSync(path.join(tmpdir(), "agent-surface-launcher-fixture-"));
+    try {
+      writeFirstPartyLaunchers(home, platform);
+      for (const prereq of prerequisites) {
+        const detected = detectPrerequisite(prereq, { platform, homedir: home, env: { PATHEXT: ".COM;.EXE;.BAT;.CMD" } });
+        assert.equal(detected.satisfied, true, `${prereq.id} is detected on ${platform}`);
+      }
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  }
 }
 
 console.log("runtime: ok");
