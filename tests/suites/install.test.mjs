@@ -609,8 +609,9 @@ SUBSTITUTE_JUSTIFICATION
 // run as the general sync plus `--category external` stripped the external packs from every target, so
 // the single run must reach exactly the state the ordered sequence reaches from a clean root, and
 // re-running it must change nothing. On an existing profile the two differ by design: `everything`
-// is one pass, so a host keeps the fields its merge does not render (Codex keeps `enabled = false` on a
-// managed entry; the sequence's general step removes the entry), while a renderer resets the fields it
+// is one pass, so a host keeps the fields its merge does not render (Codex keeps compatible fields such as
+// `enabled = false` on a managed entry, but clears stale transport keys such as `url`; the sequence's
+// general step removes the entry), while a renderer resets the fields it
 // writes (Kilo's and OpenCode's `enabled`, Goose's `enabled` and `timeout`).
 {
   const sequenced = mkdtempSync(path.join(os.tmpdir(), "agent-surface-everything-sequence-"));
