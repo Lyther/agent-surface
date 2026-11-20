@@ -152,6 +152,8 @@ export async function install(args) {
   // When the apply would run no recipe (`proceed`: nothing missing, or only optional gaps headless
   // without -y) it wires from this same detection, so preview with that wiring. A dry run still runs
   // no recipe: this only re-plans from the read-only detection.
+  // The apply judges "nothing installable" on the plans before provisioning drops any service.
+  const initialPlans = plans;
   const applyDecision = provisioningDecision({
     actions: provisioning.actions,
     blockers: provisioning.blockers,
@@ -159,7 +161,7 @@ export async function install(args) {
     authorized: provisioning.authorized,
     dryRun: false,
   });
-  if (applyDecision.kind === "proceed") {
+  if (applyDecision.kind === "proceed" || applyDecision.kind === "block") {
     const { failed, launchWiring } = wiringFromStatus(provisioning.status, provisioning.serviceEntries);
     plans = await buildInstallPlans({ ...planContext, excludeServices: failed.size > 0 ? failed : undefined, launchWiring });
   }
@@ -168,7 +170,7 @@ export async function install(args) {
   // A category-filtered install must do real work across the selection: if no selected target
   // has any writes or config merges, the whole run is a no-op and fails (individual
   // non-applicable targets are informational, but "nothing installable anywhere" is an error).
-  const runBlocker = categoryFilter && plans.every((plan) => plan.writes.length === 0 && plan.configMerges.length === 0)
+  const runBlocker = categoryFilter && initialPlans.every((plan) => plan.writes.length === 0 && plan.configMerges.length === 0)
     ? `no selected targets have installable outputs for categories: ${[...categoryFilter].sort().join(", ")}`
     : null;
   // Headless installs never prompt: a missing REQUIRED credential is an explicit failure that
@@ -198,8 +200,8 @@ export async function install(args) {
   if (credentialBlocker) console.log(`install blocked: ${credentialBlocker}`);
   if (dryRun && applyDecision.kind === "block") {
     // Shown, not failed: a dry run over a machine with missing prerequisites has always exited 0, and
-    // many callers preview on bare machines. The apply exits 1 on the same message and drops the
-    // affected services' merges, so the merges listed above are not definite.
+    // many callers preview on bare machines. The apply exits 1 on this message and drops the services
+    // whose prerequisites are missing (their config is kept); the plan above already omits them.
     console.log(`mcp prerequisites unmet: ${prerequisitesRefusal(provisioning.status)}`);
   }
   if (unprovisionable) {

@@ -22,6 +22,7 @@ import {
   ownTempRoot,
   root,
   run, status,
+  writeFirstPartyLaunchers,
   useDisposableHome,
 } from "../lib/helpers.mjs";
 
@@ -379,6 +380,7 @@ planLacks(dryRun("openhands"), [/\.openhands\/mcp\.json MCP/], "openhands projec
 // - proof-limit: proves path selection and install behavior, not Goose runtime discovery
 // - real-proof: tests/suites/install-live.test.mjs plus a credentialed Goose task-shaped run
 const gooseHome = mkdtempSync(path.join(os.tmpdir(), "agent-surface-goose-home-"));
+writeFirstPartyLaunchers(gooseHome);
 try {
   const gooseUserPlan = run(
     ["install", "--target", "goose", "--scope", "user", "--allow-scope-root", "--dry-run"],
@@ -393,8 +395,10 @@ try {
 
 // --category mcps across all targets must succeed; non-MCP hosts report non-applicable.
 {
+  const mcpsAllHome = ownTmp("mcps-all-home");
+  writeFirstPartyLaunchers(mcpsAllHome);
   const mcpsAllPlan = run(["install", "--target", "all", "--scope", "user", "--allow-scope-root", "--category", "mcps", "--dry-run"], {
-    env: { ...process.env, HOME: ownTmp("mcps-all-home") },
+    env: { ...process.env, HOME: mcpsAllHome },
   });
   assert.match(mcpsAllPlan, /MCP \+= grimoire, synapse/);
 }
@@ -980,6 +984,8 @@ if (process.platform !== "win32") {
     const preview = status([...args, "--dry-run"], { env });
     assert.equal(preview.status, 0, "a dry run reports the refusal without failing, as every dry run with missing prerequisites does");
     assert.match(preview.stdout, /openosint-mcp MISSING/);
+    assert.match(preview.stdout, /^counts: .*config merges 0, blocked 0$/m, "the refused service's merge is not previewed");
+    assert.doesNotMatch(preview.stdout, /MCP \+=.*openosint/);
     assert.match(preview.stdout, /^mcp prerequisites unmet: prerequisites missing; re-run with -y to install them/m);
     const apply = status(args, { env });
     assert.equal(apply.status, 1);
@@ -1047,6 +1053,7 @@ const userScopeHome = ownTmp("user-scope-home");
 rmSync(userScopeHome, { recursive: true, force: true });
 mkdirSync(userScopeHome, { recursive: true });
 installClineExtension(userScopeHome);
+writeFirstPartyLaunchers(userScopeHome);
 // A desktop profile's Documents entry, which xdg-user-dir reads on Linux, so Cline's user paths below
 // stay under ~/Documents on any host; os-routes covers a redirected folder.
 mkdirSync(path.join(userScopeHome, ".config"), { recursive: true });

@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -249,4 +249,18 @@ if bad:
 
 export function assertCodexAgentTomlParses() {
   assertTomlParses(path.join(root, "dist", "codex", ".codex", "agents"));
+}
+
+// A home whose first-party launchers exist. Headless without -y an install wires no MCP entry while a
+// prerequisite is missing, and the dry run previews exactly that, so a test that reads planned MCP
+// routes needs a home where nothing is missing. Plain files, not substitutes: detection reads them
+// and nothing runs them.
+export function writeFirstPartyLaunchers(home) {
+  const bin = path.join(home, ".local", "bin");
+  mkdirSync(bin, { recursive: true });
+  mkdirSync(path.join(home, ".grimoire"), { recursive: true });
+  writeFileSync(path.join(home, ".grimoire", "index.sqlite"), "");
+  for (const launcher of ["synapse-bridge", "synapse-hook", "grimoire-server"]) {
+    writeFileSync(path.join(bin, launcher), "#!/usr/bin/env node\n", { mode: 0o755 });
+  }
 }
