@@ -8,7 +8,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { parseJsonc, removeJsoncValue } from "../../scripts/agent-surface/jsonc.mjs";
-import { whichSync } from "../../scripts/agent-surface/provision.mjs";
+import { detectPrerequisite } from "../../scripts/agent-surface/provision.mjs";
 import { reconcileExecuteBits } from "../../scripts/agent-surface/install.mjs";
 import { mergeCodexMcpToml, mergeJsonMcpConfig, mergeYamlMcpConfig } from "../../scripts/agent-surface/merge.mjs";
 import { writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
@@ -1045,7 +1045,12 @@ if (process.platform !== "win32") {
   // lives inside the case home, so nothing is written outside it. Without that environment the case
   // reports it and does not run, like the credential-delivery case in mcp-credential-launch.
   const optionalTools = /^(holehe|sublist3r|sherlock)/i;
-  const uvPath = whichSync("uv");
+  // Resolved the way production resolves it: the registry's uv prerequisite, PATH command first and
+  // then ~/.local/bin/uv, so a uv that only the home directory provides is found too.
+  const uvPrerequisite = JSON.parse(readFileSync(path.join(root, "registry", "optional-services.json"), "utf8"))
+    .services.openosint.provisioning.prerequisites.find((item) => item.id === "uv");
+  const uvDetected = detectPrerequisite(uvPrerequisite);
+  const uvPath = uvDetected.satisfied ? uvDetected.resolvedPath : null;
   const inheritedTools = uvPath === null ? null : spawnSync(uvPath, ["tool", "dir"], { encoding: "utf8" }).stdout?.trim();
   const provisionedEnv = inheritedTools ? path.join(inheritedTools, "openosint") : null;
   const provisionedMcp = provisionedEnv ? path.join(provisionedEnv, "bin", "openosint-mcp") : null;
