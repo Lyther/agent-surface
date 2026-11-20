@@ -7,6 +7,8 @@ Inputs: [concept](context/concept-zero.md), [research](context/concept-zero-rese
 
 Separate workstream added 2026-10-13: [Phase AS-AR](#phase-as-ar-agent-reuse-capability-trial). The bounded native spike and supervised stop have real proof; comparative capability remains untested. This does not change the runtime-refresh task dispositions or authorize deployment by checkbox.
 
+Separate workstream added 2026-11-20: [Phase SQ](#phase-sq-skill-quality-and-distribution), PROPOSED and not started. It measures skills before changing them and moves delivery to native routes only by parity; it does not reopen any task above.
+
 The [previous completed roadmap](https://github.com/Lyther/agent-surface/blob/3dbdbfe9c67fa7a95cf72a25280d2aa588782956/docs/roadmap.md) is historical. This roadmap does not reopen its accepted implementations or transfer old runtime PASS evidence to new releases. It schedules design-approved corrections, bounded native spikes and separate operational work. Each task is a commit-sized concern unless its acceptance requires an atomic change; publication and deployment are not implied. Selection, notice, ownership and migration rules live in the [contract](contracts/runtime-refresh.md); tasks below reference them rather than restating them.
 
 ## Operating Constraints
@@ -341,3 +343,404 @@ Each step runs its own package's checks. The integration gate runs once, at the 
 - Synapse S3 for each host.
 
 Each result is reported as passed, failed or not run.
+
+## Phase SQ: Skill Quality and Distribution
+
+Status: PROPOSED 2026-11-20; nothing started. Inputs: [concept](skill-quality/concept-zero.md), [research ledger](skill-quality/concept-zero-research.md), [architecture](architecture.md#skill-quality-and-distribution), and the [Grimoire evaluation contract](contracts/grimoire-evaluation.md), which binds the method until `SQ0.7` writes the skill-evaluation contract.
+
+Sequence:
+
+```text
+SQ0 spikes:  SQ0.1 runner -> SQ0.2 detector -> SQ0.3 listing capture   (with SQ0.4 credentials, SQ0.5 capacity, SQ0.6 scenarios in parallel)
+             -> SQ0.7 contract and first-slice preregistration
+SQ1 slice:   SQ1.1 surfacing probe -> [SQ1.2 listing budgets, if needed] -> SQ1.3 trigger cohort + SQ1.4 dev-fix outcome cohort -> SQ1.5 decision
+Then, in parallel after SQ1.5:  SQ2 description rollout | SQ3 outcome cohorts | SQ4 comparison hypotheses -> cohorts
+Delivery:    SQ5.1 matrix and SQ5.2 tool read (start now, research only) -> SQ5.3 plugin parity pilot (needs SQ1.1) -> SQ5.4 shared skills -> SQ5.5 switches
+Default path: SQ6.1 operator research (independent) -> SQ6.2 workflow map
+```
+
+Phase constraints:
+- `C-SQ-01` to `C-SQ-07` and `N-SQ-01` to `N-SQ-07` apply to every step.
+- Each skill edit runs as its own skill workflow. It never rides along with lab, delivery, rule or command changes.
+- Cohorts are preregistered before any outcome. Failed, aborted and `BLOCKED` attempts stay in the ledger.
+- After every cohort and every local step:
+  - the operator machine snapshot (`~/.local/bin`, `brew list`, `uv tool list`) and the git config hash are compared with their baselines;
+  - receipts are scanned for credentials.
+- Commit locally and signed. Publication, distribution to the operator's live profile and spend beyond a cohort's cap each need their own authorization.
+
+### SQ0: Decision Closure and Lab Spikes
+
+Exit: a runner is chosen, the detector is qualified on at least two hosts, the contract is written, and the first slice is preregistered. Every architecture-blocking question is either answered or deferred with a reversible default.
+
+#### SQ0.1 Runner and Arm Injection Spike
+
+State: NOT STARTED. Depends on: none. Covers: `G-SQ-01`, `S-SQ-01`, `Q-SQ-07`.
+
+Steps:
+1. Run one existing scenario on two runnable hosts through Harbor.
+2. Build each arm by running the existing install CLI from an overlay checkout into the container's HOME.
+3. Record which result, cost and time fields Harbor returns.
+4. If injection or the fields do not work, repeat with BenchFlow 0.9.3.
+
+Droid is not a Harbor adapter, so record whether the GR2 scripts still run it.
+
+Files:
+- `evals/pyproject.toml`, `evals/uv.lock`, `evals/arms.py`, `evals/cohort.py` (first cut);
+- `.npmignore` (exclude `evals/`);
+- receipts under `.agent-surface/research/<date>-sq0.1/`.
+
+Exit: two hosts × two arms × two repetitions complete, with a ledger row per attempt carrying arm, host, versions, cost and time. The installed manifest proves each arm's profile. The machine snapshot is unchanged. The runner decision is recorded in the architecture.
+
+#### SQ0.2 Skill-Load Detector
+
+State: NOT STARTED. Depends on: SQ0.1. Covers: `G-SQ-02`, `S-SQ-02`.
+
+Implement the file-open audit of installed skill files inside the container. Run it on three hosts with prompts that name a skill explicitly (positive control) and prompts unrelated to any skill (negative control). Compare it with each host's own tool logs where they exist.
+
+Files: `evals/detect.py`.
+
+Exit: on every tested host, the detector reports the positive controls and no reads on the negative controls. Disagreements with host logs are listed with their cause.
+
+#### SQ0.3 Listing Capture
+
+State: NOT STARTED. Depends on: SQ0.1. Covers: `G-SQ-02`, `S-SQ-03`, `Q-SQ-03`.
+
+For each runnable host, capture the real skill listing with the full profile installed (all categories and external packs), through the host's own means:
+- Claude Code: `/context` and debug output;
+- Codex: listing warnings;
+- the documented equivalents for Droid, OpenCode, Kiro and Kilo.
+
+Classify each installed skill as surfaced, name-only or absent.
+
+Files: the `evals/arms.py` listing hook; receipts.
+
+Exit: one classification per host, with its version and the method used. A host whose listing cannot be captured is marked as such and later excluded from description cohorts.
+
+#### SQ0.4 Credentials and Isolation
+
+State: NOT STARTED. Depends on: none. Covers: `C-SQ-01`, `C-SQ-04`, `S-SQ-04`, `Q-SQ-02`.
+
+For each runnable host, find a non-interactive credential mode usable in a container within the provider's terms. Run-time injection must leave nothing in images, scenario folders or receipts.
+
+Files: `evals/scrub.py` (exact-match scan of every injected value plus a pattern scan; a hit quarantines the receipt and stops the cohort); `evals/README.md` (credential handling).
+
+Exit: a planted fake credential is caught by the scrubber, and a real run's receipts scan clean. A host with no acceptable mode is `BLOCKED` with the reason, for the operator to decide.
+
+#### SQ0.5 Remote Capacity
+
+State: NOT STARTED. Depends on: none. Covers: `S-SQ-05`, `Q-SQ-07`.
+
+Through `ops-server`, measure on the remote servers:
+- Docker availability;
+- CPU and memory;
+- safe concurrency;
+- egress to each model provider;
+- the wall time of one attempt.
+
+Exit: a recorded concurrency and a per-attempt time estimate that the SQ1 preregistration uses.
+
+#### SQ0.6 Rebuilt QA-History Scenarios
+
+State: NOT STARTED. Depends on: SQ0.1. Covers: `G-SQ-04`, `S-SQ-06`.
+
+Rebuild three to five real defects from this repository's QA rounds as runner tasks, at their pre-fix commits:
+- the 0655 launcher detection (F10);
+- the permission widening (F13);
+- the read-only repair failure (F14).
+
+Each task's instruction is the original finding text. The hidden verifier is the real fix's regression test, plus `evals/world.py` checks that no existing test was weakened.
+
+Files: `evals/scenarios/dev-fix/<case>/`, `evals/world.py`.
+
+Exit: each verifier passes on the real fix and fails on the pre-fix state, inside the runner's verifier sandbox.
+
+#### SQ0.7 Skill-Evaluation Contract and First Preregistration
+
+State: NOT STARTED. Depends on: SQ0.1–SQ0.6. Covers: `C-SQ-02`, `OQ-SQ-02`.
+
+Write `docs/contracts/skill-evaluation.md`. It extends the Grimoire evaluation contract with:
+- the arms (A current, B trigger, C what plus when; without-asset and full profile);
+- the metrics (recall, near-miss false triggers, cross-skill confusion, time to first load, verifier reward);
+- the detector and listing rules;
+- the ledger fields;
+- the promotion rules.
+
+Then preregister SQ1 with thresholds and repetitions chosen from SQ0 variance, and update the architecture source tree to the files that now exist.
+
+Exit: the contract is reviewed by the operator, and the SQ1 preregistration is frozen.
+
+### SQ1: First Production Slice
+
+Exit: a decision table with intervals and cost for three skills, a go/no-go on the lab, and a clean machine snapshot and scrub report.
+
+#### SQ1.1 Surfacing Probe
+
+State: NOT STARTED. Depends on: SQ0.3, SQ0.7. Covers: `G-SQ-02`, `Q-SQ-03`.
+
+Run the listing capture and one should-trigger query per skill on every runnable host with the full real profile. Report surfaced, name-only and absent counts per host.
+
+Exit: the per-host table. Any host with dropped descriptions triggers SQ1.2. A non-surfacing host is reported as a host finding and excluded from SQ1.3.
+
+#### SQ1.2 Listing Budgets (conditional)
+
+State: NOT STARTED. Depends on: SQ1.1, and only runs if descriptions are dropped. Covers: `N-SQ-01`, `Q-SQ-03`.
+
+Emit host settings that raise the listing budget, such as Claude Code's `skillListingBudgetFraction` and Codex's `skills.max_context_tokens`, through the existing settings merge. This adds context; it cuts nothing.
+
+Files: `scripts/agent-surface/targets.mjs` and the affected adapters; installer tests for the merged settings.
+
+Exit: a rerun of SQ1.1 shows every description surfaced on the changed hosts, and the existing suites pass.
+
+#### SQ1.3 Trigger Cohort for Three Skills
+
+State: NOT STARTED. Depends on: SQ1.1 (and SQ1.2 if it ran), SQ0.2. Covers: `G-SQ-03`, `Q-SQ-04`.
+
+Design:
+- skills: `dev-fix`, `verify-test` and `qa-review`;
+- arms: A, B and C, as description overlays;
+- about 20 queries per skill (should-trigger and near-miss), with a held-out split;
+- 5 repetitions;
+- hosts: Claude Code and one of Codex or OpenCode;
+- each attempt in a fresh container with the full profile, so competing skills are present.
+
+Files: `evals/triggers/{dev-fix,verify-test,qa-review}.jsonl`; receipts.
+
+Exit: recall, false-trigger and confusion rates with intervals per skill, arm and host. Ledger completeness is checked against the preregistration.
+
+#### SQ1.4 Outcome Cohort for `dev-fix`
+
+State: NOT STARTED. Depends on: SQ0.6, SQ0.7. Covers: `G-SQ-04`, `Q-SQ-05`.
+
+Run the SQ0.6 scenarios on the same two hosts:
+- arms: the profile without `dev-fix` versus the full profile;
+- 5 repetitions;
+- the detector records whether `dev-fix` loaded.
+
+Exit: paired reward differences against the preregistered practical-effect rule, with the load rate per arm. "Not detected" is reported as such, never as equivalence.
+
+#### SQ1.5 Slice Decision
+
+State: NOT STARTED. Depends on: SQ1.3, SQ1.4. Covers: `ADR-SQ1`, `ADR-SQ3`, `Q-SQ-01`.
+
+Write a decision record:
+- the description form per skill and host;
+- whether C beat B, which is an operator decision;
+- the lab go or no-go.
+
+Then rerun one preregistered cell set to check reproducibility.
+
+Exit: the operator accepts the record. If the lab cannot decide, the concept's reopen trigger fires and SQ2–SQ4 wait.
+
+### SQ2: Description Rollout
+
+Exit: every canonical skill either carries the trigger form on each host where its cohort supports it, or keeps its current description with a recorded reason. No host loses surfaced descriptions.
+
+#### SQ2.1 Query Sets
+
+State: NOT STARTED. Depends on: SQ1.5. Covers: `G-SQ-03`.
+
+Write should-trigger and near-miss query sets with held-out splits for the remaining canonical skills and for the commands. Do it family by family, and write each set before its arms run.
+
+Files: `evals/triggers/<skill>.jsonl`.
+
+Exit: each set is reviewed blind against the skill list. Near-misses target sibling skills.
+
+#### SQ2.2 Family Rollouts
+
+State: NOT STARTED. Depends on: SQ2.1. Covers: `G-SQ-03`, `ADR-SQ3`.
+
+Per family (`dev-`, `qa-`, `verify-`, `workflow-`, `ops-`, `boot-`, `arch-`, `lint-`, `ship-`, `stellaris-`), run its own skill workflow:
+1. Rewrite descriptions as "Use when …, before …".
+2. Move the what-it-does sentence into the body.
+3. Run the family's trigger cohort.
+4. Ship per host where B is no worse than A.
+
+Files: `skills/<family>-*/SKILL.md`; generated outputs through the normal build and checks.
+
+Exit: per family, a cohort record, `npm run check` and `check generated` passing, and a reviewed diff.
+
+#### SQ2.3 Post-Rollout Surfacing
+
+State: NOT STARTED. Depends on: each SQ2.2 family. Covers: `Q-SQ-03`.
+
+Rerun SQ1.1 after each family ships.
+
+Exit: no host loses a description that was surfaced before. A loss is fixed through SQ1.2 or by rolling the family back on that host.
+
+### SQ3: Outcome Cohorts for High-Stakes Assets
+
+Exit: each asset has a preregistered result (effect, null or harm) and a decision record.
+
+#### SQ3.1 `verify-test`
+
+State: NOT STARTED. Depends on: SQ1.5. Covers: `G-SQ-04`.
+
+Scenarios where an earlier change weakened tests to reach green: removed assertions, skipped cases, a loosened matcher. The verifier checks that the weakening is reported in the agent's output file and that no further weakening happened.
+
+Files: `evals/scenarios/verify-test/`.
+
+Exit: the cohort result against the contract's rule.
+
+#### SQ3.2 `qa-review`
+
+State: NOT STARTED. Depends on: SQ1.5. Covers: `G-SQ-04`.
+
+Use pre-fix diffs from QA history with known defects. A deterministic matcher checks file, line window and defect class. A blind judge adjudicates only the unmatched findings, under the GR1 dual-grading standard. False positives are counted.
+
+Files: `evals/scenarios/qa-review/`.
+
+Exit: defect recall and false-positive rate per arm, with intervals.
+
+#### SQ3.3 `ship-commit`
+
+State: NOT STARTED. Depends on: SQ1.5. Covers: `G-SQ-04`.
+
+Staged changes in a repository with the commit hooks, a throwaway signing key and a remote that must stay untouched. The verifier checks:
+- a commit exists and is signed;
+- the hooks passed without `--no-verify`;
+- the message has no attribution;
+- nothing was pushed.
+
+Files: `evals/scenarios/ship-commit/`.
+
+Exit: the cohort result.
+
+#### SQ3.4 Workflow Roles
+
+State: NOT STARTED. Depends on: SQ1.5. Covers: `G-SQ-04`.
+
+Ledger scenarios for the planner, reviewer, judger and close roles. The verifier runs `agent-surface workflow doctor` and checks the transitions and evidence references.
+
+Files: `evals/scenarios/workflow-*/`.
+
+Exit: the cohort result per role.
+
+### SQ4: Superpowers Comparison and Refinements
+
+Exit: every packet has a memo, and every selected hypothesis has a cohort decision.
+
+#### SQ4.1 Comparison Packets
+
+State: NOT STARTED. Depends on: none; read-only research that can start alongside SQ0. Covers: `G-SQ-05`, `ADR-SQ5`.
+
+Run one `ops-swarm` packet per Superpowers skill: fourteen, excluding `diagnosing-superpowers`. Each packet reads the Superpowers skill with its references and our closest assets from the ledger's skill map. It writes a memo covering triggers, procedure, the failure modes addressed, evidence gates and outputs, and ends with testable hypotheses, each predicting a world-state effect.
+
+Seed hypotheses from the dev-flow feedback (`E-07`):
+- cross-family review for persistence, concurrency, installer and user-owned-config diffs;
+- a layout round-trip step in `qa-self-critique`;
+- review findings persisted outside chat.
+
+Memos quote no Superpowers text.
+
+Files: memos under `.agent-surface/research/<date>-sq4/`.
+
+Exit: fourteen memos reviewed for copied passages; hypotheses listed for the operator.
+
+#### SQ4.2 Hypothesis Selection
+
+State: NOT STARTED. Depends on: SQ4.1. Covers: `G-SQ-05`.
+
+The operator selects which hypotheses become skill changes.
+
+Exit: a selected list with the target assets.
+
+#### SQ4.3 Refinement Cohorts
+
+State: NOT STARTED. Depends on: SQ4.2, SQ1.5. Covers: `G-SQ-05`, `Q-SQ-05`.
+
+Each selected hypothesis becomes:
+1. its own skill workflow (draft in our words);
+2. an outcome or trigger cohort, current skill versus refined skill;
+3. a merge only on a win.
+
+Exit: a decision record per hypothesis.
+
+### SQ5: Delivery by Parity
+
+Exit: every switched host has a parity record. The installer's documented scope covers always-on rules, settings, MCP merges and provisioning, owned-only pruning, and the hosts with no native route.
+
+#### SQ5.1 Capability Matrix and Guarantees
+
+State: NOT STARTED. Depends on: none. Covers: `G-SQ-06`, `ADR-SQ4`.
+
+Research the hosts the ledger left out: dsh, pool, qoder, the trae family, openhands, zed and deepagents. Resolve the conflicts on Kimi Code and on update and uninstall syntax. Then write the guarantees a route must meet:
+- owned-only pruning;
+- operator-field-preserving merges;
+- provisioning;
+- one-command update;
+- model-visible parity.
+
+Files: the ledger's capability matrix; the architecture's SQ section.
+
+Exit: a matrix row for all 28 adapters, with sources.
+
+#### SQ5.2 Existing-Tool Read
+
+State: NOT STARTED. Depends on: none. Covers: `S-SQ-07`.
+
+Read the rulesync and `skills` source for ownership, pruning and merge behaviour. Then run each on three hosts in disposable homes, against operator-edited files and sibling MCP entries.
+
+Exit: a verdict per tool and output kind. Candidate C reopens only if the guarantees match.
+
+#### SQ5.3 Claude Code Plugin Parity Pilot
+
+State: NOT STARTED. Depends on: SQ1.1, SQ5.1. Covers: `S-SQ-08`, `Q-SQ-06`.
+
+Build a Claude Code plugin from the canonical sources beside the existing exports, carrying skills, commands, agents and hooks. Install it through a local marketplace in a disposable HOME. Rules and settings stay with the installer. Compare against installer delivery on:
+- the surfacing probe and the SQ1.3 trigger cells;
+- discovery, invocation and removal, by extending the live plugin test;
+- ownership checks on operator files.
+
+Files: `scripts/agent-surface/targets.mjs` (plugin outputs), `scripts/agent-surface/doctor.mjs` (route line), `tests/suites/live-plugin.test.mjs`.
+
+Exit: parity within the contract's tolerance, plus a rollback rehearsal back to the installer route.
+
+#### SQ5.4 Shared Skills Location
+
+State: NOT STARTED. Depends on: SQ5.1, SQ1.1. Covers: `G-SQ-06`.
+
+For hosts that read `.agents/skills` or `~/.agents/skills` (Codex, OpenCode, Kilo, Goose, Windsurf, and others confirmed in SQ5.1), write one owned copy there instead of a copy per host. Ownership stays in the installer manifest. Run a parity cohort per host.
+
+Files: the roots, targets and install modules; the installer tests.
+
+Exit: per host, surfacing and trigger parity, owned-only pruning verified, and duplicate copies removed by the owned prune.
+
+#### SQ5.5 Switches and Installer Reduction
+
+State: NOT STARTED. Depends on: SQ5.3 and SQ5.4 per host. Covers: `ADR-SQ4`.
+
+Switch each host that passed parity. Delete the installer code for that host and output kind in a later change, after the switch has held for a release.
+
+Exit: per switched host, the parity record, the release it held through, and the deletion commit.
+
+### SQ6: Default Development Path
+
+Exit: one documented default route and a list of alternatives. No skill is removed.
+
+#### SQ6.1 Scenario Research
+
+State: NOT STARTED; owned by the operator. Depends on: none. Covers: `OQ-SQ-01`, `N-SQ-07`.
+
+The operator runs the research brief in the concept.
+
+Exit: the operator's scenario → path → evidence table.
+
+#### SQ6.2 Workflow Map
+
+State: NOT STARTED. Depends on: SQ6.1. Covers: `G-SQ-07`, `ADR-SQ6`.
+
+As its own skill workflow, write the default route and the scenario-tagged alternatives into the workflow map that `boot-workflow` presents. Point the affected skills at it without removing any.
+
+Exit: a reviewed diff, and `npm run check` and `check generated` passing. An optional later cohort compares the default with one alternative on matched tasks.
+
+### Later / Not Now
+
+- **A public marketplace** (`OQ-SQ-03`).
+  - Revisit trigger: an operator decision.
+  - Reason deferred: delivery stays private by default.
+- **Per-host description variants in the source model.**
+  - Revisit trigger: SQ1 or SQ2 shows host-divergent winners.
+  - Reason deferred: until then one description serves all hosts.
+- **Wholesale delegation to existing tools** (Candidate C).
+  - Revisit trigger: SQ5.2 shows matching guarantees.
+- **Rejected by the operator and not scheduled:** context or token reduction, a skill-size cap, a transcript-diagnosing skill, skill removal.
