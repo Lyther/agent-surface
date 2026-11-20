@@ -228,6 +228,8 @@ export function useDisposableHome() {
   return { home, restore };
 }
 
+const TOML_PYTHONS = ["python3", "python3.13", "python3.12", "python3.11"];
+
 function assertTomlParses(dir) {
   const script = `
 import pathlib
@@ -242,7 +244,13 @@ for p in pathlib.Path(sys.argv[1]).rglob("*.toml"):
 if bad:
     raise SystemExit("\\n".join(bad))
 `;
-  execFileSync("python3", ["-c", script, dir], {
+  // tomllib (Python 3.11+) is the independent TOML oracle. macOS ships 3.9 as /usr/bin/python3, so
+  // try the versioned names too and fail with the requirement instead of a bare ImportError.
+  const interpreter = TOML_PYTHONS.find((name) => spawnSync(name, ["-c", "import tomllib"], { stdio: "ignore" }).status === 0);
+  if (!interpreter) {
+    throw new Error(`TOML check needs Python >= 3.11 (tomllib): none of ${TOML_PYTHONS.join(", ")} on PATH provides it; put a newer python3 first on PATH`);
+  }
+  execFileSync(interpreter, ["-c", script, dir], {
     cwd: root,
     encoding: "utf8",
   });
