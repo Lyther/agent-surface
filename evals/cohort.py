@@ -30,7 +30,7 @@ HOSTS = {
 CREDIT_STOP = 1_500_000
 CREDIT_RESERVE_PER_ATTEMPT = 350_000
 EVALS_DIR = Path(__file__).resolve().parent
-SKILL_OPEN_EVENTS = ("OPEN", "ACCESS")
+STARTUP_WINDOW_SECONDS = 5
 
 
 def now() -> str:
@@ -43,32 +43,34 @@ def plan(seed: int, reps: int) -> list[tuple[str, str, int]]:
     return cells
 
 
-def skills_opened(attempt_dir: Path) -> list[str]:
-    """Skills whose SKILL.md was opened again after the host's own startup scan (spike-grade detector).
-
-    Both hosts read every SKILL.md once at startup to build the catalogue, so a first open is
-    listing, not use. A second open of the same file is counted as a load.
-    """
-    names: set[str] = set()
+def skill_opens(attempt_dir: Path) -> list[tuple[datetime, str]]:
+    """(time, SKILL.md path) for every open event the watcher logged."""
+    events = []
     for log in attempt_dir.rglob("skill-opens.log"):
-        counts: dict[str, int] = {}
         for line in log.read_text(errors="replace").splitlines():
             parts = line.split(" ", 2)
             if len(parts) == 3 and parts[1] == "OPEN" and parts[2].endswith("/SKILL.md"):
-                counts[parts[2]] = counts.get(parts[2], 0) + 1
-        names |= {Path(path).parent.name for path, n in counts.items() if n >= 2}
-    return sorted(names)
+                events.append((datetime.strptime(parts[0], "%Y-%m-%dT%H:%M:%S"), parts[2]))
+    return sorted(events)
+
+
+def skills_opened(attempt_dir: Path) -> list[str]:
+    """Skills opened after the host's startup catalogue scan (spike-grade detector).
+
+    Observed: OpenCode opens every SKILL.md once and Droid three times, all within about a second of
+    start, to build the skill listing. Opens later than STARTUP_WINDOW_SECONDS after the first one are
+    counted as loads. SQ0.2 replaces this heuristic.
+    """
+    events = skill_opens(attempt_dir)
+    if not events:
+        return []
+    first = events[0][0]
+    return sorted({Path(p).parent.name for t, p in events if (t - first).total_seconds() > STARTUP_WINDOW_SECONDS})
 
 
 def catalogue_scanned(attempt_dir: Path) -> int:
-    """Number of distinct SKILL.md files opened at least once, to show the watcher saw the startup scan."""
-    seen: set[str] = set()
-    for log in attempt_dir.rglob("skill-opens.log"):
-        for line in log.read_text(errors="replace").splitlines():
-            parts = line.split(" ", 2)
-            if len(parts) == 3 and parts[1] == "OPEN" and parts[2].endswith("/SKILL.md"):
-                seen.add(parts[2])
-    return len(seen)
+    """Distinct SKILL.md files the watcher saw opened, to show it observed the startup scan."""
+    return len({p for _, p in skill_opens(attempt_dir)})
 
 
 def scrub(root: Path, key: str) -> int:

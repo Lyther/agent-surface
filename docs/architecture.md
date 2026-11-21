@@ -567,7 +567,8 @@ PROPOSED.
 
 #### ADR-SQ2: Adopt runners; the production installer injects arms
 
-PROPOSED, SPIKE_REQUIRED (`S-SQ-01`).
+ACCEPTED for the runner and the arm route, `SQ0.1` 2026-11-21; the detector stays open until `SQ0.2`.
+- **Spike result:** Harbor 0.26.0 (Apache-2.0, pinned in `evals/uv.lock`) ran OpenCode and Droid in 8 attempts (2 hosts x 2 arms x 2 repetitions), each in its own container with the arm built by the production installer. Harbor has an OpenCode adapter but no Droid adapter. Droid runs as a custom installed agent (`evals/agents.py`) with the Factory key passed by `docker exec -e` instead of Harbor's own exec, which would put the value in argv. BenchFlow was not needed.
 - **Context:** Harbor and BenchFlow drive most runnable hosts in containers (`E-18`, `E-19`). No runner knows each host's skill locations; the installer does (`E-06`).
 - **Decision:** adopt a runner and build only the arm builder, detector, verifiers, ledger and scrubber.
 - **Consequences:** results measure production delivery; the runner's version becomes part of each preregistration.
