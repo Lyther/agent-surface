@@ -204,8 +204,46 @@ def injected_secrets(keys: dict[str, str]) -> list[Secret]:
     return parse_secrets([f"{name}={value}" for name, value in sorted(keys.items()) if value])
 
 
+# A launch failure (no trial result: the container never started the agent) is retried at most this many times, each in a fresh job directory.
+# Basis: GR2 amendment 1 allowed three retries for connection failures.
+LAUNCH_RETRIES = 3
+
+
+def attempt_name(cell: tuple, attempt_no: int = 1) -> str:
+    """Name of an attempt's job, task and log; a retry gets its own directory."""
+    scenario, host, profile, rep = cell
+    base = f"{scenario}-{host}-{profile}-{rep}"
+    return base if attempt_no == 1 else f"{base}-a{attempt_no}"
+
+
+def is_launch_failure(row: dict) -> bool:
+    return row.get("harbor") is None and row.get("cli_version") is None and "status" not in row and "skipped" not in row
+
+
+def next_attempt(rows: list[dict]) -> int | None:
+    """The attempt number a cell runs next given its ledger rows, or None when the cell is finished: it has a row that is not a launch failure,
+    or it used up its retries."""
+    if any(not is_launch_failure(row) for row in rows):
+        return None
+    number = max((row.get("attempt_no", 1) for row in rows), default=0) + 1
+    return number if number <= LAUNCH_RETRIES + 1 else None
+
+
+async def run_with_retries(run_once, first: int) -> tuple[dict, bool]:
+    """Run attempts of one cell from number `first`; `run_once(number)` returns its ledger row and whether the cohort must stop.
+
+    Only a launch failure is retried. Every attempt keeps its row in the ledger.
+    """
+    number = first
+    while True:
+        row, stop = await run_once(number)
+        if stop or not is_launch_failure(row) or number > LAUNCH_RETRIES:
+            return row, stop
+        number += 1
+
+
 def finish_attempt(cell: tuple, image: dict, arm: dict, started: str, exit_code: int, out: Path, secrets: list[Secret], ledger: Path, seconds: float | None = None,
-                   extra: dict | None = None) -> bool:
+                   extra: dict | None = None, attempt_no: int = 1) -> bool:
     """Scan the attempt's receipts, append its ledger row, and return True when the cohort must stop.
 
     The container is already removed and its files are in `jobs/<name>`. A hit quarantines the attempt's
@@ -213,14 +251,15 @@ def finish_attempt(cell: tuple, image: dict, arm: dict, started: str, exit_code:
     text; the row carries no verdict or cost, because a leaked attempt is not scored.
     """
     scenario, host, profile, rep = cell
-    name = f"{scenario}-{host}-{profile}-{rep}"
+    name = attempt_name(cell, attempt_no)
     receipts = [out / "jobs" / name, out / "logs" / f"{name}.log", out / "tasks" / name]
     hits = [hit for path in receipts if path.exists() for hit in scan_receipt(path, secrets, out / "quarantine")]
     if hits:
-        row = {"scenario": scenario, "profile": profile, "host": host, "rep": rep, "status": "quarantined",
+        row = {"scenario": scenario, "profile": profile, "host": host, "rep": rep, "status": "quarantined", "attempt_no": attempt_no,
                "hits": len(hits), "hit_names": sorted({hit.name for hit in hits}), "ended": now()}
     else:
         row = ledger_row(scenario, host, profile, rep, image, arm, started, exit_code, out / "jobs" / name)
+        row["attempt_no"] = attempt_no
         row["seconds_total"] = None if seconds is None else round(seconds, 1)
         row.update(extra or {})
     with ledger.open("a") as f:
@@ -228,10 +267,10 @@ def finish_attempt(cell: tuple, image: dict, arm: dict, started: str, exit_code:
     return bool(hits)
 
 
-async def attempt(cell: tuple, args, images: dict, arms: dict, keys: dict[str, str]) -> tuple[str, int, float]:
+async def attempt(cell: tuple, attempt_no: int, args, images: dict, arms: dict, keys: dict[str, str]) -> tuple[str, int, float]:
     """Run one attempt through Harbor; returns (started, harbor exit code, wall seconds)."""
     scenario, host, profile, rep = cell
-    name = f"{scenario}-{host}-{profile}-{rep}"
+    name = attempt_name(cell, attempt_no)
     jobs = args.out / "jobs"
     if (jobs / name).exists():
         raise SystemExit(f"attempt directory exists, not reused: {jobs / name}")
@@ -359,10 +398,13 @@ async def main(args) -> None:
     args.spend = parse_spend(args.spend_items, args.hosts.split(","))
     args.units = make_units(args.scenario, load_queries(args.queries) if args.queries else [])
     ledger = args.out / "ledger.jsonl"
-    done = {(r["scenario"], r["host"], r["profile"], r["rep"]) for r in map(json.loads, ledger.read_text().splitlines())} if ledger.exists() else set()
+    history: dict[tuple, list[dict]] = {}
+    for row in map(json.loads, ledger.read_text().splitlines() if ledger.exists() else []):
+        history.setdefault((row["scenario"], row["host"], row["profile"], row["rep"]), []).append(row)
     everything = plan(sorted(args.units), args.hosts.split(","), args.profiles.split(","), args.seed, args.reps)
     (args.out / "order.json").write_text(json.dumps(everything) + "\n")
-    order = [left for left in ([c for c in group if tuple(c) not in done] for group in everything) if left]
+    first_attempt = {tuple(c): next_attempt(history.get(tuple(c), [])) for group in everything for c in group}
+    order = [left for left in ([c for c in group if first_attempt[tuple(c)]] for group in everything) if left]
     gates = {host: SpendGate(cap, reserve) for host, (cap, reserve) in args.spend.items()}
 
     def skip(cell, why: str) -> None:
@@ -384,11 +426,15 @@ async def main(args) -> None:
             if host in gates:
                 gates[host].settle(0, ran=False)
             return False
-        started, code, seconds = await attempt(cell, args, images, arms, keys)
-        stop = finish_attempt(cell, images[host], arms[f"{host}-{profile}"], started, code, args.out, injected_secrets(keys), ledger, seconds,
-                              {**row_extra(args), **limits(args, args.units[scenario]), **args.units[scenario].fields})
+
+        async def run_once(number: int) -> tuple[dict, bool]:
+            started, code, seconds = await attempt(cell, number, args, images, arms, keys)
+            stop = finish_attempt(cell, images[host], arms[f"{host}-{profile}"], started, code, args.out, injected_secrets(keys), ledger, seconds,
+                                  {**row_extra(args), **limits(args, args.units[scenario]), **args.units[scenario].fields}, number)
+            return json.loads(ledger.read_text().splitlines()[-1]), stop
+
+        last, stop = await run_with_retries(run_once, first_attempt[tuple(cell)])
         if host in gates:
-            last = json.loads(ledger.read_text().splitlines()[-1])
             # An attempt that failed before the agent started spent nothing; any other without a reading is charged the reserve.
             gates[host].settle(spend_reading(host, last), ran=last.get("seconds_agent") is not None)
         return stop

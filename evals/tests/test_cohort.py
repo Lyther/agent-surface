@@ -13,7 +13,7 @@ from unittest import mock
 from pathlib import Path
 
 from evals.agents import HOST_TIMEOUT_MARGIN_SEC, host_timeout
-from evals.cohort import SpendGate, Unit, limits, finish_attempt, first_load_fields, injected_secrets, parse_spend, plan, run_order, spend_reading
+from evals.cohort import LAUNCH_RETRIES, SpendGate, Unit, attempt_name, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, injected_secrets, parse_spend, plan, run_order, spend_reading
 
 FAKE_KEY = "fk-FAKE-not-a-real-factory-key-0123456789"
 IMAGE = {"image_id": "sha256:feed"}
@@ -61,6 +61,17 @@ class CohortFinishTest(unittest.TestCase):
         self.assertEqual((row["profile"], row["desc_arm"], row["arm_sha256"], row["dev_fix_installed"]), ("dev", "B", "abc123", True))
         self.assertNotIn("status", row)
         self.assertTrue((self.out / "jobs" / "controls-no-skill-droid-dev-1").exists())
+
+    def test_a_retry_is_scanned_in_its_own_directory_and_every_row_stays(self):
+        self.attempt_dir("controls-no-skill-droid-dev-1", leak=False)
+        self.attempt_dir("controls-no-skill-droid-dev-1-a2", leak=True)
+        self.assertFalse(finish_attempt(CELL, IMAGE, ARM, "t0", 1, self.out, self.secrets, self.ledger, extra={"attempt_no": 1}, attempt_no=1))
+        self.assertTrue(finish_attempt(CELL, IMAGE, ARM, "t1", 0, self.out, self.secrets, self.ledger, attempt_no=2))
+        first, second = self.rows()
+        self.assertEqual((first["attempt_no"], first["harbor"]), (1, None))
+        self.assertEqual((second["attempt_no"], second["status"]), (2, "quarantined"))
+        self.assertTrue((self.out / "jobs" / "controls-no-skill-droid-dev-1").exists())
+        self.assertTrue((self.out / "quarantine" / "controls-no-skill-droid-dev-1-a2").is_dir())
 
     def test_planted_secret_quarantines_ledgers_and_stops(self):
         self.attempt_dir("controls-no-skill-droid-dev-1", leak=True)
@@ -118,6 +129,60 @@ class LimitsTest(unittest.TestCase):
             self.assertEqual(host_timeout(), 1800 - HOST_TIMEOUT_MARGIN_SEC)
         with mock.patch.dict(os.environ, clear=True), self.assertRaises(KeyError):
             host_timeout()
+
+
+LAUNCH_FAILED = {"harbor": None, "cli_version": None, "exception": None, "attempt_no": 1}
+RAN = {"harbor": "arm-droid", "cli_version": "0.244.0", "seconds_agent": 12.0}
+
+
+class LaunchRetryTest(unittest.TestCase):
+    def test_a_retry_gets_its_own_job_name_and_the_first_attempt_keeps_the_old_one(self):
+        self.assertEqual(attempt_name(CELL), "controls-no-skill-droid-dev-1")
+        self.assertEqual(attempt_name(CELL, 3), "controls-no-skill-droid-dev-1-a3")
+
+    def test_only_a_row_without_harbor_and_version_is_a_launch_failure(self):
+        self.assertTrue(is_launch_failure(LAUNCH_FAILED))
+        self.assertFalse(is_launch_failure(RAN))
+        self.assertFalse(is_launch_failure({**LAUNCH_FAILED, "status": "quarantined"}))
+        self.assertFalse(is_launch_failure({"harbor": None, "cli_version": None, "skipped": "cap"}))
+        self.assertFalse(is_launch_failure({**RAN, "exception": "AgentTimeoutError"}))  # an attempt that started and failed is not retried
+
+    def test_next_attempt_resumes_after_the_last_row_and_ends_with_a_result_or_the_retries(self):
+        self.assertEqual(next_attempt([]), 1)
+        self.assertEqual(next_attempt([LAUNCH_FAILED]), 2)
+        self.assertEqual(next_attempt([LAUNCH_FAILED, {**LAUNCH_FAILED, "attempt_no": 2}]), 3)
+        self.assertIsNone(next_attempt([LAUNCH_FAILED, {**RAN, "attempt_no": 2}]))
+        self.assertIsNone(next_attempt([{**LAUNCH_FAILED, "attempt_no": n} for n in range(1, LAUNCH_RETRIES + 2)]))
+
+    def test_launch_failures_are_retried_up_to_the_limit_and_nothing_else_is(self):
+        def runner(rows):
+            calls = []
+
+            async def run_once(number):
+                calls.append(number)
+                return rows[min(len(calls), len(rows)) - 1], False
+
+            return calls, run_once
+
+        calls, run_once = runner([LAUNCH_FAILED, LAUNCH_FAILED, RAN])
+        row, _ = asyncio.run(run_with_retries(run_once, 1))
+        self.assertEqual((calls, row), ([1, 2, 3], RAN))
+        calls, run_once = runner([LAUNCH_FAILED])
+        asyncio.run(run_with_retries(run_once, 1))
+        self.assertEqual(calls, [1, 2, 3, 4])  # the first attempt and three retries
+        calls, run_once = runner([{**RAN, "exception": "AgentTimeoutError"}])
+        asyncio.run(run_with_retries(run_once, 1))
+        self.assertEqual(calls, [1])
+
+    def test_a_stop_ends_the_retries(self):
+        calls = []
+
+        async def run_once(number):
+            calls.append(number)
+            return LAUNCH_FAILED, True
+
+        asyncio.run(run_with_retries(run_once, 1))
+        self.assertEqual(calls, [1])
 
 
 class PlanTest(unittest.TestCase):
