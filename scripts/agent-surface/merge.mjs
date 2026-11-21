@@ -63,6 +63,8 @@ export function renderMcpConfig(format, entries, rootProperties = {}) {
     return withTrailingNewline(TOML.stringify(config, tomlFormat()));
   }
 
+  // No server to write leaves the key out, as the Codex render does, instead of a hollow container.
+  if (entries.length === 0) return `${JSON.stringify(rootProperties, null, 2)}\n`;
   const servers = optionalServiceMcpServers(entries, format);
   if (format === "vscode-servers") return `${JSON.stringify({ ...rootProperties, servers }, null, 2)}\n`;
   if (format === "zed-context-servers") return `${JSON.stringify({ ...rootProperties, context_servers: servers }, null, 2)}\n`;

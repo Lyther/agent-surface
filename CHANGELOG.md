@@ -6,6 +6,8 @@ Notable changes to agent-surface and its first-party MCP services. Format: [Keep
 
 ### Added
 
+- **`install --no-mcps`** - renders skills, rules, commands, agents and every other non-MCP output without provisioning the machine: every MCP service is excluded from the plan, so nothing is built or installed, no launcher or Synapse hook is written, and an already-wired server stays as it is. Only `--dest` is written, so an evaluation arm or CI job can render into an empty directory with just node and git. It refuses `--service` and `--category mcps`. A render with no server to write now leaves the MCP key out of a new JSON config, as the Codex render already did, instead of writing an empty one.
+
 - **Focused subagent catalog** - explorer, researcher, worker, reviewer, and verifier provide distinct delegation choices with short, practical handoffs. Planning stays with the parent; reviewer covers targeted counterexamples, replacing the separate boss, analyzer, and adversary definitions.
 
 - **REA MCP** - explicit `--category mcps --service rea` wiring for Reverse Engineer Anything, with its reviewed source pinned in the `external/rea` submodule. Missing executables are reported without writing a broken entry; default and asset-category profiles stay unchanged. Includes source setup guidance and an opt-in acceptance through the generated launcher.
