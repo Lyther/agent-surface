@@ -1,0 +1,2 @@
+{"type": "system", "subtype": "init", "cwd": "/app"}
+{"type": "tool_call", "toolName": "Create", "parameters": {"file_path": "/app/CONTROL.txt", "content": "42"}, "timestamp": 1795255147891}

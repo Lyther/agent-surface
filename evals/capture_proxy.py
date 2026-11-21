@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import http.client
 import sys
+import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -21,11 +22,14 @@ HOP = {"host", "content-length", "connection", "transfer-encoding", "accept-enco
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
     count = 0
+    lock = threading.Lock()
 
     def do_POST(self) -> None:
         body = self.rfile.read(int(self.headers.get("content-length", 0)))
-        Handler.count += 1
-        (OUT / f"{Handler.count:03d}.json").write_bytes(body)
+        with Handler.lock:
+            Handler.count += 1
+            number = Handler.count
+        (OUT / f"{number:03d}.json").write_bytes(body)
         conn = http.client.HTTPSConnection(UPSTREAM.netloc, timeout=300)
         headers = {k: v for k, v in self.headers.items() if k.lower() not in HOP}
         conn.request("POST", UPSTREAM.path.rstrip("/") + self.path, body, headers)

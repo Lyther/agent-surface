@@ -1,0 +1,5 @@
+.config/opencode/skills/boot-repro/SKILL.md
+.config/opencode/skills/dev-fix/SKILL.md
+.config/opencode/skills/ops-ask/SKILL.md
+.config/opencode/skills/qa-review/SKILL.md
+.config/opencode/skills/verify-test/SKILL.md

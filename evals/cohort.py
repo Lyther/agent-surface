@@ -102,6 +102,8 @@ def ledger_row(scenario: str, host: str, arm: str, rep: int, image: dict, starte
         "skills_loaded": detected["loaded"],
         "load_evidence": detected["evidence"],
         "audit_loads": detected["audit_loads"],
+        "workspace_skill_reads": detected["workspace_skill_reads"],
+        "failed_skill_lookups": detected["failed_lookups"],
         "audit_disagreements": detected["disagreements"],
         "skill_files_scanned": detected["scanned"],
         "dev_fix_installed": "dev-fix" in image["skills"],

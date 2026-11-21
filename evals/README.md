@@ -40,8 +40,10 @@ Both hosts open every installed `SKILL.md` at startup to build their catalogue (
 
 | Host | A skill is loaded when the trajectory shows |
 |---|---|
-| OpenCode | a `skill` tool call (`name` input), or a `read` or `bash` call whose target is an installed `<skill>/SKILL.md` |
-| Droid | a `Skill` tool call (`skill` input), or a `Read` or `Execute` call whose target is an installed `<skill>/SKILL.md` |
+| OpenCode | a `skill` tool call (`name` input) for an installed skill, or a `read` or `bash` call whose target resolves to an installed `<skill>/SKILL.md` |
+| Droid | a `Skill` tool call (`skill` input) for an installed skill, or a `Read` or `Execute` call whose target resolves to an installed `<skill>/SKILL.md` |
+
+Installed means listed in the attempt's `arm-skills.txt`. `~` and `$HOME` are expanded; a relative path resolves against the call's working directory (Droid records it, OpenCode does not) or a single leading `cd DIR &&`, and a path that cannot be resolved counts only when the audit shows the installed file opened after the scan. A skill-tool call for a name that is not installed is recorded in `failed_skill_lookups`, not as a load. Every other `SKILL.md` read, such as the repository's own `skills/` in a scenario workspace, is recorded in `workspace_skill_reads`, an exposure covariate that is never a load.
 
 The audit (`inotifywait -m -r -e open`, each event stamped by `stamp.py` with sub-second epoch time) counts opens after `startup_end`: OpenCode's first event of any kind (its scan ends about 2 s earlier), Droid's first tool call (its scan ends within 0.1 s of the first reasoning event). It sees a file read, and for OpenCode's skill tool a directory open, but not Droid's `Skill` tool, which opens no file. `verdict` lists each disagreement between record and audit with its cause; the ledger keeps them in `audit_disagreements`.
 
@@ -58,8 +60,12 @@ Each installed skill is classified `surfaced`, `name-only` or `absent`, with `tr
 
 ## Ledger
 
-One row per attempt: `scenario`, `arm`, `host`, `model`, `rep`, versions, `source_commit`, `overlay_sha256`, `image_id`, times (`seconds_setup` is now the check of the prebuilt image), cost fields, `verifier_reward`, `skills_loaded`, `load_evidence` (skill to mechanism), `audit_loads`, `audit_disagreements`, `skill_files_scanned`, `dev_fix_installed`, `key_files_remaining`. `images.json` holds one record per image (tag, image ID, base image ID, CLI version, overlay, dropped skills).
+One row per attempt: `scenario`, `arm`, `host`, `model`, `rep`, versions, `source_commit`, `overlay_sha256`, `image_id`, times (`seconds_setup` is now the check of the prebuilt image), cost fields, `verifier_reward`, `skills_loaded`, `load_evidence` (skill to mechanism), `audit_loads`, `workspace_skill_reads`, `failed_skill_lookups`, `audit_disagreements`, `skill_files_scanned`, `dev_fix_installed`, `key_files_remaining`. `images.json` holds one record per image (tag, image ID, base image ID, CLI version, overlay, dropped skills).
 
 ## Scenarios
 
 `scenarios/dev-fix/spike-01/` is a Harbor task. The hidden verifier in `tests/` checks the fix and that a regression test was added that fails on the original code.
+
+## Tests
+
+`cd /tmp/as-wt-lab && uv run --frozen --project evals python -m unittest discover -s evals/tests -t .` runs the detector tests (stdlib `unittest`). The fixtures in `evals/tests/fixtures/` are trimmed real control trajectories, one per host and control; two further cases are constructed.
