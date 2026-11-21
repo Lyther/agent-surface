@@ -13,7 +13,7 @@ from evals.cohort import finish_attempt, injected_secrets, run_order
 
 FAKE_KEY = "fk-FAKE-not-a-real-factory-key-0123456789"
 IMAGE = {"image_id": "sha256:feed"}
-ARM = {"source_commit": "c0ffee", "arm_sha256": "abc123", "skills": ["dev-fix"]}
+ARM = {"source_commit": "c0ffee", "arm_sha256": "abc123", "skills": ["dev-fix"], "desc_arm": "B"}
 CELL = ("controls-no-skill", "droid", "dev", 1)
 
 
@@ -41,7 +41,7 @@ class CohortFinishTest(unittest.TestCase):
         self.assertFalse(stop)
         (row,) = self.rows()
         self.assertEqual((row["receipt_scan"], row["seconds_total"], row["image_id"]), ("clean", 12.3, "sha256:feed"))
-        self.assertEqual((row["profile"], row["desc_arm"], row["arm_sha256"], row["dev_fix_installed"]), ("dev", "A", "abc123", True))
+        self.assertEqual((row["profile"], row["desc_arm"], row["arm_sha256"], row["dev_fix_installed"]), ("dev", "B", "abc123", True))
         self.assertNotIn("status", row)
         self.assertTrue((self.out / "jobs" / "controls-no-skill-droid-dev-1").exists())
 

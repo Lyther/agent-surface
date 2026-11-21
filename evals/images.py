@@ -6,7 +6,7 @@ container's HOME before the agent starts, so HOME is pristine and the arm is dat
 
 Usage:
   python -m evals.images build --out OUT [--hosts opencode,droid] [--proxy URL]
-  python -m evals.images arms --src SRC --out OUT [--hosts ...] [--profiles dev,full,...]
+  python -m evals.images arms --src SRC --out OUT [--hosts ...] [--profiles dev,full,...] [--desc-texts desc.json]
   python -m evals.images scenarios --host-images hosts.json --scenario DIR [--scenario DIR ...] --hosts droid [--proxy URL]
 """
 
@@ -25,7 +25,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from evals.arms import BUILD_DIR, HOST_CLI, PROFILES, STAMP, check_arms, prepare_all
+from evals.arms import BUILD_DIR, HOST_CLI, PROFILES, STAMP, check_arms, check_desc_arms, load_desc_texts, prepare_all
 
 EVALS_DIR = Path(__file__).resolve().parent
 # The base every host image and every scenario with its own environment starts from (pinned by digest).
@@ -216,11 +216,14 @@ def cmd_scenarios(args) -> None:
 
 def cmd_arms(args) -> None:
     """Render and pack every host-and-profile arm, then check `dev-fix` presence and the profile relations."""
-    arms = prepare_all(args.src, args.hosts.split(","), args.profiles.split(","), args.out)
+    texts = load_desc_texts(args.desc_texts) if args.desc_texts else None
+    # The description profiles are rendered only when their texts are given.
+    profiles = args.profiles.split(",") if args.profiles else [n for n, p in PROFILES.items() if texts or p.desc_arm == "A"]
+    arms = prepare_all(args.src, args.hosts.split(","), profiles, args.out, texts)
     (args.out / "arms.json").write_text(json.dumps(arms, indent=2) + "\n")
     for key, arm in sorted(arms.items()):
         print(json.dumps({"arm": key, "skills": len(arm["skills"]), "dev_fix": "dev-fix" in arm["skills"], "sha256": arm["arm_sha256"][:16]}))
-    problems = check_arms(arms)
+    problems = check_arms(arms) + (check_desc_arms(arms, args.out, texts) if texts else [])
     for problem in problems:
         print("PROBLEM", problem)
     sys.exit(1 if problems else 0)
@@ -244,7 +247,8 @@ if __name__ == "__main__":
     r.add_argument("--src", type=Path, required=True)
     r.add_argument("--out", type=Path, required=True)
     r.add_argument("--hosts", default="opencode,droid,claude-code,codex")
-    r.add_argument("--profiles", default=",".join(PROFILES))
+    r.add_argument("--profiles", help="default: every profile, the description profiles only with --desc-texts")
+    r.add_argument("--desc-texts", type=Path, help='JSON {"B": {skill: text}, "C": {...}} for the dev-fix, verify-test and qa-review descriptions')
     r.set_defaults(fn=cmd_arms)
     parsed = ap.parse_args()
     parsed.fn(parsed)

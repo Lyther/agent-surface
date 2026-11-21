@@ -22,7 +22,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from evals.arms import DESC_ARM, SKILL_DIRS, load_arms
+from evals.arms import SKILL_DIRS, load_arms
 from evals.detect import verdict
 from evals.gateway import GATEWAY_HOSTS, KEY_ENV, NO_PROXY_ENV, URL_ENV, gateway_url, no_proxy
 from evals.images import scenario_tag, write_task
@@ -79,7 +79,7 @@ def ledger_row(scenario: str, host: str, profile: str, rep: int, image: dict, ar
     return {
         "scenario": scenario,
         "profile": profile,
-        "desc_arm": DESC_ARM,
+        "desc_arm": arm["desc_arm"],
         "host": host,
         "model": HOSTS[host]["model"],
         "rep": rep,

@@ -11,7 +11,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from evals.arms import PACK_MTIME, PROFILES, add_operator_files, check_arms, pack, prepare_source
+from evals.arms import (DESC_SKILLS, PACK_MTIME, PROFILES, add_operator_files, check_arms, check_desc_arms, load_desc_texts, pack, prepare_source,
+                        set_description)
 
 REPO = Path(__file__).resolve().parents[2]
 WORLD = REPO / "evals" / "world.py"
@@ -19,7 +20,7 @@ WORLD = REPO / "evals" / "world.py"
 
 def make_source(root: Path) -> Path:
     (root / "skills" / "dev-fix").mkdir(parents=True)
-    (root / "skills" / "dev-fix" / "SKILL.md").write_text("---\nname: dev-fix\n---\nbody\n")
+    (root / "skills" / "dev-fix" / "SKILL.md").write_text("---\nname: dev-fix\ndescription: \"Committed.\"\n---\nbody\n")
     (root / "skills" / "qa-review").mkdir()
     (root / "skills" / "qa-review" / "SKILL.md").write_text("---\nname: qa-review\n---\nbody\n")
     (root / "registry").mkdir()
@@ -57,8 +58,10 @@ class PackTest(unittest.TestCase):
 
 
 class ProfilesTest(unittest.TestCase):
-    def test_profiles_are_the_four_named_arms(self):
-        self.assertEqual(list(PROFILES), ["dev-minus-dev-fix", "dev", "full", "full-minus-dev-fix"])
+    def test_profiles_are_the_named_arms(self):
+        self.assertEqual(list(PROFILES), ["dev-minus-dev-fix", "dev", "full", "full-minus-dev-fix", "full-descB", "full-descC"])
+        self.assertEqual([PROFILES[n].desc_arm for n in ("full", "full-descB", "full-descC")], ["A", "B", "C"])
+        self.assertEqual(PROFILES["full-descB"].installs, PROFILES["full"].installs)
         self.assertEqual(PROFILES["full"].installs, ("external", "development,cybersecurity,private"))
         self.assertNotIn("modding", ",".join(PROFILES["full"].installs))
 
@@ -73,6 +76,98 @@ class ProfilesTest(unittest.TestCase):
         self.assertEqual(check_arms(good), [])
         bad = dict(good, **{"h-dev-minus-dev-fix": self.arm("h", "dev-minus-dev-fix", ["a", "dev-fix"])})
         self.assertTrue(check_arms(bad))
+
+
+TEXTS = {arm: {skill: f"Use {arm} for {skill}, when it fits." for skill in DESC_SKILLS} for arm in ("B", "C")}
+
+
+def skill_text(name: str, description: str) -> str:
+    return f'---\nname: {name}\ndescription: "{description}"\n---\n\nbody of {name}\n'
+
+
+class DescriptionTextsTest(unittest.TestCase):
+    def test_texts_load_and_bad_texts_are_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "desc.json"
+            path.write_text(json.dumps(TEXTS))
+            self.assertEqual(load_desc_texts(path), TEXTS)
+            for arm, skill, text in (("B", "dev-fix", "x" * 201), ("C", "qa-review", 'has "quotes"'), ("B", "verify-test", "two\nlines"), ("C", "dev-fix", " ")):
+                bad = json.loads(json.dumps(TEXTS))
+                bad[arm][skill] = text
+                path.write_text(json.dumps(bad))
+                with self.assertRaises(ValueError, msg=text[:12]):
+                    load_desc_texts(path)
+            path.write_text(json.dumps({"B": TEXTS["B"]}))
+            with self.assertRaises(ValueError):
+                load_desc_texts(path)
+
+    def test_only_the_description_line_changes_and_the_source_stays(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = make_source(Path(tmp) / "src")
+            out = prepare_source(src, (), Path(tmp) / "work", {"dev-fix": "Use when a bug is diagnosed."})
+            self.assertEqual((out / "skills" / "dev-fix" / "SKILL.md").read_text(), "---\nname: dev-fix\ndescription: \"Use when a bug is diagnosed.\"\n---\nbody\n")
+            self.assertEqual((src / "skills" / "dev-fix" / "SKILL.md").read_text(), "---\nname: dev-fix\ndescription: \"Committed.\"\n---\nbody\n")
+
+    def test_a_skill_without_exactly_one_description_line_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "SKILL.md"
+            path.write_text("---\nname: x\n---\ndescription: not front matter\n")
+            with self.assertRaises(ValueError):
+                set_description(path, "t")
+
+
+class DescArmCheckTest(unittest.TestCase):
+    """The tarball diff of a description arm against `full` lists exactly the three SKILL.md files and, in each, only the description line."""
+
+    def build(self, tmp: Path, name: str, arm: str, tweak=None) -> dict:
+        home = tmp / name / "home"
+        (home / ".agent-surface").mkdir(parents=True)
+        (home / ".agent-surface" / "codex-manifest.json").write_text(json.dumps({"generated_at": name, "managed": ["a"]}))
+        for skill in (*DESC_SKILLS, "other"):
+            (home / ".agents" / "skills" / skill / "agents").mkdir(parents=True)
+            text = TEXTS[arm][skill] if arm != "A" and skill in DESC_SKILLS else f"Committed {skill}."
+            (home / ".agents" / "skills" / skill / "SKILL.md").write_text(skill_text(skill, text))
+            (home / ".agents" / "skills" / skill / "agents" / "openai.yaml").write_text(f"interface:\n  short_description: >-\n    {text}\npolicy:\n  x: 1\n")
+        if tweak:
+            tweak(home)
+        pack(home, tmp / f"{name}.tgz")
+        return {"host": "codex", "tarball": f"{name}.tgz", "desc_arm": arm}
+
+    def arms(self, tmp: Path, tweak=None) -> dict:
+        return {"codex-full": self.build(tmp, "full", "A"), "codex-full-descB": self.build(tmp, "b", "B", tweak)}
+
+    def test_a_clean_description_arm_passes_despite_the_manifest_timestamp(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(check_desc_arms(self.arms(Path(tmp)), Path(tmp), TEXTS), [])
+
+    def test_another_file_another_line_or_an_unapproved_text_fails(self):
+        def other_skill(home):
+            (home / ".agents" / "skills" / "other" / "SKILL.md").write_text(skill_text("other", "Edited."))
+
+        def extra_line(home):
+            path = home / ".agents" / "skills" / "dev-fix" / "SKILL.md"
+            path.write_text(path.read_text() + "more\n")
+
+        def wrong_text(home):
+            path = home / ".agents" / "skills" / "qa-review" / "SKILL.md"
+            path.write_text(skill_text("qa-review", "Not the approved text."))
+
+        def body_line(home):
+            path = home / ".agents" / "skills" / "verify-test" / "SKILL.md"
+            path.write_text(path.read_text().replace("body of", "changed body of"))
+
+        for tweak in (other_skill, extra_line, wrong_text, body_line):
+            with self.subTest(tweak.__name__), tempfile.TemporaryDirectory() as tmp:
+                self.assertTrue(check_desc_arms(self.arms(Path(tmp), tweak), Path(tmp), TEXTS))
+
+    def test_an_arm_that_leaves_a_skill_unchanged_fails(self):
+        def revert(home):
+            (home / ".agents" / "skills" / "dev-fix" / "SKILL.md").write_text(skill_text("dev-fix", "Committed dev-fix."))
+            (home / ".agents" / "skills" / "dev-fix" / "agents" / "openai.yaml").write_text("interface:\n  short_description: >-\n    Committed dev-fix.\npolicy:\n  x: 1\n")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            problems = check_desc_arms(self.arms(Path(tmp), revert), Path(tmp), TEXTS)
+            self.assertTrue(any("dev-fix SKILL.md does not differ" in p for p in problems))
 
 
 class OperatorFilesTest(unittest.TestCase):
