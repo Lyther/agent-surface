@@ -35,10 +35,49 @@ understand -> choose the lightest safe profile -> execute -> verify -> review wh
 | Profile | Use for | Shape |
 |---|---|---|
 | direct | a tiny, obvious, reversible change with an obvious check | inspect -> edit -> focused check -> report |
-| standard (default) | ordinary bounded implementation | one owner: locate -> implement -> verify -> self-review -> report; no BOSS, formal ledger, external reviewer, judger, or rescue role |
+| standard (default) | ordinary bounded implementation | one owner runs the Default Route below; no BOSS, formal ledger, external reviewer, judger, or rescue role |
 | reviewed | security-sensitive changes, public/shared contracts, or meaningful regression cost | writer -> verify -> read-only reviewer; a defect returns to the writer, then verify and review again; at most two rework cycles, after which repeated substantive disagreement needs a human decision or route change |
 | orchestrated | at least two independent writable workstreams, or a long-running dependency graph that needs durable local state | `workflow-orchestrator` -> `workflow-boss` -> isolated worker sessions -> integration owner -> `workflow-reviewer`; `workflow-judger` only after repeated substantive failure; `workflow-rescue` only for exceptional spec/context/runtime breakdown |
 | release | readiness, deployment, artifact, or formal acceptance claims | freeze candidate -> build shipped bits -> real dependency path -> independent QA -> readiness verdict; no release-grade proof for unstable intermediate patches |
+
+`direct` and `standard` are the default route. `reviewed`, `orchestrated`, and `release` are optional profiles that add a role or a ledger to the same route; each starts from a signal in Optional Modes.
+
+## Default Route
+
+One owner, one session, evidence at every step:
+
+```text
+done-check -> narrow read -> smallest change -> cheapest check that can see the failure -> repair from its output -> self-review -> report
+```
+
+1. Write the done-check in one line: the outcome plus the command or observation that proves it. A trivial edit keeps it implicit.
+2. Read only the target files, their callers, and the tests that cover them.
+3. Make the smallest change that meets the outcome.
+4. Run the cheapest check that can observe the likely failure. For a behavior change with no such check, reproduce the problem first and use that as the check.
+5. Repair from the check's output. When the same check keeps failing, stop at the repeated-failure limit already set in `02-agent-workflow` and the `dev-*` commands, and change route instead of patching again.
+6. Review your own diff against the done-check. Report exact results, anything that did not run, and what remains, with the status words defined in `02-agent-workflow`.
+7. Leave the default only for a signal in Optional Modes, and say which signal fired.
+
+## Optional Modes
+
+Each mode starts from something observable in the task or the repository, never from how hard the task sounds. A cell that begins "no dedicated skill:" names the nearest skill and the check to use.
+
+| Mode | Enter when | Skill(s) or check |
+|---|---|---|
+| Plan first | the done-check cannot be stated in one line; two plausible readings lead to different designs; components interact or the steps are ordered | `ops-ask`, then `dev-spec` or the brownfield contract in `ops-flow`; `arch-roadmap` when the work is architecture-heavy |
+| Test-first | an executable oracle exists, or can be stated independently of the implementation | `dev-spec`, then `dev-feature` or `dev-fix`; keep the oracle fixed while implementing |
+| Property or differential check | a reference implementation or invariant exists (parsers, serialization, numerics, migrations) | `verify-edge`, `dev-spec` |
+| Browser or render loop | the diff changes rendered UI or an interactive flow | no dedicated skill: `dev-feature`; load the page in a real browser through the host's tools and inspect it before reporting |
+| Prototype first | new UI whose intent only becomes clear once it is seen | no dedicated skill: `dev-feature`; render the prototype, then harden schema, auth, and API through the default route |
+| Implementation-time spike | a load-bearing assumption cannot be settled from docs or code | no dedicated skill: `dev-feature` on a throwaway branch or worktree; write down the verdict, then redo the change cleanly |
+| Independent review | the diff touches security, a public or shared contract, or an area where a regression is costly | `reviewed` profile, `qa-review` |
+| Focused read-only subagent | a search or log would flood the main context | `explorer`, `researcher`; the owner keeps the patch |
+| Parallel worktrees | two or more writable workstreams with stable interfaces and disjoint files | `orchestrated` profile, `workflow-orchestrator`, `dev-converge` |
+| Release proof | a readiness, deployment, or acceptance claim | `release` profile, `verify-prove`, `verify-readiness` |
+| Unattended loop | a specified backlog with fast objective checks, run in a sandbox | no dedicated skill: `workflow-runtime`; run only after it proves liveness, and gate each iteration on the repo's test command |
+| Formal verification | safety-critical code with a human-written formal spec | no dedicated skill: `dev-spec`; the proof tool's own checker is the check |
+
+Switching modes costs context and attention: switch once, on the signal.
 
 Parallel writers require separate worktrees and disjoint files, generated outputs, lockfiles, migrations, ports, databases, and fixtures.
 
