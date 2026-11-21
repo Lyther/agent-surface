@@ -1,3 +1,5 @@
+# Pinned packs the installer and the suites need. external/trailofbits-skills is left out on purpose: an opt-in pack that the registry
+# serves only when present and skips without error (external/README.md), which no suite here needs.
 external/archify https://github.com/tt-a1i/archify.git 7e45f36c66de1254d5ad6ba1d878f6499ea269fd
 external/codex-redteam-mode https://github.com/chAng-L19/codex-redteam-mode.git cd8db548fd379d67fe6ec74e382ce7c101ca603f
 external/ctf-skills https://github.com/ljagiello/ctf-skills.git e79be2925d1612e8a97070d6201e300286672370

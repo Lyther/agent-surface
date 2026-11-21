@@ -1,13 +1,10 @@
 FROM node:22-bookworm@sha256:e13726ca604184d7a91fcacab1fc09eefd642dc28e79ac34e85540dd93b78cfb
 RUN useradd -m -s /bin/bash qa
-COPY app.tar.gz submodules.txt /opt/
+COPY app.tar.gz submodules.txt fetch-packs.sh /opt/
 RUN mkdir /app /opt/base && tar -xzf /opt/app.tar.gz -C /app
 # The installer refuses to run without its registered skill packs, so the pinned submodule commits are
 # fetched at build time (the one network step); verification itself is offline.
-RUN while read -r path url sha; do \
-      git init -q "/tmp/gitdir-$sha" && git -C "/tmp/gitdir-$sha" fetch -q --depth 1 "$url" "$sha" \
-      && mkdir -p "/app/$path" && git -C "/tmp/gitdir-$sha" archive "$sha" | tar -x -C "/app/$path"; \
-    done < /opt/submodules.txt
+RUN bash /opt/fetch-packs.sh /opt/submodules.txt /app
 WORKDIR /app
 RUN npm ci --no-audit --no-fund && cp -a /app/. /opt/base/ && chmod -R a+rX /app /opt/base
 RUN git init -q && echo external/ >> .git/info/exclude && git add -A \

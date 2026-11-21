@@ -97,7 +97,7 @@ Instructions are the QA finding's own text (`observed` and `impact`, verbatim), 
 Layout of a QA-history task:
 
 - `environment/app.tar.gz` is `git archive` of the pre-fix commit. The image (node 22, digest pinned) unpacks it to `/app` and an identical pristine copy to `/opt/base`, with an unprivileged user `qa` (root bypasses permission checks, so the defects cannot reproduce as root).
-- F13 and F14 also need the installer's registered skill packs and the machine state CI provides. `submodules.txt` pins the pack commits, fetched at image build, and the Dockerfile provisions browsers, a digest-pinned uv (0.12.17, copied from the official image) and the repository's own MCP launchers. That is the only network step; verification is offline.
+- F13 and F14 also need the installer's registered skill packs and the machine state CI provides. `submodules.txt` pins the pack commits, fetched at image build by `fetch-packs.sh` (any fetch failure or empty pack fails the build; `external/trailofbits-skills` is left out on purpose, as an opt-in pack no suite needs), and the Dockerfile provisions browsers, a digest-pinned uv (0.12.17, copied from the official image) and the repository's own MCP launchers. That is the only network step; verification is offline.
 - `tests/world.py` (a copy of `evals/world.py`; keep them identical) grades the world in scratch copies, as `qa`, with four stages that all run:
   1. `weakening`: no base test file deleted, no drop in assertion calls, no added skip markers, `tests/run.mjs` still runs every base suite;
   2. `suites`: the affected existing suites pass on the agent's tree;
