@@ -42,3 +42,4 @@ No routing rule leans on these. They were named in the operator's reports and co
 - The default route and the qualitative plan-first signal rest on the verification-surface, planning and spec-benchmark rows. The file-count cutoff is open, so the map uses none.
 - Parallel width and subagents are optional because concurrency and native subagents cost more than they return on short tasks.
 - Models in the review, concurrency and planning rows are one generation old; re-run them before claiming they hold for current models.
+- The operator decided on 2026-11-22 to add no "reviewer at least as capable as the writer" rule, because review strength does not track coding strength across model families. The review-direction row stays as evidence; the map keeps only the different-family reviewer guidance.
