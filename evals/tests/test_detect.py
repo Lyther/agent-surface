@@ -130,6 +130,15 @@ class Constructed(unittest.TestCase):
         self.assertEqual(got["loaded"], [])
         self.assertEqual(got["workspace_skill_reads"], [{"tool": "Execute", "path": "/app/skills/dev-fix/SKILL.md"}])
 
+    def test_first_load_is_the_earliest_load_and_counts_the_calls_before_it(self):
+        calls = [("Read", {"file_path": "/app/README.md"}), ("Bash", {"command": "ls"}), ("Skill", {"skill": "qa-review"}), ("Skill", {"skill": "qa-review"})]
+        got = verdict(self.attempt("claude-code", calls), "claude-code")
+        self.assertEqual(got["first_load"], {"ts": 1001.002, "calls_before": 2})
+
+    def test_no_load_has_no_first_load(self):
+        got = verdict(self.attempt("claude-code", [("Read", {"file_path": "/app/skills/dev-fix/SKILL.md"})]), "claude-code")
+        self.assertIsNone(got["first_load"])
+
     def test_skill_tool_for_an_uninstalled_skill_is_a_failed_lookup(self):
         for host, tool, key in (("opencode", "skill", "name"), ("droid", "Skill", "skill"), ("claude-code", "Skill", "skill")):
             got = verdict(self.attempt(host, [(tool, {key: "dev-fix"})]), host)

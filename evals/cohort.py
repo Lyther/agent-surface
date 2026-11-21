@@ -1,6 +1,6 @@
 """Run a seeded cohort of Harbor attempts from host images and rendered arms, and append one JSONL ledger row per attempt.
 
-Usage: cohort.py --host-images hosts.json --arms arms.json --scenario DIR [--scenario DIR ...] --out DIR
+Usage: cohort.py --host-images hosts.json --arms arms.json (--scenario DIR [--scenario DIR ...] | --queries FILE) --out DIR
                  [--hosts opencode,droid] [--profiles dev] [--reps 2] [--seed 1] [--concurrency 4]
                  [--cpus 1] [--memory-mb 2048] [--purpose timing-probe]
 Each attempt is one fresh container from the host image (`evals/images.py`) with the profile's arm tarball (`evals/arms.py`) extracted into HOME. Hosts: opencode (free
@@ -19,6 +19,7 @@ import os
 import random
 import sys
 import time
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -26,6 +27,7 @@ from evals.arms import SKILL_DIRS, load_arms
 from evals.detect import verdict
 from evals.gateway import GATEWAY_HOSTS, KEY_ENV, NO_PROXY_ENV, URL_ENV, gateway_url, no_proxy
 from evals.images import scenario_tag, write_task
+from evals.queries import TEMPLATE as TRIGGER_TEMPLATE, ledger_fields, load_queries, unit_name
 from evals.scrub import Secret, parse_secrets, scan_receipt
 
 HOSTS = {
@@ -42,6 +44,20 @@ HOST_KEY = {"droid": "FACTORY_API_KEY", "claude-code": KEY_ENV, "codex": KEY_ENV
 CREDIT_STOP = 1_500_000
 CREDIT_RESERVE_PER_ATTEMPT = 350_000
 EVALS_DIR = Path(__file__).resolve().parent
+
+
+@dataclass(frozen=True)
+class Unit:
+    """What one cell runs: the task template, its instruction slots, ledger fields of its own, and whether Harbor grades it.
+
+    A scenario is a unit graded by its verifier. A trigger query is a unit on the shared trigger template that
+    only observes skill loads, so Harbor's verification is off.
+    """
+
+    template: Path
+    subs: dict[str, str] = field(default_factory=dict)
+    fields: dict = field(default_factory=dict)
+    verify: bool = True
 
 
 def now() -> str:
@@ -67,6 +83,18 @@ def span(trial: dict, phase: str) -> float | None:
         return None
     fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
     return round((datetime.strptime(block["finished_at"], fmt) - datetime.strptime(block["started_at"], fmt)).total_seconds(), 1)
+
+
+def epoch(stamp: str) -> float:
+    return datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc).timestamp()
+
+
+def first_load_fields(trial: dict, first: dict | None) -> dict:
+    """Seconds from the agent's start to its first skill load, and the tool calls made before it; both null when nothing loaded."""
+    started = (trial.get("agent_execution") or {}).get("started_at")
+    if not first or not started:
+        return {"first_load_seconds": None, "calls_before_first_load": None}
+    return {"first_load_seconds": round(first["ts"] - epoch(started), 1), "calls_before_first_load": first["calls_before"]}
 
 
 def ledger_row(scenario: str, host: str, profile: str, rep: int, image: dict, arm: dict, started: str, exit_code: int, job_dir: Path) -> dict:
@@ -100,6 +128,7 @@ def ledger_row(scenario: str, host: str, profile: str, rep: int, image: dict, ar
         "failed_skill_lookups": detected["failed_lookups"],
         "audit_disagreements": detected["disagreements"],
         "skill_files_scanned": detected["scanned"],
+        **first_load_fields(trial, detected["first_load"]),
         "dev_fix_installed": "dev-fix" in arm["skills"],
         "cost_usd": agent_result.get("cost_usd"),
         "factory_credits": metadata.get("factory_credits"),
@@ -118,6 +147,13 @@ def ledger_row(scenario: str, host: str, profile: str, rep: int, image: dict, ar
 
 def scenario_name(path: Path) -> str:
     return f"{path.parent.name}-{path.name}"
+
+
+def make_units(scenarios: list[Path], queries: list[dict]) -> dict[str, Unit]:
+    units = {scenario_name(p): Unit(p) for p in scenarios}
+    for query in queries:
+        units[unit_name(query)] = Unit(TRIGGER_TEMPLATE, {"query": query["text"]}, ledger_fields(query), verify=False)
+    return units
 
 
 def read_keys(stream) -> dict[str, str]:
@@ -174,9 +210,10 @@ async def attempt(cell: tuple, args, images: dict, arms: dict, keys: dict[str, s
         raise SystemExit(f"attempt directory exists, not reused: {jobs / name}")
     image, arm = images[host], arms[f"{host}-{profile}"]
     skill_file = f"/root/{SKILL_DIRS[host][0]}/dev-fix/SKILL.md"
-    template = args.scenarios[scenario]
+    unit = args.units[scenario]
+    template = unit.template
     own_image = scenario_tag(template, host) if (template / "environment" / "Dockerfile").exists() else None
-    task = write_task(template, image, args.out / "tasks" / name, {"skill_file": skill_file}, own_image)
+    task = write_task(template, image, args.out / "tasks" / name, {"skill_file": skill_file, **unit.subs}, own_image)
     env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG", "USER") if k in os.environ}
     env.update(HARBOR_TELEMETRY="0", PYTHONPATH=str(EVALS_DIR.parent), SQ_ARM_TARBALL=arm["tarball"], SQ_ARM_SHA256=arm["arm_sha256"])
     if host in GATEWAY_HOSTS:  # the agent reads the gateway address at run time
@@ -189,6 +226,8 @@ async def attempt(cell: tuple, args, images: dict, arms: dict, keys: dict[str, s
         "-o", str(jobs), "--job-name", name, "-n", "1", "-y", "-q",
         "--override-cpus", str(args.cpus), "--override-memory-mb", str(args.memory_mb),
     ]
+    if not unit.verify:
+        cmd.append("--disable-verification")
     started = now()
     t0 = time.monotonic()
     proc = await asyncio.create_subprocess_exec(*cmd, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
@@ -203,6 +242,8 @@ def row_extra(args) -> dict:
     extra = {"cpus": args.cpus, "memory_mb": args.memory_mb, "concurrency": args.concurrency}
     if args.purpose:
         extra["purpose"] = args.purpose
+    if args.prereg:
+        extra["prereg"] = args.prereg
     return extra
 
 
@@ -233,10 +274,10 @@ async def main(args) -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     images = json.loads(args.host_images.read_text())
     arms = load_arms(args.arms)
-    args.scenarios = {scenario_name(p): p for p in args.scenario}
+    args.units = make_units(args.scenario, load_queries(args.queries) if args.queries else [])
     ledger = args.out / "ledger.jsonl"
     done = {(r["scenario"], r["host"], r["profile"], r["rep"]) for r in map(json.loads, ledger.read_text().splitlines())} if ledger.exists() else set()
-    everything = plan(sorted(args.scenarios), args.hosts.split(","), args.profiles.split(","), args.seed, args.reps)
+    everything = plan(sorted(args.units), args.hosts.split(","), args.profiles.split(","), args.seed, args.reps)
     (args.out / "order.json").write_text(json.dumps(everything) + "\n")
     order = [c for c in everything if tuple(c) not in done]
     spent = 0
@@ -245,7 +286,7 @@ async def main(args) -> None:
     def skip(cell, why: str) -> None:
         scenario, host, profile, rep = cell
         with ledger.open("a") as f:
-            f.write(json.dumps({"scenario": scenario, "profile": profile, "host": host, "rep": rep, "skipped": why}) + "\n")
+            f.write(json.dumps({"scenario": scenario, "profile": profile, "host": host, "rep": rep, "skipped": why, **args.units[scenario].fields}) + "\n")
 
     async def run_cell(cell) -> bool:
         nonlocal spent, inflight_droid
@@ -263,7 +304,8 @@ async def main(args) -> None:
         finally:
             if host == "droid":
                 inflight_droid -= 1
-        stop = finish_attempt(cell, images[host], arms[f"{host}-{profile}"], started, code, args.out, injected_secrets(keys), ledger, seconds, row_extra(args))
+        stop = finish_attempt(cell, images[host], arms[f"{host}-{profile}"], started, code, args.out, injected_secrets(keys), ledger, seconds,
+                              {**row_extra(args), **args.units[scenario].fields})
         if host == "droid":
             last = json.loads(ledger.read_text().splitlines()[-1])
             # An attempt that failed before the model ran spent nothing; any other without a reading is charged the reserve.
@@ -278,7 +320,9 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--host-images", type=Path, required=True)
     ap.add_argument("--arms", type=Path, required=True)
-    ap.add_argument("--scenario", type=Path, action="append", required=True)
+    ap.add_argument("--scenario", type=Path, action="append", default=[])
+    ap.add_argument("--queries", type=Path, help="trigger queries JSON (see evals/queries.py); each becomes a unit on the trigger template")
+    ap.add_argument("--prereg", help="id of the preregistration the run follows, kept on every row")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--hosts", default="opencode,droid")
     ap.add_argument("--profiles", default="dev")
@@ -290,4 +334,6 @@ if __name__ == "__main__":
     ap.add_argument("--memory-mb", type=int, default=2048, help="memory cap per attempt container")
     ap.add_argument("--purpose", help="ledger label, e.g. timing-probe or capacity-ramp: such rows are never outcome data")
     parsed = ap.parse_args()
+    if not (parsed.scenario or parsed.queries):
+        ap.error("give --scenario or --queries")
     asyncio.run(main(parsed))

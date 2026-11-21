@@ -108,6 +108,18 @@ Layout of a QA-history task:
 
 Qualify a task with oracle (1), nop (0) and a copy of the task whose `solve.sh` is `solve-code-only.sh` (0). The apt packages are not pinned, so the built image ID is what makes an environment reproducible; the IDs used for qualification are in the SQ0.6 receipts. Limits: assertion counting is textual, so an assertion rewritten in place is not caught; stage 4 accepts any failure on the pre-fix tree, including a missing export.
 
+## Trigger queries
+
+`cohort.py --queries FILE` turns each query of a JSON list `{"id", "class" (should-trigger or near-miss), "skill" (dev-fix, verify-test or qa-review), "split" (dev or held-out), "text"}` into one unit named `trigger-<id>`, all on the shared `scenarios/trigger` template: its `instruction.md` is the one slot `{query}`, so the agent receives the query text alone. Trigger tasks have no verifier (`--disable-verification`), so `verifier_reward` is null; they only observe which skills load. The lab does not author queries; `tests/fixtures/queries-sample.json` is for tests only. Rows carry `query_id`, `query_class`, `target_skill` and `split` (also on skipped rows), plus `prereg` when `--prereg ID` is given, and `first_load_seconds` (agent start to the first skill load) and `calls_before_first_load` (tool calls before it), both null when nothing loaded. `served_model` is not recorded: the gateway answers with the requested id, so the served model is not in the host's record.
+
+Fixture workspace (`scenarios/trigger/environment/`, built on each host image by `images scenarios --scenario evals/scenarios/trigger`): `/app` is `pocket-ledger`, a dependency-free Node library of about 40 lines and eight passing tests, with one skipped test (`npm test`, Node's built-in runner). It is a git repository with one commit and an uncommitted change on top, so queries can name a bug, a green run or a diff:
+
+- bug: `docs/known-issues.md` issue 7, confirmed and diagnosed but unfixed: `formatCents(-5)` returns `"0.05"` (the cause and the one-line location are written down);
+- tests: `npm test` is green with one skipped test, which a "can I trust this?" query can examine;
+- diff: `git diff` and `git status` show new `src/report.js` and `test/report.test.js` and an added `between` method in `src/ledger.js`.
+
+It holds no `SKILL.md`, so any skill read in a trigger attempt is a load of an installed skill, not a workspace read.
+
 ## Capacity (SQ0.5, 2026-11-21)
 
 Measured on a public lab host (16 cores, 62 GiB, a production server that also runs other services) and a gateway lab host (12 cores, 61 GiB, shared with other tenants). Attempts ran with `dev` only, as timing probes and a concurrency ramp; those ledger rows carry `purpose: timing-probe` or `capacity-ramp` and are never outcome data. Rewards were recorded, not analysed.

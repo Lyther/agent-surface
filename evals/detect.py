@@ -167,13 +167,22 @@ def record_loads(attempt: Path, host: str, audit_files: set[str] | None = None) 
     loads: dict[str, str] = {}
     workspace: list[dict] = []
     failed: list[dict] = []
-    for call in tool_calls(attempt, host):
+    first: dict | None = None  # the earliest load: when, and how many tool calls came before it
+
+    def note_load(name: str, how: str, index: int, ts: float) -> None:
+        nonlocal first
+        if name not in loads:
+            loads[name] = how
+            if first is None:
+                first = {"ts": ts, "calls_before": index}
+
+    for index, call in enumerate(tool_calls(attempt, host)):
         tool, params = call["tool"], call["params"]
         named = SKILL_TOOLS[host].get(tool)
         if named and params.get(named):
             name = str(params[named])
             if name in names:
-                loads.setdefault(name, f"{tool} tool call")
+                note_load(name, f"{tool} tool call", index, call["ts"])
             else:
                 failed.append({"tool": tool, "name": name})
             continue
@@ -188,10 +197,10 @@ def record_loads(attempt: Path, host: str, audit_files: set[str] | None = None) 
             resolved = _resolve(token, call_cwd, not param, command)
             name = Path(resolved or _expand(token)).parent.name
             if resolved in installed or (resolved is None and name in audit_files):
-                loads.setdefault(name, how)
+                note_load(name, how, index, call["ts"])
             else:
                 workspace.append({"tool": tool, "path": resolved or token})
-    return {"loads": loads, "workspace": workspace, "failed": failed}
+    return {"loads": loads, "workspace": workspace, "failed": failed, "first_load": first}
 
 
 def audit_events(attempt: Path) -> list[tuple[float, str, bool]]:
@@ -260,6 +269,7 @@ def verdict(attempt: Path, host: str) -> dict:
         "audit_loads": sorted(audit),
         "workspace_skill_reads": record["workspace"],
         "failed_lookups": record["failed"],
+        "first_load": record["first_load"],
         "disagreements": disagreements,
         "scanned": len({d for _, d, is_file in audit_events(attempt) if is_file}),
     }

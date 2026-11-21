@@ -9,12 +9,25 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from evals.cohort import finish_attempt, injected_secrets, run_order
+from evals.cohort import finish_attempt, first_load_fields, injected_secrets, run_order
 
 FAKE_KEY = "fk-FAKE-not-a-real-factory-key-0123456789"
 IMAGE = {"image_id": "sha256:feed"}
 ARM = {"source_commit": "c0ffee", "arm_sha256": "abc123", "skills": ["dev-fix"], "desc_arm": "B"}
 CELL = ("controls-no-skill", "droid", "dev", 1)
+
+
+class FirstLoadTest(unittest.TestCase):
+    TRIAL = {"agent_execution": {"started_at": "2026-11-21T10:00:00.000000Z"}}
+
+    def test_seconds_run_from_the_agent_start_to_the_first_load(self):
+        start = 1795255200.0  # 2026-11-21T10:00:00Z
+        self.assertEqual(first_load_fields(self.TRIAL, {"ts": start + 12.34, "calls_before": 3}), {"first_load_seconds": 12.3, "calls_before_first_load": 3})
+
+    def test_no_load_or_no_agent_start_gives_nulls(self):
+        nulls = {"first_load_seconds": None, "calls_before_first_load": None}
+        self.assertEqual(first_load_fields(self.TRIAL, None), nulls)
+        self.assertEqual(first_load_fields({}, {"ts": 1.0, "calls_before": 0}), nulls)
 
 
 class CohortFinishTest(unittest.TestCase):
