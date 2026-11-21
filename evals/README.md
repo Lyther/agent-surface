@@ -193,6 +193,8 @@ The key is `LAB_GATEWAY_KEY=...` on stdin (`docker exec -e`; the Codex provider'
 
 The ledger's `model` is the requested id. The gateway answers with the id that was requested, so the served model is visible only in the gateway's response headers, not in the host's record; keep that mapping in private receipts. The cost Claude Code prints uses its own price table and is not spend; spend is recorded as tokens per attempt, because the key's spend counter is not available.
 
+**Spend stop.** `cohort.py --spend HOST=CAP:RESERVE` (repeatable) is required for `droid` and each gateway host and has no default: the cap and the reserve come from the preregistration. A group is admitted only while spent + RESERVE x (attempts admitted and not finished, the new group included) is at most CAP; a refused group is ledgered as skipped, all its arms. An attempt's spend is `factory_credits` for droid and `tokens_in + tokens_out` for a gateway host; an attempt that reached the agent but has no reading is charged the reserve, one that failed before the agent started is charged nothing.
+
 ### Scrubber
 
 ```sh

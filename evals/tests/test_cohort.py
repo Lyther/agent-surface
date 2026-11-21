@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from evals.cohort import SpendGate, finish_attempt, first_load_fields, injected_secrets, plan, run_order
+from evals.cohort import SpendGate, finish_attempt, first_load_fields, injected_secrets, parse_spend, plan, run_order, spend_reading
 
 FAKE_KEY = "fk-FAKE-not-a-real-factory-key-0123456789"
 IMAGE = {"image_id": "sha256:feed"}
@@ -132,6 +132,28 @@ class AdmissionTest(unittest.TestCase):
         self.assertEqual((gate.spent, gate.pending), (140, 0))
         self.assertIsNone(gate.admit(8))  # 140 + 800 <= 1000
         self.assertIn("spend stop", gate.admit(1))
+
+    def test_spend_is_credits_for_droid_and_prompt_plus_output_tokens_for_gateway_hosts(self):
+        self.assertEqual(spend_reading("droid", {"factory_credits": 4100, "tokens_in": 9}), 4100)
+        self.assertEqual(spend_reading("codex", {"tokens_in": 1000, "tokens_out": 50, "factory_credits": 7}), 1050)
+        self.assertEqual(spend_reading("claude-code", {"tokens_in": 1000, "tokens_out": None}), 1000)
+        self.assertIsNone(spend_reading("codex", {"tokens_in": None, "tokens_out": 5}))
+        self.assertIsNone(spend_reading("droid", {}))
+
+    def test_caps_and_reserves_come_from_the_inputs_and_a_metered_host_needs_them(self):
+        self.assertEqual(parse_spend(["droid=1500000:350000", "codex=20000000:3000000"], ["droid", "codex", "opencode"]),
+                         {"droid": (1_500_000, 350_000), "codex": (20_000_000, 3_000_000)})
+        for items, hosts in ((["droid=1500000:350000"], ["droid", "claude-code"]), ([], ["droid"]), (["opencode=5:1"], ["opencode"]), (["droid=0:1"], ["droid"]),
+                             (["droid=10"], ["droid"]), (["droid=a:b"], ["droid"])):
+            with self.assertRaises(SystemExit, msg=str(items)):
+                parse_spend(items, hosts)
+
+    def test_an_attempt_that_started_the_agent_but_has_no_reading_is_charged_the_reserve(self):
+        gate = SpendGate(cap=1000, reserve=100)
+        gate.admit(2)
+        gate.settle(None, ran=True)  # an agent timeout: the model may have run
+        gate.settle(None, ran=False)  # a setup failure
+        self.assertEqual(gate.spent, 100)
 
     def groups(self):
         return [[("s", "h", p, r) for p in ("a", "b", "c")] for r in (1, 2, 3, 4)]

@@ -2,7 +2,7 @@
 
 Usage: cohort.py --host-images hosts.json --arms arms.json (--scenario DIR [--scenario DIR ...] | --queries FILE) --out DIR
                  [--hosts opencode,droid] [--profiles dev] [--reps 2] [--seed 1] [--concurrency 4]
-                 [--cpus 1] [--memory-mb 2048] [--purpose timing-probe]
+                 [--cpus 1] [--memory-mb 2048] [--purpose timing-probe] [--spend droid=CAP:RESERVE ...]
 Each attempt is one fresh container from the host image (`evals/images.py`) with the profile's arm tarball (`evals/arms.py`) extracted into HOME. Hosts: opencode (free
 model, no credential), droid, and claude-code and codex through an OpenAI- and Anthropic-compatible gateway (`gateway.py`). Keys are read from stdin, one `NAME=value`
 per line (a bare first line is the Factory key), and exported only into the harbor child's environment. After each attempt `evals/scrub.py` scans its receipts; a hit
@@ -40,9 +40,9 @@ HOSTS = {
 }
 # The environment variable that carries each host's key into its container.
 HOST_KEY = {"droid": "FACTORY_API_KEY", "claude-code": KEY_ENV, "codex": KEY_ENV}
-# GR2 attempts used about 200k to 340k Factory credits each; four attempts plus margin.
-CREDIT_STOP = 1_500_000
-CREDIT_RESERVE_PER_ATTEMPT = 350_000
+# Hosts whose spend is metered, and what one attempt's spend is: Factory credits for droid; for a gateway host the key's own counter is not
+# available, so the tokens the attempt recorded (the whole prompt plus the output).
+METERED_HOSTS = ("droid", *GATEWAY_HOSTS)
 EVALS_DIR = Path(__file__).resolve().parent
 
 
@@ -263,6 +263,33 @@ def row_extra(args) -> dict:
     return extra
 
 
+def spend_reading(host: str, row: dict) -> int | None:
+    """The attempt's spend in its host's unit, or None when the row has no reading."""
+    if host == "droid":
+        return row.get("factory_credits")
+    if row.get("tokens_in") is None:
+        return None
+    return row["tokens_in"] + (row.get("tokens_out") or 0)
+
+
+def parse_spend(items: list[str], hosts: list[str]) -> dict[str, tuple[int, int]]:
+    """`HOST=CAP:RESERVE` per metered host: the cohort's cap on that host's spend and the reserve charged per attempt.
+
+    Both come from the run's inputs (the preregistration), so a metered host without them does not start.
+    """
+    spend: dict[str, tuple[int, int]] = {}
+    for item in items:
+        host, _, numbers = item.partition("=")
+        cap, _, reserve = numbers.partition(":")
+        if host not in METERED_HOSTS or not cap.isdigit() or not reserve.isdigit() or int(cap) <= 0 or int(reserve) <= 0:
+            raise SystemExit(f"--spend {item!r}: expected HOST=CAP:RESERVE with HOST one of {', '.join(METERED_HOSTS)} and positive integers")
+        spend[host] = (int(cap), int(reserve))
+    missing = [h for h in hosts if h in METERED_HOSTS and h not in spend]
+    if missing:
+        raise SystemExit(f"no --spend HOST=CAP:RESERVE for {', '.join(missing)}: droid counts Factory credits, the gateway hosts tokens (prompt plus output)")
+    return spend
+
+
 class SpendGate:
     """Admits whole groups while spent + reserve x (attempts admitted and not yet finished, the new group included) stays within the cap.
 
@@ -316,13 +343,14 @@ async def main(args) -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     images = json.loads(args.host_images.read_text())
     arms = load_arms(args.arms)
+    args.spend = parse_spend(args.spend_items, args.hosts.split(","))
     args.units = make_units(args.scenario, load_queries(args.queries) if args.queries else [])
     ledger = args.out / "ledger.jsonl"
     done = {(r["scenario"], r["host"], r["profile"], r["rep"]) for r in map(json.loads, ledger.read_text().splitlines())} if ledger.exists() else set()
     everything = plan(sorted(args.units), args.hosts.split(","), args.profiles.split(","), args.seed, args.reps)
     (args.out / "order.json").write_text(json.dumps(everything) + "\n")
     order = [left for left in ([c for c in group if tuple(c) not in done] for group in everything) if left]
-    gates = {"droid": SpendGate(CREDIT_STOP, args.credit_reserve)}
+    gates = {host: SpendGate(cap, reserve) for host, (cap, reserve) in args.spend.items()}
 
     def skip(cell, why: str) -> None:
         scenario, host, profile, rep = cell
@@ -348,8 +376,8 @@ async def main(args) -> None:
                               {**row_extra(args), **args.units[scenario].fields})
         if host in gates:
             last = json.loads(ledger.read_text().splitlines()[-1])
-            # An attempt that failed before the model ran spent nothing; any other without a reading is charged the reserve.
-            gates[host].settle(last.get("factory_credits"), ran=not last.get("exception"))
+            # An attempt that failed before the agent started spent nothing; any other without a reading is charged the reserve.
+            gates[host].settle(spend_reading(host, last), ran=last.get("seconds_agent") is not None)
         return stop
 
     if await run_order(order, run_cell, args.concurrency, admit):
@@ -369,7 +397,8 @@ if __name__ == "__main__":
     ap.add_argument("--reps", type=int, default=2)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--concurrency", type=int, default=4, help="attempts at once; the measured safe level per host is in the README's Capacity section")
-    ap.add_argument("--credit-reserve", type=int, default=CREDIT_RESERVE_PER_ATTEMPT, help="Factory credits held back per droid attempt in flight; the no-skill control used 4k to 18k")
+    ap.add_argument("--spend", dest="spend_items", action="append", default=[], metavar="HOST=CAP:RESERVE",
+                    help="required for droid (Factory credits) and the gateway hosts (tokens, prompt plus output): the cohort's cap on the host's spend and the reserve charged per attempt")
     ap.add_argument("--cpus", type=int, default=1, help="CPU cap per attempt container")
     ap.add_argument("--memory-mb", type=int, default=2048, help="memory cap per attempt container")
     ap.add_argument("--purpose", help="ledger label, e.g. timing-probe or capacity-ramp: such rows are never outcome data")
