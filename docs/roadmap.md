@@ -346,7 +346,7 @@ Each result is reported as passed, failed or not run.
 
 ## Phase SQ: Skill Quality and Distribution
 
-Status: PROPOSED 2026-11-20; nothing started. Inputs: [concept](skill-quality/concept-zero.md), [research ledger](skill-quality/concept-zero-research.md), [architecture](architecture.md#skill-quality-and-distribution), and the [Grimoire evaluation contract](contracts/grimoire-evaluation.md), and the [skill-evaluation contract](contracts/skill-evaluation.md), which extends the Grimoire contract's method (draft until the operator accepts it).
+Status: SQ1 CLOSED 2026-11-23 and all further SQ experiments stopped by the operator; the lab is built and tested and no scored cohort ran. Inputs: [concept](skill-quality/concept-zero.md), [research ledger](skill-quality/concept-zero-research.md), [architecture](architecture.md#skill-quality-and-distribution), and the [Grimoire evaluation contract](contracts/grimoire-evaluation.md), and the [skill-evaluation contract](contracts/skill-evaluation.md), which extends the Grimoire contract's method (draft until the operator accepts it).
 
 Sequence:
 
@@ -456,7 +456,7 @@ Exit: each verifier passes on the real fix and fails on the pre-fix state, insid
 
 #### SQ0.7 Skill-Evaluation Contract and First Preregistration
 
-State: 2026-11-23: contract aligned with the lab as built; open decisions and pending lab changes are listed in its last section; the preregistration waits on them. Depends on: SQ0.1–SQ0.6. Covers: `C-SQ-02`, `OQ-SQ-02`.
+State: 2026-11-23: contract aligned with the lab as built; open decisions and pending lab changes are listed in its last section; the SQ1 preregistration was not written. Depends on: SQ0.1–SQ0.6. Covers: `C-SQ-02`, `OQ-SQ-02`.
 
 Write `docs/contracts/skill-evaluation.md`. It extends the Grimoire evaluation contract with:
 - the arms (A current, B trigger, C what plus when; without-asset and full profile);
@@ -465,75 +465,49 @@ Write `docs/contracts/skill-evaluation.md`. It extends the Grimoire evaluation c
 - the ledger fields;
 - the promotion rules.
 
-Then preregister SQ1 with thresholds and repetitions chosen from SQ0 variance, and update the architecture source tree to the files that now exist.
-
-Exit: the contract is reviewed by the operator, and the SQ1 preregistration is frozen.
+Exit: the operator reviews the contract. The SQ1 preregistration was not written (SQ1 closed).
 
 ### SQ1: First Production Slice
 
-Exit: a decision table with intervals and cost for three skills, a go/no-go on the lab, and a clean machine snapshot and scrub report.
+State: CLOSED 2026-11-23, stopped by the operator after qualification and pilots; no scored cohort ran. Pilot findings are descriptive: one repetition, dev-split queries, arm A only, no statistics.
+- The listing is complete on every host under every description arm. One host shortens descriptions at 200 characters, and only non-target skills are affected.
+- The detector was requalified on the full profile, with 18/18 control attempts correct.
+- codex (gpt-5.5) used the target skill on 15/18 should-trigger requests (dev-fix 6/6, qa-review 6/6, verify-test 3/6), on 0/18 near-miss requests, and used the right sibling on 17/18. droid (a Claude model) used the target on 0/27 should-trigger requests and a sibling on 4/18 near-miss requests.
+- No outcome comparison ran, so whether `dev-fix` improves fixes is unknown.
 
-#### SQ1.1 Surfacing Probe
+Decision: ship trigger-form descriptions ("Use when ...") for `dev-fix`, `verify-test` and `qa-review` in a separate change (branch `feat/trigger-form-descriptions`). The lab stays in the repo for later use.
 
-State: NOT STARTED. Depends on: SQ0.3, SQ0.7. Covers: `G-SQ-02`, `Q-SQ-03`.
+Lab notes:
+- A gateway's upstream applied a hidden 1000-token output default to clients that send no limit, which truncated codex silently; fill the limit gateway-side.
+- Newer models were throttled with HTTP 429 at 3 concurrent attempts.
 
-Run the listing capture and one should-trigger query per skill on every runnable host with the full profile (rendered without MCP servers). Report surfaced, name-only and absent counts per host.
-
-Exit: the per-host table. Any host with dropped descriptions triggers SQ1.2. A non-surfacing host is reported as a host finding and excluded from SQ1.3.
-
-#### SQ1.2 Listing Budgets (conditional)
-
-State: NOT STARTED. Depends on: SQ1.1, and only runs if descriptions are dropped. Covers: `N-SQ-01`, `Q-SQ-03`.
-
-Emit host settings that raise the listing budget, such as Claude Code's `skillListingBudgetFraction` and Codex's `skills.max_context_tokens`, through the existing settings merge. This adds context; it cuts nothing.
-
-Files: `scripts/agent-surface/targets.mjs` and the affected adapters; installer tests for the merged settings.
-
-Exit: a rerun of SQ1.1 shows every description surfaced on the changed hosts, and the existing suites pass.
-
-#### SQ1.3 Trigger Cohort for Three Skills
-
-State: NOT STARTED. Depends on: SQ1.1 (and SQ1.2 if it ran), SQ0.2. Covers: `G-SQ-03`, `Q-SQ-04`.
-
-Design:
-- skills: `dev-fix`, `verify-test` and `qa-review`;
-- arms: A, B and C, as description overlays;
-- about 20 queries per skill (should-trigger and near-miss), with a held-out split;
-- 5 repetitions;
-- hosts: Droid (the Claude-family host) and Codex; Claude Code runs but is not scored, and OpenCode joins only by amendment ([hosts](contracts/skill-evaluation.md#hosts));
-- each attempt in a fresh container with the full profile, so competing skills are present.
-
-Files: a query file passed to `cohort.py --queries`, made by `python -m evals.queries select` (`evals/queries.py` holds the format); receipts.
-
-Exit: recall, false-trigger and confusion rates with intervals per skill, arm and host. Ledger completeness is checked against the preregistration.
-
-#### SQ1.4 Outcome Cohort for `dev-fix`
-
-State: NOT STARTED. Depends on: SQ0.6, SQ0.7. Covers: `G-SQ-04`, `Q-SQ-05`.
-
-Run the SQ0.6 scenarios on Codex only (Droid's outcome pilot and cohort are deferred, see Later / Not Now; OpenCode joins only by amendment):
-- arms: the profile without `dev-fix` versus the full profile;
-- 5 repetitions;
-- the detector records whether `dev-fix` loaded.
-
-Exit: paired reward differences against the preregistered practical-effect rule, with the load rate per arm. "Not detected" is reported as such, never as equivalence.
-
-#### SQ1.5 Slice Decision
-
-State: NOT STARTED. Depends on: SQ1.3, SQ1.4. Covers: `ADR-SQ1`, `ADR-SQ3`, `Q-SQ-01`.
-
-Write a decision record:
-- the description form per skill and host;
-- whether C beat B, which is an operator decision;
-- the lab go or no-go.
-
-Then rerun one preregistered cell set to check reproducibility.
-
-Exit: the operator accepts the record. If the lab cannot decide, the concept's reopen trigger fires and SQ2–SQ4 wait.
+Unrun items (the surfacing probe at scale, listing budgets, the scored trigger cohort, the `dev-fix` outcome cohort, the slice decision, and the SQ1 preregistration) are parked in Later / Not Now.
 
 ### SQ2: Description Rollout
 
 Exit: every canonical skill either carries the trigger form on each host where its cohort supports it, or keeps its current description with a recorded reason. No host loses surfaced descriptions.
+
+#### SQ2.0 Concise Descriptions for Listing-Limited Hosts
+
+State: NOT STARTED. Operator direction, 2026-11-21. Depends on: SQ0.3. Covers: `G-SQ-03`, `ADR-SQ3`.
+
+A description is shortened by rewriting, never by cutting. SQ0.3 measured two hosts that list fewer characters than some descriptions carry:
+- Droid 0.244.0 cuts every listed description at 200 characters.
+- Codex 0.171.0 shortens long ones under its listing budget.
+
+For such a host, a skill carries a separately written concise description that is complete within that host's limit, and the installer emits it for that host only. Every other host keeps the full description.
+
+The source model gains one optional field for the concise text, and its name is settled against the hosts' documented frontmatter. SQ1.3's description arms each carry both lengths.
+
+Files:
+- the skill frontmatter schema and renderer in `scripts/agent-surface/`;
+- the affected adapters;
+- installer tests.
+
+Exit:
+- On each listed host, the installer emits the concise text and the other hosts are unchanged.
+- The existing suites pass.
+- A rerun of the SQ0.3 capture shows no truncated description on those hosts.
 
 #### SQ2.1 Query Sets
 
@@ -549,7 +523,7 @@ Exit: each set is reviewed blind against the skill list. Near-misses target sibl
 
 State: NOT STARTED. Depends on: SQ2.1. Covers: `G-SQ-03`, `ADR-SQ3`.
 
-Per family (`dev-`, `qa-`, `verify-`, `workflow-`, `ops-`, `boot-`, `arch-`, `lint-`, `ship-`, `stellaris-`), run its own skill workflow:
+Per family (`dev-`, `qa-`, `verify-`, `workflow-`, `ops-`, `boot-`, `arch-`, `lint-`, `ship-`), run its own skill workflow:
 1. Rewrite descriptions as "Use when …, before …".
 2. Move the what-it-does sentence into the body.
 3. Run the family's trigger cohort.
@@ -743,7 +717,12 @@ Exit: a reviewed diff, and `npm run check` and `check generated` passing. An opt
   - Reason deferred: until then one description serves all hosts.
 - **Droid outcome pilot and outcome cohort** (SQ1.4 on Droid).
   - Revisit trigger: the plan's credit allowance is known.
-  - Reason deferred: credit cost.
+  - Reason deferred: credit cost, and the operator stopped SQ experiments.
+- **SQ1 items not run** (operator stop, 2026-11-23). Revisit trigger: an operator decision to resume SQ experiments; SQ2.1 onward, SQ3 and SQ4.3 depend on SQ1.5 and wait with it.
+  - SQ1.1 at scale and SQ1.2: the pilot found the listing complete on every host, so no budget change is needed.
+  - SQ1.3, the scored trigger cohort: the pilot answered the trigger question well enough to ship the description change.
+  - SQ1.4, the Codex `dev-fix` outcome cohort: outcome gains stay unknown.
+  - SQ1.5 and the SQ1 preregistration: nothing was scored.
 - **Wholesale delegation to existing tools** (Candidate C).
   - Revisit trigger: SQ5.2 shows matching guarantees.
 - **Rejected by the operator and not scheduled:** context or token reduction, a skill-size cap, a transcript-diagnosing skill, skill removal.
