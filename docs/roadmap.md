@@ -428,7 +428,7 @@ Exit: a planted fake credential is caught by the scrubber, and a real run's rece
 
 #### SQ0.5 Remote Capacity
 
-State: NOT STARTED. Depends on: none. Covers: `S-SQ-05`, `Q-SQ-07`.
+State: DONE 2026-11-21 except the OpenCode controls, which are `BLOCKED` (receipts private under `.agent-surface/research/2026-11-21-sq0.5/`). A scenario attempt takes 4 to 8 minutes (exec-bit) or 20 to 33 minutes (the two suite-heavy cases); safe control concurrency is 8 or more for Droid on the public lab host, 6 for Codex (HTTP 429 at 8) and 1 for Claude Code on the gateway host. Codex ended 2 of 3 scenario attempts with `max_output_tokens`; OpenCode's free model still returned `Free usage limit reached` on a direct request. Depends on: none. Covers: `S-SQ-05`, `Q-SQ-07`.
 
 Through `ops-server`, measure on the remote servers:
 - Docker availability;

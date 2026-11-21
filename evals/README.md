@@ -2,7 +2,7 @@
 
 Runs one scenario on real host CLIs through [Harbor](https://github.com/harbor-framework/harbor) 0.26.0 (pinned in `uv.lock`), one disposable Docker container per attempt, from an image that holds the host CLI, with an arm rendered by the production installer extracted into its HOME. Steps `SQ0.1` to `SQ0.4`; hosts are OpenCode, Droid, and Claude Code and Codex through a gateway; see the [roadmap](../docs/roadmap.md#sq01-runner-and-arm-injection-spike).
 
-Run it on a Linux host with Docker and uv, never on the operator machine. Cap `--cpus` and `--memory` on every container; the runner uses 1 CPU and 2 GB per attempt and at most 4 attempts at once.
+Run it on a Linux host with Docker and uv, never on the operator machine. Cap `--cpus` and `--memory` on every container; the runner defaults to 1 CPU and 2 GB per attempt (`--cpus`, `--memory-mb`). Safe concurrency per host is under Capacity.
 
 ```sh
 # 1. Sources: a checkout of an installer commit that has `install --no-mcps` (submodules initialised), commit recorded.
@@ -15,7 +15,12 @@ cd lab/repo; PYTHONPATH=$PWD python3 -m evals.images arms --src ../src --out ../
 # 3. One image per host: the pinned base plus the host CLI (about 1 minute each).
 PYTHONPATH=$PWD python3 -m evals.images build --out ../images
 
-# 4. Cohort: scenarios x hosts x profiles x repetitions in seeded order, at most 4 concurrent.
+# 3b. A scenario with its own environment/Dockerfile (the QA-history ones) is layered on each host image once, with capped build containers;
+#     behind a proxy the build gets it as build arguments (--proxy, default LAB_BUILD_PROXY). Tags: sq-scn/<scenario>:<host>.
+PYTHONPATH=$PWD python3 -m evals.images scenarios --host-images ../images/hosts.json --hosts droid \
+  --scenario evals/scenarios/dev-fix/qa-f10-launcher-exec-bit
+
+# 4. Cohort: scenarios x hosts x profiles x repetitions in seeded order; --concurrency attempts at once (see Capacity).
 #    Keys come on stdin as NAME=value lines and never appear in argv or files.
 cd evals; PYTHONPATH=$PWD/.. uv run --frozen python -m evals.cohort --host-images ../../images/hosts.json \
   --arms ../../arms/arms.json --scenario scenarios/controls/use-by-name --scenario scenarios/controls/no-skill \
@@ -33,7 +38,7 @@ cd ..; PYTHONPATH=$PWD python3 -m evals.listing capture --host-images ../images/
 - **Profiles** (`arms.PROFILES`): `dev-minus-dev-fix` and `dev` (the `development` category without and with `dev-fix`), `full` (general, `external`, then `development,cybersecurity,private`) and `full-minus-dev-fix`. A profile without `dev-fix` renders from a hard-linked copy of the sources with that skill and its registry entries removed; the checkout is never edited. The ledger's `profile` is one of these; `desc_arm` names the description variant (`A`, the committed descriptions) and is separate.
 - **A rendered directory has no absolute path in it**: the same arm rendered at two different paths differs only in the manifest's `generated_at`, so each arm is packed once (`arms.pack`: sorted, owner 0, mtime 0) and its sha256 goes in `arms.json` and in the ledger as `arm_sha256`.
 - **Host images** (`images.py build`): the pinned base (`node:22-bookworm` by digest) plus `inotify-tools`, `procps` and the host CLI at its pinned version. One capped build container (2 CPUs, 3 GB), committed as `sq-host/<host>:<cli version>`; `hosts.json` records tag, image ID, base and script digest. No installer, no overlay, no profile.
-- **An attempt** writes a Harbor task whose `environment.docker_image` is the host image (`write_task`); a scenario with its own `environment/Dockerfile` that starts from the shared base is rebuilt on top of the host image. The agent classes in `agents.py` upload the arm tarball (`SQ_ARM_TARBALL`, checked against `SQ_ARM_SHA256`), extract it into HOME and copy the manifest and skill list into the logs before the agent starts; the Harbor setup time is that step.
+- **An attempt** writes a Harbor task whose `environment.docker_image` is the host image (`write_task`). A scenario with its own `environment/Dockerfile` that starts from the shared base is built once on top of the host image (`images.py scenarios`, tag `sq-scn/<scenario>:<host>`) and the attempt's task points at that image, so no attempt builds anything. The classic builder is used because only it applies `--memory` and `--cpu-quota` to build steps; building the same scenario for another host reuses cached layers. The agent classes in `agents.py` upload the arm tarball (`SQ_ARM_TARBALL`, checked against `SQ_ARM_SHA256`), extract it into HOME and copy the manifest and skill list into the logs before the agent starts; the Harbor setup time is that step.
 - **Operator steps the installer only documents.** Claude Code loads the rules document through an `@agent-surface/rules.md` import in `~/.claude/CLAUDE.md`, a file the installer never writes (`adapters/claude-code/README.md`). The operator's profile has that line, so `arms.add_operator_files` writes `.claude/CLAUDE.md` with exactly it into every Claude Code arm; a capture confirms the rules text is then in the request (`rules_in_request`). OpenCode, Droid and Codex write their own instruction files, so no other host needs one.
 - Files are packed with a fixed mtime (2026-01-01), not epoch 0: with epoch-0 files OpenCode and Claude Code reopened the whole skills directory during the run, which the audit saw as dozens of opens.
 - `images arms` checks every rendered arm: `dev-fix` present or absent as the profile says, `full` containing `dev`, and each `-minus-dev-fix` profile differing from its parent by exactly `dev-fix`.
@@ -67,9 +72,9 @@ Each installed skill is classified `surfaced`, `name-only` or `absent`, with `tr
 
 ## Ledger
 
-One row per attempt: `scenario`, `profile`, `desc_arm`, `host`, `model`, `rep`, versions, `source_commit`, `arm_sha256`, `image_id` (the host image), times (`seconds_setup` is the arm upload and extraction), cost fields, `verifier_reward`, `skills_loaded`, `load_evidence` (skill to mechanism), `audit_loads`, `workspace_skill_reads`, `failed_skill_lookups`, `audit_disagreements`, `skill_files_scanned`, `dev_fix_installed`, `receipt_scan`, `model_requests`.
+One row per attempt: `scenario`, `profile`, `desc_arm`, `host`, `model`, `rep`, versions, `source_commit`, `arm_sha256`, `image_id` (the host image), times (`seconds_setup` is the arm upload and extraction), cost fields, `verifier_reward`, `skills_loaded`, `load_evidence` (skill to mechanism), `audit_loads`, `workspace_skill_reads`, `failed_skill_lookups`, `audit_disagreements`, `skill_files_scanned`, `dev_fix_installed`, `receipt_scan`, `model_requests`, `seconds_env` (Harbor's environment start), `cpus`, `memory_mb` and `concurrency` (the run's container caps and parallelism), and `purpose` when the run was not outcome data (`timing-probe`, `capacity-ramp`; such rows stay out of every outcome analysis).
 
-`tokens_in` is the whole prompt, summed over the attempt's model requests, for every host; `tokens_cache` is its cached part (so uncached input is the difference) and `tokens_out` the output. Codex reports that sum directly; for Claude Code `tokens_in` is the uncached input plus cache reads and writes. Rows written before this definition used host-specific meanings (Claude Code's `tokens_in` excluded cache reads); normalised values are in a private receipt, and old receipts are not rewritten. `hosts.json` holds one record per host image and `arms.json` one per host and profile (tarball, sha256, source commit, installed skills).
+`tokens_in` is the whole prompt, summed over the attempt's model requests, for every host; `tokens_cache` is its cached part (so uncached input is the difference) and `tokens_out` the output. Codex reports that sum directly; for Claude Code and Droid `tokens_in` is the uncached input plus cache reads and writes (Droid's `model_requests` is its turn count). Rows written before this definition used host-specific meanings (Claude Code's `tokens_in` excluded cache reads); normalised values are in a private receipt, and old receipts are not rewritten. `hosts.json` holds one record per host image and `arms.json` one per host and profile (tarball, sha256, source commit, installed skills).
 
 ## Scenarios
 
@@ -102,6 +107,42 @@ Layout of a QA-history task:
 - `solution/solve.sh` applies the real fix (`fix.patch`) and its regression test (`tests.patch`). `solution/solve-code-only.sh` applies the code alone; it is a qualification fixture, and the verifier must score it 0.
 
 Qualify a task with oracle (1), nop (0) and a copy of the task whose `solve.sh` is `solve-code-only.sh` (0). The apt packages are not pinned, so the built image ID is what makes an environment reproducible; the IDs used for qualification are in the SQ0.6 receipts. Limits: assertion counting is textual, so an assertion rewritten in place is not caught; stage 4 accepts any failure on the pre-fix tree, including a missing export.
+
+## Capacity (SQ0.5, 2026-11-21)
+
+Measured on a public lab host (16 cores, 62 GiB, a production server that also runs other services) and a gateway lab host (12 cores, 61 GiB, shared with other tenants). Attempts ran with `dev` only, as timing probes and a concurrency ramp; those ledger rows carry `purpose: timing-probe` or `capacity-ramp` and are never outcome data. Rewards were recorded, not analysed.
+
+**Per-attempt wall time**, one attempt per cell at 2 CPUs and 4 GiB (`--cpus 2 --memory-mb 4096`), one at a time. Scenario images are built once per host (`images scenarios`): about 5 s for `qa-f10`, 4.5 minutes for `qa-f13` (shared with `qa-f14`, so the second is free).
+
+| Host | Scenario | Setup (s) | Agent (s) | Verifier (s) | Total (s) | Peak CPU / memory |
+|---|---|---|---|---|---|---|
+| droid | qa-f10 | 1.1 | 374 | 3 | 397 (485 in a repeat) | 1.9 cores / 0.45 GiB |
+| droid | qa-f13 | 1.0 | 1510 | 435 | 1967 | 1.9 cores / 2.4 GiB |
+| droid | qa-f14 | 1.0 | 1213 | 434 | 1669 | 2.1 cores / 2.3 GiB |
+| claude-code | qa-f10 | 0.9 | 460 | 2 | 508 | 1.7 cores / 0.26 GiB |
+| claude-code | qa-f13 | 0.7 | 1193 | 291 | 1503 | 1.8 cores / 2.7 GiB |
+| claude-code | qa-f14 | 0.7 | 1459 | 344 | 1825 | 1.5 cores / 2.7 GiB |
+| codex | qa-f10 | 0.9 | 207 | 2 | 251 | 1.8 cores / 0.12 GiB |
+| codex | qa-f13 | 1.2 | 57 | 30 | 136 | 1.5 cores / 1.0 GiB |
+| codex | qa-f14 | 1.1 | 118 | 13 | 186 | 1.4 cores / 0.4 GiB |
+
+- Only the `qa-f10` Droid cell was repeated (397 s and 485 s); every other cell is one attempt, so no spread is estimated.
+- The two short Codex runs are not fast: the provider ended each with `Incomplete response returned, reason: max_output_tokens`. The host does not log the response cap it asked for or the failed request's usage. Do not use the short Codex times for planning.
+- `qa-f13` and `qa-f14` take 20 to 33 minutes, mostly the agent and the verifier's suite run; `qa-f10` takes 4 to 8 minutes. A first Droid `qa-f13` attempt was cut by a 900 s host timeout, so the host cap is now 1700 s, under the scenarios' own 1800 s agent limit.
+- A single attempt is about 1 CPU on average and peaks at 2; memory peaks at 2.7 GiB on the suite-heavy scenarios.
+
+**Safe concurrency.** The no-skill control, 1 CPU and 2 GiB per attempt, at 1, 2, 4, 6 and 8 attempts at once (at least 3 attempts, twice the level above 1). A level is safe when all hold: no provider errors or capacity failures (the measurement-quality basis for the first two: errors and slowdown change what an attempt measures); median wall time at most 1.25 times the single-attempt median; host 1-minute load under the core count with available memory above 25% of total (the capacity basis); on the public host also no restart or state change of the other containers. The ramp stopped at the first level that broke one.
+
+| Host | Control concurrency | Deciding criterion |
+|---|---|---|
+| droid, public host | 8 safe (top of the ramp, nothing broke) | none; median 32 to 34 s at every level, peak load 2.7, memory available at least 65%, other containers unchanged |
+| codex, gateway host | 6 safe | at 8, 4 of 16 attempts failed with HTTP 429; levels 1 to 6 had no errors |
+| claude-code, gateway host | 1 safe | at 2, median wall time 59 s against a single-attempt median of 37 s (limit 46 s); single-attempt times themselves varied from 23 to 49 s |
+
+- The gateway host's load is partly its other tenants: its 1-minute load reached 10 with one lab attempt running and never reflected the lab alone.
+- An earlier run saw Codex return 429 at 4 attempts; this ramp did not. The gateway's limit is not a stable number, so treat 6 as a ceiling to re-check, not a guarantee.
+- Scenario attempts (2 CPUs, 4 GiB) are derived, not ramped: the same CPU budget as the safe control level, which gives 4 at once for droid and 3 for codex, and 1 for claude-code until its wall-time variance is understood. Memory is not the limit on either host (at 2.7 GiB peak each, the 25% reserve leaves room for more than 10).
+- A control attempt takes 30 to 45 s on every host. `Codex` attempts ended by `max_output_tokens` are counted apart from capacity failures.
 
 ## Tests
 
