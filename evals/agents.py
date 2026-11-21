@@ -27,13 +27,17 @@ from evals.gateway import KEY_ENV, gateway_url, no_proxy
 
 CLAUDE_MODEL = "claude-sonnet-5-5"  # the gateway maps Claude ids to other models; the host does not show the served one
 CODEX_MODEL = "gpt-5.5"
-# Under the scenarios' own 1800 s agent limit, so a slow attempt is a timeout by this cap, not a cut by Harbor. An earlier 900 s cap cut a droid
-# attempt on the umask scenario mid-work (SQ0.5).
-HOST_TIMEOUT_SEC = 1700
+# Harbor ends an attempt at the task's declared agent limit (`SQ_AGENT_TIMEOUT_SEC`, set by the cohort). The host CLI's own `timeout` fires this
+# much earlier so a slow attempt is a timeout by this cap, not a cut by Harbor (an earlier fixed 900 s cap cut a droid attempt mid-work, SQ0.5).
+HOST_TIMEOUT_MARGIN_SEC = 100
+
+
+def host_timeout() -> int:
+    return int(os.environ["SQ_AGENT_TIMEOUT_SEC"]) - HOST_TIMEOUT_MARGIN_SEC
+
 
 DROID_VERSION = HOST_CLI["droid"][1]
 DROID_MODEL = "claude-sonnet-5"
-DROID_TIMEOUT_SEC = 1700
 # Outward-facing and administration tools removed in every arm, as in GR2.
 DROID_REMOVE_TOOLS = (
     "SlackPostFile,SlackPostMessage,SlackCreateOrUpdateCodeChannel,SlackArchiveCodeChannel,SlackListChannels,store_agent_readiness_report,get_agent_effectiveness_usage,render_agent_effectiveness_report,ListEvalRuns,ListDatasets,ReadDataset,ReadEvalRun,CreateEvalRun,ListEvalPresets,SaveEvalPreset,CreateDataset,GenerateDroid,StageSettingsChanges,UpgradeSessionModel,ProposeMission,StartMissionRun,EndFeatureRun,DismissHandoffItems,ConnectApp,GenerateImage,ListAutomationTemplates,CreateAutomation,ListAutomations,ReadAutomation,EditAutomation,DeleteAutomation,RunAutomation,CreateWorkstream,ProposeWorkstream,AskUser"
@@ -133,7 +137,7 @@ class ArmDroid(_DockerExecAgent):
         workdir = await self._workdir(environment)
         inner = (
             f"cd {shlex.quote(workdir)} && "
-            f"timeout {DROID_TIMEOUT_SEC} droid exec --skip-permissions-unsafe -m {DROID_MODEL} "
+            f"timeout {host_timeout()} droid exec --skip-permissions-unsafe -m {DROID_MODEL} "
             f"--remove-tools {DROID_REMOVE_TOOLS} -o stream-json {shlex.quote(instruction)} "
             f"> {LOGS}/droid.jsonl 2> {LOGS}/droid.stderr"
         )
@@ -197,7 +201,7 @@ class ArmClaude(_DockerExecAgent):
             f"cd {shlex.quote(workdir)} && "
             f"export ANTHROPIC_BASE_URL={shlex.quote(gateway_url())} ANTHROPIC_AUTH_TOKEN=\"${KEY_ENV}\" IS_SANDBOX=1 "
             "DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1; "
-            f"timeout {HOST_TIMEOUT_SEC} claude -p --output-format stream-json --verbose --dangerously-skip-permissions "
+            f"timeout {host_timeout()} claude -p --output-format stream-json --verbose --dangerously-skip-permissions "
             f"--model {shlex.quote(self.model_name or CLAUDE_MODEL)} {shlex.quote(instruction)} </dev/null > {LOGS}/claude.jsonl 2> {LOGS}/claude.stderr; code=$?; "
             f"cp -r ~/.claude/projects {LOGS}/claude-projects 2>/dev/null; exit $code"
         )
@@ -270,7 +274,7 @@ class ArmCodex(_DockerExecAgent):
         provider = f'model_providers.gateway={{name="Gateway",base_url="{gateway_url()}/v1",env_key="{KEY_ENV}",wire_api="responses"}}'
         inner = (
             f"cd {shlex.quote(workdir)} && "
-            f"timeout {HOST_TIMEOUT_SEC} codex exec --json --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check "
+            f"timeout {host_timeout()} codex exec --json --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check "
             f"-m {shlex.quote(self.model_name or CODEX_MODEL)} -c 'model_provider=\"gateway\"' -c {shlex.quote(provider)} {shlex.quote(instruction)} "
             f"</dev/null > {LOGS}/codex.jsonl 2> {LOGS}/codex.stderr; code=$?; "
             f"cp -r ~/.codex/sessions {LOGS}/codex-sessions 2>/dev/null; exit $code"

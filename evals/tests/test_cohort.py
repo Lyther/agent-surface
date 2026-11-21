@@ -5,11 +5,15 @@ Harbor is not run. The only fake is the credential, an obviously invalid value w
 
 import asyncio
 import json
+import os
 import tempfile
+import types
 import unittest
+from unittest import mock
 from pathlib import Path
 
-from evals.cohort import SpendGate, finish_attempt, first_load_fields, injected_secrets, parse_spend, plan, run_order, spend_reading
+from evals.agents import HOST_TIMEOUT_MARGIN_SEC, host_timeout
+from evals.cohort import SpendGate, Unit, limits, finish_attempt, first_load_fields, injected_secrets, parse_spend, plan, run_order, spend_reading
 
 FAKE_KEY = "fk-FAKE-not-a-real-factory-key-0123456789"
 IMAGE = {"image_id": "sha256:feed"}
@@ -92,6 +96,28 @@ class CohortFinishTest(unittest.TestCase):
         self.assertTrue(stopped)
         self.assertEqual(started, [1, 2])
         self.assertEqual([r.get("status", "clean") for r in self.rows()], ["clean", "quarantined"])
+
+
+SCENARIOS = Path(__file__).resolve().parents[1] / "scenarios"
+
+
+class LimitsTest(unittest.TestCase):
+    def args(self, **given):
+        return types.SimpleNamespace(**{"cpus": None, "memory_mb": None, "agent_timeout_sec": None, **given})
+
+    def test_caps_and_timeout_come_from_the_task_that_declares_them(self):
+        self.assertEqual(limits(self.args(), Unit(SCENARIOS / "dev-fix" / "qa-f10-launcher-exec-bit")), {"cpus": 2, "memory_mb": 4096, "agent_timeout_sec": 1800.0})
+        self.assertEqual(limits(self.args(), Unit(SCENARIOS / "controls" / "no-skill")), {"cpus": 1, "memory_mb": 2048, "agent_timeout_sec": 600.0})
+
+    def test_a_given_value_overrides_the_declared_one_for_every_unit(self):
+        got = limits(self.args(cpus=3, agent_timeout_sec=1200), Unit(SCENARIOS / "dev-fix" / "qa-f10-launcher-exec-bit"))
+        self.assertEqual(got, {"cpus": 3, "memory_mb": 4096, "agent_timeout_sec": 1200})
+
+    def test_the_host_cli_stops_before_harbor_does(self):
+        with mock.patch.dict(os.environ, {"SQ_AGENT_TIMEOUT_SEC": "1800"}):
+            self.assertEqual(host_timeout(), 1800 - HOST_TIMEOUT_MARGIN_SEC)
+        with mock.patch.dict(os.environ, clear=True), self.assertRaises(KeyError):
+            host_timeout()
 
 
 class PlanTest(unittest.TestCase):

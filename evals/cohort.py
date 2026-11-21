@@ -2,7 +2,7 @@
 
 Usage: cohort.py --host-images hosts.json --arms arms.json (--scenario DIR [--scenario DIR ...] | --queries FILE) --out DIR
                  [--hosts opencode,droid] [--profiles dev] [--reps 2] [--seed 1] [--concurrency 4]
-                 [--cpus 1] [--memory-mb 2048] [--purpose timing-probe] [--spend droid=CAP:RESERVE ...]
+                 [--cpus N] [--memory-mb N] [--agent-timeout-sec N] [--purpose timing-probe] [--spend droid=CAP:RESERVE ...]
 Each attempt is one fresh container from the host image (`evals/images.py`) with the profile's arm tarball (`evals/arms.py`) extracted into HOME. Hosts: opencode (free
 model, no credential), droid, and claude-code and codex through an OpenAI- and Anthropic-compatible gateway (`gateway.py`). Keys are read from stdin, one `NAME=value`
 per line (a bare first line is the Factory key), and exported only into the harbor child's environment. After each attempt `evals/scrub.py` scans its receipts; a hit
@@ -19,6 +19,7 @@ import os
 import random
 import sys
 import time
+import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -58,6 +59,16 @@ class Unit:
     subs: dict[str, str] = field(default_factory=dict)
     fields: dict = field(default_factory=dict)
     verify: bool = True
+
+
+def limits(args, unit: Unit) -> dict:
+    """Container caps and the agent timeout of a unit: the run's override when given (the preregistration's value), else what the task declares."""
+    declared = tomllib.loads((unit.template / "task.toml").read_text())
+    return {
+        "cpus": args.cpus if args.cpus is not None else declared["environment"]["cpus"],
+        "memory_mb": args.memory_mb if args.memory_mb is not None else declared["environment"]["memory_mb"],
+        "agent_timeout_sec": args.agent_timeout_sec if args.agent_timeout_sec is not None else declared["agent"]["timeout_sec"],
+    }
 
 
 def now() -> str:
@@ -229,9 +240,11 @@ async def attempt(cell: tuple, args, images: dict, arms: dict, keys: dict[str, s
     unit = args.units[scenario]
     template = unit.template
     own_image = scenario_tag(template, host) if (template / "environment" / "Dockerfile").exists() else None
-    task = write_task(template, image, args.out / "tasks" / name, {"skill_file": skill_file, **unit.subs}, own_image)
+    caps = limits(args, unit)
+    task = write_task(template, image, args.out / "tasks" / name, {"skill_file": skill_file, **unit.subs}, own_image, caps["agent_timeout_sec"])
     env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG", "USER") if k in os.environ}
-    env.update(HARBOR_TELEMETRY="0", PYTHONPATH=str(EVALS_DIR.parent), SQ_ARM_TARBALL=arm["tarball"], SQ_ARM_SHA256=arm["arm_sha256"])
+    env.update(HARBOR_TELEMETRY="0", PYTHONPATH=str(EVALS_DIR.parent), SQ_ARM_TARBALL=arm["tarball"], SQ_ARM_SHA256=arm["arm_sha256"],
+               SQ_AGENT_TIMEOUT_SEC=str(int(caps["agent_timeout_sec"])))
     if host in GATEWAY_HOSTS:  # the agent reads the gateway address at run time
         env.update({URL_ENV: gateway_url(), NO_PROXY_ENV: no_proxy()})
     if HOST_KEY.get(host) in keys:
@@ -240,7 +253,7 @@ async def attempt(cell: tuple, args, images: dict, arms: dict, keys: dict[str, s
         "uv", "run", "--frozen", "--project", str(EVALS_DIR), "harbor", "run",
         "-p", str(task), "-a", HOSTS[host]["agent"], "-m", HOSTS[host]["model"],
         "-o", str(jobs), "--job-name", name, "-n", "1", "-y", "-q",
-        "--override-cpus", str(args.cpus), "--override-memory-mb", str(args.memory_mb),
+        "--override-cpus", str(caps["cpus"]), "--override-memory-mb", str(caps["memory_mb"]),
     ]
     if not unit.verify:
         cmd.append("--disable-verification")
@@ -254,8 +267,8 @@ async def attempt(cell: tuple, args, images: dict, arms: dict, keys: dict[str, s
 
 
 def row_extra(args) -> dict:
-    """Run-level ledger fields: the container caps, and a purpose label (`timing-probe` rows stay out of outcome analysis)."""
-    extra = {"cpus": args.cpus, "memory_mb": args.memory_mb, "concurrency": args.concurrency}
+    """Run-level ledger fields: the parallelism, and a purpose label (`timing-probe` rows stay out of outcome analysis)."""
+    extra = {"concurrency": args.concurrency}
     if args.purpose:
         extra["purpose"] = args.purpose
     if args.prereg:
@@ -373,7 +386,7 @@ async def main(args) -> None:
             return False
         started, code, seconds = await attempt(cell, args, images, arms, keys)
         stop = finish_attempt(cell, images[host], arms[f"{host}-{profile}"], started, code, args.out, injected_secrets(keys), ledger, seconds,
-                              {**row_extra(args), **args.units[scenario].fields})
+                              {**row_extra(args), **limits(args, args.units[scenario]), **args.units[scenario].fields})
         if host in gates:
             last = json.loads(ledger.read_text().splitlines()[-1])
             # An attempt that failed before the agent started spent nothing; any other without a reading is charged the reserve.
@@ -399,8 +412,9 @@ if __name__ == "__main__":
     ap.add_argument("--concurrency", type=int, default=4, help="attempts at once; the measured safe level per host is in the README's Capacity section")
     ap.add_argument("--spend", dest="spend_items", action="append", default=[], metavar="HOST=CAP:RESERVE",
                     help="required for droid (Factory credits) and the gateway hosts (tokens, prompt plus output): the cohort's cap on the host's spend and the reserve charged per attempt")
-    ap.add_argument("--cpus", type=int, default=1, help="CPU cap per attempt container")
-    ap.add_argument("--memory-mb", type=int, default=2048, help="memory cap per attempt container")
+    ap.add_argument("--cpus", type=int, help="CPU cap per attempt container; default: what each task declares")
+    ap.add_argument("--memory-mb", type=int, help="memory cap per attempt container; default: what each task declares")
+    ap.add_argument("--agent-timeout-sec", type=int, help="agent time limit; default: what each task declares")
     ap.add_argument("--purpose", help="ledger label, e.g. timing-probe or capacity-ramp: such rows are never outcome data")
     parsed = ap.parse_args()
     if not (parsed.scenario or parsed.queries):

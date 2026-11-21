@@ -5,7 +5,7 @@ from pathlib import Path
 from evals.images import scenario_tag, write_task
 
 HOST = {"host": "droid", "tag": "sq-host/droid:1"}
-CONFIG = '[metadata]\nx = 1\n\n[environment]\ncpus = 1\n'
+CONFIG = '[metadata]\nx = 1\n\n[agent]\ntimeout_sec = 900.0\n\n[environment]\ncpus = 1\n'
 
 
 def template(root: Path, name: str, own_environment: bool) -> Path:
@@ -29,6 +29,12 @@ class WriteTaskTests(unittest.TestCase):
         dest = write_task(template(self.root, "plain", False), HOST, self.root / "out", {"skill_file": "/s"})
         self.assertIn('docker_image = "sq-host/droid:1"', (dest / "task.toml").read_text())
         self.assertEqual((dest / "instruction.md").read_text(), "Use /s.")
+
+    def test_agent_timeout_is_set_in_the_copy_and_never_in_the_template(self):
+        source = template(self.root, "plain", False)
+        dest = write_task(source, HOST, self.root / "out", None, None, 1200)
+        self.assertIn("[agent]\ntimeout_sec = 1200.0", (dest / "task.toml").read_text())
+        self.assertIn("timeout_sec = 900.0", (source / "task.toml").read_text())
 
     def test_task_with_environment_runs_on_its_prebuilt_image_and_drops_the_dockerfile(self):
         source = template(self.root, "own", True)

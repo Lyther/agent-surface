@@ -147,8 +147,8 @@ def build_scenario_image(template: Path, host: dict, proxy: str | None) -> dict:
     return {"scenario": template.name, "host": host["host"], "tag": tag, "image_id": image_id(tag), "host_image_id": host["image_id"], "build_seconds": seconds}
 
 
-def write_task(template: Path, host: dict, dest: Path, subs: dict[str, str] | None = None, image: str | None = None) -> Path:
-    """Copy a Harbor task onto a prebuilt image and fill `{name}` slots in its instruction.
+def write_task(template: Path, host: dict, dest: Path, subs: dict[str, str] | None = None, image: str | None = None, agent_timeout: float | None = None) -> Path:
+    """Copy a Harbor task onto a prebuilt image, fill `{name}` slots in its instruction and, when given, set its agent time limit.
 
     `image` is the scenario's own image layered on the host image (`build_scenario_image`); a task that has an
     `environment/Dockerfile` needs it, and a task without one runs on the host image itself.
@@ -166,7 +166,12 @@ def write_task(template: Path, host: dict, dest: Path, subs: dict[str, str] | No
             raise ValueError(f"{template} has its own environment; build it on the host image first (`images scenarios`)")
         shutil.rmtree(dest / "environment")
     target = image or host["tag"]
-    config.write_text(re.sub(r"^\[environment\]\n", f'[environment]\ndocker_image = "{target}"\n', text, count=1, flags=re.M))
+    text = re.sub(r"^\[environment\]\n", f'[environment]\ndocker_image = "{target}"\n', text, count=1, flags=re.M)
+    if agent_timeout is not None:
+        text, changed = re.subn(r"(^\[agent\]\ntimeout_sec = )[0-9.]+", rf"\g<1>{float(agent_timeout)}", text, count=1, flags=re.M)
+        if not changed:
+            raise ValueError(f"{config} declares no [agent] timeout_sec to set")
+    config.write_text(text)
     instruction = dest / "instruction.md"
     text = instruction.read_text()
     for name, value in (subs or {}).items():
