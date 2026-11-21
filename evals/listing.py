@@ -3,9 +3,8 @@
 Per host and profile, from a fresh container of the host image with the profile's arm extracted into HOME, with
 one trivial prompt:
 
-- OpenCode: the skills are an `<available_skills>` block in the system prompt of the model request. A local
-  forwarding proxy (`capture_proxy.py`) keeps the request body; the reply is irrelevant, so the capture still
-  works when the free model is rate limited.
+- OpenCode: the skills are an `<available_skills>` block in the developer message of the model request. A local
+  forwarding proxy (`capture_proxy.py`) keeps the request body, which also shows the output limit it sends.
 - Droid: the host writes the model's first context message, an "Available skills" system reminder, into its
   own session transcript (`~/.factory/sessions/<cwd>/<id>.jsonl`).
 
@@ -23,11 +22,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+from evals.agents import OPENCODE_PROVIDER, opencode_config
 from evals.arms import SKILL_DIRS, load_arms
 from evals.cohort import HOST_KEY, HOSTS, injected_secrets, read_keys
 from evals.gateway import GATEWAY_HOSTS, KEY_ENV, gateway_url, no_proxy
@@ -136,36 +137,6 @@ def classify(installed: dict[str, str], listed: dict[str, str]) -> dict:
     return {"counts": counts, "skills": rows, "not_installed_but_listed": sorted(set(listed) - set(installed))}
 
 
-def capture_opencode(container: str, keys: dict[str, str], quarantine_dir: Path) -> tuple[dict[str, str], dict]:
-    docker("cp", str(EVALS_DIR / "capture_proxy.py"), f"{container}:/tmp/capture_proxy.py")
-    config = json.dumps({"provider": {"opencode": {"options": {"baseURL": f"http://127.0.0.1:{PROXY_PORT}"}}}})
-    model = HOSTS["opencode"]["model"]
-    script = (
-        "mkdir -p /app /tmp/req; cd /app; "
-        f"nohup python3 /tmp/capture_proxy.py https://opencode.ai/zen/v1 {PROXY_PORT} /tmp/req >/tmp/proxy.log 2>&1 & sleep 1; "
-        f"export OPENCODE_CONFIG_CONTENT='{config}' OPENCODE_FAKE_VCS=git; "
-        f"timeout {CAPTURE_TIMEOUT_SEC} opencode --model={model} run --format=json --dangerously-skip-permissions -- '{PROMPT}' >/tmp/oc.out 2>&1; "
-        "opencode --version >/tmp/version.txt"
-    )
-    docker("exec", container, "bash", "-c", script, check=False)
-    with tempfile.TemporaryDirectory() as tmp:
-        docker("cp", f"{container}:/tmp/req", tmp)
-        check_clean(Path(tmp) / "req", keys, quarantine_dir)
-        main = None
-        for path in sorted((Path(tmp) / "req").glob("*.json")):
-            body = json.loads(path.read_text())
-            if body.get("tools"):  # the agent request; the others are title generation
-                main = body
-                break
-        version = docker("exec", container, "cat", "/tmp/version.txt")
-    if main is None:
-        raise RuntimeError("no agent request captured from opencode")
-    system = next(m["content"] for m in main["messages"] if m["role"] == "system")
-    meta = {"method": "request body captured by a forwarding proxy; skills are the <available_skills> block of the system prompt",
-            "version": version, "tools": [t["function"]["name"] for t in main["tools"]], "system_prompt_chars": len(system)}
-    return parse_opencode(system if isinstance(system, str) else json.dumps(system)), meta
-
-
 def capture_droid(container: str, keys: dict[str, str], quarantine_dir: Path) -> tuple[dict[str, str], dict]:
     model = HOSTS["droid"]["model"]
     script = (
@@ -255,6 +226,28 @@ def parse_codex(bodies: list[dict]) -> tuple[dict[str, str], dict]:
                             skills[name.strip()] = re.sub(r"\s*\(file: [^)]*\)\s*$", "", rest).strip()
                     return skills, {"message_chars": len(text), "tools": [t.get("name") or t.get("type") for t in body.get("tools", [])], "requested_model": body.get("model")}
     raise RuntimeError("no skills_instructions in the captured Codex requests")
+
+
+def parse_opencode_bodies(bodies: list[dict]) -> tuple[dict[str, str], dict]:
+    """Skills are the `<available_skills>` block of the developer message in a Responses request."""
+    for body in bodies:
+        for item in body.get("input", []):
+            content = item.get("content")
+            text = content if isinstance(content, str) else "\n".join(b.get("text", "") for b in content or [] if isinstance(b, dict))
+            if "<available_skills>" in text:
+                return parse_opencode(text), {"message_chars": len(text), "tools": [t.get("name") or t.get("type") for t in body.get("tools", [])],
+                                              "requested_model": body.get("model"), "max_output_tokens": body.get("max_output_tokens")}
+    raise RuntimeError("no <available_skills> block in the captured OpenCode requests")
+
+
+def capture_opencode(container: str, keys: dict[str, str], quarantine_dir: Path) -> tuple[dict[str, str], dict]:
+    launch = (
+        f"export OPENCODE_CONFIG_CONTENT={shlex.quote(opencode_config(f'http://127.0.0.1:{PROXY_PORT}/v1'))} OPENCODE_FAKE_VCS=git; "
+        f"timeout {CAPTURE_TIMEOUT_SEC} opencode --model={OPENCODE_PROVIDER}/{HOSTS['opencode']['model']} run --format=json --dangerously-skip-permissions -- '{PROMPT}' </dev/null >/tmp/oc.out 2>&1"
+    )
+    bodies, version = _proxied(container, keys, quarantine_dir, launch, "opencode --version")
+    listed, meta = parse_opencode_bodies(bodies)
+    return listed, {"method": "request body captured by a forwarding proxy; skills are the <available_skills> block of the developer message", "version": version, **meta}
 
 
 def capture_claude(container: str, keys: dict[str, str], quarantine_dir: Path) -> tuple[dict[str, str], dict]:

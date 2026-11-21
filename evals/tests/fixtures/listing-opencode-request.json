@@ -1,0 +1,35 @@
+{
+ "model": "gpt-5.5",
+ "max_output_tokens": 32000,
+ "store": false,
+ "stream": true,
+ "tools": [
+  {
+   "type": "function",
+   "name": "bash"
+  },
+  {
+   "type": "function",
+   "name": "read"
+  },
+  {
+   "type": "function",
+   "name": "skill"
+  }
+ ],
+ "input": [
+  {
+   "role": "developer",
+   "content": "You are opencode.\n<available_skills>\n  <skill>\n    <name>customize-opencode</name>\n    <description>Use ONLY when editing opencode's own configuration.</description>\n  </skill>\n  <skill>\n    <name>dev-fix</name>\n    <description>Apply the minimal effective patch that restores functionality.</description>\n  </skill>\n</available_skills>"
+  },
+  {
+   "role": "user",
+   "content": [
+    {
+     "type": "input_text",
+     "text": "Reply with the single word OK."
+    }
+   ]
+  }
+ ]
+}

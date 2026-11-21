@@ -64,7 +64,7 @@ Controls are Harbor tasks under `scenarios/controls/`: `use-by-name` (tells the 
 
 Per image, in a fresh capped container with one trivial prompt:
 
-- OpenCode: a forwarding proxy (`capture_proxy.py`, request headers never saved) keeps the model request; the skills are the `<available_skills>` block of its system prompt. This works when the free model is rate limited.
+- OpenCode: a forwarding proxy (`capture_proxy.py`, request headers never saved) keeps the model request; the skills are the `<available_skills>` block of the developer message of its Responses request, and the capture records the `max_output_tokens` the request carries.
 - Droid: its session transcript holds the first context message, an "Available skills" reminder.
 - Claude Code and Codex: the same proxy, pointed at the gateway (plain HTTP, so `capture_proxy.py` selects its connection class by the upstream scheme). Claude Code lists `- name: description` lines after a marker in a system-role message; Codex lists them under `### Available skills` in the developer message.
 
@@ -167,7 +167,7 @@ Research notes with sources are private (`.agent-surface/research/2026-11-21-sq0
 | Host | Non-interactive mode | Status |
 |---|---|---|
 | droid | `FACTORY_API_KEY` env | `ready`: the approved Droid key, in use since SQ0.1 |
-| opencode | free OpenCode models, no key (ran in SQ0.1 with `opencode/deepseek-v4.1-flash-free`) | `ready`: the model is pinned and time-limited; only DeepSeek V4.1 Flash Free is documented as zero-retention, so send no confidential data to the others |
+| opencode | the gateway's Responses endpoint through an `@ai-sdk/openai` provider in `OPENCODE_CONFIG_CONTENT`, key read from `LAB_GATEWAY_KEY` | `ready (gateway)`: the same key and model as Codex (`gpt-5.5`), so the two differ only in harness. The free OpenCode model hit its usage limit and was removed. Every request carries `max_output_tokens` 32000 (the model's `limit.output`), because the gateway's upstream caps a gpt-5.5 response at 1000 tokens, reasoning included, when a request sets none |
 | claude-code | the gateway's Anthropic Messages endpoint: `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` | `ready (gateway)`: a gateway key on stdin. The gateway maps Claude model ids to other models, so this host runs a non-Anthropic model that differs from every Anthropic-model host: results are confounded with the model and compare only within the host |
 | codex | a provider with `wire_api = "responses"` and `env_key` pointing at the gateway | `ready (gateway)`: the same key. Model `gpt-5.5`; `gpt-5.3-codex` failed 3 of 6 control verifiers in each of two runs (it reported work it had not done), so it is not used. The gateway may swap the model behind an id |
 | kiro-cli | `KIRO_API_KEY`, documented for CI/CD; Pro, Pro+, Pro Max or Power only | `needs operator credential`: a paid-tier Kiro API key. Linux-container support is not stated |
@@ -183,13 +183,13 @@ A secret is read from the stdin of the cohort process (`NAME=value` lines; a bar
 
 ### Gateway hosts
 
-Claude Code and Codex reach their model through an OpenAI- and Anthropic-compatible gateway (a LiteLLM proxy) that is only reachable from a lab host on its network. Site details are never committed. Export them from a private file before a run, or the cohort, listing capture and agents fail naming the missing variable:
+OpenCode, Claude Code and Codex reach their model through an OpenAI- and Anthropic-compatible gateway (a LiteLLM proxy) that is only reachable from a lab host on its network. Site details are never committed. Export them from a private file before a run, or the cohort, listing capture and agents fail naming the missing variable:
 
 - `LAB_GATEWAY_URL`: the gateway's base URL;
 - `LAB_NO_PROXY`: hosts that bypass any proxy (it must cover the gateway; every container gets it as `NO_PROXY` and `no_proxy`, because containers receive no proxy variables);
 - `LAB_BUILD_PROXY`: optional proxy for image builds (npm, apt, GitHub), default for `images.py build --proxy`.
 
-The key is `LAB_GATEWAY_KEY=...` on stdin (`docker exec -e`; the Codex provider's `env_key` and Claude Code's `ANTHROPIC_AUTH_TOKEN` read it inside the container). Every key the cohort holds is also an injected secret for the receipt scan of every attempt.
+The key is `LAB_GATEWAY_KEY=...` on stdin (`docker exec -e`; the Codex provider's `env_key`, Claude Code's `ANTHROPIC_AUTH_TOKEN` and OpenCode's `{env:LAB_GATEWAY_KEY}` read it inside the container). Every key the cohort holds is also an injected secret for the receipt scan of every attempt.
 
 The ledger's `model` is the requested id. The gateway answers with the id that was requested, so the served model is visible only in the gateway's response headers, not in the host's record; keep that mapping in private receipts. The cost Claude Code prints uses its own price table and is not spend; spend is recorded as tokens per attempt, because the key's spend counter is not available.
 

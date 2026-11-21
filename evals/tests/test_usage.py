@@ -4,11 +4,12 @@
 of model requests.
 """
 
+import tempfile
 import types
 import unittest
 from pathlib import Path
 
-from evals.agents import ArmClaude, ArmCodex
+from evals.agents import ArmClaude, ArmCodex, ArmOpenCode
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -37,6 +38,19 @@ class UsageTest(unittest.TestCase):
     def test_claude_code_without_a_result_has_no_reading(self):
         context = populate(ArmClaude, "usage-claude-code-no-result")
         self.assertEqual((context.n_input_tokens, context.n_output_tokens, context.metadata), (None, None, {"model_requests": 1}))
+
+    def test_opencode_input_adds_cache_reads_and_output_adds_reasoning(self):
+        context = populate(ArmOpenCode, "usage-opencode")
+        # trimmed real gateway attempt, 7 requests: input 51,464 uncached + 70,144 cache reads; output 318 + reasoning 253
+        self.assertEqual((context.n_input_tokens, context.n_cache_tokens, context.n_output_tokens), (121_608, 70_144, 571))
+        self.assertEqual(context.metadata["model_requests"], 7)
+
+    def test_opencode_error_events_are_read_from_the_stream(self):
+        agent = object.__new__(ArmOpenCode)
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "opencode.txt").write_text('{"type":"error","error":{"data":{"message":"usage limit"}}}\n{"type":"text","part":{}}\n')
+            agent.logs_dir = Path(tmp)
+            self.assertEqual(agent._error_messages(), ["usage limit"])
 
     def test_codex_input_is_already_the_whole_prompt(self):
         context = populate(ArmCodex, "usage-codex")

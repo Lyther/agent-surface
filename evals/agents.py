@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import override
 
 from harbor.agents.installed.base import BaseInstalledAgent, NonZeroAgentExitCodeError, with_prompt_template
-from harbor.agents.installed.opencode import OpenCode
 from harbor.environments.base import BaseEnvironment
 from harbor.environments.docker.docker import _sanitize_docker_compose_project_name
 from harbor.models.agent.context import AgentContext
@@ -27,6 +26,25 @@ from evals.gateway import KEY_ENV, gateway_url, no_proxy
 
 CLAUDE_MODEL = "claude-sonnet-5-5"  # the gateway maps Claude ids to other models; the host does not show the served one
 CODEX_MODEL = "gpt-5.5"
+# OpenCode uses Codex's model so the two hosts differ only in harness.
+OPENCODE_MODEL = CODEX_MODEL
+OPENCODE_PROVIDER = "gateway"
+# The gateway's upstream caps a gpt-5.5 response at 1000 tokens, reasoning included, when the request sets no max_output_tokens
+# (probe-cap, 2026-11-21); 5000 and 32000 were honored. OpenCode sends the model's limit.output, so every request carries this.
+OPENCODE_OUTPUT_LIMIT = 32000
+OPENCODE_CONTEXT_LIMIT = 400000  # required by OpenCode's model schema; it only paces compaction
+
+
+def opencode_config(base_url: str) -> str:
+    """OpenCode's config as JSON: the gateway as an `@ai-sdk/openai` provider (the Responses API), the key read from the environment at run time."""
+    model = OPENCODE_MODEL
+    # `snapshot` off: OpenCode otherwise runs `git add` over the whole working directory after every step, and in a container whose directory is `/`
+    # that took 100 to 180 s per step (2026-11-21). The snapshot only feeds its undo feature.
+    return json.dumps({"snapshot": False, "provider": {OPENCODE_PROVIDER: {
+        "npm": "@ai-sdk/openai", "name": "Gateway",
+        "options": {"baseURL": base_url, "apiKey": "{env:" + KEY_ENV + "}"},
+        "models": {model: {"name": model, "limit": {"context": OPENCODE_CONTEXT_LIMIT, "output": OPENCODE_OUTPUT_LIMIT}}},
+    }}})
 # Harbor ends an attempt at the task's declared agent limit (`SQ_AGENT_TIMEOUT_SEC`, set by the cohort). The host CLI's own `timeout` fires this
 # much earlier so a slow attempt is a timeout by this cap, not a cut by Harbor (an earlier fixed 900 s cap cut a droid attempt mid-work, SQ0.5).
 HOST_TIMEOUT_MARGIN_SEC = 100
@@ -56,23 +74,6 @@ async def _install_arm(agent, environment, target: str) -> None:
         f'cp "$HOME/.agent-surface/{target}-manifest.json" {LOGS}/arm-manifest.json && '
         f'(cd "$HOME" && find {roots} -name SKILL.md 2>/dev/null | sort || true) > {LOGS}/arm-skills.txt',
     )
-
-
-class ArmOpenCode(OpenCode):
-    @staticmethod
-    @override
-    def name() -> str:
-        return "arm-opencode"
-
-    @override
-    async def install(self, environment: BaseEnvironment) -> None:
-        await _install_arm(self, environment, "opencode")
-        await super().install(environment)  # returns at once when the pinned CLI is already there
-
-    @override
-    async def run(self, instruction: str, environment: BaseEnvironment, context: AgentContext) -> None:
-        await self.exec_as_agent(environment, command=detector_start("opencode"))
-        await super().run(instruction, environment, context)
 
 
 class _DockerExecAgent(BaseInstalledAgent):
@@ -107,6 +108,75 @@ class _DockerExecAgent(BaseInstalledAgent):
 
     async def _workdir(self, environment: BaseEnvironment) -> str:
         return (await environment.exec(command="pwd")).stdout.strip() or "/"
+
+
+class ArmOpenCode(_DockerExecAgent):
+    """OpenCode through the gateway's Responses endpoint, the wire Codex uses, on the same model. Its JSON event stream is kept as `opencode.txt`."""
+
+    SECRET = KEY_ENV
+
+    @staticmethod
+    @override
+    def name() -> str:
+        return "arm-opencode"
+
+    @override
+    def version(self) -> str | None:
+        return HOST_CLI["opencode"][1]
+
+    @override
+    def get_version_command(self) -> str | None:
+        return "opencode --version"
+
+    @override
+    async def install(self, environment: BaseEnvironment) -> None:
+        await _install_arm(self, environment, "opencode")
+        await self.exec_as_agent(environment, command=f'[ "$(opencode --version)" = "{HOST_CLI["opencode"][1]}" ]')
+
+    @override
+    @with_prompt_template
+    async def run(self, instruction: str, environment: BaseEnvironment, context: AgentContext) -> None:
+        await self.exec_as_agent(environment, command=detector_start("opencode"))
+        workdir = await self._workdir(environment)
+        data = f"{LOGS}/opencode"
+        inner = (
+            f"cd {shlex.quote(workdir)} && "
+            f"export OPENCODE_CONFIG_CONTENT={shlex.quote(opencode_config(gateway_url() + '/v1'))} OPENCODE_FAKE_VCS=git XDG_DATA_HOME={data}/xdg-data XDG_STATE_HOME={data}/xdg-state; "
+            f"set -o pipefail; timeout {host_timeout()} opencode --model={OPENCODE_PROVIDER}/{self.model_name or OPENCODE_MODEL} run --format=json --thinking "
+            f"--dangerously-skip-permissions -- {shlex.quote(instruction)} </dev/null 2>&1 | tee {LOGS}/opencode.txt >/dev/null"
+        )
+        code = await self._docker_exec(environment, inner, (f"NO_PROXY={no_proxy()}", f"no_proxy={no_proxy()}"))
+        if code != 0:
+            raise NonZeroAgentExitCodeError(f"opencode exited {code}")
+        if errors := self._error_messages():
+            raise NonZeroAgentExitCodeError("opencode emitted error event(s): " + "; ".join(errors[:3]))
+
+    def _events(self) -> list[dict]:
+        path = Path(self.logs_dir) / "opencode.txt"
+        events = []
+        for line in path.read_text(errors="replace").splitlines() if path.exists() else []:
+            try:
+                events.append(json.loads(line))
+            except ValueError:
+                continue
+        return events
+
+    def _error_messages(self) -> list[str]:
+        return [str((e.get("error") or {}).get("data", {}).get("message") or e.get("error") or "error") for e in self._events() if e.get("type") == "error"]
+
+    @override
+    def populate_context_post_run(self, context: AgentContext) -> None:
+        finishes = [(e.get("part") or {}).get("tokens") or {} for e in self._events() if e.get("type") == "step_finish"]
+        if not finishes:
+            return
+        # Each step_finish closes one model request. `input` excludes cached tokens, so the whole prompt adds cache reads and writes;
+        # `reasoning` is billed as output and kept apart in the stream, so output adds it (as Codex's output_tokens includes it).
+        cache = [t.get("cache") or {} for t in finishes]
+        cache_read = sum(c.get("read") or 0 for c in cache)
+        context.n_input_tokens = sum(t.get("input") or 0 for t in finishes) + cache_read + sum(c.get("write") or 0 for c in cache)
+        context.n_output_tokens = sum((t.get("output") or 0) + (t.get("reasoning") or 0) for t in finishes)
+        context.n_cache_tokens = cache_read
+        context.metadata = {"model_requests": len(finishes)}
 
 
 class ArmDroid(_DockerExecAgent):

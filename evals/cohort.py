@@ -3,8 +3,7 @@
 Usage: cohort.py --host-images hosts.json --arms arms.json (--scenario DIR [--scenario DIR ...] | --queries FILE) --out DIR
                  [--hosts opencode,droid] [--profiles dev] [--reps 2] [--seed 1] [--concurrency 4]
                  [--cpus N] [--memory-mb N] [--agent-timeout-sec N] [--purpose timing-probe] [--spend droid=CAP:RESERVE ...]
-Each attempt is one fresh container from the host image (`evals/images.py`) with the profile's arm tarball (`evals/arms.py`) extracted into HOME. Hosts: opencode (free
-model, no credential), droid, and claude-code and codex through an OpenAI- and Anthropic-compatible gateway (`gateway.py`). Keys are read from stdin, one `NAME=value`
+Each attempt is one fresh container from the host image (`evals/images.py`) with the profile's arm tarball (`evals/arms.py`) extracted into HOME. Hosts: droid, and opencode, claude-code and codex through an OpenAI- and Anthropic-compatible gateway (`gateway.py`). Keys are read from stdin, one `NAME=value`
 per line (a bare first line is the Factory key), and exported only into the harbor child's environment. After each attempt `evals/scrub.py` scans its receipts; a hit
 quarantines the attempt, ledgers it as `quarantined` and stops the cohort.
 """
@@ -33,7 +32,8 @@ from evals.queries import TEMPLATE as TRIGGER_TEMPLATE, ledger_fields, load_quer
 from evals.scrub import Secret, load_known, parse_secrets, scan_receipt
 
 HOSTS = {
-    "opencode": {"agent": "evals.agents:ArmOpenCode", "model": "opencode/deepseek-v4.1-flash-free"},
+    # Through the gateway on Codex's model, so the two differ only in harness.
+    "opencode": {"agent": "evals.agents:ArmOpenCode", "model": "gpt-5.5"},
     "droid": {"agent": "evals.agents:ArmDroid", "model": "claude-sonnet-5"},
     # Through the gateway: the requested model id. The gateway maps Claude ids to other models, so the served model differs.
     # Codex uses gpt-5.5: gpt-5.3-codex failed 3 of 6 control verifiers in each of two runs (it reported work it had not done).
@@ -41,7 +41,7 @@ HOSTS = {
     "codex": {"agent": "evals.agents:ArmCodex", "model": "gpt-5.5"},
 }
 # The environment variable that carries each host's key into its container.
-HOST_KEY = {"droid": "FACTORY_API_KEY", "claude-code": KEY_ENV, "codex": KEY_ENV}
+HOST_KEY = {"droid": "FACTORY_API_KEY", "opencode": KEY_ENV, "claude-code": KEY_ENV, "codex": KEY_ENV}
 # Hosts whose spend is metered, and what one attempt's spend is: Factory credits for droid; for a gateway host the key's own counter is not
 # available, so the tokens the attempt recorded (the whole prompt plus the output).
 METERED_HOSTS = ("droid", *GATEWAY_HOSTS)

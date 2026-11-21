@@ -257,9 +257,9 @@ class AdmissionTest(unittest.TestCase):
         self.assertIsNone(spend_reading("droid", {}))
 
     def test_caps_and_reserves_come_from_the_inputs_and_a_metered_host_needs_them(self):
-        self.assertEqual(parse_spend(["droid=1500000:350000", "codex=20000000:3000000"], ["droid", "codex", "opencode"]),
+        self.assertEqual(parse_spend(["droid=1500000:350000", "codex=20000000:3000000"], ["droid", "codex"]),
                          {"droid": (1_500_000, 350_000), "codex": (20_000_000, 3_000_000)})
-        for items, hosts in ((["droid=1500000:350000"], ["droid", "claude-code"]), ([], ["droid"]), (["opencode=5:1"], ["opencode"]), (["droid=0:1"], ["droid"]),
+        for items, hosts in ((["droid=1500000:350000"], ["droid", "claude-code"]), ([], ["droid"]), (["bogus=5:1"], ["droid"]), ([], ["opencode"]), (["droid=0:1"], ["droid"]),
                              (["droid=10"], ["droid"]), (["droid=a:b"], ["droid"])):
             with self.assertRaises(SystemExit, msg=str(items)):
                 parse_spend(items, hosts)

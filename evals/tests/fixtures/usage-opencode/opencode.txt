@@ -1,0 +1,7 @@
+{"type": "step_finish", "timestamp": 1795278385241, "part": {"type": "step-finish", "reason": "tool-calls", "tokens": {"total": 15237, "input": 15110, "output": 66, "reasoning": 61, "cache": {"write": 0, "read": 0}}}}
+{"type": "step_finish", "timestamp": 1795278388753, "part": {"type": "step-finish", "reason": "tool-calls", "tokens": {"total": 17535, "input": 2600, "output": 24, "reasoning": 63, "cache": {"write": 0, "read": 14848}}}}
+{"type": "step_finish", "timestamp": 1795278391943, "part": {"type": "step-finish", "reason": "tool-calls", "tokens": {"total": 17630, "input": 658, "output": 55, "reasoning": 21, "cache": {"write": 0, "read": 16896}}}}
+{"type": "step_finish", "timestamp": 1795278395567, "part": {"type": "step-finish", "reason": "tool-calls", "tokens": {"total": 17808, "input": 238, "output": 54, "reasoning": 108, "cache": {"write": 0, "read": 17408}}}}
+{"type": "step_finish", "timestamp": 1795278397477, "part": {"type": "step-finish", "reason": "tool-calls", "tokens": {"total": 17918, "input": 483, "output": 27, "reasoning": 0, "cache": {"write": 0, "read": 17408}}}}
+{"type": "step_finish", "timestamp": 1795278399806, "part": {"type": "step-finish", "reason": "tool-calls", "tokens": {"total": 18004, "input": 14348, "output": 72, "reasoning": 0, "cache": {"write": 0, "read": 3584}}}}
+{"type": "step_finish", "timestamp": 1795278402770, "part": {"type": "step-finish", "reason": "stop", "tokens": {"total": 18047, "input": 18027, "output": 20, "reasoning": 0, "cache": {"write": 0, "read": 0}}}}

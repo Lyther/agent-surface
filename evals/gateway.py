@@ -13,7 +13,7 @@ URL_ENV = "LAB_GATEWAY_URL"
 NO_PROXY_ENV = "LAB_NO_PROXY"
 KEY_ENV = "LAB_GATEWAY_KEY"
 # Hosts that reach their model through the gateway.
-GATEWAY_HOSTS = ("claude-code", "codex")
+GATEWAY_HOSTS = ("opencode", "claude-code", "codex")
 
 
 class GatewayConfigError(RuntimeError):
