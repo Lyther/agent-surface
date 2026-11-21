@@ -612,7 +612,24 @@ Exit: fourteen memos reviewed for copied passages; hypotheses listed for the ope
 
 #### SQ4.2 Hypothesis Selection
 
-State: NOT STARTED. Depends on: SQ4.1. Covers: `G-SQ-05`.
+State: COMPLETE 2026-11-21, operator selection. Depends on: SQ4.1. Covers: `G-SQ-05`.
+
+Kept:
+- for `qa-review` and the workflow roles: a fixed review brief, and the writer's report treated as unverified claims;
+- `dev-fix`: a causal statement before the patch, the trigger widened to undiagnosed failures, and proof that the new test fails on the unpatched tree;
+- `verify-test`: evidence fresher than the last edit, a trigger at the moment of claiming completion, and expected output per check;
+- `ship-commit` and rules: branch and workspace close-out without silent loss;
+- dispositions for received findings: accept, decline with evidence, cannot verify, or ask.
+
+Dropped:
+- persisting findings to a file;
+- a "check listed skills first" rule line.
+
+Decided by the coordinator, as delegated by the operator: a re-review remains a full review, and it states for each earlier finding whether it is resolved.
+
+T7 is closed with no change. Two corrections and three failed rounds describe the same stop.
+
+Drafts follow the skill-writing guidelines research, which is in the private receipts (`.agent-surface/research/2026-11-21-skill-guidelines/`).
 
 The operator selects which hypotheses become skill changes.
 
