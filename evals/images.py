@@ -7,6 +7,7 @@ container's HOME before the agent starts, so HOME is pristine and the arm is dat
 Usage:
   python -m evals.images build --out OUT [--hosts opencode,droid] [--proxy URL]
   python -m evals.images arms --src SRC --out OUT [--hosts ...] [--profiles dev,full,...]
+  python -m evals.images scenarios --host-images hosts.json --scenario DIR [--scenario DIR ...] --hosts droid [--proxy URL]
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -111,11 +113,45 @@ def build_host_image(host: str, out: Path, proxy: str | None = None) -> dict:
     return {"host": host, "tag": tag, "image_id": image_id(tag), "base": HOST_BASE, "cli_version": HOST_CLI[host][1], "script_sha256": labels["sq.script_sha256"][:16]}
 
 
-def write_task(template: Path, host: dict, dest: Path, subs: dict[str, str] | None = None) -> Path:
-    """Copy a Harbor task onto a host image and fill `{name}` slots in its instruction.
+def scenario_tag(template: Path, host: str) -> str:
+    """Tag of a scenario's own environment layered on a host image, e.g. `sq-scn/qa-f10-launcher-exec-bit:droid`."""
+    return f"sq-scn/{template.name}:{host}"
 
-    A task without its own environment points at the host image. A task whose `environment/Dockerfile` starts
-    from the shared base is rebuilt on top of the host image, so it keeps its own workspace setup.
+
+def build_scenario_image(template: Path, host: dict, proxy: str | None) -> dict:
+    """Layer a scenario's `environment/Dockerfile` on the host image and tag it once, so an attempt starts from a ready image.
+
+    The Dockerfile must start from the shared base; its `FROM` is replaced by the host image. The classic builder is
+    used because only it applies `--memory` and `--cpu-quota` to the build's RUN containers (BuildKit ignores both).
+    Proxy variables go in as build arguments, never into the image's environment.
+    """
+    dockerfile = template / "environment" / "Dockerfile"
+    first, _, rest = dockerfile.read_text().partition("\n")
+    if first.strip() != f"FROM {HOST_BASE}":
+        raise ValueError(f"{dockerfile} must start from the shared base to be layered on a host image")
+    tag = scenario_tag(template, host["host"])
+    with tempfile.TemporaryDirectory() as tmp:
+        context = Path(tmp) / "ctx"
+        shutil.copytree(template / "environment", context)
+        (context / "Dockerfile").write_text(f"FROM {host['tag']}\n{rest}")
+        build_args = [arg for k, v in proxy_env(proxy).items() for arg in ("--build-arg", f"{k}={v}")]
+        started = time.monotonic()
+        done = subprocess.run(
+            ["docker", "build", "--memory", BUILD_MEMORY, "--cpu-period", "100000", "--cpu-quota", str(int(BUILD_CPUS) * 100000),
+             "--label", f"sq.host_image={host['image_id']}", *build_args, "-t", tag, str(context)],
+            capture_output=True, text=True, env={**os.environ, "DOCKER_BUILDKIT": "0"},
+        )
+        seconds = round(time.monotonic() - started, 1)
+    if done.returncode != 0:
+        raise RuntimeError(f"{tag} build failed ({done.returncode}): {(done.stdout + done.stderr)[-1500:]}")
+    return {"scenario": template.name, "host": host["host"], "tag": tag, "image_id": image_id(tag), "host_image_id": host["image_id"], "build_seconds": seconds}
+
+
+def write_task(template: Path, host: dict, dest: Path, subs: dict[str, str] | None = None, image: str | None = None) -> Path:
+    """Copy a Harbor task onto a prebuilt image and fill `{name}` slots in its instruction.
+
+    `image` is the scenario's own image layered on the host image (`build_scenario_image`); a task that has an
+    `environment/Dockerfile` needs it, and a task without one runs on the host image itself.
     """
     if dest.exists():
         shutil.rmtree(dest)
@@ -126,13 +162,11 @@ def write_task(template: Path, host: dict, dest: Path, subs: dict[str, str] | No
     if "docker_image" in text:
         raise ValueError(f"{config} already names an image")
     if dockerfile.exists():
-        body = dockerfile.read_text()
-        first, _, rest = body.partition("\n")
-        if first.strip() != f"FROM {HOST_BASE}":
-            raise ValueError(f"{dockerfile} must start from the shared base to be layered on a host image")
-        dockerfile.write_text(f"FROM {host['tag']}\n{rest}")
-    else:
-        config.write_text(re.sub(r"^\[environment\]\n", f'[environment]\ndocker_image = "{host["tag"]}"\n', text, count=1, flags=re.M))
+        if not image:
+            raise ValueError(f"{template} has its own environment; build it on the host image first (`images scenarios`)")
+        shutil.rmtree(dest / "environment")
+    target = image or host["tag"]
+    config.write_text(re.sub(r"^\[environment\]\n", f'[environment]\ndocker_image = "{target}"\n', text, count=1, flags=re.M))
     instruction = dest / "instruction.md"
     text = instruction.read_text()
     for name, value in (subs or {}).items():
@@ -166,6 +200,20 @@ def cmd_build(args) -> None:
     sys.exit(1 if failed else 0)
 
 
+def cmd_scenarios(args) -> None:
+    """Layer each scenario's own environment on each host image; one JSON row per image, with its build seconds."""
+    images = json.loads(args.host_images.read_text())
+    failed = 0
+    for host in args.hosts.split(","):
+        for template in args.scenario:
+            try:
+                print(json.dumps(build_scenario_image(template, images[host], args.proxy)))
+            except (RuntimeError, ValueError) as error:
+                failed += 1
+                print(template.name, host, "FAILED", error)
+    sys.exit(1 if failed else 0)
+
+
 def cmd_arms(args) -> None:
     """Render and pack every host-and-profile arm, then check `dev-fix` presence and the profile relations."""
     arms = prepare_all(args.src, args.hosts.split(","), args.profiles.split(","), args.out)
@@ -186,6 +234,12 @@ if __name__ == "__main__":
     b.add_argument("--hosts", default="opencode,droid,claude-code,codex")
     b.add_argument("--proxy", default=os.environ.get("LAB_BUILD_PROXY"), help="HTTP(S) proxy URL for builds (not a secret)")
     b.set_defaults(fn=cmd_build)
+    c = sub.add_parser("scenarios")
+    c.add_argument("--host-images", type=Path, required=True)
+    c.add_argument("--scenario", type=Path, action="append", required=True)
+    c.add_argument("--hosts", default="opencode,droid,claude-code,codex")
+    c.add_argument("--proxy", default=os.environ.get("LAB_BUILD_PROXY"), help="HTTP(S) proxy URL for builds (not a secret)")
+    c.set_defaults(fn=cmd_scenarios)
     r = sub.add_parser("arms")
     r.add_argument("--src", type=Path, required=True)
     r.add_argument("--out", type=Path, required=True)

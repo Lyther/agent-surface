@@ -2,6 +2,7 @@
 
 Usage: cohort.py --host-images hosts.json --arms arms.json --scenario DIR [--scenario DIR ...] --out DIR
                  [--hosts opencode,droid] [--profiles dev] [--reps 2] [--seed 1] [--concurrency 4]
+                 [--cpus 1] [--memory-mb 2048] [--purpose timing-probe]
 Each attempt is one fresh container from the host image (`evals/images.py`) with the profile's arm tarball (`evals/arms.py`) extracted into HOME. Hosts: opencode (free
 model, no credential), droid, and claude-code and codex through an OpenAI- and Anthropic-compatible gateway (`gateway.py`). Keys are read from stdin, one `NAME=value`
 per line (a bare first line is the Factory key), and exported only into the harbor child's environment. After each attempt `evals/scrub.py` scans its receipts; a hit
@@ -24,7 +25,7 @@ from pathlib import Path
 from evals.arms import DESC_ARM, SKILL_DIRS, load_arms
 from evals.detect import verdict
 from evals.gateway import GATEWAY_HOSTS, KEY_ENV, NO_PROXY_ENV, URL_ENV, gateway_url, no_proxy
-from evals.images import write_task
+from evals.images import scenario_tag, write_task
 from evals.scrub import Secret, parse_secrets, scan_receipt
 
 HOSTS = {
@@ -107,6 +108,7 @@ def ledger_row(scenario: str, host: str, profile: str, rep: int, image: dict, ar
         "tokens_cache": agent_result.get("n_cache_tokens"),
         "model_requests": metadata.get("model_requests"),
         "seconds_total": None,
+        "seconds_env": span(trial, "environment_setup"),
         "seconds_setup": span(trial, "agent_setup"),
         "seconds_agent": span(trial, "agent_execution"),
         "seconds_verifier": span(trial, "verifier"),
@@ -139,7 +141,8 @@ def injected_secrets(keys: dict[str, str]) -> list[Secret]:
     return parse_secrets([f"{name}={value}" for name, value in sorted(keys.items()) if value])
 
 
-def finish_attempt(cell: tuple, image: dict, arm: dict, started: str, exit_code: int, out: Path, secrets: list[Secret], ledger: Path, seconds: float | None = None) -> bool:
+def finish_attempt(cell: tuple, image: dict, arm: dict, started: str, exit_code: int, out: Path, secrets: list[Secret], ledger: Path, seconds: float | None = None,
+                   extra: dict | None = None) -> bool:
     """Scan the attempt's receipts, append its ledger row, and return True when the cohort must stop.
 
     The container is already removed and its files are in `jobs/<name>`. A hit quarantines the attempt's
@@ -156,6 +159,7 @@ def finish_attempt(cell: tuple, image: dict, arm: dict, started: str, exit_code:
     else:
         row = ledger_row(scenario, host, profile, rep, image, arm, started, exit_code, out / "jobs" / name)
         row["seconds_total"] = None if seconds is None else round(seconds, 1)
+        row.update(extra or {})
     with ledger.open("a") as f:
         f.write(json.dumps(row) + "\n")
     return bool(hits)
@@ -170,7 +174,9 @@ async def attempt(cell: tuple, args, images: dict, arms: dict, keys: dict[str, s
         raise SystemExit(f"attempt directory exists, not reused: {jobs / name}")
     image, arm = images[host], arms[f"{host}-{profile}"]
     skill_file = f"/root/{SKILL_DIRS[host][0]}/dev-fix/SKILL.md"
-    task = write_task(args.scenarios[scenario], image, args.out / "tasks" / name, {"skill_file": skill_file})
+    template = args.scenarios[scenario]
+    own_image = scenario_tag(template, host) if (template / "environment" / "Dockerfile").exists() else None
+    task = write_task(template, image, args.out / "tasks" / name, {"skill_file": skill_file}, own_image)
     env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG", "USER") if k in os.environ}
     env.update(HARBOR_TELEMETRY="0", PYTHONPATH=str(EVALS_DIR.parent), SQ_ARM_TARBALL=arm["tarball"], SQ_ARM_SHA256=arm["arm_sha256"])
     if host in GATEWAY_HOSTS:  # the agent reads the gateway address at run time
@@ -181,7 +187,7 @@ async def attempt(cell: tuple, args, images: dict, arms: dict, keys: dict[str, s
         "uv", "run", "--frozen", "--project", str(EVALS_DIR), "harbor", "run",
         "-p", str(task), "-a", HOSTS[host]["agent"], "-m", HOSTS[host]["model"],
         "-o", str(jobs), "--job-name", name, "-n", "1", "-y", "-q",
-        "--override-cpus", "1", "--override-memory-mb", "2048",
+        "--override-cpus", str(args.cpus), "--override-memory-mb", str(args.memory_mb),
     ]
     started = now()
     t0 = time.monotonic()
@@ -190,6 +196,14 @@ async def attempt(cell: tuple, args, images: dict, arms: dict, keys: dict[str, s
     (args.out / "logs").mkdir(exist_ok=True)
     (args.out / "logs" / f"{name}.log").write_bytes(out)
     return started, proc.returncode or 0, time.monotonic() - t0
+
+
+def row_extra(args) -> dict:
+    """Run-level ledger fields: the container caps, and a purpose label (`timing-probe` rows stay out of outcome analysis)."""
+    extra = {"cpus": args.cpus, "memory_mb": args.memory_mb, "concurrency": args.concurrency}
+    if args.purpose:
+        extra["purpose"] = args.purpose
+    return extra
 
 
 async def run_order(order: list, run_cell, concurrency: int) -> bool:
@@ -240,7 +254,7 @@ async def main(args) -> None:
             skip(cell, f"no {HOST_KEY[host]} on stdin")
             return False
         if host == "droid":
-            if spent + (inflight_droid + 1) * CREDIT_RESERVE_PER_ATTEMPT > CREDIT_STOP:
+            if spent + (inflight_droid + 1) * args.credit_reserve > CREDIT_STOP:
                 skip(cell, f"spend stop ({spent} credits spent, {inflight_droid} in flight)")
                 return False
             inflight_droid += 1
@@ -249,11 +263,11 @@ async def main(args) -> None:
         finally:
             if host == "droid":
                 inflight_droid -= 1
-        stop = finish_attempt(cell, images[host], arms[f"{host}-{profile}"], started, code, args.out, injected_secrets(keys), ledger, seconds)
+        stop = finish_attempt(cell, images[host], arms[f"{host}-{profile}"], started, code, args.out, injected_secrets(keys), ledger, seconds, row_extra(args))
         if host == "droid":
             last = json.loads(ledger.read_text().splitlines()[-1])
             # An attempt that failed before the model ran spent nothing; any other without a reading is charged the reserve.
-            spent += int(last.get("factory_credits") or (0 if last.get("exception") else CREDIT_RESERVE_PER_ATTEMPT))
+            spent += int(last.get("factory_credits") or (0 if last.get("exception") else args.credit_reserve))
         return stop
 
     if await run_order(order, run_cell, args.concurrency):
@@ -270,8 +284,10 @@ if __name__ == "__main__":
     ap.add_argument("--profiles", default="dev")
     ap.add_argument("--reps", type=int, default=2)
     ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--concurrency", type=int, default=4)
+    ap.add_argument("--concurrency", type=int, default=4, help="attempts at once; the measured safe level per host is in the README's Capacity section")
+    ap.add_argument("--credit-reserve", type=int, default=CREDIT_RESERVE_PER_ATTEMPT, help="Factory credits held back per droid attempt in flight; the no-skill control used 4k to 18k")
+    ap.add_argument("--cpus", type=int, default=1, help="CPU cap per attempt container")
+    ap.add_argument("--memory-mb", type=int, default=2048, help="memory cap per attempt container")
+    ap.add_argument("--purpose", help="ledger label, e.g. timing-probe or capacity-ramp: such rows are never outcome data")
     parsed = ap.parse_args()
-    if parsed.concurrency > 4:
-        sys.exit("concurrency above 4 exceeds the host budget")
     asyncio.run(main(parsed))

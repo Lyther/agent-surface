@@ -27,11 +27,13 @@ from evals.gateway import KEY_ENV, gateway_url, no_proxy
 
 CLAUDE_MODEL = "claude-sonnet-5-5"  # the gateway maps Claude ids to other models; the host does not show the served one
 CODEX_MODEL = "gpt-5.5"
-HOST_TIMEOUT_SEC = 900
+# Under the scenarios' own 1800 s agent limit, so a slow attempt is a timeout by this cap, not a cut by Harbor. An earlier 900 s cap cut a droid
+# attempt on the umask scenario mid-work (SQ0.5).
+HOST_TIMEOUT_SEC = 1700
 
 DROID_VERSION = HOST_CLI["droid"][1]
 DROID_MODEL = "claude-sonnet-5"
-DROID_TIMEOUT_SEC = 900
+DROID_TIMEOUT_SEC = 1700
 # Outward-facing and administration tools removed in every arm, as in GR2.
 DROID_REMOVE_TOOLS = (
     "SlackPostFile,SlackPostMessage,SlackCreateOrUpdateCodeChannel,SlackArchiveCodeChannel,SlackListChannels,store_agent_readiness_report,get_agent_effectiveness_usage,render_agent_effectiveness_report,ListEvalRuns,ListDatasets,ReadDataset,ReadEvalRun,CreateEvalRun,ListEvalPresets,SaveEvalPreset,CreateDataset,GenerateDroid,StageSettingsChanges,UpgradeSessionModel,ProposeMission,StartMissionRun,EndFeatureRun,DismissHandoffItems,ConnectApp,GenerateImage,ListAutomationTemplates,CreateAutomation,ListAutomations,ReadAutomation,EditAutomation,DeleteAutomation,RunAutomation,CreateWorkstream,ProposeWorkstream,AskUser"
@@ -144,17 +146,23 @@ class ArmDroid(_DockerExecAgent):
         path = Path(self.logs_dir) / "droid.jsonl"
         if not path.exists():
             return
-        usage = {}
+        usage, turns = {}, None
         for line in path.read_text(errors="replace").splitlines():
             try:
                 event = json.loads(line)
             except ValueError:
                 continue
             if event.get("type") == "completion":
-                usage = event.get("usage", {})
-        context.n_input_tokens = usage.get("input_tokens")
+                usage, turns = event.get("usage", {}), event.get("numTurns")
+        # Anthropic-style usage: `input_tokens` excludes cache reads and writes. `n_input_tokens` is the whole prompt summed over the
+        # attempt's requests and `n_cache_tokens` its cached part, as for the other hosts. Each of Droid's turns is one model request
+        # (a 52-turn attempt made 51 tool calls and one closing message).
+        cache_read = usage.get("cache_read_input_tokens") or 0
+        if usage:
+            context.n_input_tokens = (usage.get("input_tokens") or 0) + cache_read + (usage.get("cache_creation_input_tokens") or 0)
+            context.n_cache_tokens = cache_read
         context.n_output_tokens = usage.get("output_tokens")
-        context.metadata = {"factory_credits": usage.get("factory_credits"), "usage": usage}
+        context.metadata = {"factory_credits": usage.get("factory_credits"), "model_requests": turns, "usage": usage}
 
 
 class ArmClaude(_DockerExecAgent):
