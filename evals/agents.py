@@ -210,7 +210,7 @@ class ArmClaude(_DockerExecAgent):
         path = Path(self.logs_dir) / "claude.jsonl"
         if not path.exists():
             return
-        result: dict = {}
+        results: list[dict] = []
         events: list[dict] = []
         for line in path.read_text(errors="replace").splitlines():
             try:
@@ -219,17 +219,23 @@ class ArmClaude(_DockerExecAgent):
                 continue
             events.append(event)
             if event.get("type") == "result":
-                result = event
-        usage = result.get("usage") or {}
+                results.append(event)
+        requests = {e["message"]["id"] for e in events if e.get("type") == "assistant" and e.get("message", {}).get("id")}
+        if not results:  # killed before any result: no token reading, not zero tokens
+            context.metadata = {"model_requests": len(requests)}
+            return
+        # A background task finishing after the first answer starts another turn and a second `result` event; each result's `usage` covers
+        # only the requests since the previous one (the SQ0.5 f14 attempt: 288,926 + 3,987 uncached over two results, 75 requests). Keep the sum.
+        usage = {key: sum(r.get("usage", {}).get(key) or 0 for r in results)
+                 for key in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")}
         # Anthropic usage keeps cache reads and writes out of input_tokens. n_input_tokens is the whole prompt (as Codex reports it)
         # and n_cache_tokens the cached part of it, so both hosts are comparable and uncached input is the difference.
-        cache_read = usage.get("cache_read_input_tokens") or 0
-        context.n_input_tokens = (usage.get("input_tokens") or 0) + cache_read + (usage.get("cache_creation_input_tokens") or 0)
-        context.n_output_tokens = usage.get("output_tokens")
+        cache_read = usage["cache_read_input_tokens"]
+        context.n_input_tokens = usage["input_tokens"] + cache_read + usage["cache_creation_input_tokens"]
+        context.n_output_tokens = usage["output_tokens"]
         context.n_cache_tokens = cache_read
         # The cost the CLI prints uses its own price table for the requested id, not the gateway's, so it is not spend.
-        requests = {e["message"]["id"] for e in events if e.get("type") == "assistant" and e.get("message", {}).get("id")}
-        context.metadata = {"model_usage_ids": sorted((result.get("modelUsage") or {})), "reported_cost_usd_unreliable": result.get("total_cost_usd"),
+        context.metadata = {"model_usage_ids": sorted(results[-1].get("modelUsage") or {}), "reported_cost_usd_unreliable": results[-1].get("total_cost_usd"),
                             "model_requests": len(requests)}
 
 
