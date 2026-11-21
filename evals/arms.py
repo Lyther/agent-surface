@@ -1,16 +1,16 @@
-"""Build an evaluation arm by running agent-surface's own installer inside the attempt container.
+"""Build an evaluation arm by running agent-surface's own installer inside a build container.
 
 An arm is a source overlay (the repository sources, minus any dropped skills) plus the install
-commands for a profile. The overlay is a tarball built on the host, unpacked inside the container
-and run there with the container's node, so generated paths match the container HOME. The sources
-checkout is never edited.
+commands for a profile. The overlay is a tarball built on the host and unpacked in a build container
+that runs the installer with the container's node, so generated paths match the container HOME. The
+result is committed once as an image per host and arm (`evals/images.py`); every attempt starts a
+fresh container from that image. The sources checkout is never edited.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-import os
 import shlex
 import tarfile
 from dataclasses import dataclass, field
@@ -18,6 +18,8 @@ from pathlib import Path
 
 OVERLAY_ROOT = "/opt/as-overlay"
 LOGS = "/logs/agent"
+# Build records kept inside the image so an attempt can show which profile it started from.
+BUILD_DIR = "/opt/sq"
 # Directories the installer never reads; leaving them out keeps the upload small and the lab out of the arm.
 EXCLUDE_TOP = {".git", "evals", "node_modules", ".agent-surface", "dist"}
 # Host config files that carry MCP wiring. Both arms drop it so tools match and no service starts.
@@ -25,6 +27,8 @@ MCP_CONFIGS = {
     "opencode": ".config/opencode/opencode.json",
     "droid": ".factory/mcp.json",
 }
+# Host hook files that carry Synapse's hook; it is part of the MCP service wiring and goes with it.
+HOOK_CONFIGS = {"droid": ".factory/hooks.json"}
 SKILL_DIRS = {
     "opencode": [".config/opencode/skills", ".agents/skills"],
     "droid": [".agents/skills", ".factory/skills"],
@@ -34,14 +38,23 @@ SKILL_DIRS = {
 @dataclass(frozen=True)
 class Arm:
     name: str
-    categories: tuple[str, ...] = ("development",)
+    # One installer run per entry, each a --category value; the general sync always runs first.
+    installs: tuple[str, ...] = ("development",)
     drop_skills: tuple[str, ...] = ()
+    # Name of the arm whose overlay tarball supplies the sources.
+    sources: str = ""
+
+    @property
+    def overlay(self) -> str:
+        return self.sources or self.name
 
 
 # General is always installed first because it resets the host's managed files; categories follow.
+# F is the operator's full real profile (general, external packs, all four asset categories) from B's sources.
 ARMS = {
     "A": Arm("A", drop_skills=("dev-fix",)),
     "B": Arm("B"),
+    "F": Arm("F", installs=("external", "development,cybersecurity,private,modding"), sources="B"),
 }
 
 
@@ -104,24 +117,84 @@ def build_overlay(src: Path, arm: Arm, dest: Path) -> dict:
     return {"arm": arm.name, "source_commit": commit, "dropped_skills": sorted(drop), "overlay_sha256": digest}
 
 
-def install_script(target: str, arm: Arm) -> str:
-    """Shell run in the container: unpack, install dependencies, run the product installer, strip MCP wiring."""
-    install = f"node scripts/agent-surface.mjs install --target {shlex.quote(target)} --scope user --dest \"$HOME\" -y"
+HOST_CLI = {
+    "opencode": ("opencode-ai", "1.19.6"),
+    "droid": ("droid", "0.244.0"),
+}
+APT_DEPS = "curl ca-certificates git procps inotify-tools"
+NVM_VERSION = "v0.40.2"
+NODE_MAJOR = 22
+DROID_URL = "https://downloads.factory.ai/factory-cli/releases/{v}/linux/x64"
+STAMP = f"{BUILD_DIR}/stamp.py"
+
+
+def _cli_steps(target: str) -> list[str]:
+    """Shell that installs the host CLI at its pinned version, so attempts never download it."""
+    _, version = HOST_CLI[target]
+    nvm = (
+        f"curl -fsSo- https://raw.githubusercontent.com/nvm-sh/nvm/{NVM_VERSION}/install.sh | env -u NODE_VERSION bash >/dev/null && "
+        'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && '
+        f"nvm install {NODE_MAJOR} >/dev/null && nvm alias default {NODE_MAJOR} >/dev/null"
+    )
+    if target == "opencode":
+        return [nvm, f"npm i -g opencode-ai@{version} >/dev/null 2>&1", "opencode --version"]
+    url = DROID_URL.format(v=version)
+    return [
+        nvm,
+        f"curl -fsSL -o /usr/local/bin/droid {url}/droid && curl -fsSL -o /tmp/droid.sha256 {url}/droid.sha256",
+        '[ "$(sha256sum /usr/local/bin/droid | cut -d" " -f1)" = "$(cut -d" " -f1 /tmp/droid.sha256)" ] && chmod +x /usr/local/bin/droid',
+        "droid --version",
+    ]
+
+
+def _hook_strip(target: str) -> list[str]:
+    path = HOOK_CONFIGS.get(target)
+    if not path:
+        return []
+    return [
+        f'python3 - "$HOME/{path}" <<\'PY\'\n'
+        "import json, sys, pathlib\n"
+        "p = pathlib.Path(sys.argv[1])\n"
+        "if p.exists():\n"
+        "    d = json.loads(p.read_text())\n"
+        "    for event, groups in list(d.items()):\n"
+        "        for g in groups:\n"
+        "            g['hooks'] = [h for h in g.get('hooks', []) if 'synapse-hook' not in h.get('command', '')]\n"
+        "        d[event] = [g for g in groups if g['hooks']]\n"
+        "        if not d[event]:\n"
+        "            del d[event]\n"
+        "    p.write_text(json.dumps(d, indent=2))\n"
+        "PY"
+    ]
+
+
+def build_script(target: str, arm: Arm) -> str:
+    """Shell run once in the build container: host CLI, then the production installer for the arm's profile.
+
+    The overlay is bind-mounted at /tmp/as-overlay.tgz so it never lands in an image layer. MCP services
+    are neither built nor kept: the installer only wires their config, and that wiring is removed here so
+    every arm has the same tools and nothing tries to start a service.
+    """
+    install = f'node scripts/agent-surface.mjs install --target {shlex.quote(target)} --scope user --dest "$HOME" -y'
     steps = [
-        "set -u",
-        f"mkdir -p {OVERLAY_ROOT} {LOGS}",
+        "set -e",
+        f"mkdir -p {OVERLAY_ROOT} {BUILD_DIR}",
+        f"apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends {APT_DEPS} >/dev/null",
+        "rm -rf /var/lib/apt/lists/*",
+        *_cli_steps(target),
         f"tar -xzf /tmp/as-overlay.tgz -C {OVERLAY_ROOT} --strip-components=1",
         f"cd {OVERLAY_ROOT}",
-        '[ -f ~/.nvm/nvm.sh ] && . ~/.nvm/nvm.sh',
-        "node --version && npm ci --omit=dev --no-audit --no-fund >/dev/null 2>&1",
+        "npm ci --omit=dev --no-audit --no-fund >/dev/null 2>&1",
+        "set +e",
         # Installer exit codes only signal skipped MCP prerequisites here; the manifest check below is the gate.
-        f"{install} > {LOGS}/arm-install-general.txt 2>&1; echo general_exit=$? >> {LOGS}/arm-install-general.txt",
+        f"{install} > {BUILD_DIR}/install-general.txt 2>&1; echo general_exit=$? >> {BUILD_DIR}/install-general.txt",
     ]
-    for category in arm.categories:
-        log = f"{LOGS}/arm-install-{category}.txt"
-        steps.append(f"{install} --category {shlex.quote(category)} > {log} 2>&1; echo {category}_exit=$? >> {log}")
+    for entry in arm.installs:
+        log = f"{BUILD_DIR}/install-{entry.replace(',', '+')}.txt"
+        steps.append(f"{install} --category {shlex.quote(entry)} > {log} 2>&1; echo exit=$? >> {log}")
     mcp = MCP_CONFIGS[target]
     steps += [
+        "set -e",
         f'python3 - "$HOME/{mcp}" <<\'PY\'\n'
         "import json, sys, pathlib\n"
         "p = pathlib.Path(sys.argv[1])\n"
@@ -131,28 +204,29 @@ def install_script(target: str, arm: Arm) -> str:
         "        d.pop(k, None)\n"
         "    p.write_text(json.dumps(d, indent=2))\n"
         "PY",
+        *_hook_strip(target),
+        'rm -f "$HOME"/.local/bin/grimoire-* "$HOME"/.local/bin/synapse-*',
         f'test -s "$HOME/.agent-surface/{target}-manifest.json"',
-        f'cp "$HOME/.agent-surface/{target}-manifest.json" {LOGS}/arm-manifest.json',
-        f'(cd "$HOME" && find {" ".join(SKILL_DIRS[target])} -name SKILL.md 2>/dev/null | sort) > {LOGS}/arm-skills.txt || true',
-        f"rm -rf {OVERLAY_ROOT}/node_modules",
+        f'cp "$HOME/.agent-surface/{target}-manifest.json" {BUILD_DIR}/arm-manifest.json',
+        f'(cd "$HOME" && find {" ".join(SKILL_DIRS[target])} -name SKILL.md 2>/dev/null | sort) > {BUILD_DIR}/arm-skills.txt',
+        # The overlay stays (minus node_modules) because installed hooks and wiring may point into it, as in SQ0.1.
+        # The installer builds Synapse and Grimoire as a prerequisite of wiring them and has no switch to skip that.
+        f"rm -rf {OVERLAY_ROOT}/node_modules {OVERLAY_ROOT}/mcps/*/node_modules {OVERLAY_ROOT}/mcps/*/dist /root/.npm /root/.cache /tmp/droid.sha256",
     ]
     return "\n".join(steps)
 
 
 def detector_start(target: str) -> str:
-    """Start a background file-open watcher on the installed skills directories (spike-grade, SQ0.2 refines it)."""
+    """Start the file-open watcher on the installed skills directories; each event gets a sub-second timestamp.
+
+    The audit is a cross-check only: both hosts open every SKILL.md at startup to build their catalogue, so
+    `evals/detect.py` decides loads from the host's own tool-call record and uses these events to confirm it.
+    """
     dirs = " ".join(f'"$HOME/{d}"' for d in SKILL_DIRS[target])
     return (
         f'dirs=""; for d in {dirs}; do [ -d "$d" ] && dirs="$dirs $d"; done; '
-        f'[ -n "$dirs" ] || exit 0; '
-        f"nohup setsid inotifywait -m -r -e open --format '%T %e %w%f' --timefmt '%FT%T' $dirs "
+        f'[ -n "$dirs" ] || exit 0; mkdir -p {LOGS}; '
+        f"nohup setsid sh -c \"inotifywait -m -r -e open --format '%e %w%f' $dirs | python3 -u {STAMP}\" "
         f"> {LOGS}/skill-opens.log 2> {LOGS}/skill-opens.err < /dev/null & "
-        f'sleep 1; pgrep -x inotifywait > /dev/null'
+        f"sleep 1; pgrep -x inotifywait > /dev/null"
     )
-
-
-async def install_arm(agent, environment, target: str) -> None:
-    """Upload the overlay named by SQ_OVERLAY and run the arm's install script in the container."""
-    overlay = os.environ["SQ_OVERLAY"]
-    await environment.upload_file(overlay, "/tmp/as-overlay.tgz")
-    await agent.exec_as_agent(environment, command=install_script(target, ARMS[os.environ["SQ_ARM"]]))

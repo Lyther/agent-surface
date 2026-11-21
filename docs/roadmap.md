@@ -374,7 +374,7 @@ Exit: a runner is chosen, the detector is qualified on at least two hosts, the c
 
 #### SQ0.1 Runner and Arm Injection Spike
 
-State: DONE 2026-11-21 (first cut in `evals/`; receipts private under `.agent-surface/research/2026-11-20-sq0.1/`). Depends on: none. Covers: `G-SQ-01`, `S-SQ-01`, `Q-SQ-07`.
+State: DONE 2026-11-21 (first cut in `evals/`; receipts private under `.agent-surface/research/2026-11-20-sq0.1/`). Per-attempt setup was about 2 minutes on OpenCode; prebuilt arm images (`evals/images.py`, SQ0.5 overhead) cut it to under 2 seconds. Depends on: none. Covers: `G-SQ-01`, `S-SQ-01`, `Q-SQ-07`.
 
 Steps:
 1. Run one existing scenario on two runnable hosts through Harbor.
@@ -393,7 +393,7 @@ Exit: two hosts × two arms × two repetitions complete, with a ledger row per a
 
 #### SQ0.2 Skill-Load Detector
 
-State: NOT STARTED. Depends on: SQ0.1. Covers: `G-SQ-02`, `S-SQ-02`.
+State: DONE for OpenCode and Droid 2026-11-21 (`evals/detect.py`; receipts under `.agent-surface/research/2026-11-21-sq0.2/`). The file audit alone cannot separate a load from the startup scan, so the rule reads the host's own tool-call record and uses the audit as a cross-check; the audit cannot see Droid's `Skill` tool. Claude Code and Codex are not tested. Depends on: SQ0.1. Covers: `G-SQ-02`, `S-SQ-02`.
 
 Implement the file-open audit of installed skill files inside the container. Run it on three hosts with prompts that name a skill explicitly (positive control) and prompts unrelated to any skill (negative control). Compare it with each host's own tool logs where they exist.
 
@@ -403,7 +403,7 @@ Exit: on every tested host, the detector reports the positive controls and no re
 
 #### SQ0.3 Listing Capture
 
-State: NOT STARTED. Depends on: SQ0.1. Covers: `G-SQ-02`, `S-SQ-03`, `Q-SQ-03`.
+State: DONE for OpenCode 1.19.6 and Droid 0.244.0 2026-11-21 (`evals/listing.py`; same receipts). Droid shortens descriptions to 200 characters and, with 84 skills, lists the last one by name only. Claude Code, Codex, Kiro and Kilo are not captured. Depends on: SQ0.1. Covers: `G-SQ-02`, `S-SQ-03`, `Q-SQ-03`.
 
 For each runnable host, capture the real skill listing with the full profile installed (all categories and external packs), through the host's own means:
 - Claude Code: `/context` and debug output;

@@ -1,7 +1,7 @@
-"""Harbor agents that install an arm into the attempt container and watch skill-file opens.
+"""Harbor agents for containers started from a prebuilt arm image (`evals/images.py`).
 
-Arm selection and secrets come from the harbor process environment (SQ_ARM, SQ_OVERLAY, FACTORY_API_KEY),
-never from argv.
+The host CLI and the arm's profile are already in the image, so `install` only proves they are there.
+The Droid key comes from the harbor process environment (FACTORY_API_KEY), never from argv.
 """
 
 from __future__ import annotations
@@ -14,29 +14,28 @@ from pathlib import Path
 from typing import override
 
 from harbor.agents.installed.base import BaseInstalledAgent, NonZeroAgentExitCodeError, with_prompt_template
-from harbor.agents.installed.node_install import nvm_node_install_snippet
 from harbor.agents.installed.opencode import OpenCode
 from harbor.environments.base import BaseEnvironment
 from harbor.environments.docker.docker import _sanitize_docker_compose_project_name
 from harbor.models.agent.context import AgentContext
 
-from evals.arms import LOGS, detector_start, install_arm
+from evals.arms import BUILD_DIR, HOST_CLI, LOGS, detector_start
 
-DROID_VERSION = "0.244.0"
-DROID_URL = f"https://downloads.factory.ai/factory-cli/releases/{DROID_VERSION}/linux/x64"
+DROID_VERSION = HOST_CLI["droid"][1]
 DROID_MODEL = "claude-sonnet-5"
 DROID_TIMEOUT_SEC = 900
 # Outward-facing and administration tools removed in every arm, as in GR2.
 DROID_REMOVE_TOOLS = (
     "SlackPostFile,SlackPostMessage,SlackCreateOrUpdateCodeChannel,SlackArchiveCodeChannel,SlackListChannels,store_agent_readiness_report,get_agent_effectiveness_usage,render_agent_effectiveness_report,ListEvalRuns,ListDatasets,ReadDataset,ReadEvalRun,CreateEvalRun,ListEvalPresets,SaveEvalPreset,CreateDataset,GenerateDroid,StageSettingsChanges,UpgradeSessionModel,ProposeMission,StartMissionRun,EndFeatureRun,DismissHandoffItems,ConnectApp,GenerateImage,ListAutomationTemplates,CreateAutomation,ListAutomations,ReadAutomation,EditAutomation,DeleteAutomation,RunAutomation,CreateWorkstream,ProposeWorkstream,AskUser"
 )
-APT_DEPS = "curl ca-certificates git procps inotify-tools"
 
 
-async def _apt(agent, environment) -> None:
-    await agent.exec_as_root(
+async def _check_image(agent, environment, target: str) -> None:
+    """Fail the attempt when the container did not come from an arm image for this host."""
+    await agent.exec_as_agent(
         environment,
-        command=f"apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends {APT_DEPS} >/dev/null",
+        command=f'test -s {BUILD_DIR}/arm-manifest.json && test -s "$HOME/.agent-surface/{target}-manifest.json" && '
+        f"mkdir -p {LOGS} && cp {BUILD_DIR}/arm-manifest.json {BUILD_DIR}/arm-skills.txt {LOGS}/",
     )
 
 
@@ -48,9 +47,8 @@ class ArmOpenCode(OpenCode):
 
     @override
     async def install(self, environment: BaseEnvironment) -> None:
-        await _apt(self, environment)
-        await super().install(environment)
-        await install_arm(self, environment, "opencode")
+        await _check_image(self, environment, "opencode")
+        await super().install(environment)  # returns at once when the pinned CLI is already there
 
     @override
     async def run(self, instruction: str, environment: BaseEnvironment, context: AgentContext) -> None:
@@ -74,16 +72,8 @@ class ArmDroid(BaseInstalledAgent):
 
     @override
     async def install(self, environment: BaseEnvironment) -> None:
-        await _apt(self, environment)
-        await self.exec_as_root(
-            environment,
-            command=(
-                f"curl -fsSL -o /usr/local/bin/droid {DROID_URL}/droid && curl -fsSL -o /tmp/droid.sha256 {DROID_URL}/droid.sha256 && "
-                "[ \"$(sha256sum /usr/local/bin/droid | cut -d' ' -f1)\" = \"$(cut -d' ' -f1 /tmp/droid.sha256)\" ] && chmod +x /usr/local/bin/droid"
-            ),
-        )
-        await self.exec_as_agent(environment, command=nvm_node_install_snippet() + " >/dev/null")
-        await install_arm(self, environment, "droid")
+        await _check_image(self, environment, "droid")
+        await self.exec_as_agent(environment, command=f'[ "$(droid --version)" = "{DROID_VERSION}" ]')
 
     async def _container(self, environment: BaseEnvironment) -> str:
         project = _sanitize_docker_compose_project_name(environment.session_id)
