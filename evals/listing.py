@@ -75,7 +75,7 @@ class LeakError(RuntimeError):
 def check_clean(captured: Path, keys: dict[str, str], quarantine_dir: Path) -> None:
     """Scan what was copied out of the container; quarantine it and raise on any hit (never the matched text)."""
     secrets: list[Secret] = injected_secrets(keys)
-    hits = scan_receipt(captured, secrets, quarantine_dir)
+    hits, _ = scan_receipt(captured, secrets, quarantine_dir)
     if hits:
         raise LeakError(f"{len(hits)} credential hit(s) in {captured.name}: {sorted({h.name for h in hits})}; quarantined")
 

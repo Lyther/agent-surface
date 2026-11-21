@@ -5,6 +5,10 @@ Every regular file under the given paths is scanned as raw bytes for each value,
 patterns below. Gzip streams and tar archives are also scanned decoded, because SQ0.1 receipts contain
 overlay tarballs. Output names the file, byte offset and label or pattern, never the matched bytes.
 
+A pattern hit carries the sha256 of the matched bytes (never the bytes). A frozen list of known input strings, made by a
+pre-flight scan of the arm tarballs and scenario inputs (`--fingerprint`), turns a pattern hit whose (pattern, sha256) is on it
+into an input echo: logged, not a hit. An exact secret-value hit is never an echo.
+
 Exit codes: 0 clean, 1 hits, 2 usage error or unreadable input.
 """
 
@@ -12,6 +16,8 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import hashlib
+import json
 import os
 import re
 import shutil
@@ -53,6 +59,7 @@ class Hit:
     name: str  # secret label or pattern name
     path: str  # file, or "archive!member" inside an archive
     offset: int
+    digest: str | None = None  # sha256 of the matched bytes; set for pattern hits only, since a digest of an exact secret helps nobody
 
     def line(self) -> str:
         return f"HIT {self.kind} {self.name} {self.path} offset={self.offset}"
@@ -95,7 +102,7 @@ def scan_stream(stream: BinaryIO, where: str, secrets: list[Secret]) -> list[Hit
                 found.append(Hit("exact", secret.label, where, base + start))
                 start = data.find(secret.value, start + 1)
         for name, pattern in PATTERNS.items():
-            found.extend(Hit("pattern", name, where, base + m.start()) for m in pattern.finditer(data))
+            found.extend(Hit("pattern", name, where, base + m.start(), hashlib.sha256(m.group()).hexdigest()) for m in pattern.finditer(data))
         for hit in found:
             key = (hit.name, hit.offset)
             if key not in seen:
@@ -158,6 +165,25 @@ def scan_paths(paths: list[Path], secrets: list[Secret]) -> tuple[list[Hit], int
     return hits, scanned, errors
 
 
+def load_known(path: Path) -> frozenset[tuple[str, str]]:
+    """The frozen list of known input strings: a JSON list of {"pattern", "sha256"}."""
+    return frozenset((entry["pattern"], entry["sha256"]) for entry in json.loads(path.read_text()))
+
+
+def fingerprints(paths: list[Path]) -> list[dict]:
+    """Pre-flight: every pattern match in the inputs as a sorted, de-duplicated list of {"pattern", "sha256"}; no secret values are involved."""
+    hits, _, errors = scan_paths(paths, [])
+    if errors:
+        raise OSError("; ".join(errors))
+    return [{"pattern": name, "sha256": digest} for name, digest in sorted({(h.name, h.digest) for h in hits})]
+
+
+def split_echoes(hits: list[Hit], known: frozenset[tuple[str, str]]) -> tuple[list[Hit], list[Hit]]:
+    """(hits, input echoes). Only a pattern hit on the known list is an echo; an exact secret-value hit always stays a hit."""
+    echoes = [h for h in hits if h.kind == "pattern" and (h.name, h.digest) in known]
+    return [h for h in hits if h not in echoes], echoes
+
+
 def quarantine(receipt: Path, quarantine_dir: Path) -> Path:
     """Move a receipt (an attempt directory or file) into quarantine_dir, created 0700."""
     quarantine_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -172,17 +198,18 @@ def quarantine(receipt: Path, quarantine_dir: Path) -> Path:
     return moved
 
 
-def scan_receipt(receipt: Path, secrets: list[Secret], quarantine_dir: Path | None) -> list[Hit]:
-    """Scan one receipt; on any hit move it into quarantine_dir (when given) and return the hits.
+def scan_receipt(receipt: Path, secrets: list[Secret], quarantine_dir: Path | None, known: frozenset[tuple[str, str]] = frozenset()) -> tuple[list[Hit], list[Hit]]:
+    """Scan one receipt; on any hit move it into quarantine_dir (when given) and return (hits, input echoes).
 
-    The caller (the cohort loop) must stop the cohort when the result is non-empty.
+    An echo (a pattern hit on the `known` list) does not quarantine. The caller (the cohort loop) must stop the cohort when `hits` is non-empty.
     """
-    hits, _, errors = scan_paths([receipt], secrets)
+    found, _, errors = scan_paths([receipt], secrets)
     if errors:
         raise OSError("; ".join(errors))
+    hits, echoes = split_echoes(found, known)
     if hits and quarantine_dir is not None:
         quarantine(receipt, quarantine_dir)
-    return hits
+    return hits, echoes
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -192,11 +219,26 @@ def main(argv: list[str] | None = None) -> int:
         epilog="Exit codes: 0 clean, 1 hits, 2 usage error or unreadable file.",
     )
     parser.add_argument("--quarantine", type=Path, metavar="DIR", help="move each path that has hits into DIR (mode 0700)")
+    parser.add_argument("--known", type=Path, metavar="FILE", help="frozen list of known input strings; a pattern hit on it is an input echo, not a hit")
+    parser.add_argument("--fingerprint", type=Path, metavar="FILE", help="pre-flight: write the pattern matches of PATH... to FILE as the known-input list; reads no secrets")
     parser.add_argument("paths", nargs="+", type=Path, metavar="PATH")
     try:
         args = parser.parse_args(argv)
     except SystemExit as exit_:
         return EXIT_USAGE if exit_.code else EXIT_CLEAN
+    missing = [p for p in args.paths if not p.exists()]
+    if missing:
+        print(f"usage error: no such path: {missing[0]}", file=sys.stderr)
+        return EXIT_USAGE
+    if args.fingerprint:
+        try:
+            found = fingerprints(args.paths)
+        except OSError as error:
+            print(f"ERROR unreadable {error}", file=sys.stderr)
+            return EXIT_USAGE
+        args.fingerprint.write_text(json.dumps(found, indent=2) + "\n")
+        print(f"fingerprints={len(found)}")
+        return EXIT_CLEAN
     if sys.stdin.isatty():
         print("usage error: secret values must be piped on stdin", file=sys.stderr)
         return EXIT_USAGE
@@ -205,15 +247,16 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as error:
         print(f"usage error: {error}", file=sys.stderr)
         return EXIT_USAGE
-    missing = [p for p in args.paths if not p.exists()]
-    if missing:
-        print(f"usage error: no such path: {missing[0]}", file=sys.stderr)
-        return EXIT_USAGE
 
+    known = load_known(args.known) if args.known else frozenset()
     total_hits, total_files, total_errors = 0, 0, 0
-    exact = pattern = 0
+    exact = pattern = echo = 0
     for path in args.paths:
-        hits, scanned, errors = scan_paths([path], secrets)
+        found, scanned, errors = scan_paths([path], secrets)
+        hits, echoes = split_echoes(found, known)
+        echo += len(echoes)
+        for hit in echoes:
+            print(hit.line().replace("HIT ", "ECHO ", 1))
         total_files += scanned
         total_errors += len(errors)
         for error in errors:
@@ -225,7 +268,7 @@ def main(argv: list[str] | None = None) -> int:
         total_hits += len(hits)
         if hits and args.quarantine is not None:
             print(f"QUARANTINED {path} -> {quarantine(path, args.quarantine)}")
-    print(f"scanned files={total_files} secrets={len(secrets)} exact_hits={exact} pattern_hits={pattern} unreadable={total_errors}")
+    print(f"scanned files={total_files} secrets={len(secrets)} exact_hits={exact} pattern_hits={pattern} input_echoes={echo} unreadable={total_errors}")
     if total_hits:
         return EXIT_HITS
     return EXIT_USAGE if total_errors else EXIT_CLEAN

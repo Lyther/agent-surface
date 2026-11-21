@@ -2,7 +2,9 @@
 
 import contextlib
 import gzip
+import hashlib
 import io
+import json
 import os
 import stat
 import subprocess
@@ -104,10 +106,52 @@ class ScrubTest(unittest.TestCase):
         hits, _, _ = scrub.scan_paths([self.root], [])
         self.assertEqual(hits, [])
 
+    def test_a_pattern_hit_carries_the_hash_of_its_bytes_and_an_exact_hit_none(self):
+        sample = b"ghp_" + b"C" * 36
+        (self.root / "p.txt").write_bytes(b"token " + sample + b" end")
+        (self.root / "e.txt").write_text(FAKE)
+        hits, _, _ = self.scan()
+        self.assertEqual({(h.kind, h.digest) for h in hits}, {("pattern", hashlib.sha256(sample).hexdigest()), ("exact", None)})
+
+    def known_input(self, sample: bytes) -> frozenset:
+        inputs = Path(self._tmp.name) / "inputs"
+        inputs.mkdir()
+        (inputs / "SKILL.md").write_bytes(b"example: " + sample + b"\n")
+        listing = scrub.fingerprints([inputs])
+        self.assertEqual(listing, [{"pattern": "github-token", "sha256": hashlib.sha256(sample).hexdigest()}])
+        path = Path(self._tmp.name) / "known.json"
+        path.write_text(json.dumps(listing))
+        return scrub.load_known(path)
+
+    def test_a_pattern_hit_on_a_known_input_is_an_echo_and_does_not_quarantine(self):
+        sample = b"ghp_" + b"C" * 36
+        known = self.known_input(sample)
+        (self.root / "t.txt").write_bytes(b"the agent read " + sample)
+        vault = Path(self._tmp.name) / "vault"
+        hits, echoes = scrub.scan_receipt(self.root, self.secrets, vault, known)
+        self.assertEqual((hits, [(e.kind, e.name) for e in echoes]), ([], [("pattern", "github-token")]))
+        self.assertTrue(self.root.exists())
+
+    def test_a_pattern_hit_that_is_not_on_the_list_still_quarantines(self):
+        known = self.known_input(b"ghp_" + b"C" * 36)
+        (self.root / "t.txt").write_bytes(b"new bytes " + b"ghp_" + b"D" * 36)
+        hits, echoes = scrub.scan_receipt(self.root, self.secrets, Path(self._tmp.name) / "vault", known)
+        self.assertEqual(([h.name for h in hits], echoes), (["github-token"], []))
+        self.assertFalse(self.root.exists())
+
+    def test_an_exact_secret_value_is_never_excused_even_when_its_pattern_form_is_listed(self):
+        secret = b"ghp_" + b"C" * 36
+        known = self.known_input(secret)
+        (self.root / "t.txt").write_bytes(b"leaked " + secret)
+        hits, echoes = scrub.scan_receipt(self.root, [scrub.Secret("GH", secret)], Path(self._tmp.name) / "vault", known)
+        self.assertEqual([(h.kind, h.name) for h in hits], [("exact", "GH")])
+        self.assertEqual(len(echoes), 1)  # the pattern form of the same bytes is the echo; the exact value is the hit
+        self.assertFalse(self.root.exists())
+
     def test_quarantine_moves_receipt_with_mode_0700(self):
         (self.root / "leak.txt").write_text(FAKE)
         vault = Path(self._tmp.name) / "vault"
-        hits = scrub.scan_receipt(self.root, self.secrets, vault)
+        hits, _ = scrub.scan_receipt(self.root, self.secrets, vault)
         self.assertTrue(hits)
         self.assertFalse(self.root.exists())
         self.assertEqual(stat.S_IMODE(vault.stat().st_mode), 0o700)
@@ -116,7 +160,7 @@ class ScrubTest(unittest.TestCase):
 
     def test_clean_receipt_is_not_quarantined(self):
         vault = Path(self._tmp.name) / "vault"
-        self.assertEqual(scrub.scan_receipt(self.root, self.secrets, vault), [])
+        self.assertEqual(scrub.scan_receipt(self.root, self.secrets, vault), ([], []))
         self.assertTrue(self.root.exists())
 
     def test_short_secret_is_a_usage_error(self):
@@ -160,6 +204,22 @@ class CliTest(unittest.TestCase):
         short = run_cli([str(self.root)], "abc\n")
         self.assertEqual(short.returncode, scrub.EXIT_USAGE)
         self.assertNotIn("abc\n", short.stderr.replace("secret-1", ""))
+
+    def test_cli_fingerprint_then_known_makes_an_echo(self):
+        inputs = Path(self._tmp.name) / "inputs"
+        inputs.mkdir()
+        sample = "ghp_" + "C" * 36
+        (inputs / "doc.md").write_text("example " + sample)
+        listing = Path(self._tmp.name) / "known.json"
+        made = run_cli(["--fingerprint", str(listing), str(inputs)], "")
+        self.assertEqual((made.returncode, json.loads(listing.read_text())[0]["pattern"]), (scrub.EXIT_CLEAN, "github-token"))
+        self.assertNotIn(sample, made.stdout + made.stderr + listing.read_text())
+        (self.root / "f.txt").write_text("echo " + sample)
+        plain = run_cli([str(self.root)], f"FAKE_KEY={FAKE}\n")
+        known = run_cli(["--known", str(listing), str(self.root)], f"FAKE_KEY={FAKE}\n")
+        self.assertEqual((plain.returncode, known.returncode), (scrub.EXIT_HITS, scrub.EXIT_CLEAN))
+        self.assertIn("ECHO pattern github-token", known.stdout)
+        self.assertIn("input_echoes=1", known.stdout)
 
     def test_cli_quarantine_flag(self):
         (self.root / "f.txt").write_text(FAKE)

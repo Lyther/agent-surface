@@ -206,10 +206,11 @@ printf 'DROID_API_KEY=%s\n' "$KEY" | PYTHONPATH=$PWD uv run --frozen --project e
 
 - Values come only from stdin, one per line, as `VALUE` or `NAME=VALUE` (`NAME` is the label). Values under 8 bytes are refused: they match unrelated bytes.
 - Every regular file under each `PATH` is scanned as raw bytes for each value (exact match) and for credential patterns: Anthropic, OpenAI, GitHub, AWS, Google and Factory key prefixes, PEM private-key headers, `Authorization: Bearer` and `x-api-key` header values. Gzip streams, tar and tgz members are scanned decoded too, because the SQ0.1 overlay tarballs are tgz. Other formats are not unpacked; no receipt contains them. Symlinks are not followed.
+- A pattern hit carries the sha256 of its matched bytes in memory (an exact-value hit carries none). **Input echoes:** third-party skills and scenario repositories hold credential-shaped placeholders that an agent can read into its trajectory. Before the freeze, `python -m evals.scrub --fingerprint known.json PATH...` scans the arm tarballs and scenario inputs (no secrets involved) and writes the sorted `(pattern, sha256)` list; freeze it with the preregistration. With `--known known.json` (CLI) or `cohort.py --input-fingerprints known.json`, a pattern hit on that list is an input echo: printed as `ECHO ...` and ledgered as `scrub_input_echo` (pattern to count), not a hit. Any other pattern hit and every exact secret-value hit still quarantines and stops the cohort. The match is byte-exact, so an echo with different adjoining characters is a hit (it fails safe).
 - Output is `HIT exact|pattern NAME FILE offset=N`, with `archive!member` for archive contents and a count line. It never prints matched bytes.
 - With `--quarantine DIR`, a `PATH` with hits is moved into `DIR` (created 0700; the moved path is 0700 or 0600).
 - Exit codes: `0` clean, `1` hits, `2` usage error or unreadable file.
-- Library: `scrub.scan_receipt(attempt_dir, secrets, quarantine_dir)` scans one attempt directory, quarantines it on a hit and returns the hits.
+- Library: `scrub.scan_receipt(attempt_dir, secrets, quarantine_dir, known=frozenset())` scans one attempt directory, quarantines it on a hit and returns `(hits, input_echoes)`.
 
 ### Cohort integration
 

@@ -20,6 +20,7 @@ import random
 import sys
 import time
 import tomllib
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,7 +30,7 @@ from evals.detect import verdict
 from evals.gateway import GATEWAY_HOSTS, KEY_ENV, NO_PROXY_ENV, URL_ENV, gateway_url, no_proxy
 from evals.images import scenario_tag, write_task
 from evals.queries import TEMPLATE as TRIGGER_TEMPLATE, ledger_fields, load_queries, unit_name
-from evals.scrub import Secret, parse_secrets, scan_receipt
+from evals.scrub import Secret, load_known, parse_secrets, scan_receipt
 
 HOSTS = {
     "opencode": {"agent": "evals.agents:ArmOpenCode", "model": "opencode/deepseek-v4.1-flash-free"},
@@ -243,7 +244,7 @@ async def run_with_retries(run_once, first: int) -> tuple[dict, bool]:
 
 
 def finish_attempt(cell: tuple, image: dict, arm: dict, started: str, exit_code: int, out: Path, secrets: list[Secret], ledger: Path, seconds: float | None = None,
-                   extra: dict | None = None, attempt_no: int = 1) -> bool:
+                   extra: dict | None = None, attempt_no: int = 1, known: frozenset[tuple[str, str]] = frozenset()) -> bool:
     """Scan the attempt's receipts, append its ledger row, and return True when the cohort must stop.
 
     The container is already removed and its files are in `jobs/<name>`. A hit quarantines the attempt's
@@ -253,7 +254,9 @@ def finish_attempt(cell: tuple, image: dict, arm: dict, started: str, exit_code:
     scenario, host, profile, rep = cell
     name = attempt_name(cell, attempt_no)
     receipts = [out / "jobs" / name, out / "logs" / f"{name}.log", out / "tasks" / name]
-    hits = [hit for path in receipts if path.exists() for hit in scan_receipt(path, secrets, out / "quarantine")]
+    scans = [scan_receipt(path, secrets, out / "quarantine", known) for path in receipts if path.exists()]
+    hits = [hit for found, _ in scans for hit in found]
+    echoes = [hit for _, found in scans for hit in found]
     if hits:
         row = {"scenario": scenario, "profile": profile, "host": host, "rep": rep, "status": "quarantined", "attempt_no": attempt_no,
                "hits": len(hits), "hit_names": sorted({hit.name for hit in hits}), "ended": now()}
@@ -261,6 +264,8 @@ def finish_attempt(cell: tuple, image: dict, arm: dict, started: str, exit_code:
         row = ledger_row(scenario, host, profile, rep, image, arm, started, exit_code, out / "jobs" / name)
         row["attempt_no"] = attempt_no
         row["seconds_total"] = None if seconds is None else round(seconds, 1)
+        if echoes:  # credential-shaped text that was in an input the agent read, not a leak
+            row["scrub_input_echo"] = dict(sorted(Counter(hit.name for hit in echoes).items()))
         row.update(extra or {})
     with ledger.open("a") as f:
         f.write(json.dumps(row) + "\n")
@@ -398,6 +403,7 @@ async def main(args) -> None:
     args.spend = parse_spend(args.spend_items, args.hosts.split(","))
     args.units = make_units(args.scenario, load_queries(args.queries) if args.queries else [])
     ledger = args.out / "ledger.jsonl"
+    known = load_known(args.input_fingerprints) if args.input_fingerprints else frozenset()
     history: dict[tuple, list[dict]] = {}
     for row in map(json.loads, ledger.read_text().splitlines() if ledger.exists() else []):
         history.setdefault((row["scenario"], row["host"], row["profile"], row["rep"]), []).append(row)
@@ -430,7 +436,7 @@ async def main(args) -> None:
         async def run_once(number: int) -> tuple[dict, bool]:
             started, code, seconds = await attempt(cell, number, args, images, arms, keys)
             stop = finish_attempt(cell, images[host], arms[f"{host}-{profile}"], started, code, args.out, injected_secrets(keys), ledger, seconds,
-                                  {**row_extra(args), **limits(args, args.units[scenario]), **args.units[scenario].fields}, number)
+                                  {**row_extra(args), **limits(args, args.units[scenario]), **args.units[scenario].fields}, number, known)
             return json.loads(ledger.read_text().splitlines()[-1]), stop
 
         last, stop = await run_with_retries(run_once, first_attempt[tuple(cell)])
@@ -461,6 +467,7 @@ if __name__ == "__main__":
     ap.add_argument("--cpus", type=int, help="CPU cap per attempt container; default: what each task declares")
     ap.add_argument("--memory-mb", type=int, help="memory cap per attempt container; default: what each task declares")
     ap.add_argument("--agent-timeout-sec", type=int, help="agent time limit; default: what each task declares")
+    ap.add_argument("--input-fingerprints", type=Path, help="frozen list of known input strings (`python -m evals.scrub --fingerprint`): a pattern hit on it is logged as an input echo, not a leak")
     ap.add_argument("--purpose", help="ledger label, e.g. timing-probe or capacity-ramp: such rows are never outcome data")
     parsed = ap.parse_args()
     if not (parsed.scenario or parsed.queries):

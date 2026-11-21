@@ -4,6 +4,7 @@ Harbor is not run. The only fake is the credential, an obviously invalid value w
 """
 
 import asyncio
+import hashlib
 import json
 import os
 import tempfile
@@ -72,6 +73,30 @@ class CohortFinishTest(unittest.TestCase):
         self.assertEqual((second["attempt_no"], second["status"]), (2, "quarantined"))
         self.assertTrue((self.out / "jobs" / "controls-no-skill-droid-dev-1").exists())
         self.assertTrue((self.out / "quarantine" / "controls-no-skill-droid-dev-1-a2").is_dir())
+
+    def test_input_echo_is_logged_on_the_row_and_does_not_stop(self):
+        sample = "ghp_" + "C" * 36
+        name = "controls-no-skill-droid-dev-1"
+        self.attempt_dir(name, leak=False)
+        (self.out / "logs" / f"{name}.log").write_text("the agent read a skill that says " + sample + "\n")
+        known = frozenset({("github-token", hashlib.sha256(sample.encode()).hexdigest())})
+        stop = finish_attempt(CELL, IMAGE, ARM, "t0", 0, self.out, self.secrets, self.ledger, known=known)
+        (row,) = self.rows()
+        self.assertEqual((stop, row["receipt_scan"], row["scrub_input_echo"], "status" in row), (False, "clean", {"github-token": 1}, False))
+        self.assertNotIn(sample, self.ledger.read_text())
+
+    def test_the_same_bytes_without_the_list_quarantine_and_the_injected_key_still_does_with_it(self):
+        sample = "ghp_" + "C" * 36
+        known = frozenset({("github-token", hashlib.sha256(sample.encode()).hexdigest())})
+        name = "controls-no-skill-droid-dev-1"
+        self.attempt_dir(name, leak=False)
+        (self.out / "logs" / f"{name}.log").write_text(sample)
+        self.assertTrue(finish_attempt(CELL, IMAGE, ARM, "t0", 0, self.out, self.secrets, self.ledger))
+        self.assertEqual(self.rows()[0]["hit_names"], ["github-token"])
+        self.attempt_dir(name + "-a2", leak=True)  # the injected key in the trajectory, with the list in force
+        self.assertTrue(finish_attempt(CELL, IMAGE, ARM, "t0", 0, self.out, self.secrets, self.ledger, attempt_no=2, known=known))
+        self.assertEqual(self.rows()[1]["status"], "quarantined")
+        self.assertIn("FACTORY_API_KEY", self.rows()[1]["hit_names"])
 
     def test_planted_secret_quarantines_ledgers_and_stops(self):
         self.attempt_dir("controls-no-skill-droid-dev-1", leak=True)
