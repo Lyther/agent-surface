@@ -20,7 +20,7 @@ PYTHONPATH=$PWD python3 -m evals.images build --out ../images
 PYTHONPATH=$PWD python3 -m evals.images scenarios --host-images ../images/hosts.json --hosts droid \
   --scenario evals/scenarios/dev-fix/qa-f10-launcher-exec-bit
 
-# 4. Cohort: scenarios x hosts x profiles x repetitions in seeded order; --concurrency attempts at once (see Capacity).
+# 4. Cohort: groups (every profile of one scenario, host and repetition) in seeded order, the profiles inside a group in a group-seeded order; --concurrency attempts at once (see Capacity).
 #    Keys come on stdin as NAME=value lines and never appear in argv or files.
 cd evals; PYTHONPATH=$PWD/.. uv run --frozen python -m evals.cohort --host-images ../../images/hosts.json \
   --arms ../../arms/arms.json --scenario scenarios/controls/use-by-name --scenario scenarios/controls/no-skill \

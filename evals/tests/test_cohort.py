@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from evals.cohort import finish_attempt, first_load_fields, injected_secrets, run_order
+from evals.cohort import SpendGate, finish_attempt, first_load_fields, injected_secrets, plan, run_order
 
 FAKE_KEY = "fk-FAKE-not-a-real-factory-key-0123456789"
 IMAGE = {"image_id": "sha256:feed"}
@@ -79,7 +79,7 @@ class CohortFinishTest(unittest.TestCase):
         self.assertEqual(self.rows()[0]["hit_names"], ["authorization-bearer"])
 
     def test_cohort_stops_after_the_leaking_attempt_and_keeps_earlier_rows(self):
-        cells = [("controls-no-skill", "droid", "dev", rep) for rep in (1, 2, 3, 4)]
+        cells = [[("controls-no-skill", "droid", "dev", rep)] for rep in (1, 2, 3, 4)]
         started = []
 
         async def run_cell(cell):
@@ -92,6 +92,70 @@ class CohortFinishTest(unittest.TestCase):
         self.assertTrue(stopped)
         self.assertEqual(started, [1, 2])
         self.assertEqual([r.get("status", "clean") for r in self.rows()], ["clean", "quarantined"])
+
+
+class PlanTest(unittest.TestCase):
+    ARGS = (["s1", "s2", "s3"], ["codex", "droid"], ["full", "full-descB", "full-descC"], 7, 2)
+
+    def test_every_group_holds_all_arms_of_one_host_scenario_and_repetition(self):
+        groups = plan(*self.ARGS)
+        self.assertEqual(len(groups), 3 * 2 * 2)
+        for group in groups:
+            self.assertEqual(sorted(c[2] for c in group), ["full", "full-descB", "full-descC"])
+            self.assertEqual(len({(c[0], c[1], c[3]) for c in group}), 1)
+
+    def test_order_follows_the_seed_not_the_argument_order(self):
+        scenarios, hosts, profiles, seed, reps = self.ARGS
+        first = plan(scenarios, hosts, profiles, seed, reps)
+        self.assertEqual(first, plan(scenarios[::-1], hosts[::-1], profiles[::-1], seed, reps))
+        self.assertNotEqual(first, plan(scenarios, hosts, profiles, seed + 1, reps))
+
+    def test_arms_are_shuffled_inside_each_group_by_the_group_seed(self):
+        groups = plan(*self.ARGS)
+        self.assertGreater(len({tuple(c[2] for c in g) for g in groups}), 1)
+
+
+class AdmissionTest(unittest.TestCase):
+    def test_a_group_is_admitted_whole_or_refused_whole(self):
+        gate = SpendGate(cap=1000, reserve=100)
+        self.assertIsNone(gate.admit(3))  # 300 held
+        self.assertIsNone(gate.admit(3))  # 600 held
+        self.assertIn("spend stop", gate.admit(5))  # 600 + 500 > 1000
+        self.assertEqual(gate.pending, 6)  # the refused group held nothing
+
+    def test_settled_spend_replaces_the_reserve_and_a_missing_reading_costs_the_reserve(self):
+        gate = SpendGate(cap=1000, reserve=100)
+        gate.admit(3)
+        gate.settle(40)
+        gate.settle(None)
+        gate.settle(None, ran=False)
+        self.assertEqual((gate.spent, gate.pending), (140, 0))
+        self.assertIsNone(gate.admit(8))  # 140 + 800 <= 1000
+        self.assertIn("spend stop", gate.admit(1))
+
+    def groups(self):
+        return [[("s", "h", p, r) for p in ("a", "b", "c")] for r in (1, 2, 3, 4)]
+
+    def test_started_groups_run_all_their_arms_after_a_stop_and_later_groups_do_not_start(self):
+        ran = []
+
+        async def run_cell(cell):
+            ran.append(cell)
+            return cell[3] == 2 and cell[2] == "a"  # the second group asks to stop on its first arm
+
+        self.assertTrue(asyncio.run(run_order(self.groups(), run_cell, 1)))
+        self.assertEqual([(c[3], c[2]) for c in ran], [(1, "a"), (1, "b"), (1, "c"), (2, "a"), (2, "b"), (2, "c")])
+
+    def test_a_refused_group_runs_none_of_its_arms(self):
+        ran = []
+
+        async def run_cell(cell):
+            ran.append(cell[3])
+            return False
+
+        self.assertFalse(asyncio.run(run_order(self.groups(), run_cell, 1, admit=lambda g: g[0][3] != 2)))
+        self.assertEqual(sorted(set(ran)), [1, 3, 4])
+        self.assertEqual(len(ran), 9)
 
 
 if __name__ == "__main__":

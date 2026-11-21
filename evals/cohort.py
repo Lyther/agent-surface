@@ -64,10 +64,26 @@ def now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def plan(scenarios: list[str], hosts: list[str], profiles: list[str], seed: int, reps: int) -> list[tuple[str, str, str, int]]:
-    cells = list(itertools.product(scenarios, hosts, profiles, range(1, reps + 1)))
-    random.Random(seed).shuffle(cells)
-    return cells
+def group_key(cell: tuple) -> tuple:
+    """A group is every arm of one (scenario, host, repetition): the cells whose outcomes are compared."""
+    scenario, host, _, rep = cell
+    return scenario, host, rep
+
+
+def plan(scenarios: list[str], hosts: list[str], profiles: list[str], seed: int, reps: int) -> list[list[tuple[str, str, str, int]]]:
+    """Groups in seeded order, each a list of its arms' cells in an order seeded by the group.
+
+    The groups are shuffled with the cohort seed and the arms inside a group with `Random(f"{seed}-{unit}")`, so a stop leaves
+    whole groups and time drift on the host does not line up with an arm.
+    """
+    groups = sorted(itertools.product(scenarios, hosts, range(1, reps + 1)))
+    random.Random(seed).shuffle(groups)
+    ordered = []
+    for scenario, host, rep in groups:
+        arms = sorted(profiles)
+        random.Random(f"{seed}-{scenario}-{host}-{rep}").shuffle(arms)
+        ordered.append([(scenario, host, profile, rep) for profile in arms])
+    return ordered
 
 
 def read_trial(job_dir: Path) -> dict:
@@ -247,23 +263,49 @@ def row_extra(args) -> dict:
     return extra
 
 
-async def run_order(order: list, run_cell, concurrency: int) -> bool:
-    """Run cells with bounded concurrency; `run_cell(cell)` returns True to stop the cohort.
+class SpendGate:
+    """Admits whole groups while spent + reserve x (attempts admitted and not yet finished, the new group included) stays within the cap.
 
-    Once any cell asks to stop, no further cell starts; cells already running finish and are scanned.
+    An attempt with no spend reading is charged the reserve, so a missing reading cannot hide spend.
+    """
+
+    def __init__(self, cap: int, reserve: int):
+        self.cap, self.reserve = cap, reserve
+        self.spent = 0
+        self.pending = 0
+
+    def admit(self, attempts: int) -> str | None:
+        """None and the attempts are held when the group fits; otherwise the reason it does not."""
+        if self.spent + (self.pending + attempts) * self.reserve > self.cap:
+            return f"spend stop ({self.spent} spent, {self.pending} attempts pending, cap {self.cap})"
+        self.pending += attempts
+        return None
+
+    def settle(self, reading: int | None, ran: bool = True) -> None:
+        """One admitted attempt is over. `ran` is False when it failed before the model did anything: it spent nothing."""
+        self.pending -= 1
+        self.spent += int(reading or (self.reserve if ran else 0))
+
+
+async def run_order(groups: list[list], run_cell, concurrency: int, admit=None) -> bool:
+    """Run groups with bounded concurrency, the arms of a group one after another; `run_cell(cell)` returns True to stop the cohort.
+
+    A stop only keeps further groups from starting: a group that has started runs all its arms, so the ledger holds whole groups.
+    `admit(group)` returns False to refuse a group, which it records itself.
     """
     sem = asyncio.Semaphore(concurrency)
     stopped = False
 
-    async def one(cell):
+    async def one(group):
         nonlocal stopped
         async with sem:
-            if stopped:
+            if stopped or (admit and not admit(group)):
                 return
-            if await run_cell(cell):
-                stopped = True
+            for cell in group:
+                if await run_cell(cell):
+                    stopped = True
 
-    await asyncio.gather(*(one(c) for c in order))
+    await asyncio.gather(*(one(g) for g in groups))
     return stopped
 
 
@@ -279,40 +321,38 @@ async def main(args) -> None:
     done = {(r["scenario"], r["host"], r["profile"], r["rep"]) for r in map(json.loads, ledger.read_text().splitlines())} if ledger.exists() else set()
     everything = plan(sorted(args.units), args.hosts.split(","), args.profiles.split(","), args.seed, args.reps)
     (args.out / "order.json").write_text(json.dumps(everything) + "\n")
-    order = [c for c in everything if tuple(c) not in done]
-    spent = 0
-    inflight_droid = 0
+    order = [left for left in ([c for c in group if tuple(c) not in done] for group in everything) if left]
+    gates = {"droid": SpendGate(CREDIT_STOP, args.credit_reserve)}
 
     def skip(cell, why: str) -> None:
         scenario, host, profile, rep = cell
         with ledger.open("a") as f:
             f.write(json.dumps({"scenario": scenario, "profile": profile, "host": host, "rep": rep, "skipped": why, **args.units[scenario].fields}) + "\n")
 
+    def admit(group) -> bool:
+        gate = gates.get(group[0][1])
+        why = gate.admit(len(group)) if gate else None
+        for cell in group if why else ():
+            skip(cell, why)
+        return not why
+
     async def run_cell(cell) -> bool:
-        nonlocal spent, inflight_droid
         scenario, host, profile, rep = cell
         if host in HOST_KEY and HOST_KEY[host] not in keys:
             skip(cell, f"no {HOST_KEY[host]} on stdin")
+            if host in gates:
+                gates[host].settle(0, ran=False)
             return False
-        if host == "droid":
-            if spent + (inflight_droid + 1) * args.credit_reserve > CREDIT_STOP:
-                skip(cell, f"spend stop ({spent} credits spent, {inflight_droid} in flight)")
-                return False
-            inflight_droid += 1
-        try:
-            started, code, seconds = await attempt(cell, args, images, arms, keys)
-        finally:
-            if host == "droid":
-                inflight_droid -= 1
+        started, code, seconds = await attempt(cell, args, images, arms, keys)
         stop = finish_attempt(cell, images[host], arms[f"{host}-{profile}"], started, code, args.out, injected_secrets(keys), ledger, seconds,
                               {**row_extra(args), **args.units[scenario].fields})
-        if host == "droid":
+        if host in gates:
             last = json.loads(ledger.read_text().splitlines()[-1])
             # An attempt that failed before the model ran spent nothing; any other without a reading is charged the reserve.
-            spent += int(last.get("factory_credits") or (0 if last.get("exception") else args.credit_reserve))
+            gates[host].settle(last.get("factory_credits"), ran=not last.get("exception"))
         return stop
 
-    if await run_order(order, run_cell, args.concurrency):
+    if await run_order(order, run_cell, args.concurrency, admit):
         sys.exit("receipt scan found a credential: attempt quarantined, cohort stopped (see ledger and out/quarantine)")
 
 
