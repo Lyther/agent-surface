@@ -346,7 +346,7 @@ Each result is reported as passed, failed or not run.
 
 ## Phase SQ: Skill Quality and Distribution
 
-Status: PROPOSED 2026-11-20; nothing started. Inputs: [concept](skill-quality/concept-zero.md), [research ledger](skill-quality/concept-zero-research.md), [architecture](architecture.md#skill-quality-and-distribution), and the [Grimoire evaluation contract](contracts/grimoire-evaluation.md), which binds the method until `SQ0.7` writes the skill-evaluation contract.
+Status: PROPOSED 2026-11-20; nothing started. Inputs: [concept](skill-quality/concept-zero.md), [research ledger](skill-quality/concept-zero-research.md), [architecture](architecture.md#skill-quality-and-distribution), and the [Grimoire evaluation contract](contracts/grimoire-evaluation.md), and the [skill-evaluation contract](contracts/skill-evaluation.md), which extends the Grimoire contract's method (draft until the operator accepts it).
 
 Sequence:
 
@@ -456,7 +456,7 @@ Exit: each verifier passes on the real fix and fails on the pre-fix state, insid
 
 #### SQ0.7 Skill-Evaluation Contract and First Preregistration
 
-State: NOT STARTED. Depends on: SQ0.1–SQ0.6. Covers: `C-SQ-02`, `OQ-SQ-02`.
+State: 2026-11-21: contract drafted for operator review; the preregistration waits on SQ0.5's dynamic half, SQ0.6 and the operator's credential decision. Depends on: SQ0.1–SQ0.6. Covers: `C-SQ-02`, `OQ-SQ-02`.
 
 Write `docs/contracts/skill-evaluation.md`. It extends the Grimoire evaluation contract with:
 - the arms (A current, B trigger, C what plus when; without-asset and full profile);

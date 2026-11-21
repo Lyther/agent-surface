@@ -319,7 +319,7 @@ Keep benchmarks outside the product runtime. For task ROI, use an official task 
 
 ## Skill Quality and Distribution
 
-Status: PROPOSED, 2026-11-20; nothing implemented. Source concept: [skill-quality concept](skill-quality/concept-zero.md) with its [research ledger](skill-quality/concept-zero-research.md). The [Grimoire evaluation contract](contracts/grimoire-evaluation.md) binds the experiment method. A dedicated skill-evaluation contract (PROPOSED, `SQ0.7`) will hold the measurements, ledger fields and promotion rules. [Phase SQ](roadmap.md#phase-sq-skill-quality-and-distribution) schedules the work.
+Status: PROPOSED, 2026-11-20; nothing implemented. Source concept: [skill-quality concept](skill-quality/concept-zero.md) with its [research ledger](skill-quality/concept-zero-research.md). The [Grimoire evaluation contract](contracts/grimoire-evaluation.md) binds the experiment method. The [skill-evaluation contract](contracts/skill-evaluation.md) (DRAFT, `SQ0.7`) holds the measurements, ledger fields and promotion rules. [Phase SQ](roadmap.md#phase-sq-skill-quality-and-distribution) schedules the work.
 
 ### Executive Decision (SQ)
 
@@ -467,18 +467,24 @@ Outside the system: the hosts' own release channels, public marketplaces (`OQ-SQ
 ### Source Tree and File Responsibilities (SQ)
 
 ```text
-evals/                                    - PROPOSED SQ0.1: behavioural evaluation lab; never imported by scripts/ or mcps/; excluded from the npm package via .npmignore.
-  pyproject.toml, uv.lock                 - Pinned lab dependencies (the adopted runner); vetted before adoption; nothing else depends on them.
-  README.md                               - How to preregister, qualify, run, scrub and analyse a cohort; links to the contract.
-  arms.py                                 - Arm builder: overlay copy of the sources (description variant, excluded asset, category set), then the existing install CLI into a given HOME; records the installed manifest; never edits canonical sources.
-  detect.py                               - Skill-load detector: file-open audit of installed skill files inside the container; host-log parsing as a cross-check.
-  world.py                                - Shared verifier checks (git state, signatures, hook results, test runs, test-weakening against the base commit).
-  cohort.py                               - Expands a preregistration into attempts, runs them through the runner with seeded order and cost stops, appends the ledger.
-  analyze.py                              - Rates and means with intervals, paired differences, cost and time; reads only preregistration and ledger.
-  scrub.py                                - Receipt credential scan; a hit quarantines the receipt and stops the cohort.
-  scenarios/<asset>/<case>/               - Runner-format tasks: instruction, environment, hidden verifier, reference solution (PROPOSED SQ0.6, SQ3).
-  triggers/<skill>.jsonl                  - Should-trigger and near-miss queries with split labels (PROPOSED SQ1.3, SQ2.1).
-docs/contracts/skill-evaluation.md        - PROPOSED SQ0.7: arms, metrics, detector, ledger fields, promotion rules; extends the Grimoire evaluation contract.
+evals/                                    - SQ0.1-SQ0.6 spike code; the behavioural evaluation lab; never imported by scripts/ or mcps/; excluded from the npm package via .npmignore.
+  pyproject.toml, uv.lock                 - Pinned lab dependencies (Harbor 0.26.0); nothing else depends on them.
+  README.md                               - How to build images, run a cohort, capture listings and read the ledger; links to the contract.
+  arms.py                                 - Arm definitions (A, B, F), overlay tarballs of the sources, and the image build script with the installer run and the MCP strip; never edits canonical sources.
+  images.py                               - Builds one image per host and arm with the production installer, verifies each installed manifest, writes the Harbor task for an attempt.
+  agents.py                               - Harbor agent classes for OpenCode and Droid that run inside the prebuilt image; Droid's key goes in by `docker exec -e`.
+  detect.py                               - Skill-load detector: host-recorded skill-tool calls and SKILL.md reads, with the file-open audit as a cross-check.
+  stamp.py                                - Timestamps each file-open audit event with sub-second epoch time inside the container.
+  listing.py                              - Captures the skill listing a host shows the model and classifies each installed skill as surfaced, name-only or absent.
+  capture_proxy.py                        - Forwarding proxy that keeps OpenCode's model request body (never its headers) for the listing capture.
+  cohort.py                               - Expands scenarios, hosts, arms and repetitions into seeded attempts, runs them through Harbor with a spend stop, appends the ledger.
+  scenarios/controls/<case>/              - Harbor tasks for detector qualification: use-by-name, use-by-file, no-skill.
+  scenarios/dev-fix/<case>/               - Harbor tasks with a hidden verifier (spike-01 now; SQ0.6 adds F10, F13, F14).
+  world.py                                - PROPOSED (SQ0.6 branch): shared verifier checks, including test-weakening against the base commit.
+  scrub.py                                - PROPOSED (SQ0.4 branch): receipt credential scan; a hit quarantines the receipt and stops the cohort.
+  analyze.py                              - PROPOSED SQ1: rates and means with intervals, paired differences, cost and time; reads only preregistration and ledger.
+  triggers/<skill>.jsonl                  - PROPOSED SQ1.3, SQ2.1: should-trigger and near-miss queries with split labels.
+docs/contracts/skill-evaluation.md        - DRAFT SQ0.7: arms, metrics, detector and listing rules, ledger fields, validity gates, promotion rules; extends the Grimoire evaluation contract.
 skills/*/SKILL.md                         - VERIFIED_EXISTING; SQ2 moves descriptions to trigger form and adds the what-it-does paragraph to the body, per family, each through its own skill workflow.
 scripts/agent-surface/targets.mjs         - VERIFIED_EXISTING; SQ1.2 (only if the probe shows dropped descriptions) emits host listing-budget settings; SQ5.3 adds plugin package outputs beside the existing exports.
 scripts/agent-surface/install.mjs         - VERIFIED_EXISTING; shrinks per host only after a parity switch has held for a release (SQ5.5).
@@ -513,8 +519,8 @@ tests/suites/live-plugin.test.mjs         - VERIFIED_EXISTING pattern; SQ5.3 ext
 ### Interfaces and Contracts (SQ)
 
 - **Lab entry points:**
-  - `uv run evals/cohort.py --prereg <file>`;
-  - `uv run evals/analyze.py --ledger <file>`;
+  - `python -m evals.images build|verify`, `python -m evals.cohort --images <file> --scenario <dir> --out <dir>` and `python -m evals.listing capture`, as in the lab README (SQ1 adds a `--prereg` input to `cohort`);
+  - `analyze.py`, proposed for SQ1, reading a ledger;
   - the runner's own CLI underneath.
 - **Arm injection** uses the existing public install command (`install --target <t> --scope user --dest <HOME>` with categories) on an overlay checkout. Experiments add no installer flag, and description variants are source overlays, not options.
 - **Verifier contract:** an exit status plus a result JSON (reward, named checks, evidence paths), in the runner's format.
