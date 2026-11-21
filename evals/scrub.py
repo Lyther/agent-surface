@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import gzip
-import io
 import os
 import re
 import shutil
@@ -125,11 +124,10 @@ def scan_file(path: Path, secrets: list[Secret]) -> list[Hit]:
     return hits
 
 
-def scan_decoded(inner: BinaryIO, where: str, secrets: list[Secret]) -> list[Hit]:
-    buffered = io.BufferedReader(inner)  # type: ignore[arg-type]
-    if buffered.peek(TAR_MAGIC_OFFSET + len(TAR_MAGIC))[TAR_MAGIC_OFFSET : TAR_MAGIC_OFFSET + len(TAR_MAGIC)] == TAR_MAGIC:
-        return scan_tar(buffered, where, secrets)
-    return scan_stream(buffered, f"{where}!gunzip", secrets)
+def scan_decoded(inner: gzip.GzipFile, where: str, secrets: list[Secret]) -> list[Hit]:
+    if inner.peek(TAR_MAGIC_OFFSET + len(TAR_MAGIC))[TAR_MAGIC_OFFSET : TAR_MAGIC_OFFSET + len(TAR_MAGIC)] == TAR_MAGIC:
+        return scan_tar(inner, where, secrets)
+    return scan_stream(inner, f"{where}!gunzip", secrets)
 
 
 def scan_tar(stream: BinaryIO, where: str, secrets: list[Secret]) -> list[Hit]:

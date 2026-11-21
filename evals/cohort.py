@@ -4,7 +4,8 @@ Usage: cohort.py --images OUT/images.json --scenario DIR [--scenario DIR ...] --
                  [--hosts opencode,droid] [--arms A,B] [--reps 2] [--seed 1] [--concurrency 4]
 Each attempt is one fresh container from the host-and-arm image (`evals/images.py`). Hosts: opencode (free
 model, no credential) and droid. The Factory key, when droid runs, is read from the first line of stdin,
-exported only into the harbor child's environment and scrubbed from the retained artifacts afterwards.
+exported only into the harbor child's environment. After each attempt `evals/scrub.py` scans its receipts; a hit
+quarantines the attempt, ledgers it as `quarantined` and stops the cohort.
 """
 
 from __future__ import annotations
@@ -15,7 +16,6 @@ import itertools
 import json
 import os
 import random
-import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -24,6 +24,7 @@ from pathlib import Path
 from evals.arms import SKILL_DIRS
 from evals.detect import verdict
 from evals.images import image_skills, write_task
+from evals.scrub import Secret, parse_secrets, scan_receipt
 
 HOSTS = {
     "opencode": {"agent": "evals.agents:ArmOpenCode", "model": "opencode/deepseek-v4.1-flash-free"},
@@ -45,22 +46,6 @@ def plan(scenarios: list[str], hosts: list[str], arms: list[str], seed: int, rep
     return cells
 
 
-def scrub(root: Path, key: str) -> int:
-    """Replace the key in every retained file, then count files still containing it (key via stdin)."""
-    if not key:
-        return 0
-    for path in root.rglob("*"):
-        if path.is_file():
-            try:
-                data = path.read_bytes()
-            except OSError:
-                continue
-            if key.encode() in data:
-                path.write_bytes(data.replace(key.encode(), b"[REDACTED]"))
-    scan = subprocess.run(["grep", "-rlF", "-f", "-", "--", str(root)], input=key + "\n", capture_output=True, text=True)
-    return len([line for line in scan.stdout.splitlines() if line])
-
-
 def read_trial(job_dir: Path) -> dict:
     results = sorted(job_dir.glob("*/result.json"))
     if not results:
@@ -76,7 +61,7 @@ def span(trial: dict, phase: str) -> float | None:
     return round((datetime.strptime(block["finished_at"], fmt) - datetime.strptime(block["started_at"], fmt)).total_seconds(), 1)
 
 
-def ledger_row(scenario: str, host: str, arm: str, rep: int, image: dict, started: str, exit_code: int, job_dir: Path, leaks: int) -> dict:
+def ledger_row(scenario: str, host: str, arm: str, rep: int, image: dict, started: str, exit_code: int, job_dir: Path) -> dict:
     trial = read_trial(job_dir)
     agent_result = trial.get("agent_result") or {}
     metadata = agent_result.get("metadata") or {}
@@ -116,7 +101,7 @@ def ledger_row(scenario: str, host: str, arm: str, rep: int, image: dict, starte
         "seconds_setup": span(trial, "agent_setup"),
         "seconds_agent": span(trial, "agent_execution"),
         "seconds_verifier": span(trial, "verifier"),
-        "key_files_remaining": leaks,
+        "receipt_scan": "clean",
     }
 
 
@@ -124,17 +109,43 @@ def scenario_name(path: Path) -> str:
     return f"{path.parent.name}-{path.name}"
 
 
-async def attempt(cell: tuple, args, images: dict, key: str) -> dict:
+def injected_secrets(host: str, key: str) -> list[Secret]:
+    """Every secret the host's container receives; patterns for other credentials are always scanned."""
+    return parse_secrets([f"FACTORY_API_KEY={key}"]) if host == "droid" and key else []
+
+
+def finish_attempt(cell: tuple, image: dict, started: str, exit_code: int, out: Path, secrets: list[Secret], ledger: Path, seconds: float | None = None) -> bool:
+    """Scan the attempt's receipts, append its ledger row, and return True when the cohort must stop.
+
+    The container is already removed and its files are in `jobs/<name>`. A hit quarantines the attempt's
+    receipts and ledgers `status: quarantined` with the hit count and label or pattern names, never matched
+    text; the row carries no verdict or cost, because a leaked attempt is not scored.
+    """
+    scenario, host, arm, rep = cell
+    name = f"{scenario}-{host}-{arm}-{rep}"
+    receipts = [out / "jobs" / name, out / "logs" / f"{name}.log", out / "tasks" / name]
+    hits = [hit for path in receipts if path.exists() for hit in scan_receipt(path, secrets, out / "quarantine")]
+    if hits:
+        row = {"scenario": scenario, "arm": arm, "host": host, "rep": rep, "status": "quarantined",
+               "hits": len(hits), "hit_names": sorted({hit.name for hit in hits}), "ended": now()}
+    else:
+        row = ledger_row(scenario, host, arm, rep, image, started, exit_code, out / "jobs" / name)
+        row["seconds_total"] = None if seconds is None else round(seconds, 1)
+    with ledger.open("a") as f:
+        f.write(json.dumps(row) + "\n")
+    return bool(hits)
+
+
+async def attempt(cell: tuple, args, images: dict, key: str) -> tuple[str, int, float]:
+    """Run one attempt through Harbor; returns (started, harbor exit code, wall seconds)."""
     scenario, host, arm, rep = cell
     name = f"{scenario}-{host}-{arm}-{rep}"
     jobs = args.out / "jobs"
-    job_dir = jobs / name
-    if job_dir.exists():
-        raise SystemExit(f"attempt directory exists, not reused: {job_dir}")
+    if (jobs / name).exists():
+        raise SystemExit(f"attempt directory exists, not reused: {jobs / name}")
     image = images[f"{host}-{arm}"]
-    template = args.scenarios[scenario]
     skill_file = f"/root/{SKILL_DIRS[host][0]}/dev-fix/SKILL.md"
-    task = write_task(template, image["tag"], args.out / "tasks" / name, {"skill_file": skill_file})
+    task = write_task(args.scenarios[scenario], image["tag"], args.out / "tasks" / name, {"skill_file": skill_file})
     env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG", "USER") if k in os.environ}
     env.update(HARBOR_TELEMETRY="0", PYTHONPATH=str(EVALS_DIR.parent))
     if host == "droid":
@@ -151,10 +162,27 @@ async def attempt(cell: tuple, args, images: dict, key: str) -> dict:
     out, _ = await proc.communicate()
     (args.out / "logs").mkdir(exist_ok=True)
     (args.out / "logs" / f"{name}.log").write_bytes(out)
-    leaks = scrub(args.out, key) if host == "droid" else 0
-    row = ledger_row(scenario, host, arm, rep, image, started, proc.returncode or 0, job_dir, leaks)
-    row["seconds_total"] = round(time.monotonic() - t0, 1)
-    return row
+    return started, proc.returncode or 0, time.monotonic() - t0
+
+
+async def run_order(order: list, run_cell, concurrency: int) -> bool:
+    """Run cells with bounded concurrency; `run_cell(cell)` returns True to stop the cohort.
+
+    Once any cell asks to stop, no further cell starts; cells already running finish and are scanned.
+    """
+    sem = asyncio.Semaphore(concurrency)
+    stopped = False
+
+    async def one(cell):
+        nonlocal stopped
+        async with sem:
+            if stopped:
+                return
+            if await run_cell(cell):
+                stopped = True
+
+    await asyncio.gather(*(one(c) for c in order))
+    return stopped
 
 
 async def main(args) -> None:
@@ -169,7 +197,6 @@ async def main(args) -> None:
     everything = plan(sorted(args.scenarios), args.hosts.split(","), args.arms.split(","), args.seed, args.reps)
     (args.out / "order.json").write_text(json.dumps(everything) + "\n")
     order = [c for c in everything if tuple(c) not in done]
-    sem = asyncio.Semaphore(args.concurrency)
     spent = 0
     inflight_droid = 0
 
@@ -178,27 +205,29 @@ async def main(args) -> None:
         with ledger.open("a") as f:
             f.write(json.dumps({"scenario": scenario, "arm": arm, "host": host, "rep": rep, "skipped": why}) + "\n")
 
-    async def one(cell):
+    async def run_cell(cell) -> bool:
         nonlocal spent, inflight_droid
-        host = cell[1]
-        async with sem:
+        scenario, host, arm, rep = cell
+        if host == "droid":
+            if not key:
+                skip(cell, "no credential on stdin")
+                return False
+            if spent + (inflight_droid + 1) * CREDIT_RESERVE_PER_ATTEMPT > CREDIT_STOP:
+                skip(cell, f"spend stop ({spent} credits spent, {inflight_droid} in flight)")
+                return False
+            inflight_droid += 1
+        try:
+            started, code, seconds = await attempt(cell, args, images, key)
+        finally:
             if host == "droid":
-                if not key:
-                    return skip(cell, "no credential on stdin")
-                if spent + (inflight_droid + 1) * CREDIT_RESERVE_PER_ATTEMPT > CREDIT_STOP:
-                    return skip(cell, f"spend stop ({spent} credits spent, {inflight_droid} in flight)")
-                inflight_droid += 1
-            try:
-                row = await attempt(cell, args, images, key)
-            finally:
-                if host == "droid":
-                    inflight_droid -= 1
-            if host == "droid":
-                spent += int(row.get("factory_credits") or CREDIT_RESERVE_PER_ATTEMPT)
-            with ledger.open("a") as f:
-                f.write(json.dumps(row) + "\n")
+                inflight_droid -= 1
+        stop = finish_attempt(cell, images[f"{host}-{arm}"], started, code, args.out, injected_secrets(host, key), ledger, seconds)
+        if host == "droid":
+            spent += int(json.loads(ledger.read_text().splitlines()[-1]).get("factory_credits") or CREDIT_RESERVE_PER_ATTEMPT)
+        return stop
 
-    await asyncio.gather(*(one(c) for c in order))
+    if await run_order(order, run_cell, args.concurrency):
+        sys.exit("receipt scan found a credential: attempt quarantined, cohort stopped (see ledger and out/quarantine)")
 
 
 if __name__ == "__main__":

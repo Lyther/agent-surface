@@ -60,7 +60,7 @@ Each installed skill is classified `surfaced`, `name-only` or `absent`, with `tr
 
 ## Ledger
 
-One row per attempt: `scenario`, `arm`, `host`, `model`, `rep`, versions, `source_commit`, `overlay_sha256`, `image_id`, times (`seconds_setup` is now the check of the prebuilt image), cost fields, `verifier_reward`, `skills_loaded`, `load_evidence` (skill to mechanism), `audit_loads`, `workspace_skill_reads`, `failed_skill_lookups`, `audit_disagreements`, `skill_files_scanned`, `dev_fix_installed`, `key_files_remaining`. `images.json` holds one record per image (tag, image ID, base image ID, CLI version, overlay, dropped skills).
+One row per attempt: `scenario`, `arm`, `host`, `model`, `rep`, versions, `source_commit`, `overlay_sha256`, `image_id`, times (`seconds_setup` is now the check of the prebuilt image), cost fields, `verifier_reward`, `skills_loaded`, `load_evidence` (skill to mechanism), `audit_loads`, `workspace_skill_reads`, `failed_skill_lookups`, `audit_disagreements`, `skill_files_scanned`, `dev_fix_installed`, `receipt_scan`. `images.json` holds one record per image (tag, image ID, base image ID, CLI version, overlay, dropped skills).
 
 ## Scenarios
 
@@ -68,7 +68,7 @@ One row per attempt: `scenario`, `arm`, `host`, `model`, `rep`, versions, `sourc
 
 ## Tests
 
-`cd /tmp/as-wt-lab && uv run --frozen --project evals python -m unittest discover -s evals/tests -t .` runs the detector and scrubber tests (stdlib `unittest`). The fixtures in `evals/tests/fixtures/` are trimmed real control trajectories, one per host and control; two further cases are constructed.
+From the repository root, `uv run --frozen --project evals python -m unittest discover -s evals/tests -t .` runs the detector and scrubber tests (stdlib `unittest`). The fixtures in `evals/tests/fixtures/` are trimmed real control trajectories, one per host and control; two further cases are constructed.
 
 ## Credential handling
 
@@ -105,6 +105,6 @@ printf 'DROID_API_KEY=%s\n' "$KEY" | PYTHONPATH=$PWD uv run --frozen --project e
 - Exit codes: `0` clean, `1` hits, `2` usage error or unreadable file.
 - Library: `scrub.scan_receipt(attempt_dir, secrets, quarantine_dir)` scans one attempt directory, quarantines it on a hit and returns the hits.
 
-### Cohort integration (not wired yet; follows SQ0.2)
+### Cohort integration
 
-After each attempt's container is removed and its files are collected, `cohort.py` calls `scan_receipt` on the attempt directory with every secret it injected. A non-empty result quarantines that attempt, writes a ledger row `quarantined` with the pattern or label names (never values), and stops the cohort: no further attempts start. The replace-in-place `scrub()` in `cohort.py` is then removed, so a leak is quarantined, not edited into looking clean. Run the same scan over the whole `out/` tree before it leaves the lab host.
+After each attempt's container is removed and its files are collected, `cohort.finish_attempt` calls `scan_receipt` on the attempt's `jobs/<name>`, `logs/<name>.log` and `tasks/<name>` with every secret it injected (the Droid key for droid attempts; credential patterns are always scanned). A hit moves the receipts to `OUT/quarantine/`, appends a ledger row `status: quarantined` with `hits` and `hit_names` (labels and pattern names, never values) and no verdict, and stops the cohort: no further attempt starts, attempts already running finish and are scanned, and the process exits non-zero. Rows already in the ledger stay. A clean attempt's row carries `receipt_scan: "clean"`. Listing capture scans its copied request bodies and transcripts the same way (`listing.check_clean`). Nothing redacts in place: a leak is quarantined, not edited into looking clean. Run the same scan over the whole `out/` tree before it leaves the lab host.

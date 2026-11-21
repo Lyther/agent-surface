@@ -12,7 +12,8 @@ Each installed skill is then `surfaced` (name and description shown), `name-only
 description that differs from the installed one is flagged `truncated` when it is a shortened prefix.
 
 Usage: python -m evals.listing capture --images OUT/images.json --out DIR [--hosts opencode,droid] [--arms A,B,F]
-The Factory key, for droid, is read from the first line of stdin and reaches the container only through the
+Every request body and transcript copied out of the container is scanned by `evals/scrub.py` before it is
+parsed; a hit quarantines it under `OUT/quarantine` and stops the capture. The Factory key, for droid, is read from the first line of stdin and reaches the container only through the
 process environment (`docker exec -e FACTORY_API_KEY`).
 """
 
@@ -29,6 +30,7 @@ from pathlib import Path
 from evals.arms import SKILL_DIRS
 from evals.cohort import HOSTS
 from evals.images import docker
+from evals.scrub import Secret, parse_secrets, scan_receipt
 
 EVALS_DIR = Path(__file__).resolve().parent
 PROMPT = "Reply with the single word OK. Do not call any tool."
@@ -62,6 +64,18 @@ for root in sys.argv[1:]:
         out[fields.get("name", path.parent.name)] = fields.get("description", "")
 print(json.dumps(out))
 """
+
+
+class LeakError(RuntimeError):
+    """A captured request body or transcript held a credential; it is quarantined and the capture stops."""
+
+
+def check_clean(captured: Path, key: str, quarantine_dir: Path) -> None:
+    """Scan what was copied out of the container; quarantine it and raise on any hit (never the matched text)."""
+    secrets: list[Secret] = parse_secrets([f"FACTORY_API_KEY={key}"]) if key else []
+    hits = scan_receipt(captured, secrets, quarantine_dir)
+    if hits:
+        raise LeakError(f"{len(hits)} credential hit(s) in {captured.name}: {sorted({h.name for h in hits})}; quarantined")
 
 
 def _docker_env() -> dict[str, str]:
@@ -120,7 +134,7 @@ def classify(installed: dict[str, str], listed: dict[str, str]) -> dict:
     return {"counts": counts, "skills": rows, "not_installed_but_listed": sorted(set(listed) - set(installed))}
 
 
-def capture_opencode(container: str) -> tuple[dict[str, str], dict]:
+def capture_opencode(container: str, key: str, quarantine_dir: Path) -> tuple[dict[str, str], dict]:
     docker("cp", str(EVALS_DIR / "capture_proxy.py"), f"{container}:/tmp/capture_proxy.py")
     config = json.dumps({"provider": {"opencode": {"options": {"baseURL": f"http://127.0.0.1:{PROXY_PORT}"}}}})
     model = HOSTS["opencode"]["model"]
@@ -134,6 +148,7 @@ def capture_opencode(container: str) -> tuple[dict[str, str], dict]:
     docker("exec", container, "bash", "-c", script, check=False)
     with tempfile.TemporaryDirectory() as tmp:
         docker("cp", f"{container}:/tmp/req", tmp)
+        check_clean(Path(tmp) / "req", key, quarantine_dir)
         main = None
         for path in sorted((Path(tmp) / "req").glob("*.json")):
             body = json.loads(path.read_text())
@@ -149,7 +164,7 @@ def capture_opencode(container: str) -> tuple[dict[str, str], dict]:
     return parse_opencode(system if isinstance(system, str) else json.dumps(system)), meta
 
 
-def capture_droid(container: str, key: str) -> tuple[dict[str, str], dict]:
+def capture_droid(container: str, key: str, quarantine_dir: Path) -> tuple[dict[str, str], dict]:
     model = HOSTS["droid"]["model"]
     script = (
         ". ~/.nvm/nvm.sh >/dev/null; mkdir -p /app; cd /app; "
@@ -159,6 +174,7 @@ def capture_droid(container: str, key: str) -> tuple[dict[str, str], dict]:
     subprocess.run(["docker", "exec", "-e", "FACTORY_API_KEY", container, "bash", "-c", script], capture_output=True, check=False, env={**_docker_env(), "FACTORY_API_KEY": key})
     with tempfile.TemporaryDirectory() as tmp:
         docker("cp", f"{container}:{SESSIONS}", tmp)
+        check_clean(Path(tmp) / "sessions", key, quarantine_dir)
         reminder = None
         for transcript in sorted(Path(tmp).rglob("*.jsonl")):
             for line in transcript.read_text().splitlines():
@@ -177,7 +193,7 @@ def capture_droid(container: str, key: str) -> tuple[dict[str, str], dict]:
     return parse_droid(reminder), meta
 
 
-def capture(host: str, image: dict, key: str) -> dict:
+def capture(host: str, image: dict, key: str, quarantine_dir: Path) -> dict:
     name = f"sq-listing-{host}-{image['arm'].lower()}"
     docker("rm", "-f", name, check=False)
     args = ["run", "-d", "--name", name, "--cpus", "1", "--memory", "2g", "--entrypoint", "sleep"]
@@ -187,7 +203,7 @@ def capture(host: str, image: dict, key: str) -> dict:
     if done.returncode != 0:
         raise RuntimeError(done.stderr[-400:])
     try:
-        listed, meta = capture_opencode(name) if host == "opencode" else capture_droid(name, key)
+        listed, meta = capture_opencode(name, key, quarantine_dir) if host == "opencode" else capture_droid(name, key, quarantine_dir)
     finally:
         docker("rm", "-f", name, check=False)
     installed = installed_skills(image["tag"], host)
@@ -209,7 +225,7 @@ def main() -> None:
         if host == "droid" and not key:
             sys.exit("droid listing needs the key on stdin")
         for arm in args.arms.split(","):
-            row = capture(host, images[f"{host}-{arm}"], key)
+            row = capture(host, images[f"{host}-{arm}"], key, args.out / "quarantine")
             (args.out / f"listing-{host}-{arm}.json").write_text(json.dumps(row, indent=2) + "\n")
             print(host, arm, row["installed"], row["listed"], row["counts"])
 
