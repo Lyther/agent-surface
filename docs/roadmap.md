@@ -710,7 +710,7 @@ Exit: one documented default route and a list of alternatives. No skill is remov
 
 #### SQ6.1 Scenario Research
 
-State: NOT STARTED; owned by the operator. Depends on: none. Covers: `OQ-SQ-01`, `N-SQ-07`.
+State: DONE 2026-11-21; owned by the operator. The operator's two research reports were reconciled; the verified claims, with their caveats, are in `docs/workflow/evidence.md` on `feat/workflow-default-map`. Depends on: none. Covers: `OQ-SQ-01`, `N-SQ-07`.
 
 The operator runs the research brief in the concept.
 
@@ -718,7 +718,7 @@ Exit: the operator's scenario → path → evidence table.
 
 #### SQ6.2 Workflow Map
 
-State: NOT STARTED. Depends on: SQ6.1. Covers: `G-SQ-07`, `ADR-SQ6`.
+State: IMPLEMENTED 2026-11-21 on the local branch `feat/workflow-default-map`, unpushed: the default route and the signal-tagged optional modes are in `boot-workflow`, `ops-flow` and `workflow-orchestrator` point at them, and no skill is removed. Reviewed once with its findings fixed; `npm run check`, `check generated` and the install suite pass. The optional matched-task cohort has not run. Depends on: SQ6.1. Covers: `G-SQ-07`, `ADR-SQ6`.
 
 As its own skill workflow, write the default route and the scenario-tagged alternatives into the workflow map that `boot-workflow` presents. Point the affected skills at it without removing any.
 
