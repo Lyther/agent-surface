@@ -97,7 +97,7 @@ agent-surface/
   registry/target-capabilities.json     - Native support plus runtime, notice and qualification facts.
   registry/source-kinds.json            - Canonical source-kind and install-scope policy, unchanged.
   registry/*-assets.json                - Existing domain membership, unchanged by identity refresh.
-  registry/{modding,private-secret}.json - Existing explicit content boundaries, unchanged.
+  registry/private-secret.json - Existing explicit content boundary, unchanged.
   registry/optional-services.json       - Service definitions and provisioning, no new default MCPs.
   registry/legacy-owned.json            - Existing known legacy ownership, not guessed from paths.
   schemas/targets.schema.json           - Current selection schema; no status abuse for recommendation.

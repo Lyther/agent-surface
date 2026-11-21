@@ -215,7 +215,7 @@ planLacks(qwenCodePlan, [
   /skills\/archify\//,
   /skills\/book-study\//,
   /skills\/ctf-ai-ml\//,
-  /skills\/stellaris-design\//,
+  /skills\/dev-feature\//,
 ], "qwen-code default excludes optional and categorized packs");
 
 const qwenCodeExternalPlan = dryRun("qwen-code", ["--category", "external"]);
@@ -259,7 +259,7 @@ planHas(qwenCodeCybersecurityPlan, [
   /\.qwen\/skills\/redteam-boundary-policy\/SKILL\.md/,
   /\.qwen\/settings\.json MCP \+= fenjing, openosint$/m,
 ], "qwen-code cybersecurity assets");
-planLacks(qwenCodeCybersecurityPlan, [/skills\/stellaris-design\//, /pentest-ai/, /ida-pro-mcp/], "qwen-code cybersecurity isolation");
+planLacks(qwenCodeCybersecurityPlan, [/skills\/dev-feature\//, /pentest-ai/, /ida-pro-mcp/], "qwen-code cybersecurity isolation");
 
 const qwenCodePentestAiPlan = dryRun("qwen-code", ["--category", "mcps", "--service", "pentest-ai"]);
 planHas(qwenCodePentestAiPlan, [/\.qwen\/settings\.json MCP \+= pentest-ai/], "qwen-code explicit pentest-ai MCP");
@@ -267,23 +267,19 @@ planHas(qwenCodePentestAiPlan, [/\.qwen\/settings\.json MCP \+= pentest-ai/], "q
 const qwenCodeChromePlan = dryRun("qwen-code", ["--category", "mcps", "--service", "chrome-devtools"]);
 planHas(qwenCodeChromePlan, [/\.qwen\/settings\.json MCP \+= chrome-devtools/], "qwen-code explicit Chrome DevTools MCP");
 
-const qwenCodeModdingPlan = dryRun("qwen-code", ["--category", "modding"]);
-planHas(qwenCodeModdingPlan, [/\.qwen\/skills\/stellaris-design\/SKILL\.md/], "qwen-code modding assets");
-planLacks(qwenCodeModdingPlan, [/skills\/ctf-ai-ml\//], "qwen-code modding isolation");
-
 const qwenCodeEverythingPlan = dryRun("qwen-code", ["--category", "everything"]);
 planHas(qwenCodeEverythingPlan, [
   /\.qwen\/skills\/ops-ask\/SKILL\.md/,
   /\.qwen\/skills\/archify\//,
   /\.qwen\/skills\/ctf-ai-ml\//,
-  /\.qwen\/skills\/stellaris-design\//,
+  /\.qwen\/skills\/dev-feature\//,
   /\.qwen\/skills\/book-study\//,
 ], "qwen-code everything carries the baseline, external and every asset category");
 
-const antigravityCliModdingPlan = dryRun("antigravity-cli", ["--category", "modding"]);
-planHas(antigravityCliModdingPlan, [
+const antigravityCliDevelopmentPlan = dryRun("antigravity-cli", ["--category", "development"]);
+planHas(antigravityCliDevelopmentPlan, [
   /antigravity-cli\/plugins\/agent-surface\/plugin\.json <- package\.json/,
-  /antigravity-cli\/plugins\/agent-surface\/skills\/stellaris-design\/SKILL\.md/,
+  /antigravity-cli\/plugins\/agent-surface\/skills\/dev-feature\/SKILL\.md/,
 ], "antigravity-cli category scaffold");
 
 if (hasLocalOpsServerSkill) {
@@ -629,7 +625,7 @@ SUBSTITUTE_JUSTIFICATION
     assert.match(plan, /openosint/);
     run(installArgs(sequenced));
     run(installArgs(sequenced, "--category", "external"));
-    run(installArgs(sequenced, "--category", "development,cybersecurity,private,modding"));
+    run(installArgs(sequenced, "--category", "development,cybersecurity,private"));
     run(installArgs(single, "--category", "everything"));
     assert.deepEqual(files(single), files(sequenced), "one run writes the paths the three-step sequence writes");
     // Every other file must match byte for byte. The merged host configs are the exception: each run
@@ -686,7 +682,7 @@ SUBSTITUTE_JUSTIFICATION
   try {
     run(installArgs(sequenced));
     run(installArgs(sequenced, "--category", "external"));
-    run(installArgs(sequenced, "--category", "development,cybersecurity,private,modding"));
+    run(installArgs(sequenced, "--category", "development,cybersecurity,private"));
     run(installArgs(single, "--category", "everything"));
     for (const file of [path.join(".kiro", "settings", "mcp.json"), "mcp.json"]) {
       assert.deepEqual(mcpIds(single, file), ["chrome-devtools", "fenjing", "grimoire", "openosint", "synapse"], file);
@@ -2751,6 +2747,59 @@ try {
     assert.match(result.stderr, new RegExp(selection.includes("mcps") ? "--category mcps" : "--service"), "the error names the conflicting option");
     assert.ok(!existsSync(path.join(noMcpsRoot, "conflict")), "a refused install writes nothing");
   }
+}
+
+// SUBSTITUTE_JUSTIFICATION
+// - substitute: the manifest and files a past `--category modding` install left in a disposable root
+// - replaces: a real earlier agent-surface release installing the removed stellaris skills
+// - necessity: the category and its sources no longer exist, so the earlier install cannot be run again
+// - real-option: the real installer, manifest reader and filesystem run unchanged; the seeded entries copy the shape
+//   a current development install records, with the skill name and category swapped
+// - proof-limit: does not show any host's own state, only the files and manifest the installer owns
+// - real-proof: BLOCKED until a release exists whose tree still carries the category, to install from and then upgrade
+// The removed modding category's outputs stay recorded in the manifests of hosts it was installed on. The
+// next general install prunes them by manifest, on every host, and leaves what the operator put beside them.
+{
+  const removedSkill = "stellaris-design";
+  const unknownCategory = status(["install", "--target", "qwen-code", "--dest", ownTmp("modding-gone"), "--category", "modding", "--dry-run"]);
+  assert.notEqual(unknownCategory.status, 0, "the removed category is no longer selectable");
+  assert.match(unknownCategory.stderr, /unsupported install category: modding/);
+  const installable = Object.entries(targets).filter(([, adapter]) => !adapter.buildOnly).map(([id]) => id);
+  const deprecatedTargets = Object.entries(JSON.parse(readFileSync(path.join(root, "registry", "targets.json"), "utf8")).in_scope)
+    .filter(([, entry]) => entry.status === "deprecated")
+    .map(([id]) => id);
+  const checked = [];
+  for (const target of installable.filter((id) => !deprecatedTargets.includes(id))) {
+    const dest = ownTmp(`modding-prune-${target}`);
+    rmSync(dest, { recursive: true, force: true });
+    const seed = status(["install", "--target", target, "--dest", dest, "--category", "development"]);
+    if (seed.status !== 0) continue;
+    const manifestPath = path.join(dest, ".agent-surface", `${target}-manifest.json`);
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const template = manifest.managed.filter((item) => item.output.split(/[\\/]/).includes("dev-feature") && item.output.endsWith("SKILL.md"));
+    if (template.length !== 1) continue;
+    const old = { ...template[0], source: `skills/${removedSkill}/SKILL.md`, output: template[0].output.replace("dev-feature", removedSkill), asset_category: "modding" };
+    const oldPath = path.join(dest, old.output);
+    mkdirSync(path.dirname(oldPath), { recursive: true });
+    writeFileSync(oldPath, `---\nname: ${removedSkill}\ndescription: installed before the category was removed\n---\nbody\n`);
+    const operatorFile = path.join(path.dirname(oldPath), "operator-notes.md");
+    const operatorSkill = path.join(path.dirname(path.dirname(oldPath)), "operator-own-skill", "SKILL.md");
+    writeFileSync(operatorFile, "operator notes\n");
+    mkdirSync(path.dirname(operatorSkill), { recursive: true });
+    writeFileSync(operatorSkill, "operator skill\n");
+    manifest.managed.push(old);
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    run(["install", "--target", target, "--dest", dest]);
+    assert.equal(existsSync(oldPath), false, `${target}: the general install prunes the removed modding skill`);
+    assert.equal(readFileSync(operatorFile, "utf8"), "operator notes\n", `${target}: a file the operator added beside it stays`);
+    assert.equal(readFileSync(operatorSkill, "utf8"), "operator skill\n", `${target}: an operator-owned skill stays`);
+    const after = JSON.parse(readFileSync(manifestPath, "utf8"));
+    assert.equal(after.managed.some((item) => item.asset_category === "modding" || item.output === old.output), false, `${target}: the manifest drops the modding claim`);
+    checked.push(target);
+    rmSync(dest, { recursive: true, force: true });
+  }
+  assert.ok(checked.length >= 10, `the prune is proven on many hosts: ${checked.join(", ")}`);
 }
 
 disposableHome.restore();

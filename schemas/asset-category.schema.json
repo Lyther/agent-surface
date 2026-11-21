@@ -15,8 +15,7 @@
       "enum": [
         "development",
         "cybersecurity",
-        "private",
-        "modding"
+        "private"
       ]
     },
     "skills": {
