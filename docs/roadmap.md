@@ -393,7 +393,7 @@ Exit: two hosts × two arms × two repetitions complete, with a ledger row per a
 
 #### SQ0.2 Skill-Load Detector
 
-State: DONE for OpenCode and Droid 2026-11-21 (`evals/detect.py`; receipts under `.agent-surface/research/2026-11-21-sq0.2/`). The file audit alone cannot separate a load from the startup scan, so the rule reads the host's own tool-call record and uses the audit as a cross-check; the audit cannot see Droid's `Skill` tool. Claude Code and Codex are not tested. Depends on: SQ0.1. Covers: `G-SQ-02`, `S-SQ-02`.
+State: DONE for OpenCode and Droid 2026-11-21 (`evals/detect.py`; receipts under `.agent-surface/research/2026-11-21-sq0.2/`). The file audit alone cannot separate a load from the startup scan, so the rule reads the host's own tool-call record and uses the audit as a cross-check; the audit cannot see Droid's `Skill` tool. Claude Code 2.1.330 and Codex 0.171.0 added 2026-11-21 through a gateway: positives detected, negatives 0, verifiers 1 on arm B (2 repetitions per control). Codex has no skill tool, so its loads are shell reads of the file; the audit is blind to Claude Code's `Skill` tool. Depends on: SQ0.1. Covers: `G-SQ-02`, `S-SQ-02`.
 
 Implement the file-open audit of installed skill files inside the container. Run it on three hosts with prompts that name a skill explicitly (positive control) and prompts unrelated to any skill (negative control). Compare it with each host's own tool logs where they exist.
 
@@ -403,7 +403,7 @@ Exit: on every tested host, the detector reports the positive controls and no re
 
 #### SQ0.3 Listing Capture
 
-State: DONE for OpenCode 1.19.6 and Droid 0.244.0 2026-11-21 (`evals/listing.py`; same receipts). Droid shortens descriptions to 200 characters and, with 84 skills, lists the last one by name only. Claude Code, Codex, Kiro and Kilo are not captured. Depends on: SQ0.1. Covers: `G-SQ-02`, `S-SQ-03`, `Q-SQ-03`.
+State: DONE for OpenCode 1.19.6 and Droid 0.244.0 2026-11-21 (`evals/listing.py`; same receipts). Droid shortens descriptions to 200 characters and, with 84 skills, lists the last one by name only. Claude Code 2.1.330 and Codex 0.171.0 captured 2026-11-21 for arms A, B and F: every installed skill is surfaced except the 5 explicit-only ones (absent by design); Codex shortens 2 descriptions longer than about 715 characters in the full profile. Kiro and Kilo are not captured. Depends on: SQ0.1. Covers: `G-SQ-02`, `S-SQ-03`, `Q-SQ-03`.
 
 For each runnable host, capture the real skill listing with the full profile installed (all categories and external packs), through the host's own means:
 - Claude Code: `/context` and debug output;
@@ -418,7 +418,7 @@ Exit: one classification per host, with its version and the method used. A host 
 
 #### SQ0.4 Credentials and Isolation
 
-State: SCRUBBER DONE 2026-11-21 (`evals/scrub.py`, `evals/tests/test_scrub.py`, README credential handling; notes private under `.agent-surface/research/2026-11-21-sq0.4/`). A planted fake credential is caught in nested, binary, gzip and tar files, one pattern per family, and no secret bytes reach output; the SQ0.1, SQ0.2 and SQ0.6 receipts (local) and the server's SQ0.1 outputs scan clean with the Droid key (0 exact hits, 0 pattern hits outside the overlay tarballs, whose source text is flagged by design). Hosts: droid and opencode (free model) `ready`; claude-code (Console API key), codex (OpenAI API key), kiro-cli (paid-tier key) and kilo (a provider key) `needs operator credential`; none `BLOCKED`. Open: wire the scan into `cohort.py` after SQ0.2 merges; confirm `CODEX_API_KEY` and kiro-cli container support when a credential exists. Depends on: none. Covers: `C-SQ-01`, `C-SQ-04`, `S-SQ-04`, `Q-SQ-02`.
+State: SCRUBBER DONE 2026-11-21 (`evals/scrub.py`, `evals/tests/test_scrub.py`, README credential handling; notes private under `.agent-surface/research/2026-11-21-sq0.4/`). A planted fake credential is caught in nested, binary, gzip and tar files, one pattern per family, and no secret bytes reach output; the SQ0.1, SQ0.2 and SQ0.6 receipts (local) and the server's SQ0.1 outputs scan clean with the Droid key (0 exact hits, 0 pattern hits outside the overlay tarballs, whose source text is flagged by design). The scan is wired into `cohort.py` and listing capture. Hosts: droid, opencode (free model), and claude-code and codex through the operator's gateway (`ready (gateway)`; the gateway maps Claude model ids to other models, so claude-code results are confounded with the model); kiro-cli (paid-tier key) and kilo (a provider key) `needs operator credential`; none `BLOCKED`. Open: confirm kiro-cli container support when a credential exists. Depends on: none. Covers: `C-SQ-01`, `C-SQ-04`, `S-SQ-04`, `Q-SQ-02`.
 
 For each runnable host, find a non-interactive credential mode usable in a container within the provider's terms. Run-time injection must leave nothing in images, scenario folders or receipts.
 

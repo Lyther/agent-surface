@@ -1,0 +1,5 @@
+.agents/skills/boot-repro/SKILL.md
+.agents/skills/dev-fix/SKILL.md
+.agents/skills/ops-ask/SKILL.md
+.agents/skills/qa-review/SKILL.md
+.agents/skills/verify-test/SKILL.md

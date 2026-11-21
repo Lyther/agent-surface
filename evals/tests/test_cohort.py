@@ -22,7 +22,7 @@ class CohortFinishTest(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.out = Path(tmp.name)
         self.ledger = self.out / "ledger.jsonl"
-        self.secrets = injected_secrets("droid", FAKE_KEY)
+        self.secrets = injected_secrets({"FACTORY_API_KEY": FAKE_KEY})
 
     def attempt_dir(self, name: str, leak: bool) -> None:
         job = self.out / "jobs" / name / "trial" / "agent"

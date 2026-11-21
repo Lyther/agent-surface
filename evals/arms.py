@@ -26,12 +26,16 @@ EXCLUDE_TOP = {".git", "evals", "node_modules", ".agent-surface", "dist"}
 MCP_CONFIGS = {
     "opencode": ".config/opencode/opencode.json",
     "droid": ".factory/mcp.json",
+    "claude-code": ".claude.json",
+    "codex": ".codex/config.toml",
 }
 # Host hook files that carry Synapse's hook; it is part of the MCP service wiring and goes with it.
-HOOK_CONFIGS = {"droid": ".factory/hooks.json"}
+HOOK_CONFIGS = {"droid": ".factory/hooks.json", "claude-code": ".claude/settings.json", "codex": ".codex/hooks.json"}
 SKILL_DIRS = {
     "opencode": [".config/opencode/skills", ".agents/skills"],
     "droid": [".agents/skills", ".factory/skills"],
+    "claude-code": [".claude/skills"],
+    "codex": [".agents/skills"],
 }
 
 
@@ -120,24 +124,30 @@ def build_overlay(src: Path, arm: Arm, dest: Path) -> dict:
 HOST_CLI = {
     "opencode": ("opencode-ai", "1.19.6"),
     "droid": ("droid", "0.244.0"),
+    "claude-code": ("@anthropic-ai/claude-code", "2.1.330"),
+    "codex": ("@openai/codex", "0.171.0"),
 }
 APT_DEPS = "curl ca-certificates git procps inotify-tools"
 NVM_VERSION = "v0.40.2"
 NODE_MAJOR = 22
 DROID_URL = "https://downloads.factory.ai/factory-cli/releases/{v}/linux/x64"
 STAMP = f"{BUILD_DIR}/stamp.py"
+# Hosts installed with npm, and the command each provides.
+NPM_CLIS = {"opencode": "opencode", "claude-code": "claude", "codex": "codex"}
 
 
 def _cli_steps(target: str) -> list[str]:
     """Shell that installs the host CLI at its pinned version, so attempts never download it."""
     _, version = HOST_CLI[target]
+    # nvm clones from GitHub, which fails now and then through the lab's relay, so the install is retried.
     nvm = (
-        f"curl -fsSo- https://raw.githubusercontent.com/nvm-sh/nvm/{NVM_VERSION}/install.sh | env -u NODE_VERSION bash >/dev/null && "
+        f"for i in 1 2 3; do curl -fsSo- https://raw.githubusercontent.com/nvm-sh/nvm/{NVM_VERSION}/install.sh | env -u NODE_VERSION bash >/dev/null 2>&1 && break; rm -rf ~/.nvm; sleep 5; done && "
         'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && '
         f"nvm install {NODE_MAJOR} >/dev/null && nvm alias default {NODE_MAJOR} >/dev/null"
     )
-    if target == "opencode":
-        return [nvm, f"npm i -g opencode-ai@{version} >/dev/null 2>&1", "opencode --version"]
+    if target in NPM_CLIS:
+        package, command = HOST_CLI[target][0], NPM_CLIS[target]
+        return [nvm, f"npm i -g {package}@{version} >/dev/null 2>&1", f"{command} --version"]
     url = DROID_URL.format(v=version)
     return [
         nvm,
@@ -148,6 +158,7 @@ def _cli_steps(target: str) -> list[str]:
 
 
 def _hook_strip(target: str) -> list[str]:
+    """Remove Synapse's hook from the host's hook file (top-level events, or nested under "hooks")."""
     path = HOOK_CONFIGS.get(target)
     if not path:
         return []
@@ -157,15 +168,50 @@ def _hook_strip(target: str) -> list[str]:
         "p = pathlib.Path(sys.argv[1])\n"
         "if p.exists():\n"
         "    d = json.loads(p.read_text())\n"
-        "    for event, groups in list(d.items()):\n"
+        "    events = d['hooks'] if isinstance(d.get('hooks'), dict) else d\n"
+        "    for event, groups in list(events.items()):\n"
         "        for g in groups:\n"
         "            g['hooks'] = [h for h in g.get('hooks', []) if 'synapse-hook' not in h.get('command', '')]\n"
-        "        d[event] = [g for g in groups if g['hooks']]\n"
-        "        if not d[event]:\n"
-        "            del d[event]\n"
+        "        events[event] = [g for g in groups if g['hooks']]\n"
+        "        if not events[event]:\n"
+        "            del events[event]\n"
+        "    if 'hooks' in d and not d['hooks']:\n"
+        "        del d['hooks']\n"
         "    p.write_text(json.dumps(d, indent=2))\n"
         "PY"
     ]
+
+
+def _mcp_strip(target: str) -> str:
+    """Remove MCP wiring from the host config: JSON `mcp`/`mcpServers` keys, or Codex's `[mcp_servers.*]` tables."""
+    path = MCP_CONFIGS[target]
+    if path.endswith(".toml"):
+        return (
+            f'python3 - "$HOME/{path}" <<\'PY\'\n'
+            "import re, sys, pathlib\n"
+            "p = pathlib.Path(sys.argv[1])\n"
+            "if p.exists():\n"
+            "    kept, skipping = [], False\n"
+            "    for line in p.read_text().splitlines(keepends=True):\n"
+            "        header = re.match(r'\\s*\\[+\\s*([^\\]]+?)\\s*\\]+', line)\n"
+            "        if header:\n"
+            "            skipping = header.group(1).startswith('mcp_servers')\n"
+            "        if not skipping:\n"
+            "            kept.append(line)\n"
+            "    p.write_text(''.join(kept))\n"
+            "PY"
+        )
+    return (
+        f'python3 - "$HOME/{path}" <<\'PY\'\n'
+        "import json, sys, pathlib\n"
+        "p = pathlib.Path(sys.argv[1])\n"
+        "if p.exists():\n"
+        "    d = json.loads(p.read_text())\n"
+        "    for k in ('mcp', 'mcpServers'):\n"
+        "        d.pop(k, None)\n"
+        "    p.write_text(json.dumps(d, indent=2))\n"
+        "PY"
+    )
 
 
 def build_script(target: str, arm: Arm) -> str:
@@ -178,6 +224,8 @@ def build_script(target: str, arm: Arm) -> str:
     install = f'node scripts/agent-surface.mjs install --target {shlex.quote(target)} --scope user --dest "$HOME" -y'
     steps = [
         "set -e",
+        # Build-only proxy settings (not secrets); they are sourced, not baked into the image environment.
+        "[ -f /mnt/sq-build/proxy.sh ] && . /mnt/sq-build/proxy.sh",
         f"mkdir -p {OVERLAY_ROOT} {BUILD_DIR}",
         f"apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends {APT_DEPS} >/dev/null",
         "rm -rf /var/lib/apt/lists/*",
@@ -192,18 +240,9 @@ def build_script(target: str, arm: Arm) -> str:
     for entry in arm.installs:
         log = f"{BUILD_DIR}/install-{entry.replace(',', '+')}.txt"
         steps.append(f"{install} --category {shlex.quote(entry)} > {log} 2>&1; echo exit=$? >> {log}")
-    mcp = MCP_CONFIGS[target]
     steps += [
         "set -e",
-        f'python3 - "$HOME/{mcp}" <<\'PY\'\n'
-        "import json, sys, pathlib\n"
-        "p = pathlib.Path(sys.argv[1])\n"
-        "if p.exists():\n"
-        "    d = json.loads(p.read_text())\n"
-        "    for k in ('mcp', 'mcpServers'):\n"
-        "        d.pop(k, None)\n"
-        "    p.write_text(json.dumps(d, indent=2))\n"
-        "PY",
+        _mcp_strip(target),
         *_hook_strip(target),
         'rm -f "$HOME"/.local/bin/grimoire-* "$HOME"/.local/bin/synapse-*',
         f'test -s "$HOME/.agent-surface/{target}-manifest.json"',

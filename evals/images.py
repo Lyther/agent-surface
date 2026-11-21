@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -49,11 +50,21 @@ def base_tag(scenario: Path) -> str:
     return f"sq-scn/{scenario.parent.name}-{scenario.name}"
 
 
-def build_base(scenario: Path) -> str:
+def proxy_env(proxy: str | None) -> dict[str, str]:
+    """Proxy variables for a build; the lab network reaches the internet only through the relay."""
+    if not proxy:
+        return {}
+    no_proxy = os.environ.get("LAB_NO_PROXY", "localhost,127.0.0.1")  # hosts that must not use the relay
+    return {"HTTP_PROXY": proxy, "HTTPS_PROXY": proxy, "http_proxy": proxy, "https_proxy": proxy,
+            "NO_PROXY": no_proxy, "no_proxy": no_proxy}
+
+
+def build_base(scenario: Path, proxy: str | None = None) -> str:
     """Build the scenario's own environment image with capped resources (classic builder honours the caps)."""
     tag = base_tag(scenario)
+    build_args = [arg for k, v in proxy_env(proxy).items() for arg in ("--build-arg", f"{k}={v}")]
     done = subprocess.run(
-        ["docker", "build", "--memory", BUILD_MEMORY, "--cpu-quota", str(int(BUILD_CPUS) * 100000), "-t", tag, str(scenario / "environment")],
+        ["docker", "build", "--memory", BUILD_MEMORY, "--cpu-quota", str(int(BUILD_CPUS) * 100000), *build_args, "-t", tag, str(scenario / "environment")],
         capture_output=True, text=True, env={"DOCKER_BUILDKIT": "0", "PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": str(Path.home())},
     )
     if done.returncode != 0:
@@ -65,8 +76,11 @@ def tag_for(host: str, arm: str, overlay_sha: str) -> str:
     return f"{TAG_PREFIX}/{host}-{arm.lower()}:{overlay_sha[:12]}"
 
 
-def build_arm_image(host: str, arm: str, overlay: Path, overlay_meta: dict, base: str, out: Path) -> dict:
+def build_arm_image(host: str, arm: str, overlay: Path, overlay_meta: dict, base: str, out: Path, proxy: str | None = None) -> dict:
     spec = ARMS[arm]
+    actual = hashlib.sha256(overlay.read_bytes()).hexdigest()
+    if actual != overlay_meta["overlay_sha256"]:
+        raise RuntimeError(f"overlay {overlay.name} does not match its recorded digest")
     script = build_script(host, spec) + f"\ncp /mnt/sq-build/stamp.py {STAMP}\n"
     tag = tag_for(host, arm, overlay_meta["overlay_sha256"])
     name = f"sq-build-{host}-{arm.lower()}"
@@ -76,6 +90,7 @@ def build_arm_image(host: str, arm: str, overlay: Path, overlay_meta: dict, base
     with tempfile.TemporaryDirectory(prefix="sq-build-") as tmp:
         shutil.copy(EVALS_DIR / "stamp.py", Path(tmp) / "stamp.py")
         (Path(tmp) / "build.sh").write_text(script)
+        (Path(tmp) / "proxy.sh").write_text("".join(f"export {k}={v}\n" for k, v in proxy_env(proxy).items()))
         done = subprocess.run(
             [
                 "docker", "run", "--name", name, "--cpus", BUILD_CPUS, "--memory", BUILD_MEMORY,
@@ -136,7 +151,7 @@ def write_task(template: Path, image: str, dest: Path, subs: dict[str, str] | No
 def cmd_build(args) -> None:
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
-    base = build_base(args.scenario)
+    base = build_base(args.scenario, args.proxy)
     ledger = out / "images.json"
     existing = json.loads(ledger.read_text()) if ledger.exists() else {}
     cells = [(h, a) for h in args.hosts.split(",") for a in args.arms.split(",")]
@@ -144,13 +159,22 @@ def cmd_build(args) -> None:
     def one(cell):
         host, arm = cell
         meta = json.loads((args.overlay_dir / f"overlay-{ARMS[arm].overlay}.json").read_text())
-        return f"{host}-{arm}", build_arm_image(host, arm, args.overlay_dir / f"overlay-{ARMS[arm].overlay}.tgz", meta, base, out)
+        try:
+            return f"{host}-{arm}", build_arm_image(host, arm, args.overlay_dir / f"overlay-{ARMS[arm].overlay}.tgz", meta, base, out, args.proxy)
+        except RuntimeError as error:
+            return f"{host}-{arm}", str(error)
 
+    failed = 0
     with ThreadPoolExecutor(BUILD_CONCURRENCY) as pool:
         for key, row in pool.map(one, cells):
+            if isinstance(row, str):  # one image failing must not discard the others
+                failed += 1
+                print(key, "FAILED", row)
+                continue
             existing[key] = row
+            ledger.write_text(json.dumps(existing, indent=2) + "\n")
             print(key, row["image_id"][:19])
-    ledger.write_text(json.dumps(existing, indent=2) + "\n")
+    sys.exit(1 if failed else 0)
 
 
 def cmd_verify(args) -> None:
@@ -158,7 +182,7 @@ def cmd_verify(args) -> None:
     images = json.loads((args.out / "images.json").read_text())
     bad = 0
     for key, row in sorted(images.items()):
-        host, arm = key.split("-")
+        host, arm = key.rsplit("-", 1)
         refs = sorted(args.reference.glob(f"jobs/{host}-{arm}-1/*/agent/arm-manifest.json"))
         skills = image_skills(row["tag"])
         line = {"image": key, "skills": len(skills), "dev_fix": "dev-fix" in skills}
@@ -179,6 +203,7 @@ if __name__ == "__main__":
     b.add_argument("--scenario", type=Path, required=True)
     b.add_argument("--overlay-dir", type=Path, required=True)
     b.add_argument("--hosts", default="opencode,droid")
+    b.add_argument("--proxy", default=os.environ.get("LAB_BUILD_PROXY"), help="HTTP(S) proxy URL for builds (recorded in the receipts; not a secret)")
     b.add_argument("--arms", default="A,B,F")
     b.set_defaults(fn=cmd_build)
     v = sub.add_parser("verify")

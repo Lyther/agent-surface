@@ -1,0 +1,3 @@
+{"type": "system", "subtype": "init", "cwd": "/app"}
+{"type": "assistant", "timestamp": "2026-11-21T11:33:05.372Z", "message": {"content": [{"type": "tool_use", "name": "Skill", "input": {"skill": "dev-fix"}}]}}
+{"type": "assistant", "timestamp": "2026-11-21T11:33:07.493Z", "message": {"content": [{"type": "tool_use", "name": "Write", "input": {"file_path": "/app/CONTROL.txt", "content": "Phase 0: Workflow Mode (run ledger v3)\n"}}]}}

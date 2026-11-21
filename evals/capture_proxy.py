@@ -16,6 +16,8 @@ from pathlib import Path
 
 UPSTREAM = urllib.parse.urlsplit(sys.argv[1])
 OUT = Path(sys.argv[3])
+# The upstream scheme selects the connection class: the provider may be HTTPS (a public provider) or plain HTTP (an internal gateway).
+CONNECTION = {"https": http.client.HTTPSConnection, "http": http.client.HTTPConnection}
 HOP = {"host", "content-length", "connection", "transfer-encoding", "accept-encoding"}
 
 
@@ -30,7 +32,7 @@ class Handler(BaseHTTPRequestHandler):
             Handler.count += 1
             number = Handler.count
         (OUT / f"{number:03d}.json").write_bytes(body)
-        conn = http.client.HTTPSConnection(UPSTREAM.netloc, timeout=300)
+        conn = CONNECTION[UPSTREAM.scheme](UPSTREAM.netloc, timeout=300)
         headers = {k: v for k, v in self.headers.items() if k.lower() not in HOP}
         conn.request("POST", UPSTREAM.path.rstrip("/") + self.path, body, headers)
         reply = conn.getresponse()

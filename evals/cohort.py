@@ -3,8 +3,8 @@
 Usage: cohort.py --images OUT/images.json --scenario DIR [--scenario DIR ...] --out DIR
                  [--hosts opencode,droid] [--arms A,B] [--reps 2] [--seed 1] [--concurrency 4]
 Each attempt is one fresh container from the host-and-arm image (`evals/images.py`). Hosts: opencode (free
-model, no credential) and droid. The Factory key, when droid runs, is read from the first line of stdin,
-exported only into the harbor child's environment. After each attempt `evals/scrub.py` scans its receipts; a hit
+model, no credential), droid, and claude-code and codex through an OpenAI- and Anthropic-compatible gateway (`gateway.py`). Keys are read from stdin, one `NAME=value`
+per line (a bare first line is the Factory key), and exported only into the harbor child's environment. After each attempt `evals/scrub.py` scans its receipts; a hit
 quarantines the attempt, ledgers it as `quarantined` and stops the cohort.
 """
 
@@ -23,13 +23,20 @@ from pathlib import Path
 
 from evals.arms import SKILL_DIRS
 from evals.detect import verdict
+from evals.gateway import GATEWAY_HOSTS, KEY_ENV, NO_PROXY_ENV, URL_ENV, gateway_url, no_proxy
 from evals.images import image_skills, write_task
 from evals.scrub import Secret, parse_secrets, scan_receipt
 
 HOSTS = {
     "opencode": {"agent": "evals.agents:ArmOpenCode", "model": "opencode/deepseek-v4.1-flash-free"},
     "droid": {"agent": "evals.agents:ArmDroid", "model": "claude-sonnet-5"},
+    # Through the gateway: the requested model id. The gateway maps Claude ids to other models, so the served model differs.
+    # Codex uses gpt-5.5: gpt-5.3-codex failed 3 of 6 control verifiers in each of two runs (it reported work it had not done).
+    "claude-code": {"agent": "evals.agents:ArmClaude", "model": "claude-sonnet-5-5"},
+    "codex": {"agent": "evals.agents:ArmCodex", "model": "gpt-5.5"},
 }
+# The environment variable that carries each host's key into its container.
+HOST_KEY = {"droid": "FACTORY_API_KEY", "claude-code": KEY_ENV, "codex": KEY_ENV}
 # GR2 attempts used about 200k to 340k Factory credits each; four attempts plus margin.
 CREDIT_STOP = 1_500_000
 CREDIT_RESERVE_PER_ATTEMPT = 350_000
@@ -109,9 +116,25 @@ def scenario_name(path: Path) -> str:
     return f"{path.parent.name}-{path.name}"
 
 
-def injected_secrets(host: str, key: str) -> list[Secret]:
-    """Every secret the host's container receives; patterns for other credentials are always scanned."""
-    return parse_secrets([f"FACTORY_API_KEY={key}"]) if host == "droid" and key else []
+def read_keys(stream) -> dict[str, str]:
+    """Keys from stdin, one `NAME=value` per line; a bare first line is the Droid key (the SQ0.1 protocol)."""
+    keys: dict[str, str] = {}
+    for number, raw in enumerate(stream):
+        line = raw.rstrip("\r\n")
+        if not line:
+            continue
+        name, sep, value = line.partition("=")
+        if sep and name in HOST_KEY.values():
+            keys[name] = value
+        elif number == 0:
+            keys["FACTORY_API_KEY"] = line
+    return keys
+
+
+def injected_secrets(keys: dict[str, str]) -> list[Secret]:
+    """Every key the cohort holds, so a key leaking into another host's receipts is also caught; credential
+    patterns are always scanned too."""
+    return parse_secrets([f"{name}={value}" for name, value in sorted(keys.items()) if value])
 
 
 def finish_attempt(cell: tuple, image: dict, started: str, exit_code: int, out: Path, secrets: list[Secret], ledger: Path, seconds: float | None = None) -> bool:
@@ -136,7 +159,7 @@ def finish_attempt(cell: tuple, image: dict, started: str, exit_code: int, out: 
     return bool(hits)
 
 
-async def attempt(cell: tuple, args, images: dict, key: str) -> tuple[str, int, float]:
+async def attempt(cell: tuple, args, images: dict, keys: dict[str, str]) -> tuple[str, int, float]:
     """Run one attempt through Harbor; returns (started, harbor exit code, wall seconds)."""
     scenario, host, arm, rep = cell
     name = f"{scenario}-{host}-{arm}-{rep}"
@@ -148,8 +171,10 @@ async def attempt(cell: tuple, args, images: dict, key: str) -> tuple[str, int, 
     task = write_task(args.scenarios[scenario], image["tag"], args.out / "tasks" / name, {"skill_file": skill_file})
     env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG", "USER") if k in os.environ}
     env.update(HARBOR_TELEMETRY="0", PYTHONPATH=str(EVALS_DIR.parent))
-    if host == "droid":
-        env["FACTORY_API_KEY"] = key
+    if host in GATEWAY_HOSTS:  # the agent reads the gateway address at run time
+        env.update({URL_ENV: gateway_url(), NO_PROXY_ENV: no_proxy()})
+    if HOST_KEY.get(host) in keys:
+        env[HOST_KEY[host]] = keys[HOST_KEY[host]]
     cmd = [
         "uv", "run", "--frozen", "--project", str(EVALS_DIR), "harbor", "run",
         "-p", str(task), "-a", HOSTS[host]["agent"], "-m", HOSTS[host]["model"],
@@ -186,7 +211,9 @@ async def run_order(order: list, run_cell, concurrency: int) -> bool:
 
 
 async def main(args) -> None:
-    key = sys.stdin.readline().strip() if not sys.stdin.isatty() else ""
+    keys = read_keys(sys.stdin) if not sys.stdin.isatty() else {}
+    if GATEWAY_HOSTS and set(GATEWAY_HOSTS) & set(args.hosts.split(",")):
+        gateway_url(), no_proxy()  # fail before any attempt, naming the missing variable
     args.out.mkdir(parents=True, exist_ok=True)
     images = json.loads(args.images.read_text())
     for row in images.values():
@@ -208,20 +235,20 @@ async def main(args) -> None:
     async def run_cell(cell) -> bool:
         nonlocal spent, inflight_droid
         scenario, host, arm, rep = cell
+        if host in HOST_KEY and HOST_KEY[host] not in keys:
+            skip(cell, f"no {HOST_KEY[host]} on stdin")
+            return False
         if host == "droid":
-            if not key:
-                skip(cell, "no credential on stdin")
-                return False
             if spent + (inflight_droid + 1) * CREDIT_RESERVE_PER_ATTEMPT > CREDIT_STOP:
                 skip(cell, f"spend stop ({spent} credits spent, {inflight_droid} in flight)")
                 return False
             inflight_droid += 1
         try:
-            started, code, seconds = await attempt(cell, args, images, key)
+            started, code, seconds = await attempt(cell, args, images, keys)
         finally:
             if host == "droid":
                 inflight_droid -= 1
-        stop = finish_attempt(cell, images[f"{host}-{arm}"], started, code, args.out, injected_secrets(host, key), ledger, seconds)
+        stop = finish_attempt(cell, images[f"{host}-{arm}"], started, code, args.out, injected_secrets(keys), ledger, seconds)
         if host == "droid":
             spent += int(json.loads(ledger.read_text().splitlines()[-1]).get("factory_credits") or CREDIT_RESERVE_PER_ATTEMPT)
         return stop

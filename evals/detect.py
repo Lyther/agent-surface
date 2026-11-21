@@ -22,14 +22,15 @@ from __future__ import annotations
 import json
 import os
 import re
+from datetime import datetime
 from pathlib import Path
 
 HOME = "/root"
 
 # Tool names that load a skill by name, per host, and the parameter that carries the name.
-SKILL_TOOLS = {"opencode": {"skill": "name"}, "droid": {"Skill": "skill"}}
+SKILL_TOOLS = {"opencode": {"skill": "name"}, "droid": {"Skill": "skill"}, "claude-code": {"Skill": "skill"}, "codex": {}}
 # Tools that read a file by path (the path parameter differs by host).
-READ_TOOLS = {"opencode": {"read": "filePath"}, "droid": {"Read": "file_path"}}
+READ_TOOLS = {"opencode": {"read": "filePath"}, "droid": {"Read": "file_path"}, "claude-code": {"Read": "file_path"}, "codex": {}}
 # A command-line token ending in SKILL.md (quotes, redirects and separators end a token).
 SKILL_TOKEN = re.compile(r"[^\s'\"=;|&<>()]*SKILL\.md\b")
 
@@ -42,6 +43,24 @@ def _json_lines(path: Path):
             continue
 
 
+def _epoch(stamp: str) -> float:
+    return datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+
+
+def _codex_params(arguments) -> dict:
+    """Codex's shell tool arguments are a JSON string; `command` may be a list (argv) or `cmd` a string."""
+    try:
+        params = json.loads(arguments) if isinstance(arguments, str) else dict(arguments or {})
+    except ValueError:
+        return {}
+    command = params.get("command", params.get("cmd"))
+    if isinstance(command, list):
+        command = " ".join(str(part) for part in command)
+    if isinstance(command, str):
+        params["command"] = command
+    return params
+
+
 def tool_calls(attempt: Path, host: str) -> list[dict]:
     """Normalised tool calls from the host's record: {ts (epoch seconds), tool, params}."""
     calls = []
@@ -51,16 +70,29 @@ def tool_calls(attempt: Path, host: str) -> list[dict]:
                 part = event.get("part") or {}
                 if event.get("type") == "tool_use" and part.get("type") == "tool":
                     calls.append({"ts": event["timestamp"] / 1000, "tool": part.get("tool"), "params": (part.get("state") or {}).get("input") or {}})
-    else:
+    elif host == "droid":
         for log in attempt.rglob("droid.jsonl"):
             for event in _json_lines(log):
                 if event.get("type") == "tool_call":
                     calls.append({"ts": event["timestamp"] / 1000, "tool": event.get("toolName"), "params": event.get("parameters") or {}})
+    elif host == "claude-code":
+        for log in attempt.rglob("claude.jsonl"):
+            for event in _json_lines(log):
+                if event.get("type") == "assistant" and event.get("timestamp"):
+                    for block in (event.get("message") or {}).get("content") or []:
+                        if isinstance(block, dict) and block.get("type") == "tool_use":
+                            calls.append({"ts": _epoch(event["timestamp"]), "tool": block.get("name"), "params": block.get("input") or {}})
+    else:  # codex: the rollout files hold the model's calls with timestamps
+        for log in attempt.rglob("rollout-*.jsonl"):
+            for event in _json_lines(log):
+                payload = event.get("payload") or {}
+                if event.get("type") == "response_item" and payload.get("type") == "function_call":
+                    calls.append({"ts": _epoch(event["timestamp"]), "tool": payload.get("name"), "params": _codex_params(payload.get("arguments"))})
     return sorted(calls, key=lambda c: c["ts"])
 
 
 def _events(attempt: Path, host: str) -> list[dict]:
-    name = "opencode.txt" if host == "opencode" else "droid.jsonl"
+    name = "opencode.txt" if host == "opencode" else "droid.jsonl" if host == "droid" else "claude.jsonl"
     return [e for log in attempt.rglob(name) for e in _json_lines(log)]
 
 
@@ -68,8 +100,9 @@ def startup_end(attempt: Path, host: str) -> float | None:
     """Epoch seconds after which a SKILL.md open is no longer the catalogue scan.
 
     OpenCode finishes its scan about two seconds before its first model event, and its tool events are
-    stamped on completion, so the first event of any kind is the anchor. Droid's scan ends within 0.1 s
-    of its first reasoning event, so only its first tool call (stamped when issued) is safe.
+    stamped on completion, so the first event of any kind is the anchor. For every other host the anchor is the
+    first tool call, which is stamped when issued: Droid's scan ends within 0.1 s of its first reasoning event,
+    and Claude Code and Codex read their skills before the first request.
     """
     if host == "opencode":
         stamps = [e["timestamp"] / 1000 for e in _events(attempt, host) if "timestamp" in e]
@@ -79,11 +112,16 @@ def startup_end(attempt: Path, host: str) -> float | None:
 
 
 def session_cwd(attempt: Path, host: str) -> str | None:
-    """The working directory Droid records in its init event; OpenCode does not record one."""
-    if host == "droid":
+    """The working directory the host records (Droid and Claude Code in the init event, Codex in the turn context); OpenCode records none."""
+    if host in ("droid", "claude-code"):
         for event in _events(attempt, host):
             if event.get("type") == "system" and event.get("cwd"):
                 return event["cwd"]
+    if host == "codex":
+        for log in attempt.rglob("rollout-*.jsonl"):
+            for event in _json_lines(log):
+                if event.get("type") == "turn_context" and (event.get("payload") or {}).get("cwd"):
+                    return event["payload"]["cwd"]
     return None
 
 
@@ -184,15 +222,14 @@ def audit_loads(attempt: Path, host: str, skills: set[str]) -> dict[str, str]:
     return seen
 
 
-# Whether the audit can see a load made by this mechanism. Droid's Skill tool serves the body cached at
-# startup, so it opens no file; OpenCode's skill tool lists the skill directory but also serves a cached body.
-AUDIT_SEES = {
-    ("opencode", "skill tool call"): "directory open",
-    ("opencode", "read of SKILL.md"): "SKILL.md open",
-    ("opencode", "bash of SKILL.md"): "SKILL.md open",
-    ("droid", "Read of SKILL.md"): "SKILL.md open",
-    ("droid", "Execute of SKILL.md"): "SKILL.md open",
-}
+# Whether the audit can see a skill-tool load. Droid's and Claude Code's skill tools open no file, so the audit is
+# blind to them; OpenCode's lists the skill directory. A load that reads the file (`... of SKILL.md`) opens it, so
+# the audit sees a SKILL.md open.
+AUDIT_SEES = {("opencode", "skill tool call"): "directory open"}
+
+
+def audit_sees(host: str, how: str) -> str | None:
+    return "SKILL.md open" if how.endswith("of SKILL.md") else AUDIT_SEES.get((host, how))
 
 
 def verdict(attempt: Path, host: str) -> dict:
@@ -203,7 +240,7 @@ def verdict(attempt: Path, host: str) -> dict:
     loads = record["loads"]
     disagreements = []
     for name, how in sorted(loads.items()):
-        expected = AUDIT_SEES.get((host, how))
+        expected = audit_sees(host, how)
         if expected is None:
             disagreements.append({"skill": name, "cause": f"audit cannot see a load by {how}: the host opens no skill file for it"})
         elif name not in audit:
