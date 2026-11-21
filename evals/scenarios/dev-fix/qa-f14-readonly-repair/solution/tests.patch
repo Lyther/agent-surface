@@ -1,0 +1,110 @@
+diff --git a/tests/suites/install.test.mjs b/tests/suites/install.test.mjs
+index 8e1b233..13b1ebc 100644
+--- a/tests/suites/install.test.mjs
++++ b/tests/suites/install.test.mjs
+@@ -9,6 +9,7 @@ import { pathToFileURL } from "node:url";
+ import { parse as parseYaml } from "yaml";
+ import { parseJsonc, removeJsoncValue } from "../../scripts/agent-surface/jsonc.mjs";
+ import { whichSync } from "../../scripts/agent-surface/provision.mjs";
++import { reconcileExecuteBits } from "../../scripts/agent-surface/install.mjs";
+ import { mergeCodexMcpToml, mergeJsonMcpConfig, mergeYamlMcpConfig } from "../../scripts/agent-surface/merge.mjs";
+ import { writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
+ import { mergeSynapseHook, planSynapseHook, synapseHookCommand, synapseHookLauncher, synapseHookStatus } from "../../scripts/agent-surface/synapse-hook.mjs";
+@@ -738,7 +739,7 @@ assert.equal(Object.hasOwn(liveManifest.managed[0], "sha256"), false);
+   const replan = run(["install", "--target", "cline", "--dest", liveDest, "--dry-run"]);
+   assert.match(replan, new RegExp(`^  unchanged: ${liveManifest.managed.length} \\(not listed\\)$`, "m"));
+   assert.doesNotMatch(replan, /^  \S+ <- /m, "a fully installed root plans no write lines");
+-  assert.deepEqual(planCountsOf(replan), { write: 0, unchanged: liveManifest.managed.length, remove: 0, "already gone": 0, retain: 0, "config merges": 0, blocked: 0 });
++  assert.deepEqual(planCountsOf(replan), { write: 0, "permission changes": 0, unchanged: liveManifest.managed.length, remove: 0, "already gone": 0, retain: 0, "config merges": 0, blocked: 0 });
+   assert.equal(replan.match(/^plan total:/gm), null, "one plan prints no total");
+ 
+   const edited = path.join(liveDest, ".cline", "skills", "ops-ask", "SKILL.md");
+@@ -881,13 +882,21 @@ missingStaleManifest.managed.push({
+ writeFileSync(missingStaleManifestPath, `${JSON.stringify(missingStaleManifest, null, 2)}\n`);
+ // A removal whose file is already absent deletes nothing, so the plan counts it apart from removals.
+ const missingStalePlan = run(["install", "--target", "cline", "--dest", missingStaleDest, "--dry-run"]);
+-assert.match(missingStalePlan, /^counts: write 0, unchanged \d+, remove 0, already gone 1, retain 0, config merges 0, blocked 0$/m);
++assert.match(missingStalePlan, /^counts: write 0, permission changes 0, unchanged \d+, remove 0, already gone 1, retain 0, config merges 0, blocked 0$/m);
+ assert.match(missingStalePlan, /^  \.clinerules[\\/]workflows[\\/]already-gone\.md$/m);
+ const missingStaleInstall = run(["install", "--target", "cline", "--dest", missingStaleDest]);
+ assert.match(missingStaleInstall, /^installed:$/m);
+ assert.match(missingStaleInstall, /removed stale: 0/);
+ rmSync(missingStaleDest, { recursive: true, force: true });
+ 
++// Execute bits follow read bits and nothing else is touched, for both declared kinds of mode.
++for (const [existing, declared, expected] of [
++  [0o600, 0o755, 0o700], [0o644, 0o755, 0o755], [0o655, 0o755, 0o755], [0o700, 0o755, 0o700], [0o444, 0o755, 0o555],
++  [0o600, 0o644, 0o600], [0o755, 0o644, 0o644], [0o555, 0o644, 0o444], [0o100644, 0o644, 0o644],
++]) {
++  assert.equal(reconcileExecuteBits(existing, declared), expected, `${existing.toString(8)} against ${declared.toString(8)}`);
++}
++
+ // A helper whose declared mode is executable must stay executable where it is installed. A mode-only
+ // drift planned as "unchanged" left Antigravity's enabled copy stale with no reminder (605 unchanged,
+ // zero writes, no import NOTE). No shipped companion is executable, so one source file is made
+@@ -908,17 +917,21 @@ if (process.platform !== "win32") {
+       const installed = path.join(dest, relative);
+       assert.equal(statSync(installed).mode & 0o777, 0o755, `${target} installs the companion executable`);
+       // 0644 loses every execute bit; 0655 loses only the owner's, which still reads as executable to
+-      // an any-bit test while the owner's own run fails with EACCES.
+-      for (const drifted of [0o644, 0o655]) {
++      // an any-bit test while the owner's own run fails with EACCES. The bytes are right, so this is a
++      // permission change, not a write, and the repaired mode keeps what read grants.
++      for (const [drifted, repaired] of [[0o644, 0o755], [0o655, 0o755], [0o444, 0o555]]) {
+         chmodSync(installed, drifted);
+         const plan = run([...args, "--dry-run"]);
+-        assert.match(plan, /^counts: write 1, unchanged \d+,/m, `${target} ${drifted.toString(8)}`);
+-        assert.ok(plan.includes(`  ${relative} <- skills/ops-docs/references/sop-template.md`), `${target} lists the drifted companion`);
++        assert.match(plan, /^counts: write 0, permission changes 1, unchanged \d+,/m, `${target} ${drifted.toString(8)}`);
++        assert.ok(plan.includes(`  ${relative} permissions ${drifted.toString(8).padStart(4, "0")} -> ${repaired.toString(8).padStart(4, "0")} (bytes unchanged)`), `${target} lists the drifted companion`);
++        const before = readFileSync(installed, "utf8");
+         const apply = run(args);
+-        assert.match(apply, /^ {2}wrote: 1$/m, target);
+-        assert.equal(statSync(installed).mode & 0o777, 0o755, `${target} apply restores the executable bits`);
+-        if (target === "antigravity-cli") assert.match(apply, /^NOTE: Antigravity runs its imported copy/m);
+-        assert.match(run([...args, "--dry-run"]), /^counts: write 0, /m, `${target} is unchanged once restored`);
++        assert.match(apply, /^ {2}wrote: 0$/m, target);
++        assert.match(apply, /^ {2}permission changes: 1$/m, target);
++        assert.equal(statSync(installed).mode & 0o777, repaired, `${target} apply repairs the execute bits`);
++        assert.equal(readFileSync(installed, "utf8"), before, `${target} keeps the bytes`);
++        if (target === "antigravity-cli") assert.match(apply, /^NOTE: Antigravity runs its imported copy/m, "a permission-only change reaches the import too");
++        assert.match(run([...args, "--dry-run"]), /^counts: write 0, permission changes 0, /m, `${target} is unchanged once repaired`);
+       }
+       rmSync(dest, { recursive: true, force: true });
+     }
+@@ -927,6 +940,35 @@ if (process.platform !== "win32") {
+   }
+ }
+ 
++// The operator's umask decides the read and write bits of an installed file; only execute is the
++// installer's. Under 077 a fresh executable companion is 0700, an identical reinstall changes nothing
++// (it used to widen 0700 to 0755 while reporting zero writes), and a drifted file is repaired from its
++// own mode.
++if (process.platform !== "win32") {
++  const companion = path.join(root, "skills", "ops-docs", "references", "sop-template.md");
++  const companionMode = statSync(companion).mode;
++  chmodSync(companion, 0o755);
++  const previousUmask = process.umask(0o077);
++  try {
++    const dest = ownTmp("umask-companion");
++    rmSync(dest, { recursive: true, force: true });
++    const args = ["install", "--target", "cline", "--dest", dest];
++    const installed = path.join(dest, ".cline", "skills", "ops-docs", "references", "sop-template.md");
++    run(args);
++    assert.equal(statSync(installed).mode & 0o777, 0o700, "a new executable file follows the creation mask");
++    const preview = run([...args, "--dry-run"]);
++    assert.match(preview, /^counts: write 0, permission changes 0, /m);
++    const reinstall = run(args);
++    assert.match(reinstall, /^ {2}wrote: 0$/m);
++    assert.match(reinstall, /^ {2}permission changes: 0$/m);
++    assert.equal(statSync(installed).mode & 0o777, 0o700, "an unchanged file keeps its mode");
++    rmSync(dest, { recursive: true, force: true });
++  } finally {
++    process.umask(previousUmask);
++    chmodSync(companion, companionMode & 0o777);
++  }
++}
++
+ // The repeat preview must equal the apply. The first-party launchers here are env-shebang scripts, so
+ // apply wires them through the env launcher; a preview planned without that wiring counted a config
+ // merge that apply then discarded.

@@ -1,0 +1,130 @@
+diff --git a/scripts/agent-surface/install.mjs b/scripts/agent-surface/install.mjs
+index 6a1518f..0692c5b 100644
+--- a/scripts/agent-surface/install.mjs
++++ b/scripts/agent-surface/install.mjs
+@@ -860,8 +860,15 @@ async function replaceFile(target, content, mode) {
+ 
+ // Windows has no POSIX mode bits to set, and a failure to set one must not abort an install that
+ // otherwise succeeded — the file is written either way, and its content is the deliverable.
+-// The exact execute bits: owner-only loss (0655) still reads as executable to an any-bit test.
+-const executeBits = (mode) => mode & 0o111;
++// Reconcile only the execute bits of an installed file with a declared mode. Read and write bits are
++// the operator's (a 0600 document stays private under their umask), so a declared executable gets
++// execute wherever read is granted and a declared non-executable loses execute, nothing more. Owner-only
++// loss (0655) is repaired too, since the owner then cannot run the helper.
++export function reconcileExecuteBits(existing, declared) {
++  const current = existing & 0o777;
++  if ((declared & 0o111) !== 0) return current | ((current & 0o444) >> 2);
++  return current & ~0o111;
++}
+ 
+ async function applyOutputMode(target, mode) {
+   await chmod(target, mode).catch(() => { /* best effort on platforms without POSIX modes */ });
+@@ -987,11 +994,16 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
+       continue;
+     }
+ 
+-    // A declared mode is part of the output: a helper restored non-executable must plan as a write,
+-    // or the plan says "unchanged" while the host's enabled copy stays unrunnable.
+-    const modeDrifted = item.mode !== undefined && process.platform !== "win32"
+-      && executeBits((await stat(item.output)).mode) !== executeBits(item.mode);
+-    item.action = current.toString("utf8") === item.content && !modeDrifted ? "skip" : "write";
++    // A declared mode is part of the output: a helper restored non-executable must be repaired, or the
++    // plan says "unchanged" while the host's enabled copy stays unrunnable. Only execute bits are
++    // reconciled, from the file's own mode, and a pure permission drift never rewrites the bytes.
++    if (item.mode !== undefined && process.platform !== "win32") {
++      item.fromMode = (await stat(item.output)).mode & 0o777;
++      const reconciled = reconcileExecuteBits(item.fromMode, item.mode);
++      if (reconciled !== item.fromMode) item.toMode = reconciled;
++    }
++    const sameBytes = current.toString("utf8") === item.content;
++    item.action = !sameBytes ? "write" : item.toMode === undefined ? "skip" : "permissions";
+   }
+ 
+   const partialInstall = categoryFilter !== null || optionalServices !== null;
+@@ -1784,8 +1796,12 @@ function printInstallPlan(plan) {
+   // Identical files are counted, not listed: a plan that names every unchanged file buries the few
+   // that change (a fully installed all-target plan was thousands of lines of "planned writes").
+   console.log("planned writes:");
+-  for (const item of plan.writes.filter((write) => write.action !== "skip")) {
+-    console.log(`  ${path.relative(plan.installRoot, item.output)} <- ${item.source}`);
++  const octal = (mode) => mode.toString(8).padStart(4, "0");
++  for (const item of plan.writes.filter((write) => write.action === "write" || write.action === "permissions")) {
++    const relativeOutput = path.relative(plan.installRoot, item.output);
++    const change = item.toMode === undefined ? "" : `${octal(item.fromMode)} -> ${octal(item.toMode)}`;
++    if (item.action === "permissions") console.log(`  ${relativeOutput} permissions ${change} (bytes unchanged)`);
++    else console.log(`  ${relativeOutput} <- ${item.source}${change === "" ? "" : ` (permissions ${change})`}`);
+   }
+   console.log(`  unchanged: ${plan.writes.filter((write) => write.action === "skip").length} (not listed)`);
+   const removes = plan.staleRemovalActions
+@@ -1884,12 +1900,13 @@ function printInstallPlan(plan) {
+   }
+ }
+ 
+-const PLAN_COUNT_LABELS = [["write", "write"], ["unchanged", "unchanged"], ["remove", "remove"], ["alreadyGone", "already gone"], ["retain", "retain"], ["configMerges", "config merges"], ["blocked", "blocked"]];
++const PLAN_COUNT_LABELS = [["write", "write"], ["permissionChanges", "permission changes"], ["unchanged", "unchanged"], ["remove", "remove"], ["alreadyGone", "already gone"], ["retain", "retain"], ["configMerges", "config merges"], ["blocked", "blocked"]];
+ 
+ function planCounts(plan) {
+   const staleCount = (...actions) => plan.staleRemovalActions.filter((item) => actions.includes(item.action)).length;
+   return {
+     write: plan.writes.filter((item) => item.action === "write").length,
++    permissionChanges: plan.writes.filter((item) => item.toMode !== undefined).length,
+     unchanged: plan.writes.filter((item) => item.action === "skip").length,
+     // Full syncs re-list legacy-owned paths every run; those already absent delete nothing.
+     remove: staleCount("remove"),
+@@ -1977,22 +1994,33 @@ async function applyInstallPlan(plan) {
+   let skipped = 0;
+   let removed = 0;
+   let configMerges = 0;
++  let permissionChanges = 0;
+ 
+   await mkdir(plan.installRoot, { recursive: true });
+ 
+   for (const item of plan.writes) {
+     if (item.action === "skip") {
+-      // Identical content, but a mode the output declares still has to hold: a companion script
+-      // restored from a non-executable copy would otherwise stay unrunnable forever.
+-      if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
+       skipped += 1;
+       continue;
+     }
+     await assertInstallPath(plan.installRoot, item.output, `managed output ${item.relativeOutput}`);
++    if (item.action === "permissions") {
++      // chmod follows links, so only a regular file this plan saw is touched; the bytes stay as they are.
++      const info = await lstat(item.output);
++      if (!info.isFile()) throw new Error(`managed output ${item.relativeOutput} is not a regular file; its permissions are left as they are`);
++      await chmod(item.output, item.toMode);
++      permissionChanges += 1;
++      continue;
++    }
+     await mkdir(path.dirname(item.output), { recursive: true });
+     await assertInstallPath(plan.installRoot, item.output, `managed output ${item.relativeOutput}`);
+-    await writeFile(item.output, item.content);
+-    if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
++    // A new file is created with the declared kind of mode so the operator's umask applies at creation.
++    const creationMode = item.mode === undefined || process.platform === "win32" ? undefined : (item.mode & 0o111) !== 0 ? 0o777 : 0o666;
++    await writeFile(item.output, item.content, creationMode === undefined ? undefined : { mode: creationMode });
++    if (item.toMode !== undefined) {
++      await chmod(item.output, item.toMode);
++      permissionChanges += 1;
++    }
+     written += 1;
+   }
+ 
+@@ -2021,6 +2049,7 @@ async function applyInstallPlan(plan) {
+ 
+   console.log("installed:");
+   console.log(`  wrote: ${written}`);
++  console.log(`  permission changes: ${permissionChanges}`);
+   console.log(`  skipped unchanged: ${skipped}`);
+   console.log(`  removed stale: ${removed}`);
+   console.log(`  config merges: ${configMerges}`);
+@@ -2030,7 +2059,7 @@ async function applyInstallPlan(plan) {
+   }
+   // Antigravity runs the copy `agy plugin install` imported, so a change to the staged plugin reaches it
+   // only through another import; redistributions left it on months-old skills while nothing said so.
+-  if (plan.target === "antigravity-cli" && written + removed + configMerges > 0) {
++  if (plan.target === "antigravity-cli" && written + permissionChanges + removed + configMerges > 0) {
+     const plugin = path.join(plan.installRoot, antigravityCliStagedPlugin);
+     console.log(`NOTE: Antigravity runs its imported copy of this plugin, not these files; import them with: agy plugin install "${plugin}"`);
+   }

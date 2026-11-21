@@ -1,0 +1,42 @@
+diff --git a/scripts/agent-surface/provision.mjs b/scripts/agent-surface/provision.mjs
+index ce5af76..67aac01 100644
+--- a/scripts/agent-surface/provision.mjs
++++ b/scripts/agent-surface/provision.mjs
+@@ -12,7 +12,7 @@
+ // command is present (or that declares none), so Linux picks the actual package manager instead of
+ // assuming apt.
+ import { spawnSync } from "node:child_process";
+-import { statSync } from "node:fs";
++import { accessSync, constants, statSync } from "node:fs";
+ import os from "node:os";
+ import path from "node:path";
+ import { expandHome } from "./mcp-env-launch.mjs";
+@@ -32,9 +32,9 @@ function hasWindowsExecutableExtension(target, env) {
+   return ext !== "" && windowsExtensions(env).includes(ext);
+ }
+ 
+-// A usable launch binary must be a regular file the OS will actually execute: on POSIX any execute
+-// bit set, on Windows a PATHEXT extension. A directory, a non-executable regular file, and (on
+-// Windows) an extensionless or non-PATHEXT file are all NOT usable — so a declared POSIX-style
++// A usable launch binary must be a regular file the OS will actually execute: on POSIX
++// execute access for the current user, on Windows a PATHEXT extension. A directory, a non-executable
++// regular file, and (on Windows) an extensionless or non-PATHEXT file are all NOT usable — so a declared POSIX-style
+ // location such as `~/.local/bin/uv` is correctly rejected on Windows instead of reading satisfied.
+ // Only the executability RULE is platform-driven; path mechanics stay native (on real Windows the
+ // native path API is already the win32 one), so this is testable against a real filesystem.
+@@ -47,7 +47,14 @@ export function isExecutableFile(target, platform = PLATFORM, env = process.env)
+   }
+   if (!info.isFile()) return false;
+   if (platform === "win32") return hasWindowsExecutableExtension(target, env);
+-  return (info.mode & 0o111) !== 0;
++  // The OS's own answer for this user: a bit set only for group or other (0655) would pass a mode
++  // test while launching the file fails with EACCES.
++  try {
++    accessSync(target, constants.X_OK);
++    return true;
++  } catch {
++    return false;
++  }
+ }
+ 
+ // Dependency-free PATH resolution (no `which`/`command -v` subshell): scan PATH, honoring PATHEXT

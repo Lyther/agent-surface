@@ -67,7 +67,36 @@ One row per attempt: `scenario`, `arm`, `host`, `model`, `rep`, versions, `sourc
 
 ## Scenarios
 
-`scenarios/dev-fix/spike-01/` is a Harbor task. The hidden verifier in `tests/` checks the fix and that a regression test was added that fails on the original code.
+Each is a Harbor task under `scenarios/dev-fix/`: `instruction.md`, `environment/`, hidden `tests/` and `solution/`.
+
+- `spike-01` is the runner spike (a toy pager bug).
+- `qa-f10-launcher-exec-bit`, `qa-f13-umask-widening` and `qa-f14-readonly-repair` rebuild three defects an external QA round found in this repository's installer, at the parent of the commit that fixed each:
+
+| Task | Pre-fix tree | Real fix |
+|---|---|---|
+| `qa-f10-launcher-exec-bit` | `8409748` | `3e49f8d` |
+| `qa-f13-umask-widening` | `3cc20e1` | `ad6e446` |
+| `qa-f14-readonly-repair` | `3cc20e1` | `ad6e446` |
+
+F13 and F14 share one fix commit and tree; each verifier checks its own symptom.
+
+Instructions are the QA finding's own text (`observed` and `impact`, verbatim), the environment facts and a plain "Fix it."; they do not ask for a test or a test run, because the `dev-fix` cohort measures those behaviours. The verifier still requires a regression test that fails on the pre-fix tree. Where the finding's wording cannot be reproduced on the pre-fix tree (no shipped companion declares a mode), a reproduction hint is added. Sources, in this repository's `.agent-surface/readiness/whole-codebase/`: F10 `20261120-r4-79961fc-131104/readiness.json`, F13 and F14 `20261120-r5-555fa5e-141618/readiness.json` (finding ids F10, F13, F14).
+
+`/app` contains the repository's own `skills/` tree, including `skills/dev-fix/SKILL.md`. Both arms see it; the detector reports reads of workspace copies separately from loads (SQ0.2).
+
+Layout of a QA-history task:
+
+- `environment/app.tar.gz` is `git archive` of the pre-fix commit. The image (node 22, digest pinned) unpacks it to `/app` and an identical pristine copy to `/opt/base`, with an unprivileged user `qa` (root bypasses permission checks, so the defects cannot reproduce as root).
+- F13 and F14 also need the installer's registered skill packs and the machine state CI provides. `submodules.txt` pins the pack commits, fetched at image build, and the Dockerfile provisions browsers, a digest-pinned uv (0.12.17, copied from the official image) and the repository's own MCP launchers. That is the only network step; verification is offline.
+- `tests/world.py` (a copy of `evals/world.py`; keep them identical) grades the world in scratch copies, as `qa`, with four stages that all run:
+  1. `weakening`: no base test file deleted, no drop in assertion calls, no added skip markers, `tests/run.mjs` still runs every base suite;
+  2. `suites`: the affected existing suites pass on the agent's tree;
+  3. `regression`: `tests/check_regression.mjs`, a standalone check extracted from the fix's regression assertions that is never shipped with the task and does not depend on wording the bug report did not give;
+  4. `discriminate`: at least one test file the agent added or changed fails on the pre-fix source and passes on the agent's tree.
+- `tests/test.sh` writes reward 1 only when every stage holds; `/logs/verifier/world.log` shows which failed.
+- `solution/solve.sh` applies the real fix (`fix.patch`) and its regression test (`tests.patch`). `solution/solve-code-only.sh` applies the code alone; it is a qualification fixture, and the verifier must score it 0.
+
+Qualify a task with oracle (1), nop (0) and a copy of the task whose `solve.sh` is `solve-code-only.sh` (0). The apt packages are not pinned, so the built image ID is what makes an environment reproducible; the IDs used for qualification are in the SQ0.6 receipts. Limits: assertion counting is textual, so an assertion rewritten in place is not caught; stage 4 accepts any failure on the pre-fix tree, including a missing export.
 
 ## Tests
 
