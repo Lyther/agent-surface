@@ -2725,12 +2725,30 @@ try {
     assert.deepEqual(readdirSync(home), [], "the reinstall leaves HOME empty");
   }
 
+  // install's --service only ever names MCP servers: a skill-pack id fails the same way with and
+  // without the switch, so --no-mcps adds no conflict claim of its own for it. An MCP server named
+  // beside it is refused by naming that server.
+  {
+    const args = ["install", "--target", "opencode", "--scope", "user", "--category", "development", "--service", "open-code-review", "--dry-run"];
+    const home = emptyHome("pack");
+    const plain = status([...args, "--dest", path.join(noMcpsRoot, "pack")], { env: renderOnlyEnv(home) });
+    const switched = status([...args, "--no-mcps", "--dest", path.join(noMcpsRoot, "pack")], { env: renderOnlyEnv(home) });
+    assert.equal(switched.status, plain.status, "the switch leaves a skill-pack --service outcome as it was");
+    assert.equal(switched.stderr, plain.stderr, "and its message");
+    assert.doesNotMatch(switched.stderr, /--no-mcps/, "the switch is not blamed for it");
+    const mixed = status(["install", "--target", "opencode", "--scope", "user", "--dest", path.join(noMcpsRoot, "pack-mixed"), "--category", "development", "--service", "open-code-review,chrome-devtools", "--no-mcps"], { env: renderOnlyEnv(emptyHome("pack-mixed")) });
+    assert.equal(mixed.status, 1, "a named MCP server is refused");
+    assert.match(mixed.stderr, /--no-mcps conflicts with --service chrome-devtools:/, "the error names the MCP server");
+    assert.doesNotMatch(mixed.stderr, /open-code-review/, "the skill-pack is not blamed");
+    assert.ok(!existsSync(path.join(noMcpsRoot, "pack-mixed")), "a refused install writes nothing");
+  }
+
   // The switch contradicts a selection that is only MCPs.
   for (const selection of [["--category", "mcps"], ["--category", "mcps", "--service", "synapse"], ["--category", "development", "--service", "chrome-devtools"]]) {
     const result = status(["install", "--target", "claude-code", "--scope", "user", "--dest", path.join(noMcpsRoot, "conflict"), "--no-mcps", ...selection], { env: renderOnlyEnv(emptyHome("conflict")) });
     assert.equal(result.status, 1, `--no-mcps ${selection.join(" ")} is refused`);
     assert.match(result.stderr, /--no-mcps/, "the error names the switch");
-    assert.match(result.stderr, new RegExp(selection.includes("--service") ? "--service" : "--category mcps"), "the error names the conflicting option");
+    assert.match(result.stderr, new RegExp(selection.includes("mcps") ? "--category mcps" : "--service"), "the error names the conflicting option");
     assert.ok(!existsSync(path.join(noMcpsRoot, "conflict")), "a refused install writes nothing");
   }
 }
