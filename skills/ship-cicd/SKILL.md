@@ -55,7 +55,7 @@ Pre-commit config (`.pre-commit-config.yaml`):
 ```yaml
 repos:
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.18.2
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e  # v8.30.1
     hooks:
       - id: gitleaks
 ```
@@ -70,17 +70,17 @@ jobs:
   source:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
       - run: make verify-source
 
   artifact:
     needs: source
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
       - run: ./scripts/build_artifact.sh
       - run: make verify-artifact
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: release-artifact
           path: |
@@ -91,8 +91,8 @@ jobs:
     needs: artifact
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: release-artifact
       - run: make verify-bundle   # pulls the image by the digest in release-manifest.json
