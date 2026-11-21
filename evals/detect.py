@@ -26,6 +26,8 @@ from datetime import datetime
 from pathlib import Path
 
 HOME = "/root"
+# More unmatched audit opens than this in one attempt are a rescan of the whole catalogue.
+RESCAN_MIN = 5
 
 # Tool names that load a skill by name, per host, and the parameter that carries the name.
 SKILL_TOOLS = {"opencode": {"skill": "name"}, "droid": {"Skill": "skill"}, "claude-code": {"Skill": "skill"}, "codex": {}}
@@ -245,8 +247,12 @@ def verdict(attempt: Path, host: str) -> dict:
             disagreements.append({"skill": name, "cause": f"audit cannot see a load by {how}: the host opens no skill file for it"})
         elif name not in audit:
             disagreements.append({"skill": name, "cause": f"{how} recorded but no {expected} after the startup scan"})
-    for name, how in sorted(audit.items()):
-        if name not in loads:
+    unmatched = [(name, how) for name, how in sorted(audit.items()) if name not in loads]
+    if len(unmatched) > RESCAN_MIN:
+        # Claude Code reopens every installed SKILL.md after its first read of a skill file; one entry says so.
+        disagreements.append({"skill": "*", "cause": f"{len(unmatched)} SKILL.md files opened after the startup scan with no matching tool call: a catalogue rescan, not loads"})
+    else:
+        for name, how in unmatched:
             disagreements.append({"skill": name, "cause": f"{how} after the startup scan with no matching tool call in the host record"})
     return {
         "loaded": sorted(loads),

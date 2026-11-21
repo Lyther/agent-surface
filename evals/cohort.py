@@ -1,8 +1,8 @@
-"""Run a seeded cohort of Harbor attempts from prebuilt arm images and append one JSONL ledger row per attempt.
+"""Run a seeded cohort of Harbor attempts from host images and rendered arms, and append one JSONL ledger row per attempt.
 
-Usage: cohort.py --images OUT/images.json --scenario DIR [--scenario DIR ...] --out DIR
-                 [--hosts opencode,droid] [--arms A,B] [--reps 2] [--seed 1] [--concurrency 4]
-Each attempt is one fresh container from the host-and-arm image (`evals/images.py`). Hosts: opencode (free
+Usage: cohort.py --host-images hosts.json --arms arms.json --scenario DIR [--scenario DIR ...] --out DIR
+                 [--hosts opencode,droid] [--profiles dev] [--reps 2] [--seed 1] [--concurrency 4]
+Each attempt is one fresh container from the host image (`evals/images.py`) with the profile's arm tarball (`evals/arms.py`) extracted into HOME. Hosts: opencode (free
 model, no credential), droid, and claude-code and codex through an OpenAI- and Anthropic-compatible gateway (`gateway.py`). Keys are read from stdin, one `NAME=value`
 per line (a bare first line is the Factory key), and exported only into the harbor child's environment. After each attempt `evals/scrub.py` scans its receipts; a hit
 quarantines the attempt, ledgers it as `quarantined` and stops the cohort.
@@ -21,10 +21,10 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from evals.arms import SKILL_DIRS
+from evals.arms import DESC_ARM, SKILL_DIRS, load_arms
 from evals.detect import verdict
 from evals.gateway import GATEWAY_HOSTS, KEY_ENV, NO_PROXY_ENV, URL_ENV, gateway_url, no_proxy
-from evals.images import image_skills, write_task
+from evals.images import write_task
 from evals.scrub import Secret, parse_secrets, scan_receipt
 
 HOSTS = {
@@ -47,8 +47,8 @@ def now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def plan(scenarios: list[str], hosts: list[str], arms: list[str], seed: int, reps: int) -> list[tuple[str, str, str, int]]:
-    cells = list(itertools.product(scenarios, hosts, arms, range(1, reps + 1)))
+def plan(scenarios: list[str], hosts: list[str], profiles: list[str], seed: int, reps: int) -> list[tuple[str, str, str, int]]:
+    cells = list(itertools.product(scenarios, hosts, profiles, range(1, reps + 1)))
     random.Random(seed).shuffle(cells)
     return cells
 
@@ -68,7 +68,7 @@ def span(trial: dict, phase: str) -> float | None:
     return round((datetime.strptime(block["finished_at"], fmt) - datetime.strptime(block["started_at"], fmt)).total_seconds(), 1)
 
 
-def ledger_row(scenario: str, host: str, arm: str, rep: int, image: dict, started: str, exit_code: int, job_dir: Path) -> dict:
+def ledger_row(scenario: str, host: str, profile: str, rep: int, image: dict, arm: dict, started: str, exit_code: int, job_dir: Path) -> dict:
     trial = read_trial(job_dir)
     agent_result = trial.get("agent_result") or {}
     metadata = agent_result.get("metadata") or {}
@@ -77,14 +77,15 @@ def ledger_row(scenario: str, host: str, arm: str, rep: int, image: dict, starte
     detected = verdict(job_dir, host)
     return {
         "scenario": scenario,
-        "arm": arm,
+        "profile": profile,
+        "desc_arm": DESC_ARM,
         "host": host,
         "model": HOSTS[host]["model"],
         "rep": rep,
         "harbor": (trial.get("agent_info") or {}).get("name"),
         "cli_version": (trial.get("agent_info") or {}).get("version"),
-        "source_commit": image["source_commit"],
-        "overlay_sha256": image["overlay_sha256"],
+        "source_commit": arm["source_commit"],
+        "arm_sha256": arm["arm_sha256"],
         "image_id": image["image_id"],
         "started": started,
         "ended": now(),
@@ -98,12 +99,13 @@ def ledger_row(scenario: str, host: str, arm: str, rep: int, image: dict, starte
         "failed_skill_lookups": detected["failed_lookups"],
         "audit_disagreements": detected["disagreements"],
         "skill_files_scanned": detected["scanned"],
-        "dev_fix_installed": "dev-fix" in image["skills"],
+        "dev_fix_installed": "dev-fix" in arm["skills"],
         "cost_usd": agent_result.get("cost_usd"),
         "factory_credits": metadata.get("factory_credits"),
         "tokens_in": agent_result.get("n_input_tokens"),
         "tokens_out": agent_result.get("n_output_tokens"),
         "tokens_cache": agent_result.get("n_cache_tokens"),
+        "model_requests": metadata.get("model_requests"),
         "seconds_total": None,
         "seconds_setup": span(trial, "agent_setup"),
         "seconds_agent": span(trial, "agent_execution"),
@@ -137,40 +139,40 @@ def injected_secrets(keys: dict[str, str]) -> list[Secret]:
     return parse_secrets([f"{name}={value}" for name, value in sorted(keys.items()) if value])
 
 
-def finish_attempt(cell: tuple, image: dict, started: str, exit_code: int, out: Path, secrets: list[Secret], ledger: Path, seconds: float | None = None) -> bool:
+def finish_attempt(cell: tuple, image: dict, arm: dict, started: str, exit_code: int, out: Path, secrets: list[Secret], ledger: Path, seconds: float | None = None) -> bool:
     """Scan the attempt's receipts, append its ledger row, and return True when the cohort must stop.
 
     The container is already removed and its files are in `jobs/<name>`. A hit quarantines the attempt's
     receipts and ledgers `status: quarantined` with the hit count and label or pattern names, never matched
     text; the row carries no verdict or cost, because a leaked attempt is not scored.
     """
-    scenario, host, arm, rep = cell
-    name = f"{scenario}-{host}-{arm}-{rep}"
+    scenario, host, profile, rep = cell
+    name = f"{scenario}-{host}-{profile}-{rep}"
     receipts = [out / "jobs" / name, out / "logs" / f"{name}.log", out / "tasks" / name]
     hits = [hit for path in receipts if path.exists() for hit in scan_receipt(path, secrets, out / "quarantine")]
     if hits:
-        row = {"scenario": scenario, "arm": arm, "host": host, "rep": rep, "status": "quarantined",
+        row = {"scenario": scenario, "profile": profile, "host": host, "rep": rep, "status": "quarantined",
                "hits": len(hits), "hit_names": sorted({hit.name for hit in hits}), "ended": now()}
     else:
-        row = ledger_row(scenario, host, arm, rep, image, started, exit_code, out / "jobs" / name)
+        row = ledger_row(scenario, host, profile, rep, image, arm, started, exit_code, out / "jobs" / name)
         row["seconds_total"] = None if seconds is None else round(seconds, 1)
     with ledger.open("a") as f:
         f.write(json.dumps(row) + "\n")
     return bool(hits)
 
 
-async def attempt(cell: tuple, args, images: dict, keys: dict[str, str]) -> tuple[str, int, float]:
+async def attempt(cell: tuple, args, images: dict, arms: dict, keys: dict[str, str]) -> tuple[str, int, float]:
     """Run one attempt through Harbor; returns (started, harbor exit code, wall seconds)."""
-    scenario, host, arm, rep = cell
-    name = f"{scenario}-{host}-{arm}-{rep}"
+    scenario, host, profile, rep = cell
+    name = f"{scenario}-{host}-{profile}-{rep}"
     jobs = args.out / "jobs"
     if (jobs / name).exists():
         raise SystemExit(f"attempt directory exists, not reused: {jobs / name}")
-    image = images[f"{host}-{arm}"]
+    image, arm = images[host], arms[f"{host}-{profile}"]
     skill_file = f"/root/{SKILL_DIRS[host][0]}/dev-fix/SKILL.md"
-    task = write_task(args.scenarios[scenario], image["tag"], args.out / "tasks" / name, {"skill_file": skill_file})
+    task = write_task(args.scenarios[scenario], image, args.out / "tasks" / name, {"skill_file": skill_file})
     env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG", "USER") if k in os.environ}
-    env.update(HARBOR_TELEMETRY="0", PYTHONPATH=str(EVALS_DIR.parent))
+    env.update(HARBOR_TELEMETRY="0", PYTHONPATH=str(EVALS_DIR.parent), SQ_ARM_TARBALL=arm["tarball"], SQ_ARM_SHA256=arm["arm_sha256"])
     if host in GATEWAY_HOSTS:  # the agent reads the gateway address at run time
         env.update({URL_ENV: gateway_url(), NO_PROXY_ENV: no_proxy()})
     if HOST_KEY.get(host) in keys:
@@ -215,26 +217,25 @@ async def main(args) -> None:
     if GATEWAY_HOSTS and set(GATEWAY_HOSTS) & set(args.hosts.split(",")):
         gateway_url(), no_proxy()  # fail before any attempt, naming the missing variable
     args.out.mkdir(parents=True, exist_ok=True)
-    images = json.loads(args.images.read_text())
-    for row in images.values():
-        row["skills"] = image_skills(row["tag"])
+    images = json.loads(args.host_images.read_text())
+    arms = load_arms(args.arms)
     args.scenarios = {scenario_name(p): p for p in args.scenario}
     ledger = args.out / "ledger.jsonl"
-    done = {(r["scenario"], r["host"], r["arm"], r["rep"]) for r in map(json.loads, ledger.read_text().splitlines())} if ledger.exists() else set()
-    everything = plan(sorted(args.scenarios), args.hosts.split(","), args.arms.split(","), args.seed, args.reps)
+    done = {(r["scenario"], r["host"], r["profile"], r["rep"]) for r in map(json.loads, ledger.read_text().splitlines())} if ledger.exists() else set()
+    everything = plan(sorted(args.scenarios), args.hosts.split(","), args.profiles.split(","), args.seed, args.reps)
     (args.out / "order.json").write_text(json.dumps(everything) + "\n")
     order = [c for c in everything if tuple(c) not in done]
     spent = 0
     inflight_droid = 0
 
     def skip(cell, why: str) -> None:
-        scenario, host, arm, rep = cell
+        scenario, host, profile, rep = cell
         with ledger.open("a") as f:
-            f.write(json.dumps({"scenario": scenario, "arm": arm, "host": host, "rep": rep, "skipped": why}) + "\n")
+            f.write(json.dumps({"scenario": scenario, "profile": profile, "host": host, "rep": rep, "skipped": why}) + "\n")
 
     async def run_cell(cell) -> bool:
         nonlocal spent, inflight_droid
-        scenario, host, arm, rep = cell
+        scenario, host, profile, rep = cell
         if host in HOST_KEY and HOST_KEY[host] not in keys:
             skip(cell, f"no {HOST_KEY[host]} on stdin")
             return False
@@ -244,13 +245,15 @@ async def main(args) -> None:
                 return False
             inflight_droid += 1
         try:
-            started, code, seconds = await attempt(cell, args, images, keys)
+            started, code, seconds = await attempt(cell, args, images, arms, keys)
         finally:
             if host == "droid":
                 inflight_droid -= 1
-        stop = finish_attempt(cell, images[f"{host}-{arm}"], started, code, args.out, injected_secrets(keys), ledger, seconds)
+        stop = finish_attempt(cell, images[host], arms[f"{host}-{profile}"], started, code, args.out, injected_secrets(keys), ledger, seconds)
         if host == "droid":
-            spent += int(json.loads(ledger.read_text().splitlines()[-1]).get("factory_credits") or CREDIT_RESERVE_PER_ATTEMPT)
+            last = json.loads(ledger.read_text().splitlines()[-1])
+            # An attempt that failed before the model ran spent nothing; any other without a reading is charged the reserve.
+            spent += int(last.get("factory_credits") or (0 if last.get("exception") else CREDIT_RESERVE_PER_ATTEMPT))
         return stop
 
     if await run_order(order, run_cell, args.concurrency):
@@ -259,11 +262,12 @@ async def main(args) -> None:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--images", type=Path, required=True)
+    ap.add_argument("--host-images", type=Path, required=True)
+    ap.add_argument("--arms", type=Path, required=True)
     ap.add_argument("--scenario", type=Path, action="append", required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--hosts", default="opencode,droid")
-    ap.add_argument("--arms", default="A,B")
+    ap.add_argument("--profiles", default="dev")
     ap.add_argument("--reps", type=int, default=2)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--concurrency", type=int, default=4)

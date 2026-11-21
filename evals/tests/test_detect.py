@@ -143,6 +143,14 @@ class Constructed(unittest.TestCase):
             self.assertEqual(got["loaded"], ["qa-review"])
             self.assertEqual(got["workspace_skill_reads"], [])
 
+    def test_a_catalogue_rescan_is_one_disagreement_not_loads(self):
+        names = [f"s{i}" for i in range(8)]
+        opens = [(1002.0 + i / 100, n) for i, n in enumerate(names)]
+        got = verdict(self.attempt("claude-code", [("Bash", {"command": "true"})], installed=names, opens=opens), "claude-code")
+        self.assertEqual(got["loaded"], [])
+        self.assertEqual(len(got["disagreements"]), 1)
+        self.assertIn("catalogue rescan", got["disagreements"][0]["cause"])
+
     def test_leading_cd_resolves_a_relative_installed_path(self):
         command = f"cd /root/{SKILL_DIRS['droid']}/qa-review && cat SKILL.md"
         self.assertEqual(verdict(self.attempt("droid", [("Execute", {"command": command})]), "droid")["loaded"], ["qa-review"])

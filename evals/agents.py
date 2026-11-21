@@ -1,6 +1,7 @@
 """Harbor agents for containers started from a prebuilt arm image (`evals/images.py`).
 
-The host CLI and the arm's profile are already in the image, so `install` only proves they are there.
+The host CLI is in the image. `install` uploads the attempt's arm tarball (SQ_ARM_TARBALL, checked against
+SQ_ARM_SHA256) and extracts it into HOME before the agent starts; the harbor setup time is that step.
 Keys come from the harbor process environment (FACTORY_API_KEY for Droid, LAB_GATEWAY_KEY for Claude Code and
 Codex through the gateway), never from argv: the agents start the host CLI with `docker exec -e NAME`, so the value
 is inherited from this process and stays out of every command line.
@@ -21,7 +22,7 @@ from harbor.environments.base import BaseEnvironment
 from harbor.environments.docker.docker import _sanitize_docker_compose_project_name
 from harbor.models.agent.context import AgentContext
 
-from evals.arms import BUILD_DIR, HOST_CLI, LOGS, detector_start
+from evals.arms import HOST_CLI, LOGS, SKILL_DIRS, detector_start
 from evals.gateway import KEY_ENV, gateway_url, no_proxy
 
 CLAUDE_MODEL = "claude-sonnet-5-5"  # the gateway maps Claude ids to other models; the host does not show the served one
@@ -37,12 +38,17 @@ DROID_REMOVE_TOOLS = (
 )
 
 
-async def _check_image(agent, environment, target: str) -> None:
-    """Fail the attempt when the container did not come from an arm image for this host."""
+async def _install_arm(agent, environment, target: str) -> None:
+    """Extract the attempt's arm into HOME and keep its manifest and skill list beside the other logs."""
+    sha = os.environ["SQ_ARM_SHA256"]
+    await environment.upload_file(os.environ["SQ_ARM_TARBALL"], "/tmp/arm.tgz")
+    roots = " ".join(SKILL_DIRS[target])
     await agent.exec_as_agent(
         environment,
-        command=f'test -s {BUILD_DIR}/arm-manifest.json && test -s "$HOME/.agent-surface/{target}-manifest.json" && '
-        f"mkdir -p {LOGS} && cp {BUILD_DIR}/arm-manifest.json {BUILD_DIR}/arm-skills.txt {LOGS}/",
+        command=f'echo "{sha}  /tmp/arm.tgz" | sha256sum -c - >/dev/null && tar -xzf /tmp/arm.tgz -C "$HOME" && rm /tmp/arm.tgz && '
+        f'test -s "$HOME/.agent-surface/{target}-manifest.json" && mkdir -p {LOGS} && '
+        f'cp "$HOME/.agent-surface/{target}-manifest.json" {LOGS}/arm-manifest.json && '
+        f'(cd "$HOME" && find {roots} -name SKILL.md 2>/dev/null | sort || true) > {LOGS}/arm-skills.txt',
     )
 
 
@@ -54,7 +60,7 @@ class ArmOpenCode(OpenCode):
 
     @override
     async def install(self, environment: BaseEnvironment) -> None:
-        await _check_image(self, environment, "opencode")
+        await _install_arm(self, environment, "opencode")
         await super().install(environment)  # returns at once when the pinned CLI is already there
 
     @override
@@ -115,7 +121,7 @@ class ArmDroid(_DockerExecAgent):
 
     @override
     async def install(self, environment: BaseEnvironment) -> None:
-        await _check_image(self, environment, "droid")
+        await _install_arm(self, environment, "droid")
         await self.exec_as_agent(environment, command=f'[ "$(droid --version)" = "{DROID_VERSION}" ]')
 
     @override
@@ -124,7 +130,7 @@ class ArmDroid(_DockerExecAgent):
         await self.exec_as_agent(environment, command=detector_start("droid"))
         workdir = await self._workdir(environment)
         inner = (
-            f"cd {shlex.quote(workdir)} && [ -f ~/.nvm/nvm.sh ] && . ~/.nvm/nvm.sh; "
+            f"cd {shlex.quote(workdir)} && "
             f"timeout {DROID_TIMEOUT_SEC} droid exec --skip-permissions-unsafe -m {DROID_MODEL} "
             f"--remove-tools {DROID_REMOVE_TOOLS} -o stream-json {shlex.quote(instruction)} "
             f"> {LOGS}/droid.jsonl 2> {LOGS}/droid.stderr"
@@ -171,8 +177,8 @@ class ArmClaude(_DockerExecAgent):
 
     @override
     async def install(self, environment: BaseEnvironment) -> None:
-        await _check_image(self, environment, "claude-code")
-        await self.exec_as_agent(environment, command=f'. ~/.nvm/nvm.sh; claude --version | grep -qF "{HOST_CLI["claude-code"][1]} "')
+        await _install_arm(self, environment, "claude-code")
+        await self.exec_as_agent(environment, command=f'claude --version | grep -qF "{HOST_CLI["claude-code"][1]} "')
 
     @override
     @with_prompt_template
@@ -180,7 +186,7 @@ class ArmClaude(_DockerExecAgent):
         await self.exec_as_agent(environment, command=detector_start("claude-code"))
         workdir = await self._workdir(environment)
         inner = (
-            f"cd {shlex.quote(workdir)} && . ~/.nvm/nvm.sh; "
+            f"cd {shlex.quote(workdir)} && "
             f"export ANTHROPIC_BASE_URL={shlex.quote(gateway_url())} ANTHROPIC_AUTH_TOKEN=\"${KEY_ENV}\" IS_SANDBOX=1 "
             "DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1; "
             f"timeout {HOST_TIMEOUT_SEC} claude -p --output-format stream-json --verbose --dangerously-skip-permissions "
@@ -197,19 +203,26 @@ class ArmClaude(_DockerExecAgent):
         if not path.exists():
             return
         result: dict = {}
+        events: list[dict] = []
         for line in path.read_text(errors="replace").splitlines():
             try:
                 event = json.loads(line)
             except ValueError:
                 continue
+            events.append(event)
             if event.get("type") == "result":
                 result = event
         usage = result.get("usage") or {}
-        context.n_input_tokens = usage.get("input_tokens")
+        # Anthropic usage keeps cache reads and writes out of input_tokens. n_input_tokens is the whole prompt (as Codex reports it)
+        # and n_cache_tokens the cached part of it, so both hosts are comparable and uncached input is the difference.
+        cache_read = usage.get("cache_read_input_tokens") or 0
+        context.n_input_tokens = (usage.get("input_tokens") or 0) + cache_read + (usage.get("cache_creation_input_tokens") or 0)
         context.n_output_tokens = usage.get("output_tokens")
-        context.n_cache_tokens = usage.get("cache_read_input_tokens")
+        context.n_cache_tokens = cache_read
         # The cost the CLI prints uses its own price table for the requested id, not the gateway's, so it is not spend.
-        context.metadata = {"model_usage_ids": sorted((result.get("modelUsage") or {})), "reported_cost_usd_unreliable": result.get("total_cost_usd")}
+        requests = {e["message"]["id"] for e in events if e.get("type") == "assistant" and e.get("message", {}).get("id")}
+        context.metadata = {"model_usage_ids": sorted((result.get("modelUsage") or {})), "reported_cost_usd_unreliable": result.get("total_cost_usd"),
+                            "model_requests": len(requests)}
 
 
 class ArmCodex(_DockerExecAgent):
@@ -232,8 +245,8 @@ class ArmCodex(_DockerExecAgent):
 
     @override
     async def install(self, environment: BaseEnvironment) -> None:
-        await _check_image(self, environment, "codex")
-        await self.exec_as_agent(environment, command=f'. ~/.nvm/nvm.sh; [ "$(codex --version)" = "codex-cli {HOST_CLI["codex"][1]}" ]')
+        await _install_arm(self, environment, "codex")
+        await self.exec_as_agent(environment, command=f'[ "$(codex --version)" = "codex-cli {HOST_CLI["codex"][1]}" ]')
 
     @override
     @with_prompt_template
@@ -242,7 +255,7 @@ class ArmCodex(_DockerExecAgent):
         workdir = await self._workdir(environment)
         provider = f'model_providers.gateway={{name="Gateway",base_url="{gateway_url()}/v1",env_key="{KEY_ENV}",wire_api="responses"}}'
         inner = (
-            f"cd {shlex.quote(workdir)} && . ~/.nvm/nvm.sh; "
+            f"cd {shlex.quote(workdir)} && "
             f"timeout {HOST_TIMEOUT_SEC} codex exec --json --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check "
             f"-m {shlex.quote(self.model_name or CODEX_MODEL)} -c 'model_provider=\"gateway\"' -c {shlex.quote(provider)} {shlex.quote(instruction)} "
             f"</dev/null > {LOGS}/codex.jsonl 2> {LOGS}/codex.stderr; code=$?; "
@@ -265,6 +278,19 @@ class ArmCodex(_DockerExecAgent):
                 continue
             if event.get("type") == "turn.completed":
                 usage = event.get("usage") or {}
-        context.n_input_tokens = usage.get("input_tokens")
+        context.n_input_tokens = usage.get("input_tokens")  # summed over every model request of the turn, cached tokens included
         context.n_output_tokens = usage.get("output_tokens")
         context.n_cache_tokens = usage.get("cached_input_tokens")
+        context.metadata = {"model_requests": self._rollout_requests()}
+
+    def _rollout_requests(self) -> int:
+        """One `token_count` event with usage closes each model request in the rollout files."""
+        count = 0
+        for rollout in (Path(self.logs_dir) / "codex-sessions").rglob("rollout-*.jsonl"):
+            for line in rollout.read_text(errors="replace").splitlines():
+                try:
+                    payload = json.loads(line).get("payload") or {}
+                except ValueError:
+                    continue
+                count += payload.get("type") == "token_count" and bool(payload.get("info"))
+        return count

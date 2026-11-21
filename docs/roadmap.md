@@ -374,7 +374,7 @@ Exit: a runner is chosen, the detector is qualified on at least two hosts, the c
 
 #### SQ0.1 Runner and Arm Injection Spike
 
-State: DONE 2026-11-21 (first cut in `evals/`; receipts private under `.agent-surface/research/2026-11-20-sq0.1/`). Per-attempt setup was about 2 minutes on OpenCode; prebuilt arm images (`evals/images.py`, SQ0.5 overhead) cut it to under 2 seconds. Depends on: none. Covers: `G-SQ-01`, `S-SQ-01`, `Q-SQ-07`.
+State: DONE 2026-11-21 (first cut in `evals/`; receipts private under `.agent-surface/research/2026-11-20-sq0.1/`). Per-attempt setup was about 2 minutes on OpenCode; a rendered arm (`install --no-mcps`) extracted into a per-host image replaces both the install and the per-arm images. Depends on: none. Covers: `G-SQ-01`, `S-SQ-01`, `Q-SQ-07`.
 
 Steps:
 1. Run one existing scenario on two runnable hosts through Harbor.

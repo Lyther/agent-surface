@@ -1,38 +1,42 @@
 # Evaluation lab (spike)
 
-Runs one scenario on real host CLIs through [Harbor](https://github.com/harbor-framework/harbor) 0.26.0 (pinned in `uv.lock`), one disposable Docker container per attempt, from an image that holds the host CLI and an arm built by the production installer. Steps `SQ0.1` to `SQ0.4`; hosts are OpenCode, Droid, and Claude Code and Codex through a gateway; see the [roadmap](../docs/roadmap.md#sq01-runner-and-arm-injection-spike).
+Runs one scenario on real host CLIs through [Harbor](https://github.com/harbor-framework/harbor) 0.26.0 (pinned in `uv.lock`), one disposable Docker container per attempt, from an image that holds the host CLI, with an arm rendered by the production installer extracted into its HOME. Steps `SQ0.1` to `SQ0.4`; hosts are OpenCode, Droid, and Claude Code and Codex through a gateway; see the [roadmap](../docs/roadmap.md#sq01-runner-and-arm-injection-spike).
 
 Run it on a Linux host with Docker and uv, never on the operator machine. Cap `--cpus` and `--memory` on every container; the runner uses 1 CPU and 2 GB per attempt and at most 4 attempts at once.
 
 ```sh
-# 1. Sources the installer needs (submodules initialised), commit recorded, one overlay tarball per source variant.
-rsync -a --exclude .git --exclude evals --exclude node_modules ./ HOST:lab/src/
-git rev-parse HEAD | ssh HOST 'cat > lab/src/.source-commit'
+# 1. Sources: a checkout of an installer commit that has `install --no-mcps` (submodules initialised), commit recorded.
+rsync -a --exclude .git ./ HOST:lab/src/ && git rev-parse HEAD | ssh HOST 'cat > lab/src/.source-commit'
 rsync -a evals/ HOST:lab/repo/evals/
-#    overlay-A.tgz (dev-fix dropped) and overlay-B.tgz come from arms.build_overlay; overlay-*.json holds their identity.
 
-# 2. Build one image per host and arm (about 3 minutes for 6 images), then check it against the reference manifests.
-cd lab/repo; PYTHONPATH=$PWD python3 -m evals.images build --out ../out --scenario evals/scenarios/dev-fix/spike-01 --overlay-dir ../overlays
-PYTHONPATH=$PWD python3 -m evals.images verify --out ../out --reference ../sq01
+# 2. Render and pack every arm (about a second per host and profile), check dev-fix presence and the profile relations.
+cd lab/repo; PYTHONPATH=$PWD python3 -m evals.images arms --src ../src --out ../arms
 
-# 3. Cohort: scenarios x hosts x arms x repetitions in seeded order, at most 4 concurrent.
-#    The Droid key is read from the first line of stdin and never appears in argv or files.
-cd evals; PYTHONPATH=$PWD/.. uv run --frozen python -m evals.cohort --images ../../out/images.json \
-  --scenario scenarios/controls/use-by-name --scenario scenarios/controls/no-skill --arms B --out ../../out-controls
+# 3. One image per host: the pinned base plus the host CLI (about 1 minute each).
+PYTHONPATH=$PWD python3 -m evals.images build --out ../images
 
-# 4. Listing capture for every image.
-cd ..; PYTHONPATH=$PWD python3 -m evals.listing capture --images ../out/images.json --out ../listing
+# 4. Cohort: scenarios x hosts x profiles x repetitions in seeded order, at most 4 concurrent.
+#    Keys come on stdin as NAME=value lines and never appear in argv or files.
+cd evals; PYTHONPATH=$PWD/.. uv run --frozen python -m evals.cohort --host-images ../../images/hosts.json \
+  --arms ../../arms/arms.json --scenario scenarios/controls/use-by-name --scenario scenarios/controls/no-skill \
+  --profiles dev --out ../../out-controls
+
+# 5. Listing capture for each host and profile.
+cd ..; PYTHONPATH=$PWD python3 -m evals.listing capture --host-images ../images/hosts.json --arms ../arms/arms.json --out ../listing
 ```
 
 `ledger.jsonl` has one row per attempt; `jobs/` holds Harbor's result, trajectory and verifier output.
 
-## Arm images (`images.py`, `arms.py`)
+## Arms and host images (`arms.py`, `images.py`)
 
-- `arms.py` tars the sources (minus `.git`, `evals`, `node_modules`) and, for arm A, removes `skills/dev-fix` and its registry entry. Arm F is B's sources with the operator's full profile: general, `external`, then `development,cybersecurity,private,modding`.
-- `images.py build` starts one capped build container (2 CPUs, 3 GB) from the scenario image, installs the pinned host CLI, runs the production installer (`install --target <host> --scope user --dest $HOME`, general first, then each category), commits the result as `sq-arm/<host>-<arm>:<overlay sha>` with labels for host, arm, CLI version, overlay and commit, and records the image ID in `images.json`. The overlay tarball is bind-mounted, so it is not in a layer.
-- The installer builds Synapse and Grimoire as the prerequisite of wiring them and has no switch to skip that. The build script strips the wiring (the host config's MCP entries and Droid's Synapse hook), the launchers in `~/.local/bin`, and the services' `node_modules` and `dist`, so no arm has MCP tools and nothing tries to start a service. Anything else MCP-related the installer cannot skip stays in the overlay directory, which only the image holds.
-- `images.py verify` compares each image's installed manifest (target, source, output, version, category per entry) with the SQ0.1 arm manifest and lists whether `dev-fix` is installed.
-- An attempt writes a Harbor task whose `environment.docker_image` is the image (`write_task`), so Harbor starts a fresh container with a pristine HOME and does no build. The agent classes in `agents.py` only check that the image's manifest is present.
+- **A profile is a rendered directory.** `arms.render` runs the production installer for one host with `HOME=<dir>`: `install --target <host> --scope user --dest <dir> --no-mcps`, general first, then each category. `--no-mcps` renders every non-MCP output, builds and wires no MCP service, writes no launcher or hook, and writes nothing outside `--dest`, so there is nothing to strip afterwards. A render takes about a second.
+- **Profiles** (`arms.PROFILES`): `dev-minus-dev-fix` and `dev` (the `development` category without and with `dev-fix`), `full` (general, `external`, then `development,cybersecurity,private`) and `full-minus-dev-fix`. A profile without `dev-fix` renders from a hard-linked copy of the sources with that skill and its registry entries removed; the checkout is never edited. The ledger's `profile` is one of these; `desc_arm` names the description variant (`A`, the committed descriptions) and is separate.
+- **A rendered directory has no absolute path in it**: the same arm rendered at two different paths differs only in the manifest's `generated_at`, so each arm is packed once (`arms.pack`: sorted, owner 0, mtime 0) and its sha256 goes in `arms.json` and in the ledger as `arm_sha256`.
+- **Host images** (`images.py build`): the pinned base (`node:22-bookworm` by digest) plus `inotify-tools`, `procps` and the host CLI at its pinned version. One capped build container (2 CPUs, 3 GB), committed as `sq-host/<host>:<cli version>`; `hosts.json` records tag, image ID, base and script digest. No installer, no overlay, no profile.
+- **An attempt** writes a Harbor task whose `environment.docker_image` is the host image (`write_task`); a scenario with its own `environment/Dockerfile` that starts from the shared base is rebuilt on top of the host image. The agent classes in `agents.py` upload the arm tarball (`SQ_ARM_TARBALL`, checked against `SQ_ARM_SHA256`), extract it into HOME and copy the manifest and skill list into the logs before the agent starts; the Harbor setup time is that step.
+- **Operator steps the installer only documents.** Claude Code loads the rules document through an `@agent-surface/rules.md` import in `~/.claude/CLAUDE.md`, a file the installer never writes (`adapters/claude-code/README.md`). The operator's profile has that line, so `arms.add_operator_files` writes `.claude/CLAUDE.md` with exactly it into every Claude Code arm; a capture confirms the rules text is then in the request (`rules_in_request`). OpenCode, Droid and Codex write their own instruction files, so no other host needs one.
+- Files are packed with a fixed mtime (2026-01-01), not epoch 0: with epoch-0 files OpenCode and Claude Code reopened the whole skills directory during the run, which the audit saw as dozens of opens.
+- `images arms` checks every rendered arm: `dev-fix` present or absent as the profile says, `full` containing `dev`, and each `-minus-dev-fix` profile differing from its parent by exactly `dev-fix`.
 
 ## Skill-load detector (`detect.py`)
 
@@ -63,13 +67,14 @@ Each installed skill is classified `surfaced`, `name-only` or `absent`, with `tr
 
 ## Ledger
 
-One row per attempt: `scenario`, `arm`, `host`, `model`, `rep`, versions, `source_commit`, `overlay_sha256`, `image_id`, times (`seconds_setup` is now the check of the prebuilt image), cost fields, `verifier_reward`, `skills_loaded`, `load_evidence` (skill to mechanism), `audit_loads`, `workspace_skill_reads`, `failed_skill_lookups`, `audit_disagreements`, `skill_files_scanned`, `dev_fix_installed`, `receipt_scan`. `images.json` holds one record per image (tag, image ID, base image ID, CLI version, overlay, dropped skills).
+One row per attempt: `scenario`, `profile`, `desc_arm`, `host`, `model`, `rep`, versions, `source_commit`, `arm_sha256`, `image_id` (the host image), times (`seconds_setup` is the arm upload and extraction), cost fields, `verifier_reward`, `skills_loaded`, `load_evidence` (skill to mechanism), `audit_loads`, `workspace_skill_reads`, `failed_skill_lookups`, `audit_disagreements`, `skill_files_scanned`, `dev_fix_installed`, `receipt_scan`, `model_requests`.
+
+`tokens_in` is the whole prompt, summed over the attempt's model requests, for every host; `tokens_cache` is its cached part (so uncached input is the difference) and `tokens_out` the output. Codex reports that sum directly; for Claude Code `tokens_in` is the uncached input plus cache reads and writes. Rows written before this definition used host-specific meanings (Claude Code's `tokens_in` excluded cache reads); normalised values are in a private receipt, and old receipts are not rewritten. `hosts.json` holds one record per host image and `arms.json` one per host and profile (tarball, sha256, source commit, installed skills).
 
 ## Scenarios
 
 Each is a Harbor task under `scenarios/dev-fix/`: `instruction.md`, `environment/`, hidden `tests/` and `solution/`.
 
-- `spike-01` is the runner spike (a toy pager bug).
 - `qa-f10-launcher-exec-bit`, `qa-f13-umask-widening` and `qa-f14-readonly-repair` rebuild three defects an external QA round found in this repository's installer, at the parent of the commit that fixed each:
 
 | Task | Pre-fix tree | Real fix |
@@ -121,7 +126,7 @@ Ollama Cloud (`OLLAMA_CLOUD_API_KEY`) is documented only for claude-code (`ANTHR
 
 ### Injection rule
 
-A secret is read from the stdin of the cohort process (`NAME=value` lines; a bare first line is the Droid key) and handed to the container with `docker exec -e NAME` (the value is in the process environment, not argv). It never goes into an image, a build argument, a scenario folder, an arm overlay, a ledger row or a receipt. Auth files such as `auth.json` are not copied into containers.
+A secret is read from the stdin of the cohort process (`NAME=value` lines; a bare first line is the Droid key) and handed to the container with `docker exec -e NAME` (the value is in the process environment, not argv). It never goes into an image, a build argument, a scenario folder, an arm tarball, a ledger row or a receipt. Auth files such as `auth.json` are not copied into containers.
 
 ### Gateway hosts
 
@@ -152,3 +157,8 @@ printf 'DROID_API_KEY=%s\n' "$KEY" | PYTHONPATH=$PWD uv run --frozen --project e
 ### Cohort integration
 
 After each attempt's container is removed and its files are collected, `cohort.finish_attempt` calls `scan_receipt` on the attempt's `jobs/<name>`, `logs/<name>.log` and `tasks/<name>` with every secret it injected (the Droid key for droid attempts; credential patterns are always scanned). A hit moves the receipts to `OUT/quarantine/`, appends a ledger row `status: quarantined` with `hits` and `hit_names` (labels and pattern names, never values) and no verdict, and stops the cohort: no further attempt starts, attempts already running finish and are scanned, and the process exits non-zero. Rows already in the ledger stay. A clean attempt's row carries `receipt_scan: "clean"`. Listing capture scans its copied request bodies and transcripts the same way (`listing.check_clean`). Nothing redacts in place: a leak is quarantined, not edited into looking clean. Run the same scan over the whole `out/` tree before it leaves the lab host.
+
+## Known deviations
+
+- Every Claude Code result before the `.claude/CLAUDE.md` import was added ran without the agent-surface rules (the rules file was installed but never imported). Those results are not comparable with later ones.
+- Rows before the token definition above are not comparable across hosts.

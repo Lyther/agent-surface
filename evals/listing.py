@@ -1,6 +1,7 @@
 """Capture the skill listing a host puts in front of the model and classify every installed skill.
 
-Per host, from a fresh container of an arm image, with one trivial prompt:
+Per host and profile, from a fresh container of the host image with the profile's arm extracted into HOME, with
+one trivial prompt:
 
 - OpenCode: the skills are an `<available_skills>` block in the system prompt of the model request. A local
   forwarding proxy (`capture_proxy.py`) keeps the request body; the reply is irrelevant, so the capture still
@@ -11,7 +12,7 @@ Per host, from a fresh container of an arm image, with one trivial prompt:
 Each installed skill is then `surfaced` (name and description shown), `name-only` or `absent`; a surfaced
 description that differs from the installed one is flagged `truncated` when it is a shortened prefix.
 
-Usage: python -m evals.listing capture --images OUT/images.json --out DIR [--hosts opencode,droid] [--arms A,B,F]
+Usage: python -m evals.listing capture --host-images hosts.json --arms arms.json --out DIR [--hosts opencode,droid] [--profiles dev,full]
 Every request body and transcript copied out of the container is scanned by `evals/scrub.py` before it is
 parsed; a hit quarantines it under `OUT/quarantine` and stops the capture. Keys are read from stdin (`NAME=value` lines) and reach a container only through the
 process environment (`docker exec -e FACTORY_API_KEY`).
@@ -27,7 +28,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from evals.arms import SKILL_DIRS
+from evals.arms import SKILL_DIRS, load_arms
 from evals.cohort import HOST_KEY, HOSTS, injected_secrets, read_keys
 from evals.gateway import GATEWAY_HOSTS, KEY_ENV, gateway_url, no_proxy
 from evals.images import docker
@@ -83,8 +84,8 @@ def _docker_env() -> dict[str, str]:
     return {"PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": str(Path.home())}
 
 
-def installed_skills(tag: str, host: str) -> dict[str, str]:
-    text = docker("run", "--rm", "--entrypoint", "python3", tag, "-c", INSTALLED_SNIPPET, *SKILL_DIRS[host])
+def installed_skills(container: str, host: str) -> dict[str, str]:
+    text = docker("exec", container, "python3", "-c", INSTALLED_SNIPPET, *SKILL_DIRS[host])
     return json.loads(text)
 
 
@@ -140,7 +141,7 @@ def capture_opencode(container: str, keys: dict[str, str], quarantine_dir: Path)
     config = json.dumps({"provider": {"opencode": {"options": {"baseURL": f"http://127.0.0.1:{PROXY_PORT}"}}}})
     model = HOSTS["opencode"]["model"]
     script = (
-        ". ~/.nvm/nvm.sh >/dev/null; mkdir -p /app /tmp/req; cd /app; "
+        "mkdir -p /app /tmp/req; cd /app; "
         f"nohup python3 /tmp/capture_proxy.py https://opencode.ai/zen/v1 {PROXY_PORT} /tmp/req >/tmp/proxy.log 2>&1 & sleep 1; "
         f"export OPENCODE_CONFIG_CONTENT='{config}' OPENCODE_FAKE_VCS=git; "
         f"timeout {CAPTURE_TIMEOUT_SEC} opencode --model={model} run --format=json --dangerously-skip-permissions -- '{PROMPT}' >/tmp/oc.out 2>&1; "
@@ -168,7 +169,7 @@ def capture_opencode(container: str, keys: dict[str, str], quarantine_dir: Path)
 def capture_droid(container: str, keys: dict[str, str], quarantine_dir: Path) -> tuple[dict[str, str], dict]:
     model = HOSTS["droid"]["model"]
     script = (
-        ". ~/.nvm/nvm.sh >/dev/null; mkdir -p /app; cd /app; "
+        "mkdir -p /app; cd /app; "
         f"droid exec --skip-permissions-unsafe -m {model} -o stream-json '{PROMPT}' >/tmp/listing.jsonl 2>/tmp/listing.err; droid --version >/tmp/version.txt"
     )
     # `-e NAME` without a value keeps the key out of argv.
@@ -200,7 +201,7 @@ def _proxied(container: str, keys: dict[str, str], quarantine_dir: Path, launch:
     return the captured request bodies after they pass the credential scan. Request headers are never kept."""
     docker("cp", str(EVALS_DIR / "capture_proxy.py"), f"{container}:/tmp/capture_proxy.py")
     script = (
-        ". ~/.nvm/nvm.sh >/dev/null; mkdir -p /app /tmp/req; cd /app; "
+        "mkdir -p /app /tmp/req; cd /app; "
         f"nohup python3 /tmp/capture_proxy.py {gateway_url()} {PROXY_PORT} /tmp/req >/tmp/proxy.log 2>&1 & sleep 1; "
         f"{launch}; {version_cmd} 2>/dev/null >/tmp/version.txt"
     )
@@ -231,7 +232,9 @@ def parse_claude(bodies: list[dict]) -> tuple[dict[str, str], dict]:
                         break
                     name, _, description = line[2:].partition(": ")
                     skills[name.strip()] = description.strip()
-                return skills, {"message_chars": len(text), "tools": [t["name"] for t in body.get("tools", [])], "requested_model": body.get("model")}
+                # The first heading of the rules document the installer writes (the import in CLAUDE.md pulls it in).
+                rules = "agent-surface Claude Code rules" in json.dumps(body)
+                return skills, {"message_chars": len(text), "tools": [t["name"] for t in body.get("tools", [])], "requested_model": body.get("model"), "rules_in_request": rules}
     raise RuntimeError("no skill listing in the captured Claude Code requests")
 
 
@@ -278,8 +281,8 @@ def capture_codex(container: str, keys: dict[str, str], quarantine_dir: Path) ->
 CAPTURES = {"opencode": capture_opencode, "droid": capture_droid, "claude-code": capture_claude, "codex": capture_codex}
 
 
-def capture(host: str, image: dict, keys: dict[str, str], quarantine_dir: Path) -> dict:
-    name = f"sq-listing-{host}-{image['arm'].lower()}"
+def capture(host: str, image: dict, arm: dict, keys: dict[str, str], quarantine_dir: Path) -> dict:
+    name = f"sq-listing-{host}-{arm['profile']}"
     docker("rm", "-f", name, check=False)
     args = ["run", "-d", "--name", name, "--cpus", "1", "--memory", "2g", "--entrypoint", "sleep"]
     if host == "droid":
@@ -288,33 +291,37 @@ def capture(host: str, image: dict, keys: dict[str, str], quarantine_dir: Path) 
     if done.returncode != 0:
         raise RuntimeError(done.stderr[-400:])
     try:
+        docker("cp", arm["tarball"], f"{name}:/tmp/arm.tgz")
+        docker("exec", name, "bash", "-c", f'echo "{arm["arm_sha256"]}  /tmp/arm.tgz" | sha256sum -c - >/dev/null && tar -xzf /tmp/arm.tgz -C "$HOME"')
+        installed = installed_skills(name, host)
         listed, meta = CAPTURES[host](name, keys, quarantine_dir)
     finally:
         docker("rm", "-f", name, check=False)
-    installed = installed_skills(image["tag"], host)
-    return {"host": host, "arm": image["arm"], "image_id": image["image_id"], "installed": len(installed), "listed": len(listed), **meta, **classify(installed, listed)}
+    return {"host": host, "profile": arm["profile"], "arm_sha256": arm["arm_sha256"], "image_id": image["image_id"], "installed": len(installed), "listed": len(listed), **meta, **classify(installed, listed)}
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("action", choices=["capture"])
-    ap.add_argument("--images", type=Path, required=True)
+    ap.add_argument("--host-images", type=Path, required=True)
+    ap.add_argument("--arms", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--hosts", default="opencode,droid")
-    ap.add_argument("--arms", default="A,B,F")
+    ap.add_argument("--profiles", default="dev,full")
     args = ap.parse_args()
     keys = read_keys(sys.stdin) if not sys.stdin.isatty() else {}
-    images = json.loads(args.images.read_text())
+    images = json.loads(args.host_images.read_text())
+    arms = load_arms(args.arms)
     args.out.mkdir(parents=True, exist_ok=True)
     for host in args.hosts.split(","):
         if host in GATEWAY_HOSTS:
             gateway_url(), no_proxy()  # fail early, naming the missing variable
         if host in HOST_KEY and HOST_KEY[host] not in keys:
             sys.exit(f"{host} listing needs {HOST_KEY[host]} on stdin")
-        for arm in args.arms.split(","):
-            row = capture(host, images[f"{host}-{arm}"], keys, args.out / "quarantine")
-            (args.out / f"listing-{host}-{arm}.json").write_text(json.dumps(row, indent=2) + "\n")
-            print(host, arm, row["installed"], row["listed"], row["counts"])
+        for profile in args.profiles.split(","):
+            row = capture(host, images[host], arms[f"{host}-{profile}"], keys, args.out / "quarantine")
+            (args.out / f"listing-{host}-{profile}.json").write_text(json.dumps(row, indent=2) + "\n")
+            print(host, profile, row["installed"], row["listed"], row["counts"])
 
 
 if __name__ == "__main__":

@@ -1,80 +1,69 @@
-"""Build an evaluation arm by running agent-surface's own installer inside a build container.
+"""Arms: the profile an attempt starts from, rendered by agent-surface's own installer into a directory.
 
-An arm is a source overlay (the repository sources, minus any dropped skills) plus the install
-commands for a profile. The overlay is a tarball built on the host and unpacked in a build container
-that runs the installer with the container's node, so generated paths match the container HOME. The
-result is committed once as an image per host and arm (`evals/images.py`); every attempt starts a
-fresh container from that image. The sources checkout is never edited.
+A profile is the installer run for one host (general first, then each category) with `--no-mcps`, which renders
+every non-MCP output into `--dest` and builds, wires and writes nothing else. The rendered directory holds no
+absolute path (`render` is run at two paths and the results compared in `evals/tests`), so it is packed once into
+a tarball and extracted into the attempt container's HOME before the agent starts. The sources checkout is never
+edited: a profile without a skill renders from a hard-linked copy with that skill and its registry entries removed.
 """
 
 from __future__ import annotations
 
+import gzip
 import hashlib
+import io
 import json
-import shlex
+import os
+import shutil
+import subprocess
 import tarfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
-OVERLAY_ROOT = "/opt/as-overlay"
 LOGS = "/logs/agent"
-# Build records kept inside the image so an attempt can show which profile it started from.
+# Records inside host images.
 BUILD_DIR = "/opt/sq"
-# Directories the installer never reads; leaving them out keeps the upload small and the lab out of the arm.
-EXCLUDE_TOP = {".git", "evals", "node_modules", ".agent-surface", "dist"}
-# Host config files that carry MCP wiring. Both arms drop it so tools match and no service starts.
-MCP_CONFIGS = {
-    "opencode": ".config/opencode/opencode.json",
-    "droid": ".factory/mcp.json",
-    "claude-code": ".claude.json",
-    "codex": ".codex/config.toml",
-}
-# Host hook files that carry Synapse's hook; it is part of the MCP service wiring and goes with it.
-HOOK_CONFIGS = {"droid": ".factory/hooks.json", "claude-code": ".claude/settings.json", "codex": ".codex/hooks.json"}
+STAMP = f"{BUILD_DIR}/stamp.py"
+# Where each host reads installed skills, relative to HOME.
 SKILL_DIRS = {
     "opencode": [".config/opencode/skills", ".agents/skills"],
     "droid": [".agents/skills", ".factory/skills"],
     "claude-code": [".claude/skills"],
     "codex": [".agents/skills"],
 }
+HOST_CLI = {
+    "opencode": ("opencode-ai", "1.19.6"),
+    "droid": ("droid", "0.244.0"),
+    "claude-code": ("@anthropic-ai/claude-code", "2.1.330"),
+    "codex": ("@openai/codex", "0.171.0"),
+}
+# Source directories no profile edits; a dropped-skill copy symlinks them (hard-linking their many files takes minutes).
+LINKED_DIRS = ("external", "node_modules", "mcps")
+# Fixed modification time of every packed file (2026-01-01), so the same arm packs to the same bytes. Epoch 0 made
+# OpenCode and Claude Code rescan the whole skills directory during the run.
+PACK_MTIME = 1767225600
+# The description arm every profile currently carries (the descriptions as committed).
+DESC_ARM = "A"
 
 
 @dataclass(frozen=True)
-class Arm:
+class Profile:
     name: str
     # One installer run per entry, each a --category value; the general sync always runs first.
-    installs: tuple[str, ...] = ("development",)
+    installs: tuple[str, ...]
     drop_skills: tuple[str, ...] = ()
-    # Name of the arm whose overlay tarball supplies the sources.
-    sources: str = ""
-
-    @property
-    def overlay(self) -> str:
-        return self.sources or self.name
 
 
-# General is always installed first because it resets the host's managed files; categories follow.
-# F is the operator's full real profile (general, external packs, all four asset categories) from B's sources.
-ARMS = {
-    "A": Arm("A", drop_skills=("dev-fix",)),
-    "B": Arm("B"),
-    "F": Arm("F", installs=("external", "development,cybersecurity,private,modding"), sources="B"),
+FULL_INSTALLS = ("external", "development,cybersecurity,private")
+PROFILES = {
+    "dev-minus-dev-fix": Profile("dev-minus-dev-fix", ("development",), ("dev-fix",)),
+    "dev": Profile("dev", ("development",)),
+    "full": Profile("full", FULL_INSTALLS),
+    "full-minus-dev-fix": Profile("full-minus-dev-fix", FULL_INSTALLS, ("dev-fix",)),
 }
 
 
-def _filter(drop: set[str]):
-    def keep(info: tarfile.TarInfo) -> tarfile.TarInfo | None:
-        parts = Path(info.name).parts
-        if len(parts) > 1 and parts[1] in EXCLUDE_TOP:
-            return None
-        if len(parts) > 2 and parts[1] == "skills" and parts[2] in drop:
-            return None
-        return info
-
-    return keep
-
-
-def _strip_registry(src: Path, drop: set[str]) -> dict[str, bytes]:
+def strip_registry(src: Path, drop: set[str]) -> dict[str, bytes]:
     """Registry files with the dropped skills removed from every skill list."""
     out: dict[str, bytes] = {}
     for path in sorted((src / "registry").glob("*.json")):
@@ -101,158 +90,125 @@ def _strip_registry(src: Path, drop: set[str]) -> dict[str, bytes]:
     return out
 
 
-def build_overlay(src: Path, arm: Arm, dest: Path) -> dict:
-    """Write the arm's overlay tarball and return its identity for the ledger."""
-    drop = set(arm.drop_skills)
-    replaced = _strip_registry(src, drop) if drop else {}
-    commit = (src / ".source-commit").read_text().strip() if (src / ".source-commit").exists() else "unknown"
-    with tarfile.open(dest, "w:gz") as tar:
-        for entry in sorted(src.iterdir()):
-            if entry.name in EXCLUDE_TOP:
-                continue
-            tar.add(entry, arcname=f"o/{entry.name}", filter=_filter(drop))
-        for rel, body in replaced.items():
-            info = tarfile.TarInfo(f"o/{rel}")
-            info.size = len(body)
-            info.mode = 0o644
-            tar.addfile(info, fileobj=__import__("io").BytesIO(body))
-    # tar.add above already added the original registry files; a later member with the same name wins on extract.
-    digest = hashlib.sha256(dest.read_bytes()).hexdigest()
-    return {"arm": arm.name, "source_commit": commit, "dropped_skills": sorted(drop), "overlay_sha256": digest}
 
+def prepare_source(src: Path, drop: tuple[str, ...], dest: Path) -> Path:
+    """A hard-linked copy of the sources without the dropped skills; `src` itself is never written.
 
-HOST_CLI = {
-    "opencode": ("opencode-ai", "1.19.6"),
-    "droid": ("droid", "0.244.0"),
-    "claude-code": ("@anthropic-ai/claude-code", "2.1.330"),
-    "codex": ("@openai/codex", "0.171.0"),
-}
-APT_DEPS = "curl ca-certificates git procps inotify-tools"
-NVM_VERSION = "v0.40.2"
-NODE_MAJOR = 22
-DROID_URL = "https://downloads.factory.ai/factory-cli/releases/{v}/linux/x64"
-STAMP = f"{BUILD_DIR}/stamp.py"
-# Hosts installed with npm, and the command each provides.
-NPM_CLIS = {"opencode": "opencode", "claude-code": "claude", "codex": "codex"}
-
-
-def _cli_steps(target: str) -> list[str]:
-    """Shell that installs the host CLI at its pinned version, so attempts never download it."""
-    _, version = HOST_CLI[target]
-    # nvm clones from GitHub, which fails now and then through the lab's relay, so the install is retried.
-    nvm = (
-        f"for i in 1 2 3; do curl -fsSo- https://raw.githubusercontent.com/nvm-sh/nvm/{NVM_VERSION}/install.sh | env -u NODE_VERSION bash >/dev/null 2>&1 && break; rm -rf ~/.nvm; sleep 5; done && "
-        'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && '
-        f"nvm install {NODE_MAJOR} >/dev/null && nvm alias default {NODE_MAJOR} >/dev/null"
-    )
-    if target in NPM_CLIS:
-        package, command = HOST_CLI[target][0], NPM_CLIS[target]
-        return [nvm, f"npm i -g {package}@{version} >/dev/null 2>&1", f"{command} --version"]
-    url = DROID_URL.format(v=version)
-    return [
-        nvm,
-        f"curl -fsSL -o /usr/local/bin/droid {url}/droid && curl -fsSL -o /tmp/droid.sha256 {url}/droid.sha256",
-        '[ "$(sha256sum /usr/local/bin/droid | cut -d" " -f1)" = "$(cut -d" " -f1 /tmp/droid.sha256)" ] && chmod +x /usr/local/bin/droid',
-        "droid --version",
-    ]
-
-
-def _hook_strip(target: str) -> list[str]:
-    """Remove Synapse's hook from the host's hook file (top-level events, or nested under "hooks")."""
-    path = HOOK_CONFIGS.get(target)
-    if not path:
-        return []
-    return [
-        f'python3 - "$HOME/{path}" <<\'PY\'\n'
-        "import json, sys, pathlib\n"
-        "p = pathlib.Path(sys.argv[1])\n"
-        "if p.exists():\n"
-        "    d = json.loads(p.read_text())\n"
-        "    events = d['hooks'] if isinstance(d.get('hooks'), dict) else d\n"
-        "    for event, groups in list(events.items()):\n"
-        "        for g in groups:\n"
-        "            g['hooks'] = [h for h in g.get('hooks', []) if 'synapse-hook' not in h.get('command', '')]\n"
-        "        events[event] = [g for g in groups if g['hooks']]\n"
-        "        if not events[event]:\n"
-        "            del events[event]\n"
-        "    if 'hooks' in d and not d['hooks']:\n"
-        "        del d['hooks']\n"
-        "    p.write_text(json.dumps(d, indent=2))\n"
-        "PY"
-    ]
-
-
-def _mcp_strip(target: str) -> str:
-    """Remove MCP wiring from the host config: JSON `mcp`/`mcpServers` keys, or Codex's `[mcp_servers.*]` tables."""
-    path = MCP_CONFIGS[target]
-    if path.endswith(".toml"):
-        return (
-            f'python3 - "$HOME/{path}" <<\'PY\'\n'
-            "import re, sys, pathlib\n"
-            "p = pathlib.Path(sys.argv[1])\n"
-            "if p.exists():\n"
-            "    kept, skipping = [], False\n"
-            "    for line in p.read_text().splitlines(keepends=True):\n"
-            "        header = re.match(r'\\s*\\[+\\s*([^\\]]+?)\\s*\\]+', line)\n"
-            "        if header:\n"
-            "            skipping = header.group(1).startswith('mcp_servers')\n"
-            "        if not skipping:\n"
-            "            kept.append(line)\n"
-            "    p.write_text(''.join(kept))\n"
-            "PY"
-        )
-    return (
-        f'python3 - "$HOME/{path}" <<\'PY\'\n'
-        "import json, sys, pathlib\n"
-        "p = pathlib.Path(sys.argv[1])\n"
-        "if p.exists():\n"
-        "    d = json.loads(p.read_text())\n"
-        "    for k in ('mcp', 'mcpServers'):\n"
-        "        d.pop(k, None)\n"
-        "    p.write_text(json.dumps(d, indent=2))\n"
-        "PY"
-    )
-
-
-def build_script(target: str, arm: Arm) -> str:
-    """Shell run once in the build container: host CLI, then the production installer for the arm's profile.
-
-    The overlay is bind-mounted at /tmp/as-overlay.tgz so it never lands in an image layer. MCP services
-    are neither built nor kept: the installer only wires their config, and that wiring is removed here so
-    every arm has the same tools and nothing tries to start a service.
+    Files that change are unlinked first, so the write cannot reach the shared inode.
     """
-    install = f'node scripts/agent-surface.mjs install --target {shlex.quote(target)} --scope user --dest "$HOME" -y'
-    steps = [
-        "set -e",
-        # Build-only proxy settings (not secrets); they are sourced, not baked into the image environment.
-        "[ -f /mnt/sq-build/proxy.sh ] && . /mnt/sq-build/proxy.sh",
-        f"mkdir -p {OVERLAY_ROOT} {BUILD_DIR}",
-        f"apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends {APT_DEPS} >/dev/null",
-        "rm -rf /var/lib/apt/lists/*",
-        *_cli_steps(target),
-        f"tar -xzf /tmp/as-overlay.tgz -C {OVERLAY_ROOT} --strip-components=1",
-        f"cd {OVERLAY_ROOT}",
-        "npm ci --omit=dev --no-audit --no-fund >/dev/null 2>&1",
-        "set +e",
-        # Installer exit codes only signal skipped MCP prerequisites here; the manifest check below is the gate.
-        f"{install} > {BUILD_DIR}/install-general.txt 2>&1; echo general_exit=$? >> {BUILD_DIR}/install-general.txt",
-    ]
-    for entry in arm.installs:
-        log = f"{BUILD_DIR}/install-{entry.replace(',', '+')}.txt"
-        steps.append(f"{install} --category {shlex.quote(entry)} > {log} 2>&1; echo exit=$? >> {log}")
-    steps += [
-        "set -e",
-        _mcp_strip(target),
-        *_hook_strip(target),
-        'rm -f "$HOME"/.local/bin/grimoire-* "$HOME"/.local/bin/synapse-*',
-        f'test -s "$HOME/.agent-surface/{target}-manifest.json"',
-        f'cp "$HOME/.agent-surface/{target}-manifest.json" {BUILD_DIR}/arm-manifest.json',
-        f'(cd "$HOME" && find {" ".join(SKILL_DIRS[target])} -name SKILL.md 2>/dev/null | sort) > {BUILD_DIR}/arm-skills.txt',
-        # The overlay stays (minus node_modules) because installed hooks and wiring may point into it, as in SQ0.1.
-        # The installer builds Synapse and Grimoire as a prerequisite of wiring them and has no switch to skip that.
-        f"rm -rf {OVERLAY_ROOT}/node_modules {OVERLAY_ROOT}/mcps/*/node_modules {OVERLAY_ROOT}/mcps/*/dist /root/.npm /root/.cache /tmp/droid.sha256",
-    ]
-    return "\n".join(steps)
+    shutil.copytree(src, dest, copy_function=os.link, ignore=shutil.ignore_patterns(".git", *LINKED_DIRS), symlinks=True)
+    for name in LINKED_DIRS:  # large trees no profile edits are linked whole instead of file by file
+        if (src / name).exists():
+            (dest / name).symlink_to((src / name).resolve())
+    if drop:
+        for name in drop:
+            shutil.rmtree(dest / "skills" / name)
+        for rel, body in strip_registry(dest, set(drop)).items():
+            (dest / rel).unlink()
+            (dest / rel).write_bytes(body)
+    return dest
+
+
+def render(src: Path, host: str, profile: Profile, home: Path, node: str = "node") -> None:
+    """Run the production installer for `host` into `home`: general first, then each category, `--no-mcps`."""
+    home.mkdir(parents=True, exist_ok=True)
+    # Resolve the real binary first: a version-manager shim would look for its own state under the new HOME.
+    node = subprocess.run([node, "-p", "process.execPath"], capture_output=True, text=True, check=True).stdout.strip()
+    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(home), "LANG": "C.UTF-8"}
+    for category in (None, *profile.installs):
+        cmd = [node, "scripts/agent-surface.mjs", "install", "--target", host, "--scope", "user", "--dest", str(home), "--no-mcps", "-y"]
+        if category:
+            cmd += ["--category", category]
+        done = subprocess.run(cmd, cwd=src, env=env, capture_output=True, text=True)
+        if done.returncode != 0:
+            raise RuntimeError(f"install {host} {category or 'general'} failed ({done.returncode}): {done.stdout[-400:]}{done.stderr[-400:]}")
+    add_operator_files(home, host)
+
+
+# Operator steps the installer documents but never does. Claude Code loads the rules document through an import
+# in ~/.claude/CLAUDE.md, which stays the operator's file (adapters/claude-code/README.md); the operator's real
+# profile has the line, so every Claude Code arm gets exactly it. The other hosts write their own instruction files.
+OPERATOR_FILES = {"claude-code": (".claude/CLAUDE.md", "@agent-surface/rules.md\n")}
+
+
+def add_operator_files(home: Path, host: str) -> None:
+    if host in OPERATOR_FILES:
+        rel, body = OPERATOR_FILES[host]
+        (home / rel).write_text(body)
+
+
+def pack(home: Path, out: Path) -> str:
+    """Write `home` as a reproducible tar.gz (sorted, owner 0, fixed mtime) and return its sha256."""
+    buffer = io.BytesIO()
+    with gzip.GzipFile(fileobj=buffer, mode="wb", mtime=0) as gz, tarfile.open(fileobj=gz, mode="w") as tar:
+        for path in sorted(home.rglob("*")):
+            info = tar.gettarinfo(str(path), arcname=str(path.relative_to(home)))
+            info.uid = info.gid = 0
+            info.uname = info.gname = ""
+            info.mtime = PACK_MTIME
+            if path.is_file() and not path.is_symlink():
+                with path.open("rb") as body:
+                    tar.addfile(info, body)
+            else:
+                tar.addfile(info)
+    out.write_bytes(buffer.getvalue())
+    return hashlib.sha256(buffer.getvalue()).hexdigest()
+
+
+def installed_skills(home: Path, host: str) -> list[str]:
+    """Skill directory names that have a SKILL.md under the host's skill roots."""
+    return sorted({p.parent.name for root in SKILL_DIRS[host] for p in (home / root).rglob("SKILL.md")})
+
+
+def load_arms(path: Path) -> dict:
+    """`arms.json` with each tarball path made absolute (they are stored relative, so the arm set can be copied)."""
+    arms = json.loads(path.read_text())
+    for arm in arms.values():
+        arm["tarball"] = str(path.parent / arm["tarball"])
+    return arms
+
+
+def prepare_all(src: Path, hosts: list[str], profiles: list[str], out: Path) -> dict:
+    """Render every host-and-profile arm; sources for a dropped skill are prepared once per drop set."""
+    out.mkdir(parents=True, exist_ok=True)
+    arms: dict[str, dict] = {}
+    work = out / "_work"
+    for name in profiles:
+        profile = PROFILES[name]
+        source = prepare_source(src, profile.drop_skills, work / name) if profile.drop_skills else src
+        for host in hosts:
+            home = out / name / host / "home"
+            if home.exists():
+                shutil.rmtree(home)
+            render(source, host, profile, home)
+            tarball = out / name / f"{host}.tgz"
+            digest = pack(home, tarball)
+            commit = (src / ".source-commit").read_text().strip() if (src / ".source-commit").exists() else "unknown"
+            arms[f"{host}-{name}"] = {
+                "profile": name, "host": host, "tarball": str(tarball.relative_to(out)), "arm_sha256": digest, "source_commit": commit,
+                "dropped_skills": list(profile.drop_skills), "skills": installed_skills(home, host),
+            }
+    shutil.rmtree(work, ignore_errors=True)
+    return arms
+
+
+def check_arms(arms: dict) -> list[str]:
+    """Problems with the rendered arms: `dev-fix` present or absent as the profile says, and `full` containing `dev`."""
+    problems = []
+    for key, arm in arms.items():
+        expected_absent = "dev-fix" in arm["dropped_skills"]
+        if ("dev-fix" in arm["skills"]) == expected_absent:
+            problems.append(f"{key}: dev-fix {'present' if expected_absent else 'absent'}, expected the opposite")
+    for host in {a["host"] for a in arms.values()}:
+        dev, full = arms.get(f"{host}-dev"), arms.get(f"{host}-full")
+        if dev and full and not set(dev["skills"]) <= set(full["skills"]):
+            problems.append(f"{host}: full is missing skills that dev has")
+        minus, full_minus = arms.get(f"{host}-dev-minus-dev-fix"), arms.get(f"{host}-full-minus-dev-fix")
+        if dev and minus and set(dev["skills"]) - set(minus["skills"]) != {"dev-fix"}:
+            problems.append(f"{host}: dev-minus-dev-fix differs from dev by more than dev-fix")
+        if full and full_minus and set(full["skills"]) - set(full_minus["skills"]) != {"dev-fix"}:
+            problems.append(f"{host}: full-minus-dev-fix differs from full by more than dev-fix")
+    return problems
 
 
 def detector_start(target: str) -> str:

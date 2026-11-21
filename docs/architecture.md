@@ -327,7 +327,7 @@ Add an evaluation lab outside the product runtime, and make it the gate for ever
 - **Form:** a uv-managed Python tree, `evals/`, that the compiler and installer never import.
 - **Each attempt:**
   1. An adopted runner (Harbor; BenchFlow as fallback; the GR2 harness for Droid) starts one disposable container on a remote Linux server.
-  2. The production installer writes the arm's profile into that container's HOME, from an overlay copy of the sources, never by editing them in place.
+  2. The arm's profile, rendered once by the production installer (`install --no-mcps`) from an overlay copy of the sources and never by editing them in place, is extracted into that container's HOME.
   3. The host CLI runs the scenario with run-time credentials.
   4. A file-open audit records which skill bodies were read.
   5. A verifier scores world state in its own sandbox.
@@ -432,7 +432,7 @@ Outside the system: the hosts' own release channels, public marketplaces (`OQ-SQ
 | Step | Action |
 |---|---|
 | Start container | Fresh container, from the scenario's image, with the host CLI pinned. |
-| Build the arm | The overlay sources are installed into the container HOME and the installed manifest is recorded. |
+| Build the arm | The rendered arm tarball is extracted into the container HOME and its manifest is recorded. |
 | Capture the listing | The host's real skill listing is captured. |
 | Run | The host runs headless on the scenario instruction, with the file-open audit active. |
 | Verify | The verifier runs on the final workspace in a separate sandbox. |
@@ -456,7 +456,7 @@ Outside the system: the hosts' own release channels, public marketplaces (`OQ-SQ
 |---|---|
 | Scenario set | One task per folder in the runner's format: instruction, environment, hidden verifier and reference solution. It owns no data outside its folder. Its quality obligation is verifier qualification. |
 | Trigger query sets | Per skill: should-trigger and near-miss queries with train and held-out labels, written before any arm runs and graded blind. |
-| Arm builder | Input: an arm spec (categories, an excluded asset, description overlay). Output: an installed HOME plus its manifest. It must not write the canonical sources. Failure is an attempt failure. |
+| Arm builder | Input: an arm spec (categories, an excluded asset, description overlay). Output: a rendered HOME tarball plus its manifest. It must not write the canonical sources. Failure is an attempt failure. |
 | Runner adapter | A per-cohort Harbor or BenchFlow job configuration. Droid uses the GR2 scripts. |
 | Skill-load detector | Reads of installed skill bodies from a file-open audit inside the container. Host logs are a cross-check only, because a host can read skills through paths the audit misses. |
 | Verifier library | Shared world-state checks: git state, commit signatures, hook outcomes, test runs, file diffs, and detection of weakened tests (removed assertions or skipped tests against the base commit). |
@@ -470,8 +470,8 @@ Outside the system: the hosts' own release channels, public marketplaces (`OQ-SQ
 evals/                                    - SQ0.1-SQ0.6 spike code; the behavioural evaluation lab; never imported by scripts/ or mcps/; excluded from the npm package via .npmignore.
   pyproject.toml, uv.lock                 - Pinned lab dependencies (Harbor 0.26.0); nothing else depends on them.
   README.md                               - How to build images, run a cohort, capture listings and read the ledger; links to the contract.
-  arms.py                                 - Arm definitions (A, B, F), overlay tarballs of the sources, and the image build script with the installer run and the MCP strip; never edits canonical sources.
-  images.py                               - Builds one image per host and arm with the production installer, verifies each installed manifest, writes the Harbor task for an attempt.
+  arms.py                                 - Profiles (dev-minus-dev-fix, dev, full, full-minus-dev-fix), source copies without a dropped skill, the installer render with --no-mcps and the reproducible pack; never edits canonical sources.
+  images.py                               - Builds one image per host (pinned base plus the host CLI), renders and checks the arms, writes the Harbor task for an attempt.
   agents.py                               - Harbor agent classes for OpenCode and Droid that run inside the prebuilt image; Droid's key goes in by `docker exec -e`.
   detect.py                               - Skill-load detector: host-recorded skill-tool calls and SKILL.md reads, with the file-open audit as a cross-check.
   stamp.py                                - Timestamps each file-open audit event with sub-second epoch time inside the container.
@@ -479,7 +479,7 @@ evals/                                    - SQ0.1-SQ0.6 spike code; the behaviou
   capture_proxy.py                        - Forwarding proxy that keeps OpenCode's model request body (never its headers) for the listing capture.
   cohort.py                               - Expands scenarios, hosts, arms and repetitions into seeded attempts, runs them through Harbor with a spend stop, appends the ledger.
   scenarios/controls/<case>/              - Harbor tasks for detector qualification: use-by-name, use-by-file, no-skill.
-  scenarios/dev-fix/<case>/               - Harbor tasks with a hidden verifier (spike-01 now; SQ0.6 adds F10, F13, F14).
+  scenarios/dev-fix/<case>/               - Harbor tasks with a hidden verifier (F10, F13, F14 from SQ0.6).
   world.py                                - PROPOSED (SQ0.6 branch): shared verifier checks, including test-weakening against the base commit.
   scrub.py                                - PROPOSED (SQ0.4 branch): receipt credential scan; a hit quarantines the receipt and stops the cohort.
   analyze.py                              - PROPOSED SQ1: rates and means with intervals, paired differences, cost and time; reads only preregistration and ledger.
@@ -522,7 +522,7 @@ tests/suites/live-plugin.test.mjs         - VERIFIED_EXISTING pattern; SQ5.3 ext
   - `python -m evals.images build|verify`, `python -m evals.cohort --images <file> --scenario <dir> --out <dir>` and `python -m evals.listing capture`, as in the lab README (SQ1 adds a `--prereg` input to `cohort`);
   - `analyze.py`, proposed for SQ1, reading a ledger;
   - the runner's own CLI underneath.
-- **Arm injection** uses the existing public install command (`install --target <t> --scope user --dest <HOME>` with categories) on an overlay checkout. Experiments add no installer flag, and description variants are source overlays, not options.
+- **Arm injection** uses the existing public install command (`install --target <t> --scope user --dest <HOME>` with categories) with `--no-mcps` on an overlay checkout. Experiments add no installer flag of their own, and description variants are source overlays, not options.
 - **Verifier contract:** an exit status plus a result JSON (reward, named checks, evidence paths), in the runner's format.
 - **Plugin packages (SQ5):**
   - Agent Plugins 1.0 core (`skills/`, `mcp.json`), with vendor namespaces only where a host needs them (`E-30`);

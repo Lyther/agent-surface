@@ -1,13 +1,12 @@
-"""Build one image per host and arm, once, so an attempt starts a fresh container from it.
+"""Host images and the rendered arms an attempt starts from.
 
-The image is the scenario's base image plus the host CLI and the arm's installed profile, produced by
-running the production installer in a capped build container and committing the result. Every attempt
-then has a pristine HOME without re-uploading the overlay or re-running the installer. Image IDs go in
-`images.json` and into each ledger row.
+One image per host holds the pinned base and the host CLI at its pinned version, nothing else. An arm is a
+tarball rendered by the production installer (`evals/arms.py`); each attempt uploads and extracts it into the
+container's HOME before the agent starts, so HOME is pristine and the arm is data, not an image.
 
 Usage:
-  python -m evals.images build --out OUT --scenario DIR --overlay-dir DIR [--hosts opencode,droid] [--arms A,B,F]
-  python -m evals.images verify --out OUT --reference DIR
+  python -m evals.images build --out OUT [--hosts opencode,droid] [--proxy URL]
+  python -m evals.images arms --src SRC --out OUT [--hosts ...] [--profiles dev,full,...]
 """
 
 from __future__ import annotations
@@ -24,19 +23,23 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from evals.arms import ARMS, BUILD_DIR, HOST_CLI, STAMP, build_script
+from evals.arms import BUILD_DIR, HOST_CLI, PROFILES, STAMP, check_arms, prepare_all
 
 EVALS_DIR = Path(__file__).resolve().parent
+# The base every host image and every scenario with its own environment starts from (pinned by digest).
+HOST_BASE = "node:22-bookworm@sha256:e13726ca604184d7a91fcacab1fc09eefd642dc28e79ac34e85540dd93b78cfb"
 BUILD_CPUS = "2"
 BUILD_MEMORY = "3g"
 BUILD_CONCURRENCY = 2
-TAG_PREFIX = "sq-arm"
-# Manifest fields that identify an installed file; the timestamp differs between builds.
-MANIFEST_KEYS = ("target", "source", "output", "version", "asset_category")
+TAG_PREFIX = "sq-host"
+APT_DEPS = "inotify-tools procps"
+DROID_URL = "https://downloads.factory.ai/factory-cli/releases/{v}/linux/x64"
+# Hosts installed with npm, and the command each provides.
+NPM_CLIS = {"opencode": "opencode", "claude-code": "claude", "codex": "codex"}
 
 
-def docker(*args: str, check: bool = True, input_text: str | None = None) -> str:
-    done = subprocess.run(["docker", *args], capture_output=True, text=True, input=input_text)
+def docker(*args: str, check: bool = True) -> str:
+    done = subprocess.run(["docker", *args], capture_output=True, text=True)
     if check and done.returncode != 0:
         raise RuntimeError(f"docker {args[0]} failed ({done.returncode}): {done.stderr.strip()[-800:]}")
     return done.stdout.strip()
@@ -46,12 +49,8 @@ def image_id(tag: str) -> str:
     return docker("image", "inspect", "--format", "{{.Id}}", tag)
 
 
-def base_tag(scenario: Path) -> str:
-    return f"sq-scn/{scenario.parent.name}-{scenario.name}"
-
-
 def proxy_env(proxy: str | None) -> dict[str, str]:
-    """Proxy variables for a build; the lab network reaches the internet only through the relay."""
+    """Proxy variables for a build; the lab network may reach the internet only through a relay."""
     if not proxy:
         return {}
     no_proxy = os.environ.get("LAB_NO_PROXY", "localhost,127.0.0.1")  # hosts that must not use the relay
@@ -59,31 +58,37 @@ def proxy_env(proxy: str | None) -> dict[str, str]:
             "NO_PROXY": no_proxy, "no_proxy": no_proxy}
 
 
-def build_base(scenario: Path, proxy: str | None = None) -> str:
-    """Build the scenario's own environment image with capped resources (classic builder honours the caps)."""
-    tag = base_tag(scenario)
-    build_args = [arg for k, v in proxy_env(proxy).items() for arg in ("--build-arg", f"{k}={v}")]
-    done = subprocess.run(
-        ["docker", "build", "--memory", BUILD_MEMORY, "--cpu-quota", str(int(BUILD_CPUS) * 100000), *build_args, "-t", tag, str(scenario / "environment")],
-        capture_output=True, text=True, env={"DOCKER_BUILDKIT": "0", "PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": str(Path.home())},
-    )
-    if done.returncode != 0:
-        raise RuntimeError(f"base build failed: {done.stderr[-800:]}")
-    return tag
+def host_tag(host: str) -> str:
+    return f"{TAG_PREFIX}/{host}:{HOST_CLI[host][1]}"
 
 
-def tag_for(host: str, arm: str, overlay_sha: str) -> str:
-    return f"{TAG_PREFIX}/{host}-{arm.lower()}:{overlay_sha[:12]}"
+def build_script(host: str) -> str:
+    """Shell run once in the build container: the detector's tools and the host CLI at its pinned version."""
+    package, version = HOST_CLI[host]
+    if host in NPM_CLIS:
+        cli = [f"npm i -g {package}@{version} >/dev/null 2>&1", f"{NPM_CLIS[host]} --version"]
+    else:
+        url = DROID_URL.format(v=version)
+        cli = [
+            f"curl -fsSL -o /usr/local/bin/droid {url}/droid && curl -fsSL -o /tmp/droid.sha256 {url}/droid.sha256",
+            '[ "$(sha256sum /usr/local/bin/droid | cut -d" " -f1)" = "$(cut -d" " -f1 /tmp/droid.sha256)" ] && chmod +x /usr/local/bin/droid',
+            "droid --version",
+        ]
+    return "\n".join([
+        "set -e",
+        # Build-only proxy settings (not secrets); they are sourced, not baked into the image environment.
+        "[ -f /mnt/sq-build/proxy.sh ] && . /mnt/sq-build/proxy.sh",
+        f"apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends {APT_DEPS} >/dev/null",
+        *cli,
+        f"mkdir -p {BUILD_DIR} && cp /mnt/sq-build/stamp.py {STAMP}",
+        "rm -rf /var/lib/apt/lists/* /root/.npm /root/.cache /tmp/droid.sha256",
+    ])
 
 
-def build_arm_image(host: str, arm: str, overlay: Path, overlay_meta: dict, base: str, out: Path, proxy: str | None = None) -> dict:
-    spec = ARMS[arm]
-    actual = hashlib.sha256(overlay.read_bytes()).hexdigest()
-    if actual != overlay_meta["overlay_sha256"]:
-        raise RuntimeError(f"overlay {overlay.name} does not match its recorded digest")
-    script = build_script(host, spec) + f"\ncp /mnt/sq-build/stamp.py {STAMP}\n"
-    tag = tag_for(host, arm, overlay_meta["overlay_sha256"])
-    name = f"sq-build-{host}-{arm.lower()}"
+def build_host_image(host: str, out: Path, proxy: str | None = None) -> dict:
+    script = build_script(host)
+    tag = host_tag(host)
+    name = f"sq-build-{host}"
     log_dir = out / "build-logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     docker("rm", "-f", name, check=False)
@@ -92,54 +97,42 @@ def build_arm_image(host: str, arm: str, overlay: Path, overlay_meta: dict, base
         (Path(tmp) / "build.sh").write_text(script)
         (Path(tmp) / "proxy.sh").write_text("".join(f"export {k}={v}\n" for k, v in proxy_env(proxy).items()))
         done = subprocess.run(
-            [
-                "docker", "run", "--name", name, "--cpus", BUILD_CPUS, "--memory", BUILD_MEMORY,
-                "-v", f"{overlay}:/tmp/as-overlay.tgz:ro", "-v", f"{tmp}:/mnt/sq-build:ro",
-                base, "bash", "/mnt/sq-build/build.sh",
-            ],
+            ["docker", "run", "--name", name, "--cpus", BUILD_CPUS, "--memory", BUILD_MEMORY, "-v", f"{tmp}:/mnt/sq-build:ro",
+             HOST_BASE, "bash", "/mnt/sq-build/build.sh"],
             capture_output=True, text=True,
         )
-    (log_dir / f"{host}-{arm}.log").write_text(done.stdout + done.stderr)
+    (log_dir / f"{host}.log").write_text(done.stdout + done.stderr)
     if done.returncode != 0:
         docker("rm", "-f", name, check=False)
-        raise RuntimeError(f"{host}-{arm} build failed ({done.returncode}); see {log_dir / f'{host}-{arm}.log'}")
-    labels = {
-        "sq.host": host, "sq.arm": arm, "sq.cli": HOST_CLI[host][1], "sq.overlay_sha256": overlay_meta["overlay_sha256"],
-        "sq.source_commit": overlay_meta["source_commit"], "sq.script_sha256": hashlib.sha256(script.encode()).hexdigest(),
-    }
-    change = [arg for k, v in labels.items() for arg in ("--change", f"LABEL {k}={v}")]
-    docker("commit", *change, name, tag)
+        raise RuntimeError(f"{host} build failed ({done.returncode}); see {log_dir / f'{host}.log'}")
+    labels = {"sq.host": host, "sq.cli": HOST_CLI[host][1], "sq.base": HOST_BASE, "sq.script_sha256": hashlib.sha256(script.encode()).hexdigest()}
+    docker("commit", *[arg for k, v in labels.items() for arg in ("--change", f"LABEL {k}={v}")], name, tag)
     docker("rm", "-f", name)
-    return {
-        "host": host, "arm": arm, "tag": tag, "image_id": image_id(tag), "base_tag": base, "base_id": image_id(base),
-        "cli_version": HOST_CLI[host][1], "overlay_sha256": overlay_meta["overlay_sha256"][:16],
-        "source_commit": overlay_meta["source_commit"], "dropped_skills": overlay_meta["dropped_skills"],
-    }
+    return {"host": host, "tag": tag, "image_id": image_id(tag), "base": HOST_BASE, "cli_version": HOST_CLI[host][1], "script_sha256": labels["sq.script_sha256"][:16]}
 
 
-def image_skills(tag: str) -> list[str]:
-    text = docker("run", "--rm", "--entrypoint", "cat", tag, f"{BUILD_DIR}/arm-skills.txt")
-    return sorted({Path(line).parent.name for line in text.splitlines() if line.endswith("/SKILL.md")})
+def write_task(template: Path, host: dict, dest: Path, subs: dict[str, str] | None = None) -> Path:
+    """Copy a Harbor task onto a host image and fill `{name}` slots in its instruction.
 
-
-def image_manifest(tag: str) -> dict:
-    return json.loads(docker("run", "--rm", "--entrypoint", "cat", tag, f"{BUILD_DIR}/arm-manifest.json"))
-
-
-def manifest_identity(manifest: dict) -> list[tuple]:
-    return sorted(tuple(item.get(k) for k in MANIFEST_KEYS) for item in manifest.get("managed", []))
-
-
-def write_task(template: Path, image: str, dest: Path, subs: dict[str, str] | None = None) -> Path:
-    """Copy a Harbor task, point it at the prebuilt image instead of its environment directory, and fill `{name}` slots in its instruction."""
+    A task without its own environment points at the host image. A task whose `environment/Dockerfile` starts
+    from the shared base is rebuilt on top of the host image, so it keeps its own workspace setup.
+    """
     if dest.exists():
         shutil.rmtree(dest)
-    shutil.copytree(template, dest, ignore=shutil.ignore_patterns("environment"))
+    shutil.copytree(template, dest)
+    dockerfile = dest / "environment" / "Dockerfile"
     config = dest / "task.toml"
     text = config.read_text()
     if "docker_image" in text:
         raise ValueError(f"{config} already names an image")
-    config.write_text(re.sub(r"^\[environment\]\n", f'[environment]\ndocker_image = "{image}"\n', text, count=1, flags=re.M))
+    if dockerfile.exists():
+        body = dockerfile.read_text()
+        first, _, rest = body.partition("\n")
+        if first.strip() != f"FROM {HOST_BASE}":
+            raise ValueError(f"{dockerfile} must start from the shared base to be layered on a host image")
+        dockerfile.write_text(f"FROM {host['tag']}\n{rest}")
+    else:
+        config.write_text(re.sub(r"^\[environment\]\n", f'[environment]\ndocker_image = "{host["tag"]}"\n', text, count=1, flags=re.M))
     instruction = dest / "instruction.md"
     text = instruction.read_text()
     for name, value in (subs or {}).items():
@@ -151,48 +144,38 @@ def write_task(template: Path, image: str, dest: Path, subs: dict[str, str] | No
 def cmd_build(args) -> None:
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
-    base = build_base(args.scenario, args.proxy)
-    ledger = out / "images.json"
+    ledger = out / "hosts.json"
     existing = json.loads(ledger.read_text()) if ledger.exists() else {}
-    cells = [(h, a) for h in args.hosts.split(",") for a in args.arms.split(",")]
 
-    def one(cell):
-        host, arm = cell
-        meta = json.loads((args.overlay_dir / f"overlay-{ARMS[arm].overlay}.json").read_text())
+    def one(host):
         try:
-            return f"{host}-{arm}", build_arm_image(host, arm, args.overlay_dir / f"overlay-{ARMS[arm].overlay}.tgz", meta, base, out, args.proxy)
+            return host, build_host_image(host, out, args.proxy)
         except RuntimeError as error:
-            return f"{host}-{arm}", str(error)
+            return host, str(error)
 
     failed = 0
     with ThreadPoolExecutor(BUILD_CONCURRENCY) as pool:
-        for key, row in pool.map(one, cells):
+        for host, row in pool.map(one, args.hosts.split(",")):
             if isinstance(row, str):  # one image failing must not discard the others
                 failed += 1
-                print(key, "FAILED", row)
+                print(host, "FAILED", row)
                 continue
-            existing[key] = row
+            existing[host] = row
             ledger.write_text(json.dumps(existing, indent=2) + "\n")
-            print(key, row["image_id"][:19])
+            print(host, row["image_id"][:19])
     sys.exit(1 if failed else 0)
 
 
-def cmd_verify(args) -> None:
-    """Compare each image's installed manifest with the SQ0.1 arm manifest for the same host and arm."""
-    images = json.loads((args.out / "images.json").read_text())
-    bad = 0
-    for key, row in sorted(images.items()):
-        host, arm = key.rsplit("-", 1)
-        refs = sorted(args.reference.glob(f"jobs/{host}-{arm}-1/*/agent/arm-manifest.json"))
-        skills = image_skills(row["tag"])
-        line = {"image": key, "skills": len(skills), "dev_fix": "dev-fix" in skills}
-        if refs:
-            ref = manifest_identity(json.loads(refs[0].read_text()))
-            got = manifest_identity(image_manifest(row["tag"]))
-            line["manifest_matches_sq01"] = ref == got
-            bad += ref != got
-        print(json.dumps(line))
-    sys.exit(1 if bad else 0)
+def cmd_arms(args) -> None:
+    """Render and pack every host-and-profile arm, then check `dev-fix` presence and the profile relations."""
+    arms = prepare_all(args.src, args.hosts.split(","), args.profiles.split(","), args.out)
+    (args.out / "arms.json").write_text(json.dumps(arms, indent=2) + "\n")
+    for key, arm in sorted(arms.items()):
+        print(json.dumps({"arm": key, "skills": len(arm["skills"]), "dev_fix": "dev-fix" in arm["skills"], "sha256": arm["arm_sha256"][:16]}))
+    problems = check_arms(arms)
+    for problem in problems:
+        print("PROBLEM", problem)
+    sys.exit(1 if problems else 0)
 
 
 if __name__ == "__main__":
@@ -200,15 +183,14 @@ if __name__ == "__main__":
     sub = ap.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("build")
     b.add_argument("--out", type=Path, required=True)
-    b.add_argument("--scenario", type=Path, required=True)
-    b.add_argument("--overlay-dir", type=Path, required=True)
-    b.add_argument("--hosts", default="opencode,droid")
-    b.add_argument("--proxy", default=os.environ.get("LAB_BUILD_PROXY"), help="HTTP(S) proxy URL for builds (recorded in the receipts; not a secret)")
-    b.add_argument("--arms", default="A,B,F")
+    b.add_argument("--hosts", default="opencode,droid,claude-code,codex")
+    b.add_argument("--proxy", default=os.environ.get("LAB_BUILD_PROXY"), help="HTTP(S) proxy URL for builds (not a secret)")
     b.set_defaults(fn=cmd_build)
-    v = sub.add_parser("verify")
-    v.add_argument("--out", type=Path, required=True)
-    v.add_argument("--reference", type=Path, required=True)
-    v.set_defaults(fn=cmd_verify)
+    r = sub.add_parser("arms")
+    r.add_argument("--src", type=Path, required=True)
+    r.add_argument("--out", type=Path, required=True)
+    r.add_argument("--hosts", default="opencode,droid,claude-code,codex")
+    r.add_argument("--profiles", default=",".join(PROFILES))
+    r.set_defaults(fn=cmd_arms)
     parsed = ap.parse_args()
     parsed.fn(parsed)
