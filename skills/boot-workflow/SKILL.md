@@ -40,7 +40,7 @@ understand -> choose the lightest safe profile -> execute -> verify -> review wh
 | orchestrated | at least two independent writable workstreams, or a long-running dependency graph that needs durable local state | `workflow-orchestrator` -> `workflow-boss` -> isolated worker sessions -> integration owner -> `workflow-reviewer`; `workflow-judger` only after repeated substantive failure; `workflow-rescue` only for exceptional spec/context/runtime breakdown |
 | release | readiness, deployment, artifact, or formal acceptance claims | freeze candidate -> build shipped bits -> real dependency path -> independent QA -> readiness verdict; no release-grade proof for unstable intermediate patches |
 
-`direct` and `standard` are the default route. `reviewed`, `orchestrated`, and `release` are optional profiles that add a role or a ledger to the same route; each starts from a signal in Optional Modes.
+`standard` runs the default route; `direct` is the same route for a trivial edit, with the done-check left implicit. `reviewed`, `orchestrated`, and `release` are optional; each starts from a signal in Optional Modes.
 
 ## Default Route
 
@@ -54,8 +54,8 @@ done-check -> narrow read -> smallest change -> cheapest check that can see the 
 2. Read only the target files, their callers, and the tests that cover them.
 3. Make the smallest change that meets the outcome.
 4. Run the cheapest check that can observe the likely failure. For a behavior change with no such check, reproduce the problem first and use that as the check.
-5. Repair from the check's output. When the same check keeps failing, stop at the repeated-failure limit already set in `02-agent-workflow` and the `dev-*` commands, and change route instead of patching again.
-6. Review your own diff against the done-check. Report exact results, anything that did not run, and what remains, with the status words defined in `02-agent-workflow`.
+5. Repair from the check's output. When the same check keeps failing, stop at the repeated-failure limit already set in `02-agent-workflow` and the `dev-*` commands, and ask instead of patching again.
+6. Before reporting, run the broader checks the change needs under `05-tooling`, then review your own diff against the done-check. Report exact results, anything that did not run, and what remains, with the status words defined in `02-agent-workflow`.
 7. Leave the default only for a signal in Optional Modes, and say which signal fired.
 
 ## Optional Modes
@@ -76,8 +76,6 @@ Each mode starts from something observable in the task or the repository, never 
 | Release proof | a readiness, deployment, or acceptance claim | `release` profile, `verify-prove`, `verify-readiness` |
 | Unattended loop | a specified backlog with fast objective checks, run in a sandbox | no dedicated skill: `workflow-runtime`; run only after it proves liveness, and gate each iteration on the repo's test command |
 | Formal verification | safety-critical code with a human-written formal spec | no dedicated skill: `dev-spec`; the proof tool's own checker is the check |
-
-Switching modes costs context and attention: switch once, on the signal.
 
 Parallel writers require separate worktrees and disjoint files, generated outputs, lockfiles, migrations, ports, databases, and fixtures.
 

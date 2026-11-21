@@ -11,7 +11,7 @@ Choose the lightest execution path that preserves correctness and the required p
 
 `ops-flow [goal] [--risk low|medium|high|critical|auto] [--mode direct|standard|reviewed|orchestrated|release|audit|parallel|ship|auto] [--autonomy low|normal|high]`
 
-Defaults: `--risk auto --mode auto --autonomy normal`. `--mode auto` starts from `standard`, the default route, and leaves it only on an observable signal from the Optional Modes map in `boot-workflow`.
+Defaults: `--risk auto --mode auto --autonomy normal`. For an edit, `--mode auto` starts from the default route in `boot-workflow` (`direct` when trivial, otherwise `standard`) and leaves it only on one of its Optional Modes signals.
 
 ## 1. Locate the Task Shape
 
@@ -38,7 +38,7 @@ Parallel width comes from independent workstreams, not checklist length; a seque
 | Profile | Use when | Runtime shape | Evidence |
 | --- | --- | --- | --- |
 | `direct` | Trivial, obvious, reversible work with a tiny filescope | Current session; no planner or reviewer | Diff plus focused check |
-| `standard` (default) | Normal bounded implementation with clear behavior | One owner runs locate → edit → verify → self-review | Diff plus relevant repo gates |
+| `standard` (default) | Normal bounded implementation with clear behavior | One owner runs the Default Route in `boot-workflow` | Diff plus relevant repo gates |
 | `reviewed` | Security-sensitive, public/shared contract, broad regression surface, or meaningful failure cost | One writer, then one independent read-only reviewer; at most two rework cycles | Writer checks plus reviewer verdict |
 | `orchestrated` | Two or more genuinely independent workstreams, or a long-running dependency graph that benefits from durable state | Central orchestrator; isolated worktrees for concurrent writers; formal workflow ledger | Per-workstream evidence plus integrated QA |
 | `release` | A stable candidate must support readiness, artifact, deployment, or acceptance claims | Freeze candidate → build → real proof → independent release QA | Candidate identity plus real proof bundle |

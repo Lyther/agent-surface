@@ -53,7 +53,7 @@ For an orchestrated or release run, invoke `workflow-boss` (at most five tasks p
 
 ### Standard
 
-One owner runs the Default Route in `boot-workflow`, adding the broader relevant gate before self-review; spawn no planner, reviewer, or rescue role. The owner may use read-only subagents for independent discovery but stays responsible for the patch and checks.
+One owner runs the Default Route in `boot-workflow`; spawn no planner, reviewer, or rescue role. The owner may use read-only subagents for independent discovery but stays responsible for the patch and checks.
 
 ### Reviewed
 
