@@ -77,3 +77,6 @@ external/**
 !external/sanyuan-skills/skills/skill-review/**
 !external/sanyuan-skills/skills/wiki-ingest/
 !external/sanyuan-skills/skills/wiki-ingest/**
+
+# Evaluation lab: not part of the package payload.
+evals/

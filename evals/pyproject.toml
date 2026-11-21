@@ -1,0 +1,9 @@
+[project]
+name = "agent-surface-evals"
+version = "0.0.0"
+description = "Skill evaluation lab: Harbor runner, arm builder and cohort ledger."
+requires-python = ">=3.12"
+dependencies = ["harbor==0.26.0"]
+
+[tool.uv]
+package = false

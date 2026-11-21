@@ -1,0 +1,16 @@
+schema_version = "1.4"
+
+[metadata]
+scenario = "dev-fix/spike-01"
+category = "dev-fix"
+
+[verifier]
+timeout_sec = 300.0
+
+[agent]
+timeout_sec = 900.0
+
+[environment]
+build_timeout_sec = 600.0
+cpus = 1
+memory_mb = 2048
