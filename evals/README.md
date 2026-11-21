@@ -68,4 +68,43 @@ One row per attempt: `scenario`, `arm`, `host`, `model`, `rep`, versions, `sourc
 
 ## Tests
 
-`cd /tmp/as-wt-lab && uv run --frozen --project evals python -m unittest discover -s evals/tests -t .` runs the detector tests (stdlib `unittest`). The fixtures in `evals/tests/fixtures/` are trimmed real control trajectories, one per host and control; two further cases are constructed.
+`cd /tmp/as-wt-lab && uv run --frozen --project evals python -m unittest discover -s evals/tests -t .` runs the detector and scrubber tests (stdlib `unittest`). The fixtures in `evals/tests/fixtures/` are trimmed real control trajectories, one per host and control; two further cases are constructed.
+
+## Credential handling
+
+Research notes with sources are private (`.agent-surface/research/2026-11-21-sq0.4/`). Status per host, 2026-11-21:
+
+| Host | Non-interactive mode | Status |
+|---|---|---|
+| droid | `FACTORY_API_KEY` env | `ready`: the approved Droid key, in use since SQ0.1 |
+| opencode | free OpenCode models, no key (ran in SQ0.1 with `opencode/deepseek-v4.1-flash-free`) | `ready`: the model is pinned and time-limited; only DeepSeek V4.1 Flash Free is documented as zero-retention, so send no confidential data to the others |
+| claude-code | `ANTHROPIC_API_KEY` (always used under `-p`); `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` is documented for CI but bills a personal subscription | `needs operator credential`: a Console `ANTHROPIC_API_KEY` (API terms). A subscription token needs the operator's own terms decision |
+| codex | `codex login --with-api-key` from stdin; docs recommend API keys for CI. A copied ChatGPT `auth.json` is documented but is a personal OAuth token | `needs operator credential`: an OpenAI Platform API key. `CODEX_API_KEY` for `codex exec` was not confirmed |
+| kiro-cli | `KIRO_API_KEY`, documented for CI/CD; Pro, Pro+, Pro Max or Power only | `needs operator credential`: a paid-tier Kiro API key. Linux-container support is not stated |
+| kilo | provider key via `{env:VAR}` in trusted config, or `KILO_API_KEY`; `kilo run --auto` | `needs operator credential`: any supported provider key. No documented keyless model |
+
+No host is `BLOCKED` on terms alone; each has a documented automation mode. Whether a subscription login may be used in automation is the operator's decision, so no subscription token is used.
+
+Ollama Cloud (`OLLAMA_CLOUD_API_KEY`) is documented only for claude-code (`ANTHROPIC_BASE_URL=https://ollama.com`, `ANTHROPIC_AUTH_TOKEN`). It changes the model, so a host comparison that mixes it with other hosts' own models is confounded.
+
+### Injection rule
+
+A secret is read from the first stdin line of the cohort process and handed to the container with `docker exec -e NAME` (the value is in the process environment, not argv). It never goes into an image, a build argument, a scenario folder, an arm overlay, a ledger row or a receipt. Auth files such as `auth.json` are not copied into containers.
+
+### Scrubber
+
+```sh
+printf 'DROID_API_KEY=%s\n' "$KEY" | PYTHONPATH=$PWD uv run --frozen --project evals \
+  python -m evals.scrub [--quarantine DIR] PATH...
+```
+
+- Values come only from stdin, one per line, as `VALUE` or `NAME=VALUE` (`NAME` is the label). Values under 8 bytes are refused: they match unrelated bytes.
+- Every regular file under each `PATH` is scanned as raw bytes for each value (exact match) and for credential patterns: Anthropic, OpenAI, GitHub, AWS, Google and Factory key prefixes, PEM private-key headers, `Authorization: Bearer` and `x-api-key` header values. Gzip streams, tar and tgz members are scanned decoded too, because the SQ0.1 overlay tarballs are tgz. Other formats are not unpacked; no receipt contains them. Symlinks are not followed.
+- Output is `HIT exact|pattern NAME FILE offset=N`, with `archive!member` for archive contents and a count line. It never prints matched bytes.
+- With `--quarantine DIR`, a `PATH` with hits is moved into `DIR` (created 0700; the moved path is 0700 or 0600).
+- Exit codes: `0` clean, `1` hits, `2` usage error or unreadable file.
+- Library: `scrub.scan_receipt(attempt_dir, secrets, quarantine_dir)` scans one attempt directory, quarantines it on a hit and returns the hits.
+
+### Cohort integration (not wired yet; follows SQ0.2)
+
+After each attempt's container is removed and its files are collected, `cohort.py` calls `scan_receipt` on the attempt directory with every secret it injected. A non-empty result quarantines that attempt, writes a ledger row `quarantined` with the pattern or label names (never values), and stops the cohort: no further attempts start. The replace-in-place `scrub()` in `cohort.py` is then removed, so a leak is quarantined, not edited into looking clean. Run the same scan over the whole `out/` tree before it leaves the lab host.

@@ -418,7 +418,7 @@ Exit: one classification per host, with its version and the method used. A host 
 
 #### SQ0.4 Credentials and Isolation
 
-State: NOT STARTED. Depends on: none. Covers: `C-SQ-01`, `C-SQ-04`, `S-SQ-04`, `Q-SQ-02`.
+State: SCRUBBER DONE 2026-11-21 (`evals/scrub.py`, `evals/tests/test_scrub.py`, README credential handling; notes private under `.agent-surface/research/2026-11-21-sq0.4/`). A planted fake credential is caught in nested, binary, gzip and tar files, one pattern per family, and no secret bytes reach output; the SQ0.1, SQ0.2 and SQ0.6 receipts (local) and the server's SQ0.1 outputs scan clean with the Droid key (0 exact hits, 0 pattern hits outside the overlay tarballs, whose source text is flagged by design). Hosts: droid and opencode (free model) `ready`; claude-code (Console API key), codex (OpenAI API key), kiro-cli (paid-tier key) and kilo (a provider key) `needs operator credential`; none `BLOCKED`. Open: wire the scan into `cohort.py` after SQ0.2 merges; confirm `CODEX_API_KEY` and kiro-cli container support when a credential exists. Depends on: none. Covers: `C-SQ-01`, `C-SQ-04`, `S-SQ-04`, `Q-SQ-02`.
 
 For each runnable host, find a non-interactive credential mode usable in a container within the provider's terms. Run-time injection must leave nothing in images, scenario folders or receipts.
 
