@@ -371,11 +371,12 @@ class SpendGate:
         self.spent += int(reading or (self.reserve if ran else 0))
 
 
-async def run_order(groups: list[list], run_cell, concurrency: int, admit=None) -> bool:
-    """Run groups with bounded concurrency, the arms of a group one after another; `run_cell(cell)` returns True to stop the cohort.
+async def run_order(groups: list[list], run_cell, concurrency: int, admit=None, abandon=None) -> bool:
+    """Run groups with bounded concurrency, the arms of a group one after another; `run_cell(cell)` returns True to quarantine-stop the cohort.
 
-    A stop only keeps further groups from starting: a group that has started runs all its arms, so the ledger holds whole groups.
-    `admit(group)` returns False to refuse a group, which it records itself.
+    Two stops, two rules. A quarantine launches nothing further, not even the remaining arms of a group that has started: a leak may come
+    from how something is passed, so every further attempt could repeat it. `abandon(cells)` records those arms, which leaves their group
+    incomplete. A spend stop is `admit(group)` refusing a group (it records the refusal itself); started groups are not affected and finish.
     """
     sem = asyncio.Semaphore(concurrency)
     stopped = False
@@ -385,9 +386,14 @@ async def run_order(groups: list[list], run_cell, concurrency: int, admit=None) 
         async with sem:
             if stopped or (admit and not admit(group)):
                 return
-            for cell in group:
+            for index, cell in enumerate(group):
+                if stopped:
+                    if abandon:
+                        abandon(group[index:])
+                    return
                 if await run_cell(cell):
                     stopped = True
+            return
 
     await asyncio.gather(*(one(g) for g in groups))
     return stopped
@@ -413,10 +419,10 @@ async def main(args) -> None:
     order = [left for left in ([c for c in group if first_attempt[tuple(c)]] for group in everything) if left]
     gates = {host: SpendGate(cap, reserve) for host, (cap, reserve) in args.spend.items()}
 
-    def skip(cell, why: str) -> None:
+    def skip(cell, why: str, **more) -> None:
         scenario, host, profile, rep = cell
         with ledger.open("a") as f:
-            f.write(json.dumps({"scenario": scenario, "profile": profile, "host": host, "rep": rep, "skipped": why, **args.units[scenario].fields}) + "\n")
+            f.write(json.dumps({"scenario": scenario, "profile": profile, "host": host, "rep": rep, "skipped": why, **args.units[scenario].fields, **more}) + "\n")
 
     def admit(group) -> bool:
         gate = gates.get(group[0][1])
@@ -445,7 +451,13 @@ async def main(args) -> None:
             gates[host].settle(spend_reading(host, last), ran=last.get("seconds_agent") is not None)
         return stop
 
-    if await run_order(order, run_cell, args.concurrency, admit):
+    def abandon(cells) -> None:
+        for cell in cells:
+            skip(cell, "quarantine stop: group incomplete", group_incomplete=True)
+            if cell[1] in gates:
+                gates[cell[1]].settle(0, ran=False)
+
+    if await run_order(order, run_cell, args.concurrency, admit, abandon):
         sys.exit("receipt scan found a credential: attempt quarantined, cohort stopped (see ledger and out/quarantine)")
 
 

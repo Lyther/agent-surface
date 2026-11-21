@@ -274,15 +274,49 @@ class AdmissionTest(unittest.TestCase):
     def groups(self):
         return [[("s", "h", p, r) for p in ("a", "b", "c")] for r in (1, 2, 3, 4)]
 
-    def test_started_groups_run_all_their_arms_after_a_stop_and_later_groups_do_not_start(self):
-        ran = []
+    def test_a_quarantine_launches_nothing_further_and_abandons_the_rest_of_its_group(self):
+        ran, abandoned = [], []
 
         async def run_cell(cell):
             ran.append(cell)
-            return cell[3] == 2 and cell[2] == "a"  # the second group asks to stop on its first arm
+            return cell[3] == 2 and cell[2] == "a"  # the second group's first arm is quarantined
 
-        self.assertTrue(asyncio.run(run_order(self.groups(), run_cell, 1)))
-        self.assertEqual([(c[3], c[2]) for c in ran], [(1, "a"), (1, "b"), (1, "c"), (2, "a"), (2, "b"), (2, "c")])
+        stopped = asyncio.run(run_order(self.groups(), run_cell, 1, abandon=abandoned.extend))
+        self.assertTrue(stopped)
+        self.assertEqual([(c[3], c[2]) for c in ran], [(1, "a"), (1, "b"), (1, "c"), (2, "a")])
+        self.assertEqual([(c[3], c[2]) for c in abandoned], [(2, "b"), (2, "c")])  # later groups never start and are not recorded
+
+    def test_a_quarantine_in_one_group_also_abandons_the_rest_of_a_group_running_beside_it(self):
+        ran, abandoned = [], []
+
+        async def run_cell(cell):
+            ran.append((cell[3], cell[2]))
+            await asyncio.sleep(0)
+            return cell[3] == 1 and cell[2] == "a"
+
+        asyncio.run(run_order(self.groups()[:2], run_cell, 2, abandon=abandoned.extend))
+        self.assertNotIn((2, "c"), ran)
+        self.assertIn((2, "c"), [(c[3], c[2]) for c in abandoned])
+
+    def test_a_spend_stop_refuses_new_groups_and_lets_started_groups_finish(self):
+        gate = SpendGate(cap=700, reserve=100)
+        refused, ran = [], []
+
+        def admit(group):
+            why = gate.admit(len(group))
+            if why:
+                refused.append(group[0][3])
+            return not why
+
+        async def run_cell(cell):
+            ran.append((cell[3], cell[2]))
+            gate.settle(100)
+            return False
+
+        asyncio.run(run_order(self.groups(), run_cell, 1, admit=admit, abandon=lambda cells: self.fail("a spend stop abandons nothing")))
+        self.assertEqual(sorted({r for r, _ in ran}), [1, 2])  # 700 / 100 = 7 attempts: two groups of three fit, the third is refused whole
+        self.assertEqual(len(ran), 6)
+        self.assertEqual(refused, [3, 4])
 
     def test_a_refused_group_runs_none_of_its_arms(self):
         ran = []

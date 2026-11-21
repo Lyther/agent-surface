@@ -195,6 +195,8 @@ The ledger's `model` is the requested id. The gateway answers with the id that w
 
 **Launch failures.** A row with `harbor` and `cli_version` both null means the agent never started. The cell is retried at most three times, each in a fresh job directory (`<name>-a2`, `-a3`, `-a4`), and every attempt keeps its row with its `attempt_no`; a resumed run continues from the last `attempt_no`. An attempt that started and failed (timeout, host crash, setup failure) is not retried.
 
+**Stops.** A quarantine launches nothing further, not even the remaining arms of a group that has started; those arms get a `skipped` row with `group_incomplete: true`. A spend stop refuses new groups and lets started groups finish.
+
 **Spend stop.** `cohort.py --spend HOST=CAP:RESERVE` (repeatable) is required for `droid` and each gateway host and has no default: the cap and the reserve come from the preregistration. A group is admitted only while spent + RESERVE x (attempts admitted and not finished, the new group included) is at most CAP; a refused group is ledgered as skipped, all its arms. An attempt's spend is `factory_credits` for droid and `tokens_in + tokens_out` for a gateway host; an attempt that reached the agent but has no reading is charged the reserve, one that failed before the agent started is charged nothing.
 
 ### Scrubber
