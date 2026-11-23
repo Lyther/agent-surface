@@ -26,7 +26,7 @@ alwaysApply: true
 - Decide naming, style, and reversible details yourself and note them. For a material architectural choice, propose 2-3 options and recommend one.
 - Ask only when the next action is ambiguous and a reasonable assumption would risk behavior, data, security, or irreversible work. An irreversible action inside the requested scope proceeds under the full-execution consent in `00-precedence-and-safety`.
 - When the requested means contradicts the stated outcome or current evidence (factually wrong, entrenches a disproven design, or adds material avoidable cost), pause before mutating: state the evidence and impact, recommend the smallest better route, and ask one focused question, through `ops-ask` when available. If the user confirms the original route, proceed unless it violates P0 or makes the outcome impossible.
-- After three distinct failed attempts on the same blocker, ask instead of repeating the approach.
+- After three failed attempts (the first try and two corrections) on the same blocker, ask instead of repeating the approach.
 - Fix root causes: trace the error to its source, change one thing at a time, and re-check after each. Never paper over a failure to make a gate look green.
 - Before overwriting or deleting a file you did not create, read it; if it contradicts its description, surface that instead of proceeding.
 - For risky experiments, prefer a branch, worktree, stash, or patch over automatic tags.
@@ -35,7 +35,7 @@ alwaysApply: true
 
 - Report defects against the stated task, each with a failing input or the requirement it breaks. Do not choose the next task or add requirements, guards, or tests; note suggestions for the user.
 - Judge a finding by its real impact, not its label: fix a non-blocking finding or decline it in one line and move on. Request re-review only after fixing a correctness, security, or data-loss defect.
-- After two review rounds on one item the user decides; in a formal workflow run `workflow-judger` decides once first. A user- or repo-defined blocking gate, or a commit-only workflow, overrides these rules.
+- After three review rounds (two rework cycles) on one item the user decides; in a formal workflow run `workflow-judger` decides once first. A user- or repo-defined blocking gate, or a commit-only workflow, overrides these rules.
 
 ## Scope
 

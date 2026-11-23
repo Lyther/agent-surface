@@ -23,7 +23,7 @@ ship        -> route to the requested shipping command after accepted evidence e
 ```
 
 - `direct` or `standard`: collapse the workflow immediately; never open `.agent-surface/workflows/` merely because this command was invoked.
-- `reviewed`: a lightweight loop whose handoff is the Git diff and check output. Create no BOSS, judger, or rescue artifacts. Allow at most two developer-review cycles; repeated disagreement needs a human decision or a fresh route classification.
+- `reviewed`: a lightweight loop whose handoff is the Git diff and check output. Create no BOSS, judger, or rescue artifacts. Allow at most two rework cycles (three review rounds); repeated disagreement needs a human decision or a fresh route classification.
 - Only `orchestrated` and `release` may create or rehydrate the formal workflow ledger.
 
 ## 2. Minimum Contract
@@ -66,7 +66,7 @@ writer -> verify -> independent reviewer
 
 - One active writer owns the filescope. The read-only reviewer receives the contract, exact diff, checks, and relevant source, and reports severity-ranked, evidenced defects; style preferences never trigger rework.
 - For high/critical review, use a different model family when an approved, operationally proven runtime exists; otherwise record degraded independence and require stronger deterministic evidence or human review.
-- Maximum two rework cycles.
+- Maximum two rework cycles (three review rounds).
 
 ### Orchestrated
 
@@ -93,7 +93,7 @@ Do not freeze or prove every intermediate patch. A failed acceptance invalidates
 
 ## 5. Liveness and Recovery (required)
 
-For formal `orchestrated` or `release` sessions, create `.agent-surface/workflows/<run_id>/agents.json` with `schema_version: workflow.monitor.v2`, holding run-level retry/review policy and per-agent liveness budgets. It is mutable monitor state, not product evidence, and never committed. A `reviewed` loop enforces the same budgets through the host's native session controls and concise progress updates, without opening a formal ledger for monitor state.
+For formal `orchestrated` or `release` sessions, create `.agent-surface/workflows/<run_id>/agents.json` with `schema_version: workflow.monitor.v2`, holding run-level retry/review policy (`max_review_cycles` counts rework cycles, so its maximum of 2 means three review rounds) and per-agent liveness budgets. It is mutable monitor state, not product evidence, and never committed. A `reviewed` loop enforces the same budgets through the host's native session controls and concise progress updates, without opening a formal ledger for monitor state.
 
 Default budgets unless repository evidence justifies another value:
 

@@ -39,7 +39,7 @@ Parallel width comes from independent workstreams, not checklist length; a seque
 | --- | --- | --- | --- |
 | `direct` | Trivial, obvious, reversible work with a tiny filescope | Current session; no planner or reviewer | Diff plus focused check |
 | `standard` (default) | Normal bounded implementation with clear behavior | One owner runs the Default Route in `boot-workflow` | Diff plus relevant repo gates |
-| `reviewed` | Security-sensitive, public/shared contract, broad regression surface, or meaningful failure cost | One writer, then one independent read-only reviewer; at most two rework cycles | Writer checks plus reviewer verdict |
+| `reviewed` | Security-sensitive, public/shared contract, broad regression surface, or meaningful failure cost | One writer, then one independent read-only reviewer; at most two rework cycles (three review rounds) | Writer checks plus reviewer verdict |
 | `orchestrated` | Two or more genuinely independent workstreams, or a long-running dependency graph that benefits from durable state | Central orchestrator; isolated worktrees for concurrent writers; formal workflow ledger | Per-workstream evidence plus integrated QA |
 | `release` | A stable candidate must support readiness, artifact, deployment, or acceptance claims | Freeze candidate → build → real proof → independent release QA | Candidate identity plus real proof bundle |
 | `audit` | Unknown cause/risk, vulnerability investigation, broad claim review, or diagnosis-only request | Read-only analyst/reviewer; parallel read-only probes allowed | Findings tied to source/evidence |
