@@ -10,11 +10,14 @@ export function installRootUserOrProject(scope) {
 
 // Several hosts have no project-scope layout of their own: installing them means writing into the
 // home directory (or one directory under it), and a project install only makes sense via --dest.
+// `homeOnly` lets `--target all` skip these at project scope without calling the root, which exits.
 function homeOnlyInstallRoot(message, subdirectory = null) {
-  return (scope) => {
+  const root = (scope) => {
     if (scope !== "user") fail(message);
     return subdirectory === null ? os.homedir() : path.join(os.homedir(), subdirectory);
   };
+  root.homeOnly = true;
+  return root;
 }
 
 export const installRootHomeOnly = homeOnlyInstallRoot("this target supports --scope user only unless --dest is supplied");
@@ -27,6 +30,10 @@ export function installRootKimiCode(scope) {
 
 export const installRootAntigravity = homeOnlyInstallRoot("antigravity install supports --scope user only unless --dest is supplied", ".gemini");
 export const installRootAntigravityCli = homeOnlyInstallRoot("antigravity-cli install supports --scope user only unless --dest is supplied", ".gemini");
+// Where install stages the plugin (under the install root), and where `agy plugin install` imports
+// it for Antigravity to run (under the home directory).
+export const antigravityCliStagedPlugin = path.join("antigravity-cli", "plugins", "agent-surface");
+export const antigravityCliImportedPlugin = path.join(".gemini", "config", "plugins", "agent-surface");
 export const installRootVsCode = homeOnlyInstallRoot("vscode install supports --scope user only unless --dest is supplied");
 
 // Codex reads CODEX_HOME/AGENTS.md and a project's AGENTS.md files from the repository root down,

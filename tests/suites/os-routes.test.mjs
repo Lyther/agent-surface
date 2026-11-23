@@ -10,11 +10,12 @@ import os from "node:os";
 import path from "node:path";
 
 import { clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineVsCodeExtensionMcpPath, gooseMcpPath, traeMcpPath, zedInstructionPath, zedMcpPath } from "../../scripts/agent-surface/roots.mjs";
-import { status } from "../lib/helpers.mjs";
+import { status, writeFirstPartyLaunchers } from "../lib/helpers.mjs";
 
 const scratch = mkdtempSync(path.join(os.tmpdir(), "agent-surface-os-routes-"));
 const home = path.join(scratch, "home");
 mkdirSync(home);
+writeFirstPartyLaunchers(home);
 const env = { ...process.env, HOME: home, USERPROFILE: home };
 const windows = process.platform === "win32";
 
@@ -73,6 +74,7 @@ try {
   // - real-proof: none yet on Windows
   {
     const clineHome = path.join(scratch, "cline-home");
+    writeFirstPartyLaunchers(clineHome);
     const appData = path.join(scratch, "cline-appdata");
     mkdirSync(path.join(clineHome, ".vscode", "extensions", "saoudrizwan.claude-dev-3.86.2"), { recursive: true });
     mkdirSync(path.join(clineHome, ".devin", "extensions", "saoudrizwan.claude-dev-3.86.2"), { recursive: true });
@@ -97,6 +99,7 @@ try {
   // - real-proof: the operator's macOS profile (Trae 3.5.25) plans the international route
   {
     const traeHome = path.join(scratch, "trae-home");
+    writeFirstPartyLaunchers(traeHome);
     const appData = path.join(scratch, "trae-appdata");
     const route = (product) => traeMcpPath(product)({ scope: "user", appData });
     const userDirectory = (product) => (path.isAbsolute(route(product)) ? path.dirname(route(product)) : path.join(traeHome, path.dirname(route(product))));
@@ -128,6 +131,7 @@ try {
     };
     if (process.platform === "linux" && spawnSync("xdg-user-dir", ["DOCUMENTS"]).status === 0) {
       const xdgHome = path.join(scratch, "cline-xdg");
+      writeFirstPartyLaunchers(xdgHome);
       mkdirSync(path.join(xdgHome, ".config"), { recursive: true });
       writeFileSync(path.join(xdgHome, ".config", "user-dirs.dirs"), "XDG_DOCUMENTS_DIR=\"$HOME/Dokumente\"\n");
       const planned = clinePlan(xdgHome);
@@ -135,6 +139,7 @@ try {
       // With no DOCUMENTS entry xdg-user-dir names the home itself, so the extension reads ~/Cline,
       // whose Rules folder the SDK also scans.
       const bareHome = path.join(scratch, "cline-xdg-bare");
+      writeFirstPartyLaunchers(bareHome);
       mkdirSync(path.join(bareHome, ".config"), { recursive: true });
       const bare = clinePlan(bareHome);
       for (const output of [workflow("Documents"), workflow(""), rule("")]) assert.ok(bare(output), `${output} is planned`);
@@ -151,12 +156,14 @@ try {
       };
       try {
         const oneDriveHome = path.join(scratch, "cline-onedrive");
+        writeFirstPartyLaunchers(oneDriveHome);
         const oneDriveDocuments = path.join("OneDrive", "Documents");
         pointDocumentsAt(path.join(oneDriveHome, oneDriveDocuments));
         const synced = clinePlan(oneDriveHome, { OneDrive: path.join(oneDriveHome, "OneDrive") });
         for (const output of [workflow("Documents"), workflow(oneDriveDocuments), rule(oneDriveDocuments)]) assert.ok(synced(output), `${output} is planned`);
         assert.ok(!synced(rule("Documents")), "rules the SDK reads from OneDrive's Documents are not written twice");
         const movedHome = path.join(scratch, "cline-moved-documents");
+        writeFirstPartyLaunchers(movedHome);
         // A non-ASCII folder name proves the path survives the PowerShell query's output encoding.
         const movedName = "Docs-文档-Ä";
         pointDocumentsAt(path.join(movedHome, movedName));

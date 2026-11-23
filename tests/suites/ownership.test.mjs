@@ -222,6 +222,11 @@ try {
     assert.doesNotMatch(plan.out, /also planned by/, label);
   }
 
+  // An explicit --dest gives the home-only hosts a root, so `all` keeps them and excludes nothing.
+  const destAll = install(["--target", "all", "--scope", "project", "--dest", path.join(scratch, "all-project"), "--dry-run"]);
+  assert.match(destAll.out, /^target: codex$/m);
+  assert.doesNotMatch(destAll.out, /excluded from --target all at project scope/);
+
   // Claim sources: any <id>-manifest.json in .agent-surface/ counts, unknown targets included, and
   // an unparsable one blocks the root once instead of turning claimed files into unowned ones.
   // SUBSTITUTE_JUSTIFICATION

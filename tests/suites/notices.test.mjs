@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { claudeRulesImportNotice, gooseXdgConfigNotice, localDate, noticeTiming, opencodeConfigRootNotices, sharedSkillRootNotice } from "../../scripts/agent-surface/notices.mjs";
-import { files, run } from "../lib/helpers.mjs";
+import { files, run, writeFirstPartyLaunchers } from "../lib/helpers.mjs";
 
 // Split an install plan printout into one section per target.
 function planSections(stdout) {
@@ -127,7 +127,11 @@ try {
   // Windows config route is under AppData, where XDG_CONFIG_HOME plays no part.
   if (process.platform !== "win32") {
     const gooseDest = path.join(scratch, "goose");
-    const gooseEnv = { ...process.env, HOME: home };
+    // The notice concerns the MCP entries the install writes; headless without -y an install writes
+    // none while a first-party prerequisite is missing, so this home holds the launchers.
+    const gooseHome = path.join(scratch, "goose-home");
+    writeFirstPartyLaunchers(gooseHome);
+    const gooseEnv = { ...process.env, HOME: gooseHome };
     delete gooseEnv.XDG_CONFIG_HOME;
     const gooseWritten = run(["install", "--target", "goose", "--scope", "user", "--dest", gooseDest, "--dry-run"], {
       env: { ...gooseEnv, XDG_CONFIG_HOME: path.join(gooseDest, ".config") },

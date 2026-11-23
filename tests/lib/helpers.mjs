@@ -1,8 +1,9 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { shimFileName } from "../../scripts/agent-surface/mcp-shims.mjs";
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 export const cli = path.join(root, "scripts", "agent-surface.mjs");
@@ -46,8 +47,8 @@ export const clineUserMcpRoutes = [
   )),
 ].sort();
 
-// An all-target plan prints one line per planned file, and npm pack JSON lists every packaged
-// file; both outgrow Node's 1 MiB default capture.
+// An all-target plan against an empty root prints one line per file it would write, and npm pack
+// JSON lists every packaged file; both outgrow Node's 1 MiB default capture.
 export const MAX_CAPTURE_BYTES = 64 * 1024 * 1024;
 
 export function run(args, options = {}) {
@@ -249,4 +250,20 @@ if bad:
 
 export function assertCodexAgentTomlParses() {
   assertTomlParses(path.join(root, "dist", "codex", ".codex", "agents"));
+}
+
+// A home whose first-party launchers exist. Headless without -y an install wires no MCP entry while a
+// prerequisite is missing, and the dry run previews exactly that, so a test that reads planned MCP
+// routes needs a home where nothing is missing. Plain files, not substitutes: detection reads them
+// and nothing runs them.
+// Names follow the production shim naming (`.cmd` on Windows, where an extensionless file is not
+// executable); `platform` lets a test check the Windows fixture from any host.
+export function writeFirstPartyLaunchers(home, platform = process.platform) {
+  const bin = path.join(home, ".local", "bin");
+  mkdirSync(bin, { recursive: true });
+  mkdirSync(path.join(home, ".grimoire"), { recursive: true });
+  writeFileSync(path.join(home, ".grimoire", "index.sqlite"), "");
+  for (const launcher of ["synapse-bridge", "synapse-hook", "grimoire-server"]) {
+    writeFileSync(path.join(bin, shimFileName(launcher, platform)), "#!/usr/bin/env node\n", { mode: 0o755 });
+  }
 }

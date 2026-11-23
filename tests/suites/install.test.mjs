@@ -2,12 +2,14 @@
 import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { parseJsonc, removeJsoncValue } from "../../scripts/agent-surface/jsonc.mjs";
+import { detectPrerequisite } from "../../scripts/agent-surface/provision.mjs";
+import { reconcileExecuteBits } from "../../scripts/agent-surface/install.mjs";
 import { mergeCodexMcpToml, mergeJsonMcpConfig, mergeYamlMcpConfig } from "../../scripts/agent-surface/merge.mjs";
 import { writeShims } from "../../scripts/agent-surface/mcp-shims.mjs";
 import { mergeSynapseHook, planSynapseHook, synapseHookCommand, synapseHookLauncher, synapseHookStatus } from "../../scripts/agent-surface/synapse-hook.mjs";
@@ -22,6 +24,7 @@ import {
   ownTempRoot,
   root,
   run, status,
+  writeFirstPartyLaunchers,
   useDisposableHome,
 } from "../lib/helpers.mjs";
 
@@ -379,6 +382,7 @@ planLacks(dryRun("openhands"), [/\.openhands\/mcp\.json MCP/], "openhands projec
 // - proof-limit: proves path selection and install behavior, not Goose runtime discovery
 // - real-proof: tests/suites/install-live.test.mjs plus a credentialed Goose task-shaped run
 const gooseHome = mkdtempSync(path.join(os.tmpdir(), "agent-surface-goose-home-"));
+writeFirstPartyLaunchers(gooseHome);
 try {
   const gooseUserPlan = run(
     ["install", "--target", "goose", "--scope", "user", "--allow-scope-root", "--dry-run"],
@@ -393,8 +397,10 @@ try {
 
 // --category mcps across all targets must succeed; non-MCP hosts report non-applicable.
 {
+  const mcpsAllHome = ownTmp("mcps-all-home");
+  writeFirstPartyLaunchers(mcpsAllHome);
   const mcpsAllPlan = run(["install", "--target", "all", "--scope", "user", "--allow-scope-root", "--category", "mcps", "--dry-run"], {
-    env: { ...process.env, HOME: ownTmp("mcps-all-home") },
+    env: { ...process.env, HOME: mcpsAllHome },
   });
   assert.match(mcpsAllPlan, /MCP \+= grimoire, synapse/);
 }
@@ -724,6 +730,45 @@ assert.ok(clineWrote);
 assert.equal(Number(clineWrote[1]), liveManifest.managed.length);
 assert.equal(Object.hasOwn(liveManifest.managed[0], "managed_by"), false);
 assert.equal(Object.hasOwn(liveManifest.managed[0], "sha256"), false);
+// The plan counts what it would do and lists only what changes; an unchanged file is a count.
+{
+  const planCountsOf = (text) => Object.fromEntries([...text.matchAll(/^counts: (.+)$/gm)][0][1].split(", ").map((part) => {
+    const match = part.match(/^(.+) (\d+)$/);
+    return [match[1], Number(match[2])];
+  }));
+  const replan = run(["install", "--target", "cline", "--dest", liveDest, "--dry-run"]);
+  assert.match(replan, new RegExp(`^  unchanged: ${liveManifest.managed.length} \\(not listed\\)$`, "m"));
+  assert.doesNotMatch(replan, /^  \S+ <- /m, "a fully installed root plans no write lines");
+  assert.deepEqual(planCountsOf(replan), { write: 0, "permission changes": 0, unchanged: liveManifest.managed.length, remove: 0, "already gone": 0, retain: 0, "config merges": 0, blocked: 0 });
+  assert.equal(replan.match(/^plan total:/gm), null, "one plan prints no total");
+
+  const edited = path.join(liveDest, ".cline", "skills", "ops-ask", "SKILL.md");
+  const original = readFileSync(edited, "utf8");
+  writeFileSync(edited, `${original}\nlocal edit\n`);
+  try {
+    const dirty = run(["install", "--target", "cline", "--dest", liveDest, "--dry-run"]);
+    assert.deepEqual([...dirty.matchAll(/^  (\S+) <- /gm)].map((match) => match[1]), [path.join(".cline", "skills", "ops-ask", "SKILL.md")]);
+    assert.equal(planCountsOf(dirty).write, 1);
+    assert.match(dirty, new RegExp(`^  unchanged: ${liveManifest.managed.length - 1} \\(not listed\\)$`, "m"));
+  } finally {
+    writeFileSync(edited, original);
+  }
+
+  const pair = run(["install", "--target", "cline,kilo", "--scope", "user", "--dest", ownTmp("plan-total"), "--dry-run"]);
+  const perTarget = [...pair.matchAll(/^counts: (.+)$/gm)].map((match) => match[1]);
+  assert.equal(perTarget.length, 2);
+  const summed = {};
+  for (const line of perTarget) {
+    for (const part of line.split(", ")) {
+      const [, label, count] = part.match(/^(.+) (\d+)$/);
+      summed[label] = (summed[label] ?? 0) + Number(count);
+    }
+  }
+  const total = pair.match(/^plan total: (.+)$/m);
+  assert.ok(total, pair);
+  assert.equal(total[1], Object.entries(summed).map(([label, count]) => `${label} ${count}`).join(", "));
+}
+
 run(["install", "--target", "cline", "--dest", liveDest, "--category", "development"]);
 assert.match(readFileSync(path.join(liveDest, ".cline", "skills", "workflow-boss", "SKILL.md"), "utf8"), /^---\nname: workflow-boss\n/);
 assert.match(readFileSync(path.join(liveDest, ".cline", "skills", "verify-readiness", "SKILL.md"), "utf8"), /^---\nname: verify-readiness\n/);
@@ -815,6 +860,7 @@ liveStaleManifest.managed.push({
   version: "0.1.0",
 });
 writeFileSync(liveStaleManifestPath, `${JSON.stringify(liveStaleManifest, null, 2)}\n`);
+assert.match(run(["install", "--target", "cline", "--dest", liveStaleDest, "--dry-run"]), /^counts: .*, remove 1, already gone 0, /m);
 const liveStaleInstall = run(["install", "--target", "cline", "--dest", liveStaleDest]);
 assert.match(liveStaleInstall, /removed stale: 1/);
 assert.equal(existsSync(liveStaleFile), false);
@@ -834,10 +880,219 @@ missingStaleManifest.managed.push({
   version: "0.1.0",
 });
 writeFileSync(missingStaleManifestPath, `${JSON.stringify(missingStaleManifest, null, 2)}\n`);
+// A removal whose file is already absent deletes nothing, so the plan counts it apart from removals.
+const missingStalePlan = run(["install", "--target", "cline", "--dest", missingStaleDest, "--dry-run"]);
+assert.match(missingStalePlan, /^counts: write 0, permission changes 0, unchanged \d+, remove 0, already gone 1, retain 0, config merges 0, blocked 0$/m);
+assert.match(missingStalePlan, /^  \.clinerules[\\/]workflows[\\/]already-gone\.md$/m);
 const missingStaleInstall = run(["install", "--target", "cline", "--dest", missingStaleDest]);
 assert.match(missingStaleInstall, /^installed:$/m);
 assert.match(missingStaleInstall, /removed stale: 0/);
 rmSync(missingStaleDest, { recursive: true, force: true });
+
+// Execute bits follow read bits and nothing else is touched, for both declared kinds of mode.
+for (const [existing, declared, expected] of [
+  [0o600, 0o755, 0o700], [0o644, 0o755, 0o755], [0o655, 0o755, 0o755], [0o700, 0o755, 0o700], [0o444, 0o755, 0o555],
+  [0o600, 0o644, 0o600], [0o755, 0o644, 0o644], [0o555, 0o644, 0o444], [0o100644, 0o644, 0o644],
+]) {
+  assert.equal(reconcileExecuteBits(existing, declared), expected, `${existing.toString(8)} against ${declared.toString(8)}`);
+}
+
+// A helper whose declared mode is executable must stay executable where it is installed. A mode-only
+// drift planned as "unchanged" left Antigravity's enabled copy stale with no reminder (605 unchanged,
+// zero writes, no import NOTE). No shipped companion is executable, so one source file is made
+// executable for the run and restored after it.
+if (process.platform !== "win32") {
+  const companion = path.join(root, "skills", "ops-docs", "references", "sop-template.md");
+  const companionMode = statSync(companion).mode;
+  chmodSync(companion, 0o755);
+  try {
+    for (const [target, scope, relative] of [
+      ["cline", "project", path.join(".cline", "skills", "ops-docs", "references", "sop-template.md")],
+      ["antigravity-cli", "user", path.join("antigravity-cli", "plugins", "agent-surface", "skills", "ops-docs", "references", "sop-template.md")],
+    ]) {
+      const dest = ownTmp(`mode-drift-${target}`);
+      rmSync(dest, { recursive: true, force: true });
+      const args = ["install", "--target", target, "--scope", scope, "--dest", dest];
+      run(args);
+      const installed = path.join(dest, relative);
+      assert.equal(statSync(installed).mode & 0o777, 0o755, `${target} installs the companion executable`);
+      // 0644 loses every execute bit; 0655 loses only the owner's, which still reads as executable to
+      // an any-bit test while the owner's own run fails with EACCES. The bytes are right, so this is a
+      // permission change, not a write, and the repaired mode keeps what read grants.
+      for (const [drifted, repaired] of [[0o644, 0o755], [0o655, 0o755], [0o444, 0o555]]) {
+        chmodSync(installed, drifted);
+        const plan = run([...args, "--dry-run"]);
+        assert.match(plan, /^counts: write 0, permission changes 1, unchanged \d+,/m, `${target} ${drifted.toString(8)}`);
+        assert.ok(plan.includes(`  ${relative} permissions ${drifted.toString(8).padStart(4, "0")} -> ${repaired.toString(8).padStart(4, "0")} (bytes unchanged)`), `${target} lists the drifted companion`);
+        const before = readFileSync(installed, "utf8");
+        const apply = run(args);
+        assert.match(apply, /^ {2}wrote: 0$/m, target);
+        assert.match(apply, /^ {2}permission changes: 1$/m, target);
+        assert.equal(statSync(installed).mode & 0o777, repaired, `${target} apply repairs the execute bits`);
+        assert.equal(readFileSync(installed, "utf8"), before, `${target} keeps the bytes`);
+        if (target === "antigravity-cli") assert.match(apply, /^NOTE: Antigravity runs its imported copy/m, "a permission-only change reaches the import too");
+        assert.match(run([...args, "--dry-run"]), /^counts: write 0, permission changes 0, /m, `${target} is unchanged once repaired`);
+      }
+      rmSync(dest, { recursive: true, force: true });
+    }
+  } finally {
+    chmodSync(companion, companionMode & 0o777);
+  }
+}
+
+// The operator's umask decides the read and write bits of an installed file; only execute is the
+// installer's. Under 077 a fresh executable companion is 0700, an identical reinstall changes nothing
+// (it used to widen 0700 to 0755 while reporting zero writes), and a drifted file is repaired from its
+// own mode.
+if (process.platform !== "win32") {
+  const companion = path.join(root, "skills", "ops-docs", "references", "sop-template.md");
+  const companionMode = statSync(companion).mode;
+  chmodSync(companion, 0o755);
+  const previousUmask = process.umask(0o077);
+  try {
+    const dest = ownTmp("umask-companion");
+    rmSync(dest, { recursive: true, force: true });
+    const args = ["install", "--target", "cline", "--dest", dest];
+    const installed = path.join(dest, ".cline", "skills", "ops-docs", "references", "sop-template.md");
+    run(args);
+    assert.equal(statSync(installed).mode & 0o777, 0o700, "a new executable file follows the creation mask");
+    const preview = run([...args, "--dry-run"]);
+    assert.match(preview, /^counts: write 0, permission changes 0, /m);
+    const reinstall = run(args);
+    assert.match(reinstall, /^ {2}wrote: 0$/m);
+    assert.match(reinstall, /^ {2}permission changes: 0$/m);
+    assert.equal(statSync(installed).mode & 0o777, 0o700, "an unchanged file keeps its mode");
+    rmSync(dest, { recursive: true, force: true });
+  } finally {
+    process.umask(previousUmask);
+    chmodSync(companion, companionMode & 0o777);
+  }
+}
+
+// The repeat preview must equal the apply. The first-party launchers here are env-shebang scripts, so
+// apply wires them through the env launcher; a preview planned without that wiring counted a config
+// merge that apply then discarded.
+{
+  const launcherHome = ownTmp("repeat-preview-home");
+  rmSync(launcherHome, { recursive: true, force: true });
+  mkdirSync(path.join(launcherHome, ".local", "bin"), { recursive: true });
+  mkdirSync(path.join(launcherHome, ".grimoire"), { recursive: true });
+  writeFileSync(path.join(launcherHome, ".grimoire", "index.sqlite"), "");
+  for (const launcher of ["synapse-bridge", "synapse-hook", "grimoire-server"]) {
+    writeFileSync(path.join(launcherHome, ".local", "bin", launcher), "#!/usr/bin/env node\n", { mode: 0o755 });
+  }
+  const env = { ...process.env, HOME: launcherHome, USERPROFILE: launcherHome };
+  const dest = path.join(launcherHome, "dest");
+  const args = ["install", "--target", "codex", "--scope", "user", "--dest", dest];
+  try {
+    assert.match(run(args, { env }), /^ {2}config merges: 2$/m);
+    const preview = run([...args, "--dry-run"], { env });
+    assert.match(preview, /^counts: .*config merges 0, blocked 0$/m);
+    assert.doesNotMatch(preview, /MCP \+=/);
+    assert.match(run(args, { env }), /^ {2}config merges: 0$/m);
+  } finally {
+    rmSync(launcherHome, { recursive: true, force: true });
+  }
+}
+
+// Headless without -y, the apply never runs a recipe: it wires from the current detection, and a
+// REQUIRED gap makes it refuse (exit 1) and keep that service's config. The repeat preview must say
+// the same. Each case builds a scratch HOME from real executables: the first-party launchers are
+// env-shebang files, and uv is the real one with its tool directory and bin directory inside the
+// scratch HOME, so nothing is written to any real ~/.local/bin.
+if (process.platform !== "win32") {
+  const launcherHome = (name) => {
+    const home = ownTmp(name);
+    rmSync(home, { recursive: true, force: true });
+    const bin = path.join(home, ".local", "bin");
+    mkdirSync(bin, { recursive: true });
+    mkdirSync(path.join(home, ".grimoire"), { recursive: true });
+    writeFileSync(path.join(home, ".grimoire", "index.sqlite"), "");
+    for (const launcher of ["synapse-bridge", "synapse-hook", "grimoire-server"]) {
+      writeFileSync(path.join(bin, launcher), "#!/usr/bin/env node\n", { mode: 0o755 });
+    }
+    return { home, bin };
+  };
+  const nodeDir = path.dirname(process.execPath);
+  const installArgs = (home) => ["install", "--target", "codex", "--scope", "user", "--dest", path.join(home, "dest"), "--category", "cybersecurity"];
+  const cleanPath = (...dirs) => [...dirs, nodeDir, "/usr/bin", "/bin"].join(path.delimiter);
+
+  // REQUIRED gap: openosint-mcp is truly absent (and no uv on PATH to recipe it).
+  const required = launcherHome("required-gap-home");
+  try {
+    const env = { ...process.env, HOME: required.home, USERPROFILE: required.home, PATH: cleanPath(required.bin) };
+    const args = installArgs(required.home);
+    const first = status(args, { env });
+    assert.equal(first.status, 1, first.stdout);
+    const preview = status([...args, "--dry-run"], { env });
+    assert.equal(preview.status, 0, "a dry run reports the refusal without failing, as every dry run with missing prerequisites does");
+    assert.match(preview.stdout, /openosint-mcp MISSING/);
+    assert.match(preview.stdout, /^counts: .*config merges 0, blocked 0$/m, "the refused service's merge is not previewed");
+    assert.doesNotMatch(preview.stdout, /MCP \+=.*openosint/);
+    assert.match(preview.stdout, /^mcp prerequisites unmet: prerequisites missing; re-run with -y to install them/m);
+    const apply = status(args, { env });
+    assert.equal(apply.status, 1);
+    assert.match(apply.stdout, /^mcp prerequisites unmet: prerequisites missing; re-run with -y to install them/m);
+    assert.match(apply.stdout, /^ {2}config merges: 0$/m);
+  } finally {
+    rmSync(required.home, { recursive: true, force: true });
+  }
+
+  // OPTIONAL gap only. The suite stays offline, so the required-extras environment is not resolved
+  // again: the provisioned openosint tool environment (README, CI) is found read-only through the
+  // inherited `uv tool dir` and copied into the case's own UV_TOOL_DIR without the optional lookup
+  // tools. The real uv and the real interpreter then run the detection; every uv state directory
+  // lives inside the case home, so nothing is written outside it. Without that environment the case
+  // reports it and does not run, like the credential-delivery case in mcp-credential-launch.
+  const optionalTools = /^(holehe|sublist3r|sherlock)/i;
+  // Resolved the way production resolves it: the registry's uv prerequisite, PATH command first and
+  // then ~/.local/bin/uv, so a uv that only the home directory provides is found too.
+  const uvPrerequisite = JSON.parse(readFileSync(path.join(root, "registry", "optional-services.json"), "utf8"))
+    .services.openosint.provisioning.prerequisites.find((item) => item.id === "uv");
+  const uvDetected = detectPrerequisite(uvPrerequisite);
+  const uvPath = uvDetected.satisfied ? uvDetected.resolvedPath : null;
+  const inheritedTools = uvPath === null ? null : spawnSync(uvPath, ["tool", "dir"], { encoding: "utf8" }).stdout?.trim();
+  const provisionedEnv = inheritedTools ? path.join(inheritedTools, "openosint") : null;
+  const provisionedMcp = provisionedEnv ? path.join(provisionedEnv, "bin", "openosint-mcp") : null;
+  if (provisionedMcp === null || !existsSync(provisionedMcp)) {
+    console.log("install: the provisioned openosint environment is unavailable here; skipping the optional-gap preview case");
+  } else {
+    const optional = launcherHome("optional-gap-home");
+    try {
+      const toolDir = path.join(optional.home, "uv-tools");
+      cpSync(provisionedEnv, path.join(toolDir, "openosint"), {
+        recursive: true,
+        verbatimSymlinks: true,
+        filter: (source) => !optionalTools.test(path.basename(source)),
+      });
+      symlinkSync(path.join(toolDir, "openosint", "bin", "openosint-mcp"), path.join(optional.bin, "openosint-mcp"));
+      const env = {
+        ...process.env,
+        HOME: optional.home,
+        USERPROFILE: optional.home,
+        UV_TOOL_DIR: toolDir,
+        UV_TOOL_BIN_DIR: optional.bin,
+        UV_CACHE_DIR: path.join(optional.home, "uv-cache"),
+        UV_PYTHON_INSTALL_DIR: path.join(optional.home, "uv-python"),
+        UV_OFFLINE: "1",
+        XDG_DATA_HOME: path.join(optional.home, ".local", "share"),
+        XDG_CACHE_HOME: path.join(optional.home, ".cache"),
+        XDG_CONFIG_HOME: path.join(optional.home, ".config"),
+        PATH: cleanPath(optional.bin, path.dirname(uvPath)),
+      };
+      const args = installArgs(optional.home);
+      run(args, { env });
+      const preview = run([...args, "--dry-run"], { env });
+      assert.match(preview, /openosint-tools MISSING .*\(optional\)/, "the optional gap is what this case is about");
+      assert.doesNotMatch(preview, /openosint-(mcp|extras) MISSING/);
+      assert.match(preview, /^counts: .*config merges 0, blocked 0$/m);
+      assert.doesNotMatch(preview, /MCP \+=/);
+      assert.match(run(args, { env }), /^ {2}config merges: 0$/m);
+    } finally {
+      rmSync(optional.home, { recursive: true, force: true });
+    }
+  }
+}
 
 const scopeRootDest = ownTmp("scope-root");
 rmSync(scopeRootDest, { recursive: true, force: true });
@@ -860,6 +1115,7 @@ const userScopeHome = ownTmp("user-scope-home");
 rmSync(userScopeHome, { recursive: true, force: true });
 mkdirSync(userScopeHome, { recursive: true });
 installClineExtension(userScopeHome);
+writeFirstPartyLaunchers(userScopeHome);
 // A desktop profile's Documents entry, which xdg-user-dir reads on Linux, so Cline's user paths below
 // stay under ~/Documents on any host; os-routes covers a redirected folder.
 mkdirSync(path.join(userScopeHome, ".config"), { recursive: true });
@@ -2178,6 +2434,31 @@ assert.equal([...packedPaths].some((file) => file.startsWith(".agent-surface/"))
   } finally {
     rmSync(dest, { recursive: true, force: true });
     rmSync(packageDir, { recursive: true, force: true });
+  }
+}
+
+// `--target all` is the documented default run and the default scope is project. A host with no
+// project layout is left out of it visibly instead of failing the whole plan; naming it still fails.
+{
+  const projectCwd = mkdtempSync(path.join(os.tmpdir(), "agent-surface-all-project-"));
+  try {
+    const pinnedHomeOnly = ["antigravity", "antigravity-cli", "codex", "cursor", "trae", "trae-cli", "trae-cn", "vscode"];
+    const homeOnlyTargets = Object.keys(targets).filter((target) => targets[target].installRoot?.homeOnly === true).sort();
+    assert.deepEqual(homeOnlyTargets, pinnedHomeOnly, "the home-only set changes on purpose, with this list");
+    const implicit = status(["install", "--target", "all", "--dry-run"], { cwd: projectCwd });
+    const explicit = status(["install", "--target", "all", "--scope", "project", "--dry-run"], { cwd: projectCwd });
+    assert.equal(implicit.status, 0, implicit.stderr);
+    assert.equal(explicit.status, 0, explicit.stderr);
+    assert.equal(implicit.stdout, explicit.stdout);
+    const excluded = [...implicit.stdout.matchAll(/^(\S+): excluded from --target all at project scope/gm)].map((match) => match[1]).sort();
+    assert.deepEqual(excluded, pinnedHomeOnly);
+    assert.match(implicit.stdout, /^target: kimi-code$/m, "kimi-code has its own project root and stays planned");
+    for (const target of pinnedHomeOnly) assert.doesNotMatch(implicit.stdout, new RegExp(`^target: ${target}$`, "m"));
+    const named = status(["install", "--target", "codex,claude-code", "--dry-run"], { cwd: projectCwd });
+    assert.equal(named.status, 1);
+    assert.match(named.stderr, /codex install supports --scope user only unless --dest is supplied/);
+  } finally {
+    rmSync(projectCwd, { recursive: true, force: true });
   }
 }
 

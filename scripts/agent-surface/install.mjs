@@ -25,6 +25,7 @@ import { pinnedNodePath } from "./mcp-shims.mjs";
 import { planSynapseHook } from "./synapse-hook.mjs";
 import { formatNotice, localDate, planNotices } from "./notices.mjs";
 import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
+import { antigravityCliStagedPlugin } from "./roots.mjs";
 import { readRules } from "./rules.mjs";
 import { adapterMcpConfigs, kiloRuleInstructionPaths, kiloRuleInstructionRoot, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets, withMcpServerOverrides } from "./targets.mjs";
 import { argValue, fail, isPathInside, isSafeRelativePath, isSafeTargetName, splitArgValues, uniqueStrings } from "./util.mjs";
@@ -94,12 +95,18 @@ export async function build(args) {
 
 export async function install(args) {
   const allTargetsSelected = installTargetsIncludeAll(args);
-  const excludedTargets = allTargetsSelected ? deprecatedTargets(await readTargetRegistry()) : [];
-  const selectedTargets = selectedInstallTargets(args).filter((target) => !excludedTargets.includes(target));
   const scope = argValue(args, "--scope") ?? "project";
+  const dest = argValue(args, "--dest");
+  const excludedTargets = allTargetsSelected ? deprecatedTargets(await readTargetRegistry()) : [];
+  // `install --target all` is the documented default run, and its default scope is project: a host
+  // with no project layout would fail the whole plan ("codex install supports --scope user only"),
+  // so `all` leaves it out and says so, while naming it explicitly still fails. --dest gives it a root.
+  const homeOnlyExcluded = allTargetsSelected && scope === "project" && !dest
+    ? Object.keys(targets).filter((target) => targets[target].installRoot?.homeOnly === true && !excludedTargets.includes(target))
+    : [];
+  const selectedTargets = selectedInstallTargets(args).filter((target) => !excludedTargets.includes(target) && !homeOnlyExcluded.includes(target));
   const dryRun = args.includes("--dry-run");
   const allowScopeRoot = args.includes("--allow-scope-root");
-  const dest = argValue(args, "--dest");
   const categoryFilter = installCategoryFilter(args);
   const optionalServices = optionalServiceFilter(args);
   const agentName = argValue(args, "--agent") ?? "agent";
@@ -126,7 +133,7 @@ export async function install(args) {
   }
 
   const planContext = { selectedTargets, allTargetsSelected, scope, dest, agentName, categoryFilter, optionalServices, envFilePath };
-  const plans = await buildInstallPlans(planContext);
+  let plans = await buildInstallPlans(planContext);
 
   // One credential plan drives interactive and headless installs. Reads existing values
   // (process env, then the scope's .env), classifies each selected MCP service's keys, and
@@ -140,11 +147,30 @@ export async function install(args) {
   // all), and provisioning a server nobody is wiring would block the run over an irrelevant gap.
   const provisioning = resolveProvisioning({ serviceEntries: wiredServiceEntries(plans, credentials.serviceEntries), args });
 
+  // The apply phase plans against resolved launcher paths; a plan built without them reads as a
+  // config merge on an unchanged profile (the preview counted 22 merges where apply wrote none).
+  // When the apply would run no recipe (`proceed`: nothing missing, or only optional gaps headless
+  // without -y) it wires from this same detection, so preview with that wiring. A dry run still runs
+  // no recipe: this only re-plans from the read-only detection.
+  // The apply judges "nothing installable" on the plans before provisioning drops any service.
+  const initialPlans = plans;
+  const applyDecision = provisioningDecision({
+    actions: provisioning.actions,
+    blockers: provisioning.blockers,
+    interactive: provisioning.interactive,
+    authorized: provisioning.authorized,
+    dryRun: false,
+  });
+  if (applyDecision.kind === "proceed" || applyDecision.kind === "block") {
+    const { failed, launchWiring } = wiringFromStatus(provisioning.status, provisioning.serviceEntries);
+    plans = await buildInstallPlans({ ...planContext, excludeServices: failed.size > 0 ? failed : undefined, launchWiring });
+  }
+
   const blocked = [...plans.flatMap((plan) => plan.blocked.map((item) => `${plan.target}: ${item}`)), ...rootBlocks(plans)];
   // A category-filtered install must do real work across the selection: if no selected target
   // has any writes or config merges, the whole run is a no-op and fails (individual
   // non-applicable targets are informational, but "nothing installable anywhere" is an error).
-  const runBlocker = categoryFilter && plans.every((plan) => plan.writes.length === 0 && plan.configMerges.length === 0)
+  const runBlocker = categoryFilter && initialPlans.every((plan) => plan.writes.length === 0 && plan.configMerges.length === 0)
     ? `no selected targets have installable outputs for categories: ${[...categoryFilter].sort().join(", ")}`
     : null;
   // Headless installs never prompt: a missing REQUIRED credential is an explicit failure that
@@ -160,14 +186,24 @@ export async function install(args) {
   for (const target of excludedTargets) {
     console.log(`${target}: excluded from --target all (deprecated); its installed files and manifest stay as they are; name --target ${target} to install it`);
   }
+  for (const target of homeOnlyExcluded) {
+    console.log(`${target}: excluded from --target all at project scope (no project layout); use --scope user or --dest, or name --target ${target}`);
+  }
   for (const plan of plans) {
     printInstallPlan(plan);
   }
+  if (plans.length > 1) console.log(`plan total: ${formatPlanCounts(sumPlanCounts(plans.map(planCounts)))}`);
   for (const item of rootBlocks(plans)) console.log(`install blocked: ${item}`);
   printCredentialPlan(credentials);
   printProvisioningPlan(provisioning);
   if (runBlocker) console.log(`install blocked: ${runBlocker}`);
   if (credentialBlocker) console.log(`install blocked: ${credentialBlocker}`);
+  if (dryRun && applyDecision.kind === "block") {
+    // Shown, not failed: a dry run over a machine with missing prerequisites has always exited 0, and
+    // many callers preview on bare machines. The apply exits 1 on this message and drops the services
+    // whose prerequisites are missing (their config is kept); the plan above already omits them.
+    console.log(`mcp prerequisites unmet: ${prerequisitesRefusal(provisioning.status)}`);
+  }
   if (unprovisionable) {
     console.log(`mcp prerequisites unmet: ${unprovisionable}`);
     process.exitCode = 1; // reported here; the apply phase drops those services and continues
@@ -676,7 +712,7 @@ async function establishPrerequisites({ provisioning, planContext }) {
   } else if (decision.kind === "install") {
     runRecipes();
   } else if (decision.kind === "block") {
-    error = `prerequisites missing; re-run with -y to install them, or install manually: ${formatProvisioningPlan(provisioning.status).join("; ").trim()}`;
+    error = prerequisitesRefusal(provisioning.status);
   }
   // decision.kind === "proceed": nothing to run; finalStatus stays the initial detection.
 
@@ -684,17 +720,25 @@ async function establishPrerequisites({ provisioning, planContext }) {
   // missing a required prerequisite is dropped, and every other service is wired from the SAME
   // detection — so a partial install never rewrites a working sibling's config with an unresolved
   // command (which would leave it launching a bare name with no wrapper and no browser path).
-  const failed = new Set(
-    finalStatus
-      .filter((service) => service.prerequisites.some((prereq) => !prereq.satisfied && !prereq.optional))
-      .map((service) => service.id),
-  );
+  const { failed, launchWiring } = wiringFromStatus(finalStatus, provisioning.serviceEntries);
   if (failed.size > 0) {
     console.log(`provisioning: skipping config for ${[...failed].sort().join(", ")} (existing config preserved)`);
   }
-  const launchWiring = resolveLaunchWiring(finalStatus, provisioning.serviceEntries);
   const plans = await buildInstallPlans({ ...planContext, excludeServices: failed.size > 0 ? failed : undefined, launchWiring });
   return { plans, failed, error };
+}
+
+function prerequisitesRefusal(status) {
+  return `prerequisites missing; re-run with -y to install them, or install manually: ${formatProvisioningPlan(status).join("; ").trim()}`;
+}
+
+function wiringFromStatus(status, serviceEntries) {
+  const failed = new Set(
+    status
+      .filter((service) => service.prerequisites.some((prereq) => !prereq.satisfied && !prereq.optional))
+      .map((service) => service.id),
+  );
+  return { failed, launchWiring: resolveLaunchWiring(status, serviceEntries) };
 }
 
 async function applyInteractiveCredentials(credentials, { scope }) {
@@ -816,6 +860,16 @@ async function replaceFile(target, content, mode) {
 
 // Windows has no POSIX mode bits to set, and a failure to set one must not abort an install that
 // otherwise succeeded — the file is written either way, and its content is the deliverable.
+// Reconcile only the execute bits of an installed file with a declared mode. Read and write bits are
+// the operator's (a 0600 document stays private under their umask), so a declared executable gets
+// execute wherever read is granted and a declared non-executable loses execute, nothing more. Owner-only
+// loss (0655) is repaired too, since the owner then cannot run the helper.
+export function reconcileExecuteBits(existing, declared) {
+  const current = existing & 0o777;
+  if ((declared & 0o111) !== 0) return current | ((current & 0o444) >> 2);
+  return current & ~0o111;
+}
+
 async function applyOutputMode(target, mode) {
   await chmod(target, mode).catch(() => { /* best effort on platforms without POSIX modes */ });
 }
@@ -940,7 +994,16 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       continue;
     }
 
-    item.action = current.toString("utf8") === item.content ? "skip" : "write";
+    // A declared mode is part of the output: a helper restored non-executable must be repaired, or the
+    // plan says "unchanged" while the host's enabled copy stays unrunnable. Only execute bits are
+    // reconciled, from the file's own mode, and a pure permission drift never rewrites the bytes.
+    if (item.mode !== undefined && process.platform !== "win32") {
+      item.fromMode = (await stat(item.output)).mode & 0o777;
+      const reconciled = reconcileExecuteBits(item.fromMode, item.mode);
+      if (reconciled !== item.fromMode) item.toMode = reconciled;
+    }
+    const sameBytes = current.toString("utf8") === item.content;
+    item.action = !sameBytes ? "write" : item.toMode === undefined ? "skip" : "permissions";
   }
 
   const partialInstall = categoryFilter !== null || optionalServices !== null;
@@ -1729,10 +1792,18 @@ function printInstallPlan(plan) {
     console.log("warnings:");
     for (const item of plan.warnings) console.log(`  ${item}`);
   }
+  console.log(`counts: ${formatPlanCounts(planCounts(plan))}`);
+  // Identical files are counted, not listed: a plan that names every unchanged file buries the few
+  // that change (a fully installed all-target plan was thousands of lines of "planned writes").
   console.log("planned writes:");
-  for (const item of plan.writes) {
-    console.log(`  ${path.relative(plan.installRoot, item.output)} <- ${item.source}`);
+  const octal = (mode) => mode.toString(8).padStart(4, "0");
+  for (const item of plan.writes.filter((write) => write.action === "write" || write.action === "permissions")) {
+    const relativeOutput = path.relative(plan.installRoot, item.output);
+    const change = item.toMode === undefined ? "" : `${octal(item.fromMode)} -> ${octal(item.toMode)}`;
+    if (item.action === "permissions") console.log(`  ${relativeOutput} permissions ${change} (bytes unchanged)`);
+    else console.log(`  ${relativeOutput} <- ${item.source}${change === "" ? "" : ` (permissions ${change})`}`);
   }
+  console.log(`  unchanged: ${plan.writes.filter((write) => write.action === "skip").length} (not listed)`);
   const removes = plan.staleRemovalActions
     .filter((item) => item.action === "remove" || item.action === "missing")
     .map((item) => item.relativeOutput);
@@ -1829,6 +1900,32 @@ function printInstallPlan(plan) {
   }
 }
 
+const PLAN_COUNT_LABELS = [["write", "write"], ["permissionChanges", "permission changes"], ["unchanged", "unchanged"], ["remove", "remove"], ["alreadyGone", "already gone"], ["retain", "retain"], ["configMerges", "config merges"], ["blocked", "blocked"]];
+
+function planCounts(plan) {
+  const staleCount = (...actions) => plan.staleRemovalActions.filter((item) => actions.includes(item.action)).length;
+  return {
+    write: plan.writes.filter((item) => item.action === "write").length,
+    permissionChanges: plan.writes.filter((item) => item.toMode !== undefined).length,
+    unchanged: plan.writes.filter((item) => item.action === "skip").length,
+    // Full syncs re-list legacy-owned paths every run; those already absent delete nothing.
+    remove: staleCount("remove"),
+    alreadyGone: staleCount("missing"),
+    retain: staleCount("retain"),
+    configMerges: plan.configMerges.filter((item) => item.action === "write" || item.action === "merge").length
+      + plan.hookMerges.filter((item) => item.action !== "skip").length,
+    blocked: plan.blocked.length + (plan.rootClaims.blocked.length > 0 ? 1 : 0),
+  };
+}
+
+function sumPlanCounts(counts) {
+  return Object.fromEntries(PLAN_COUNT_LABELS.map(([key]) => [key, counts.reduce((sum, item) => sum + item[key], 0)]));
+}
+
+function formatPlanCounts(counts) {
+  return PLAN_COUNT_LABELS.map(([key, label]) => `${label} ${counts[key]}`).join(", ");
+}
+
 function printKeptMcpServers(merge) {
   const kept = merge.keptMcpServers ?? [];
   if (kept.length === 0) return;
@@ -1897,22 +1994,33 @@ async function applyInstallPlan(plan) {
   let skipped = 0;
   let removed = 0;
   let configMerges = 0;
+  let permissionChanges = 0;
 
   await mkdir(plan.installRoot, { recursive: true });
 
   for (const item of plan.writes) {
     if (item.action === "skip") {
-      // Identical content, but a mode the output declares still has to hold: a companion script
-      // restored from a non-executable copy would otherwise stay unrunnable forever.
-      if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
       skipped += 1;
       continue;
     }
     await assertInstallPath(plan.installRoot, item.output, `managed output ${item.relativeOutput}`);
+    if (item.action === "permissions") {
+      // chmod follows links, so only a regular file this plan saw is touched; the bytes stay as they are.
+      const info = await lstat(item.output);
+      if (!info.isFile()) throw new Error(`managed output ${item.relativeOutput} is not a regular file; its permissions are left as they are`);
+      await chmod(item.output, item.toMode);
+      permissionChanges += 1;
+      continue;
+    }
     await mkdir(path.dirname(item.output), { recursive: true });
     await assertInstallPath(plan.installRoot, item.output, `managed output ${item.relativeOutput}`);
-    await writeFile(item.output, item.content);
-    if (item.mode !== undefined) await applyOutputMode(item.output, item.mode);
+    // A new file is created with the declared kind of mode so the operator's umask applies at creation.
+    const creationMode = item.mode === undefined || process.platform === "win32" ? undefined : (item.mode & 0o111) !== 0 ? 0o777 : 0o666;
+    await writeFile(item.output, item.content, creationMode === undefined ? undefined : { mode: creationMode });
+    if (item.toMode !== undefined) {
+      await chmod(item.output, item.toMode);
+      permissionChanges += 1;
+    }
     written += 1;
   }
 
@@ -1941,6 +2049,7 @@ async function applyInstallPlan(plan) {
 
   console.log("installed:");
   console.log(`  wrote: ${written}`);
+  console.log(`  permission changes: ${permissionChanges}`);
   console.log(`  skipped unchanged: ${skipped}`);
   console.log(`  removed stale: ${removed}`);
   console.log(`  config merges: ${configMerges}`);
@@ -1950,8 +2059,8 @@ async function applyInstallPlan(plan) {
   }
   // Antigravity runs the copy `agy plugin install` imported, so a change to the staged plugin reaches it
   // only through another import; redistributions left it on months-old skills while nothing said so.
-  if (plan.target === "antigravity-cli" && written + removed + configMerges > 0) {
-    const plugin = path.join(plan.installRoot, "antigravity-cli", "plugins", "agent-surface");
+  if (plan.target === "antigravity-cli" && written + permissionChanges + removed + configMerges > 0) {
+    const plugin = path.join(plan.installRoot, antigravityCliStagedPlugin);
     console.log(`NOTE: Antigravity runs its imported copy of this plugin, not these files; import them with: agy plugin install "${plugin}"`);
   }
 }
