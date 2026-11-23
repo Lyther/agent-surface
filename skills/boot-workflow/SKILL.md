@@ -126,7 +126,7 @@ agent-surface workflow close --run <run_id> --state closed|quarantined|aborted
 agent-surface workflow doctor --run <run_id>
 ```
 
-- The commands need the `agent-surface` CLI. Check `command -v agent-surface` once per run; when absent, use `node <agent-surface checkout>/scripts/agent-surface.mjs` if a checkout is known. With neither, the formal ledger cannot advance: do not start a formal run, route `reviewed` and say why; never hand-edit `run.json`, `events.ndjson`, or `current.json`.
+- The formal ledger needs `agent-surface` on PATH (`command -v agent-surface`); inside the agent-surface source checkout only, `node scripts/agent-surface.mjs` is equivalent. With neither, the ledger cannot advance: do not start a formal run, and never hand-edit `run.json`, `events.ndjson` or `current.json`.
 - Task-state buckets are mutually exclusive: a task cannot be active, accepted, rework, deferred, or closed at the same time.
 - `agents.json` is mutable runtime state under `workflow.monitor.v2`; it records liveness and materialized outputs, not product acceptance.
 - A stalled session is an execution failure; it does not make the product task human-blocked.

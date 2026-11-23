@@ -33,7 +33,7 @@ Workflow mode is ON when `.agent-surface/workflows/<run_id>/run.json` is active,
 6. Run task verify commands and record each in `verify_results`; save the output the reviewer needs under `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/evidence/<task_id>/` and list it in `evidence_refs`.
 7. Apply Blocker Discipline before marking a task blocked.
 8. Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and the latest copy `.agent-surface/workflows/<run_id>/worker.json`, with `workflow.owner = "dev-refactor"` and `workflow.next_command = "workflow-reviewer"`.
-9. Advance the ledger with `agent-surface workflow apply --role dev-refactor --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`; this appends the transition event and sets `run.json.workflow_next_command`. Never hand-edit `run.json`. These calls need the `agent-surface` CLI: check `command -v agent-surface`, else use `node <agent-surface checkout>/scripts/agent-surface.mjs`; with neither, write the artifacts, skip the call, and report the ledger as not advanced.
+9. Advance the ledger with `agent-surface workflow apply --role dev-refactor --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`; this appends the transition event and sets `run.json.workflow_next_command`. Never hand-edit `run.json`. Needs the `agent-surface` CLI (see `boot-workflow`); if it is absent, write the artifacts, skip the call, and report the ledger as not advanced.
 
 Worker artifact shape:
 
