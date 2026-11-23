@@ -6,13 +6,14 @@ by `evals.images arms` on the lab host. These tests cover the lab's own code aro
 
 import json
 import os
+import shutil
 import tarfile
 import tempfile
 import unittest
 from pathlib import Path
 
-from evals.arms import (DESC_SKILLS, PACK_MTIME, PROFILES, add_operator_files, check_arms, check_desc_arms, load_desc_texts, pack, prepare_source,
-                        set_description)
+from evals.arms import (DESC_SKILLS, PACK_MTIME, PROFILES, add_operator_files, check_arms, check_desc_arms, load_desc_texts, pack, prepare_all,
+                        prepare_source, set_description)
 
 REPO = Path(__file__).resolve().parents[2]
 WORLD = REPO / "evals" / "world.py"
@@ -37,6 +38,40 @@ class PrepareSourceTest(unittest.TestCase):
             self.assertEqual(json.loads((out / "registry" / "development-assets.json").read_text())["skills"], ["qa-review"])
             self.assertTrue((src / "skills" / "dev-fix" / "SKILL.md").exists())
             self.assertEqual(json.loads((src / "registry" / "development-assets.json").read_text())["skills"], ["dev-fix", "qa-review"])
+
+
+# SUBSTITUTE_JUSTIFICATION
+# - replaces: scripts/agent-surface.mjs (the installer), for the codex host only
+# - necessity: the installer's `--no-mcps` mode is not on this branch's tree, so a real render cannot run here
+# - real-proof: BLOCKED: needs the branch that adds `install --no-mcps`; a render on a lab host with relative paths covers it
+# It resolves --dest against its working directory, as the real installer does; everything else here is the real arm-building path.
+FAKE_INSTALLER = """import fs from 'node:fs';
+import path from 'node:path';
+const dest = path.resolve(process.argv[process.argv.indexOf('--dest') + 1]);
+for (const name of fs.readdirSync('skills')) fs.cpSync(path.join('skills', name), path.join(dest, '.agents', 'skills', name), {recursive: true});
+"""
+
+
+class RelativePathsTest(unittest.TestCase):
+    def build(self, tmp: Path, src: str, out: str) -> dict:
+        make_source(tmp / "lab" / "src")
+        (tmp / "lab" / "src" / "skills" / "other").mkdir()
+        (tmp / "lab" / "src" / "skills" / "other" / "SKILL.md").write_text("---\nname: other\n---\nbody\n")
+        (tmp / "lab" / "src" / "scripts").mkdir()
+        (tmp / "lab" / "src" / "scripts" / "agent-surface.mjs").write_text(FAKE_INSTALLER)
+        cwd = os.getcwd()
+        os.chdir(tmp / "lab")
+        try:
+            return prepare_all(Path(src), ["codex"], ["full", "full-minus-dev-fix"], Path(out))
+        finally:
+            os.chdir(cwd)
+
+    @unittest.skipUnless(shutil.which("node"), "node is not available")
+    def test_relative_src_and_out_render_the_same_skills_as_absolute_ones(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            arms = self.build(Path(tmp).resolve(), "src", "arms")
+        self.assertEqual(arms["codex-full"]["skills"], ["dev-fix", "other", "qa-review"])
+        self.assertEqual(arms["codex-full-minus-dev-fix"]["skills"], ["other", "qa-review"])
 
 
 class PackTest(unittest.TestCase):
@@ -66,7 +101,7 @@ class ProfilesTest(unittest.TestCase):
         self.assertNotIn("modding", ",".join(PROFILES["full"].installs))
 
     def arm(self, host, profile, skills):
-        return {"host": host, "dropped_skills": list(PROFILES[profile].drop_skills), "skills": skills}
+        return {"host": host, "profile": profile, "dropped_skills": list(PROFILES[profile].drop_skills), "skills": skills}
 
     def test_check_accepts_consistent_arms_and_flags_a_wrong_drop(self):
         good = {
@@ -76,6 +111,13 @@ class ProfilesTest(unittest.TestCase):
         self.assertEqual(check_arms(good), [])
         bad = dict(good, **{"h-dev-minus-dev-fix": self.arm("h", "dev-minus-dev-fix", ["a", "dev-fix"])})
         self.assertTrue(check_arms(bad))
+
+    def test_check_flags_an_empty_arm_and_a_wrong_exclusion_count(self):
+        arms = {"h-full": self.arm("h", "full", ["dev-fix", "a", "b"]), "h-full-minus-dev-fix": self.arm("h", "full-minus-dev-fix", [])}
+        problems = check_arms(arms)
+        self.assertTrue(any("h-full-minus-dev-fix" in p and "no skills" in p for p in problems), problems)
+        short = dict(arms, **{"h-full-minus-dev-fix": self.arm("h", "full-minus-dev-fix", ["a"])})
+        self.assertTrue(any("expected 2" in p for p in check_arms(short)), check_arms(short))
 
 
 TEXTS = {arm: {skill: f"Use {arm} for {skill}, when it fits." for skill in DESC_SKILLS} for arm in ("B", "C")}

@@ -151,6 +151,8 @@ def prepare_source(src: Path, drop: tuple[str, ...], dest: Path, descriptions: d
 
 def render(src: Path, host: str, profile: Profile, home: Path, node: str = "node") -> None:
     """Run the production installer for `host` into `home`: general first, then each category, `--no-mcps`."""
+    # The installer runs with cwd=src, so a relative `src` or `home` would point somewhere else there.
+    src, home = src.resolve(), home.resolve()
     home.mkdir(parents=True, exist_ok=True)
     # Resolve the real binary first: a version-manager shim would look for its own state under the new HOME.
     node = subprocess.run([node, "-p", "process.execPath"], capture_output=True, text=True, check=True).stdout.strip()
@@ -210,6 +212,7 @@ def load_arms(path: Path) -> dict:
 
 def prepare_all(src: Path, hosts: list[str], profiles: list[str], out: Path, desc_texts: dict[str, dict[str, str]] | None = None) -> dict:
     """Render every host-and-profile arm; the sources of a profile that drops a skill or changes descriptions are prepared once."""
+    src, out = src.resolve(), out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     arms: dict[str, dict] = {}
     work = out / "_work"
@@ -240,6 +243,11 @@ def check_arms(arms: dict) -> list[str]:
     """Problems with the rendered arms: `dev-fix` present or absent as the profile says, and `full` containing `dev`."""
     problems = []
     for key, arm in arms.items():
+        if not arm["skills"]:
+            problems.append(f"{key}: rendered with no skills")
+        parent = arms.get(f"{arm['host']}-{arm['profile'].removesuffix('-minus-dev-fix')}") if arm["dropped_skills"] else None
+        if parent and parent["skills"] and len(arm["skills"]) != len(parent["skills"]) - len(arm["dropped_skills"]):
+            problems.append(f"{key}: {len(arm['skills'])} skills, expected {len(parent['skills']) - len(arm['dropped_skills'])} (its source has {len(parent['skills'])}, minus {len(arm['dropped_skills'])} dropped)")
         expected_absent = "dev-fix" in arm["dropped_skills"]
         if ("dev-fix" in arm["skills"]) == expected_absent:
             problems.append(f"{key}: dev-fix {'present' if expected_absent else 'absent'}, expected the opposite")
