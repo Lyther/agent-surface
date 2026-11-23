@@ -65,3 +65,13 @@ test("agent-facing text ties coverage to the installed packs and loads a skill o
     assert.match(agentText, /without a skill/i, "abstention stays available");
   }
 });
+
+test("instructions open with a self-contained trigger line that fits the codex summary, within the claude-code cap", () => {
+  const [first = ""] = SERVER_INSTRUCTIONS.split("\n");
+  assert.ok(first.length <= 250, `first line is ${first.length} characters`);
+  assert.match(first, /grimoire_search/);
+  assert.match(first, /not in your native skill list/i);
+  assert.ok(SERVER_INSTRUCTIONS.length <= 4096, `instructions are ${SERVER_INSTRUCTIONS.length} characters`);
+  assert.match(TOOL_DESCRIPTIONS["grimoire_search"]!, /^Search this skill index/);
+  assert.match(TOOL_DESCRIPTIONS["grimoire_search"]!, /not in your native skill list/i);
+});
