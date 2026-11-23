@@ -36,7 +36,7 @@ understand -> choose the lightest safe profile -> execute -> verify -> review wh
 |---|---|---|
 | direct | a tiny, obvious, reversible change with an obvious check | inspect -> edit -> focused check -> report |
 | standard (default) | ordinary bounded implementation | one owner runs the Default Route below; no BOSS, formal ledger, external reviewer, judger, or rescue role |
-| reviewed | security-sensitive changes, public/shared contracts, or meaningful regression cost | writer -> verify -> read-only reviewer; a defect returns to the writer, then verify and review again; at most two rework cycles, after which repeated substantive disagreement needs a human decision or route change |
+| reviewed | security-sensitive changes, public/shared contracts, or meaningful regression cost | writer -> verify -> read-only reviewer; a defect returns to the writer, then verify and review again; at most two rework cycles (three review rounds), after which repeated substantive disagreement needs a human decision or route change |
 | orchestrated | at least two independent writable workstreams, or a long-running dependency graph that needs durable local state | `workflow-orchestrator` -> `workflow-boss` -> isolated worker sessions -> integration owner -> `workflow-reviewer`; `workflow-judger` only after repeated substantive failure; `workflow-rescue` only for exceptional spec/context/runtime breakdown |
 | release | readiness, deployment, artifact, or formal acceptance claims | freeze candidate -> build shipped bits -> real dependency path -> independent QA -> readiness verdict; no release-grade proof for unstable intermediate patches |
 

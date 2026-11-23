@@ -11,7 +11,7 @@ Review like the maintainer who will inherit the code: stop wrong, unproven, unre
 
 `qa-review <target> [--round N] [--max-rounds N] [--focus <domains>] [--state <path>]`
 
-- `<target>`: file, directory, or diff. `--round` defaults to 1; `--max-rounds` to 2.
+- `<target>`: file, directory, or diff. `--round` defaults to 1; `--max-rounds` to 3.
 - `--focus`: `security`, `logic`, `config`, `quality`, `perf`, `tests`, `docs`, `deps`, or `all`.
 - `--state`: the previous round's output; required from round 2.
 

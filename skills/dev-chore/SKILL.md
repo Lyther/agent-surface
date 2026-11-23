@@ -22,7 +22,7 @@ Run the loop at the start of a meaningful increment and whenever one of these ap
 - A new helper, type, abstraction, adapter, layer, dependency, service, configuration flag, state store, or framework is about to be added.
 - A cap, limit, timeout, guard, refusal, allowlist, or validation rule is about to be added.
 - The same rule, validation, mapping, retry, state, query, UI pattern, or integration is being implemented a second time.
-- A design premise was disproven, a workaround is growing, or two focused correction attempts failed.
+- A design premise was disproven, a workaround is growing, or two correction attempts failed.
 - The diff grows faster than the user outcome, or support infrastructure outgrows the requested behavior.
 - A security control adds a service, policy layer, approval path, or major usability cost.
 - A user-visible path exists in code but has not run through its real entry point, including failure and recovery.
@@ -154,7 +154,7 @@ Attempt the safe discovery or repair available to the worker before emitting a b
 - Refresh generated output only when assigned or required by the repository generator/check; record the command and keep the generated-file gate green.
 - When a premise is disproven and evidence identifies a bounded alternative, pivot inside the accepted contract instead of spending two more attempts repairing the premise.
 - Human-required: a missing product or architecture decision, a literal human-only login/device action, or required files outside FILESCOPE that cannot be split safely. In-scope secret use, dependency work, destructive operations, database mutation, deployment, production data, and service calls proceed under full-execution consent.
-- After two distinct focused attempts on the same valid approach, stop with `blocker.type = "repeated_failure"` unless the next safe action is mechanical; include both attempts and the recommended pivot or decision.
+- After two focused correction attempts on the same valid approach fail (the third failed attempt in `02-agent-workflow`), stop with `blocker.type = "repeated_failure"` unless the next safe action is mechanical; include the failed attempts and the recommended pivot or decision.
 - Every new blocker has `type`, `detail`, `needs`, `resolution_class`, `attempts`, and `recommended_decision`.
 
 ## Safety
