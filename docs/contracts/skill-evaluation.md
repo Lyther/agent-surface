@@ -196,7 +196,7 @@ Frozen in one JSON file before the first scored attempt. An amendment is a separ
 | `input_fingerprints` | The frozen list of known credential-shaped input strings (`python -m evals.scrub --fingerprint`) | to set |
 | `stop_rules` | Conditions that stop the cohort: scrubber hit, machine diff, failure rate, spend | to set |
 | `cost_cap` | Cap and per-attempt reserve per host and cohort, in the host's own unit | to set (`O-6`) |
-| `analysis` | The script and the order of analyses | to set |
+| `analysis` | The script (`evals/analyze.py`, its hash) and its parameter file (`evals/README.md`, Analysis), which carries the cohort ids, bootstrap seed, thresholds, queries hash, arm hashes and skill lists, hosts and per-host skills and scenarios | to set |
 
 ## Hosts
 
@@ -239,7 +239,6 @@ States the SQ1 preregistration waits on, once. `O-n` ids are the preregistration
 | `O-13` | Reproducibility host and tolerance | Orchestrator's decision: rerun the whole cell sets on the cheaper required host; tolerance from run-to-run variance |
 
 Pending lab changes the contract waits on:
-- `analyze.py`, which reads only the preregistration and the ledger;
 - the `listing`, `pressure`, `steps_done` and `asset_installed` ledger fields;
 - runs: detector requalification on `full` for every scored host and on opencode's gateway path, scenario qualification on the host images, and the codex outcome check after the output-limit default was raised.
 

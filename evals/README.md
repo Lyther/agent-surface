@@ -160,6 +160,21 @@ Measured on a public lab host (16 cores, 62 GiB, a production server that also r
 - Scenario attempts (2 CPUs, 4 GiB) are derived, not ramped: the same CPU budget as the safe control level, which gives 4 at once for droid and 3 for codex, and 1 for claude-code until its wall-time variance is understood. Memory is not the limit on either host (at 2.7 GiB peak each, the 25% reserve leaves room for more than 10).
 - A control attempt takes 30 to 45 s on every host. `Codex` attempts ended by `max_output_tokens` are counted apart from capacity failures.
 
+## Analysis (`analyze.py`)
+
+`python -m evals.analyze --params analysis-params.json --ledger LEDGER.jsonl [--ledger ...] [--out result.json]` reads the frozen parameter file and the ledgers and nothing else, and writes one JSON document: per host the denominators per attempt class (launch-failure cells outside the denominator; skipped, quarantined and group-incomplete rows inside), per-cell rates with Wilson intervals, the paired differences with the practical-effect rule and the reading of each contrast, the paired two-stage bootstrap (stage 1 and stage 2 intervals side by side), the host-added-loaded column, the target-by-loaded misrouting matrix, the time to first load, the `sq1-o1` per-scenario difference with Newcombe intervals, the merged shared-fix reading and the load rate, mean cost per attempt, and the labelled sensitivity tables. A row belongs to a cohort by its `prereg` field. Exit status 2 and no tables mean a row's `arm_sha256`, `desc_arm` or `dev_fix_installed` differs from the frozen parameters.
+
+The parameter file is the machine-readable part of the freeze; its values are filled at the freeze, and `tests/fixtures/analysis-params-example.json` is a synthetic example for tests only:
+
+```text
+prereg, hosts[], queries_sha256, seeds.bootstrap, interval{confidence, resamples}, thresholds{practical_difference, better_numerator, better_denominator},
+pool_dev_queries, arms{"<host>-<profile>": {desc_arm, arm_sha256, skills[]}},
+trigger{cohort, skills{host: [target skills]}, contrasts[[candidate, base]]},
+outcome{cohort, with, without, asset, scenarios{host: [scenario names]}, merged[[scenario names sharing a fix]]}
+```
+
+`arms` mirrors `arms.json` (the installed `skills` decide misrouting and host-added loads); `trigger.skills` and `outcome.scenarios` list, per host, what passed the listing and baseline gates, so excluded cells are out of every table. `pool_dev_queries` turns on sensitivity table (v). The result records the SHA-256 of the parameter file, each ledger and `analyze.py`.
+
 ## Tests
 
 From the repository root, `uv run --frozen --project evals python -m unittest discover -s evals/tests -t .` runs the detector, scrubber, cohort and gateway-configuration tests (stdlib `unittest`). The fixtures in `evals/tests/fixtures/` are trimmed real control trajectories, one per host and control; the workspace-read and failed-lookup cases are constructed.
