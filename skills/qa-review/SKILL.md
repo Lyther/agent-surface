@@ -25,11 +25,11 @@ node_modules/ vendor/ .venv/ venv/ __pycache__/ *.pyc .mypy_cache/ .ruff_cache/ 
 .git/ .svn/ .hg/ *.min.js *.min.css *.map .terraform/ .terragrunt-cache/
 ```
 
-With shell access, check excluded directories for anomalies:
+With shell access, check excluded directories for anomalies, only for the ones that exist in the tree (`ls -d`), and skip both scans when none does:
 
 ```bash
-find node_modules/ vendor/ build/ dist/ -maxdepth 3 \( -name '*.env' -o -name '*.pem' -o -name '*.key' -o -name '*secret*' -o -name '*credential*' \) 2>/dev/null
-find build/ dist/ out/ \( -name '*.py' -o -name '*.rs' -o -name '*.go' -o -name '*.ts' -o -name '*.java' \) 2>/dev/null
+find <existing of node_modules/ vendor/ build/ dist/> -maxdepth 3 \( -name '*.env' -o -name '*.pem' -o -name '*.key' -o -name '*secret*' -o -name '*credential*' \)
+find <existing of build/ dist/ out/> \( -name '*.py' -o -name '*.rs' -o -name '*.go' -o -name '*.ts' -o -name '*.java' \)
 ```
 
 ## Passes
