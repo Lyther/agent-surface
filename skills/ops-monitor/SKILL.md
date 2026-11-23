@@ -25,9 +25,11 @@ You are the Watcher on the Wall.
 
 ### Phase 1: The Stream (Logs)
 
-1. **Tail**:
-    - `docker compose logs -f --tail=100 [service]`
-    - `tail -f /var/log/app.log`
+1. **Tail** (bounded; a shell tool waits for exit, so never run an unbounded `-f`):
+    - Default: `docker compose logs --since 10m --tail 200 [service]`
+    - Default for files: `tail -n 200 /var/log/app.log`
+    - To see new lines arrive, switch to a time-boxed follow: `timeout 60 tail -n 200 -f /var/log/app.log` or `timeout 60 docker compose logs --since 1m -f [service]`
+    - For a genuinely long watch, use the host's background-task or monitor facility where one exists, and read its output incrementally instead of blocking on it.
 2. **Filter**:
     - **Errors**: `| grep -iE "error|exception|panic|fatal"`
     - **Warnings**: `| grep -i "warn"`
@@ -35,22 +37,22 @@ You are the Watcher on the Wall.
 
 ### Phase 2: The Pulse (Metrics)
 
-1. **Health**:
-    - `watch -n 1 curl -s -o /dev/null -w "%{http_code}" localhost:3000/health`
-2. **Resources**:
-    - `docker stats` (CPU/Mem usage).
-    - `top` / `htop`.
+1. **Health** (fixed-count loop, not `watch`):
+    - `for i in 1 2 3 4 5; do curl -s -o /dev/null -w "%{http_code}\n" localhost:3000/health; sleep 1; done`
+2. **Resources** (one snapshot; repeat to see change):
+    - `docker stats --no-stream` (CPU/Mem usage).
+    - `top -b -n 1` on Linux, `top -l 1` on macOS, or `ps aux`. Not `top`/`htop` interactively.
 3. **Connections**:
     - `netstat -an | grep ESTABLISHED | wc -l`
 
 ### Phase 3: The Inspector (Ad-Hoc)
 
-1. **Shell Access**:
-    - `docker compose exec [service] /bin/sh`
+1. **Shell Access** (one command per call; an interactive shell cannot be driven):
+    - `docker compose exec -T [service] <command>`
     - Check env var names: `awk 'BEGIN { for (name in ENVIRON) print name }'` (never print values; `env | cut` leaks lines of multi-line values)
     - Check disk: `df -h`
 2. **DB Console**:
-    - `docker compose exec db psql ...`
+    - `docker compose exec -T db psql -c "<query>"`
     - Check queue size, table locks.
 
 ## OUTPUT FORMAT
