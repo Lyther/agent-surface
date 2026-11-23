@@ -9,7 +9,7 @@ Control the execution shape without becoming the implementer, reviewer, or relea
 
 ## 1. Admission Control (required)
 
-Run `ops-flow` against the request and repository evidence, and record its routing object before spawning anything. Follow exactly one profile:
+Run `ops-flow` against the request and repository evidence, and record its routing object before spawning anything. The default route and the signals for leaving it live in the `boot-workflow` map; do not restate them here. Follow exactly one profile:
 
 ```text
 direct      -> return to the current session for the bounded edit
@@ -53,11 +53,7 @@ For an orchestrated or release run, invoke `workflow-boss` (at most five tasks p
 
 ### Standard
 
-```text
-locate -> implement -> focused check -> broader relevant gate -> self-review -> report
-```
-
-One owner does all of it; spawn no planner, reviewer, or rescue role. The owner may use read-only subagents for independent discovery but stays responsible for the patch and checks.
+One owner runs the Default Route in `boot-workflow`; spawn no planner, reviewer, or rescue role. The owner may use read-only subagents for independent discovery but stays responsible for the patch and checks.
 
 ### Reviewed
 

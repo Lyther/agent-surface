@@ -11,7 +11,7 @@ Choose the lightest execution path that preserves correctness and the required p
 
 `ops-flow [goal] [--risk low|medium|high|critical|auto] [--mode direct|standard|reviewed|orchestrated|release|audit|parallel|ship|auto] [--autonomy low|normal|high]`
 
-Defaults: `--risk auto --mode auto --autonomy normal`.
+Defaults: `--risk auto --mode auto --autonomy normal`. For an edit, `--mode auto` starts from the default route in `boot-workflow` (`direct` when trivial, otherwise `standard`) and leaves it only on one of its Optional Modes signals.
 
 ## 1. Locate the Task Shape
 
@@ -38,7 +38,7 @@ Parallel width comes from independent workstreams, not checklist length; a seque
 | Profile | Use when | Runtime shape | Evidence |
 | --- | --- | --- | --- |
 | `direct` | Trivial, obvious, reversible work with a tiny filescope | Current session; no planner or reviewer | Diff plus focused check |
-| `standard` | Normal bounded implementation with clear behavior | One owner runs locate → edit → verify → self-review | Diff plus relevant repo gates |
+| `standard` (default) | Normal bounded implementation with clear behavior | One owner runs the Default Route in `boot-workflow` | Diff plus relevant repo gates |
 | `reviewed` | Security-sensitive, public/shared contract, broad regression surface, or meaningful failure cost | One writer, then one independent read-only reviewer; at most two rework cycles | Writer checks plus reviewer verdict |
 | `orchestrated` | Two or more genuinely independent workstreams, or a long-running dependency graph that benefits from durable state | Central orchestrator; isolated worktrees for concurrent writers; formal workflow ledger | Per-workstream evidence plus integrated QA |
 | `release` | A stable candidate must support readiness, artifact, deployment, or acceptance claims | Freeze candidate → build → real proof → independent release QA | Candidate identity plus real proof bundle |
@@ -46,7 +46,7 @@ Parallel width comes from independent workstreams, not checklist length; a seque
 | `parallel` | Independent read-only exploration or competing proposals; no shared writer state | Bounded swarm/subagents; one owner consolidates | Per-probe evidence; not a merge verdict |
 | `ship` | Accepted changes only need commit, push, release, or deployment | Route-specific shipping workflow | Publication/deployment result |
 
-- A small cross-file change is usually `standard`.
+- A cross-file change stays `standard` while its done-check fits in one line and its parts neither interact nor need ordered steps; otherwise plan first (`Plan first` in `boot-workflow`) and then build in checked milestones, still as `standard` unless another signal fires.
 - High or critical risk requires `reviewed`; it does not by itself require multiple writers or BOSS.
 - Choose `orchestrated` only when isolation or durable long-run state creates measurable leverage; never use BOSS merely because a task has several steps, and never give overlapping files or sequential tasks to multiple writers.
 - Choose `release` only once the candidate is stable enough to freeze; never generate release-grade provenance for an unstable intermediate patch.
