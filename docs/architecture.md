@@ -455,7 +455,7 @@ Outside the system: the hosts' own release channels, public marketplaces (`OQ-SQ
 | Component | Description |
 |---|---|
 | Scenario set | One task per folder in the runner's format: instruction, environment, hidden verifier and reference solution. It owns no data outside its folder. Its quality obligation is verifier qualification. |
-| Trigger query sets | One input JSON file (`--queries`) of should-trigger and near-miss queries with dev and held-out labels, written outside the lab before any arm runs and graded blind; each query runs as one task on the shared `scenarios/trigger` template, which has no verifier. |
+| Trigger query sets | One input JSON file (`--queries`) of should-trigger and near-miss queries with dev and held-out labels, written outside the lab before any arm runs and graded blind, then checked and selected by `python -m evals.queries check|select`; each query runs as one task on the shared `scenarios/trigger` template, which has no verifier. |
 | Arm builder | Input: a profile from a fixed table (categories, dropped skills, description arm) and, for description arms, a text file. Output: a rendered HOME tarball plus its manifest, checked against its parent profile. It never writes the canonical sources. |
 | Runner adapter | A Harbor agent class per host in `agents.py`, and a Harbor task written per attempt on the host image. |
 | Skill-load detector | Loads decided from the host's own tool-call record (a skill-tool call, or a read of an installed `SKILL.md`). The file-open audit inside the container is the cross-check, because a skill tool opens no file. |
@@ -478,8 +478,9 @@ evals/                                    - The behavioural evaluation lab (SQ0.
   stamp.py                                - Timestamps each file-open audit event with sub-second epoch time inside the container.
   listing.py                              - Captures the skill listing a host shows the model and classifies each installed skill as surfaced, name-only or absent.
   capture_proxy.py                        - Forwarding proxy that keeps a host's model request body (never its headers) for the listing capture; direct or gateway upstream.
-  cohort.py                               - Expands scenarios or queries, hosts, profiles and repetitions into seeded groups, runs them through Harbor with a spend stop and a quarantine stop, retries launch failures, appends the ledger.
-  queries.py                              - Loads the trigger query file and turns each query into a unit on the trigger template.
+  cohort.py                               - Expands scenarios or queries, hosts, profiles and repetitions into seeded groups, runs them through Harbor with a spend stop, a quarantine stop and per-host stop rules, retries launch failures, appends the ledger.
+  endreason.py                            - Reads why an attempt ended and the output cap it ran under from the trial result and the host's record.
+  queries.py                              - Loads the trigger query file and turns each query into a unit on the trigger template; `check` and `select` apply the mechanical checks and the seeded selection and split to candidates.
   scenarios/controls/<case>/              - Harbor tasks for detector qualification: use-by-name, use-by-file, no-skill.
   scenarios/dev-fix/<case>/               - Harbor tasks with a hidden verifier (F10, F13, F14 from SQ0.6).
   scenarios/trigger/                      - The shared trigger task template and its fixture workspace.

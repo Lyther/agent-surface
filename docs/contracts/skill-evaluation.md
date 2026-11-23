@@ -125,7 +125,8 @@ One JSONL row per attempt, written by `evals/cohort.py`, append-only. "Written" 
 | `seconds_env`, `seconds_setup`, `seconds_agent`, `seconds_verifier`, `seconds_total` | Phase times | Written |
 | `cpus`, `memory_mb`, `agent_timeout_sec`, `concurrency` | The attempt's caps and the run's parallelism | Written |
 | `listing` | Per target skill, `surfaced`, `name-only` or `absent`, and `truncated`; today the capture is an image-level file from `listing.py` | Not written |
-| `served_model`, applied output cap, end reason | The model that served the attempt; the output limit the request carried; whether the agent ended by output limit, timeout or exit | Not written |
+| `end_reason`, `output_cap` | How the agent ended: `exit`, `output_cap`, `timeout`, `capacity`, `error` or `setup_failure`; and the output limit the attempt ran under where the host exposes it (opencode's configured limit; null for codex, droid and claude-code, whose cap the gateway or host applies). Codex's output-cap end is read from the host's "max_output_tokens" error text; droid has no such signal | Written |
+| `served_model` | The model that served the attempt | Not written |
 | `pressure`, `steps_done` | Outcome cohorts: the pressure stratum, and the required steps whose world-state artifact exists | Not written |
 
 `order.json` holds the seeded order as groups (every arm of one scenario, host and repetition) of cells; rows carry no order index and no cohort field beyond `prereg`. `hosts.json` holds one record per host image and `arms.json` one per host and profile. All are part of the receipt.
@@ -168,7 +169,7 @@ Rules:
 - Before and after every cohort and local step, compare against a baseline: `~/.local/bin`, `brew list`, `uv tool list` and the hash of the git config. Any difference stops further work and is reported. The lab peer runs this comparison; `cohort.py` does not.
 - Credentials follow the [SQ0.4 handling](../../evals/README.md): read from stdin of the cohort process, passed to the container with `docker exec -e NAME`, never in argv, an image, a build argument, a scenario folder, an overlay, a ledger row or a receipt. Auth files are not copied in. Gateway hosts read the gateway address from the lab environment, never from the repository.
 - The scrubber `evals/scrub.py` scans each attempt's job directory, log and task folder for every injected value and for credential patterns after the container is removed. An exact-value hit is a leak. Third-party skills and scenario repositories carry credential-shaped placeholders: a pattern hit whose (pattern, sha256 of the match) is on a list frozen from a pre-flight scan of the arm tarballs and scenario inputs is an input echo, logged as `scrub_input_echo` and not a hit. Any other hit quarantines the attempt directory, writes a `quarantined` row without the matched bytes, and stops the cohort. The whole output tree is scanned again before it leaves the lab host. A leak is quarantined, never edited into looking clean.
-- **Stop semantics.** A quarantine stops all launches at once: attempts already running finish and are scanned, and the unstarted arms of every started group get `skipped` rows with `group_incomplete`. A spend stop admits no new group but lets started groups finish.
+- **Stop semantics.** A quarantine stops all launches at once: attempts already running finish and are scanned, and the unstarted arms of every started group get `skipped` rows with `group_incomplete`. A spend stop admits no new group but lets started groups finish. A host stop applies the quarantine rule to one host and lets the others go on: a host stops after 2 setup failures with the same exception type, or after 3 attempts in a row that end at the agent cap or in the same exception type; its started groups abandon their remaining arms as `group_incomplete`, its new groups are refused, and its running attempts finish.
 - **Spend.** Per-cohort spend is capped in the preregistration, in tokens (prompt plus output) for gateway hosts and in credits for droid, with a reserve per attempt. A group is admitted only while spent plus the reserve times the attempts admitted and not finished, the new group included, stays within the cap; an attempt with no reading is charged the reserve, one that failed before the agent started is charged nothing. Refused groups are `skipped` rows, counted as `BLOCKED`.
 - Receipts are private (`.agent-surface/research/<date>-sq-<id>/`). Only accepted summaries are copied into this contract or the roadmap.
 
@@ -183,7 +184,7 @@ Frozen in one JSON file before the first scored attempt. An amendment is a separ
 | `arms` | Profiles with arm tarball hashes and the source commit; the description text of each description arm | to set |
 | `hosts` | Hosts, CLI versions, models, runner version, resource caps, the applied output limit of each gateway host, and the served-model probe | to set |
 | `credentials` | Which hosts run, and the credential decision for each | to set by the operator |
-| `scenarios` or `queries` | Ids and hashes of scenarios or of query files, with the `dev` and `held-out` split and how queries were written | to set |
+| `scenarios` or `queries` | Ids and hashes of scenarios or of query files, with the `dev` and `held-out` split and how queries were written; the query file is the output of `python -m evals.queries select` (mechanical checks, two blind label files, seeded selection and split) | to set |
 | `pilot` | Baseline-must-fail pilot: runs per scenario, ceiling, separate seeds | to set |
 | `repetitions` | Per cell | to set |
 | `seeds` | Order seed and any query or scenario sampling seed | to set |
@@ -208,7 +209,7 @@ Operator decisions, 2026-11-22. The ledger's `model` is the requested id, and ho
 | `claude-code` | requested Claude id through the gateway | Runs but is not scored: the gateway serves a non-Claude model for that id, so its results are not Claude-model results |
 | `opencode` | `gpt-5.5` through the gateway, with an explicit output limit on every request | Candidate, added only by amendment before any of its attempts, after its controls pass; it shares codex's upstream model, so it is not an independent replicate |
 
-The gateway applies a default output limit when a client sends none; that default had cut codex turns short before it was raised. Gateway hosts need the applied limit recorded and the served model probed at the start and end of each cohort (a mismatch makes that host's cohort not poolable); neither is built yet.
+The gateway applies a default output limit when a client sends none; that default had cut codex turns short before it was raised. The attempt's end reason and, where the host exposes it, the applied limit are on the ledger row. Gateway hosts also need the served model probed at the start and end of each cohort (a mismatch makes that host's cohort not poolable); the probe and the `served_model` field are not built.
 
 ## Known Deviations
 
@@ -238,9 +239,8 @@ States the SQ1 preregistration waits on, once. `O-n` ids are the preregistration
 | `O-13` | Reproducibility host and tolerance | Orchestrator's decision: rerun the whole cell sets on the cheaper required host; tolerance from run-to-run variance |
 
 Pending lab changes the contract waits on:
-- a per-attempt end reason and applied output limit, and the served-model probe and field;
-- stop rules for repeated setup failures and repeated agent-cap ends on one host (the cohort stops on a quarantine and on spend only);
-- the query selection tool, and `analyze.py`, which reads only the preregistration and the ledger;
+- the served-model probe and `served_model` field;
+- `analyze.py`, which reads only the preregistration and the ledger;
 - the `listing`, `pressure`, `steps_done` and `asset_installed` ledger fields;
 - runs: detector requalification on `full` for every scored host and on opencode's gateway path, scenario qualification on the host images, and the codex outcome check after the output-limit default was raised.
 

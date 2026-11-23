@@ -503,7 +503,7 @@ Design:
 - hosts: Droid (the Claude-family host) and Codex; Claude Code runs but is not scored, and OpenCode joins only by amendment ([hosts](contracts/skill-evaluation.md#hosts));
 - each attempt in a fresh container with the full profile, so competing skills are present.
 
-Files: a query file passed to `cohort.py --queries` (`evals/queries.py` holds its format); receipts.
+Files: a query file passed to `cohort.py --queries`, made by `python -m evals.queries select` (`evals/queries.py` holds the format); receipts.
 
 Exit: recall, false-trigger and confusion rates with intervals per skill, arm and host. Ledger completeness is checked against the preregistration.
 
