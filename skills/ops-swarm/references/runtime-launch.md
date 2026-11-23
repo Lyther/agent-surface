@@ -31,14 +31,15 @@ When the driver's own subagent or agent-manager tool can select the model, isola
 
 ## Context controls
 
-When [runtime-catalog.md](runtime-catalog.md) has a suggested window, apply the runtime's native control and record the effective value. A blank suggestion preserves the existing runtime setting; do not substitute the model's cap. Compaction thresholds may reserve headroom or be clamped to model capacity; they are not spending caps. Preserve unrelated model, effort, permission, and subagent settings.
+Policy: every harness and model works with at most 300K tokens of context, or the model's own cap when that is smaller (see [runtime-catalog.md](runtime-catalog.md)). Host configs already carry the cap through the runtime's general setting, so a packet adds nothing by default. Apply a per-launch control only to go lower than the host setting, or on a runtime with no general setting, and record the effective value. Never raise a window above 300K and never add per-model entries where a general setting exists. Compaction thresholds may reserve headroom or be clamped to model capacity; they are not spending caps. Preserve unrelated model, effort, permission, and subagent settings.
 
-| Runtime | Control |
+| Runtime | General control |
 |---|---|
-| Claude Code | `--autocompact 500k` or `--autocompact 1m`; saved per-model windows use `modelSettings.<canonical-model-id>.autoCompactWindow` in settings from 2.1.288. Check `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, which takes precedence. |
-| Droid | `droid exec --settings <overlay.json>` with `compactionTokenLimitPerModel` keyed by model ID. This sets the compaction trigger and is clamped to the model's input limit. |
-| Grok Build | Set `context_window` in the selected `[model."<id>"]` configuration. The model's compaction percentage still applies. Read current help before assuming a per-launch override exists. |
-| Cursor Agent | `--model '<id>[context=<supported-value>]'` where the current catalog supports that parameter and value; do not invent a context choice. |
+| Claude Code | `autoCompactWindow` in user settings (read by 2.1.311). `CLAUDE_CODE_AUTO_COMPACT_WINDOW` takes precedence; `--autocompact <size>` lowers it for one launch. |
+| codex | `model_context_window` in `config.toml`, clamped to the model's maximum. Compaction starts at about 90% of the window. |
+| Droid | General `compactionTokenLimit`, clamped to each model's maximum input. A per-model map is redundant. |
+| Grok Build | No general key: set `context_window` in each `[model."<id>"]` entry. Compaction fires at 80% of it. Read current help before assuming a per-launch override exists. |
+| Cursor Agent | No general setting: a model parameter only, `--model '<id>[context=<supported-value>]'`, where the current catalog supports that parameter and value; do not invent a context choice. |
 
 References: [Claude model configuration](https://code.claude.com/docs/en/model-config#context-window-and-auto-compaction), [Droid settings](https://docs.factory.com/droid-cli/settings#context-and-compaction), [Grok settings](https://docs.x.ai/build/settings/reference), [Cursor CLI parameters](https://cursor.com/docs/cli/reference/parameters). For other runtimes, read current help and settings before applying an override. Native configuration readback proves loading; a long-context run is needed to prove when compaction occurs.
 
