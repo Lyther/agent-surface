@@ -25,6 +25,12 @@ for (const categories of [undefined, ["mcps"], ["development"], ["cybersecurity"
   });
   assert.ok(!entries.some(([id]) => id === "rea"), "REA stays opt-in");
 }
+// The full profile wires the first-party baseline and every categorized service, and still not REA.
+const fullProfileIds = (await selectedMcpServiceEntries(true, {
+  mode: "install", scope: "user", categoryFilter: null, fullProfile: true,
+})).map(([id]) => id);
+assert.deepEqual(fullProfileIds, ["chrome-devtools", "fenjing", "grimoire", "openosint", "synapse"]);
+assert.ok(!fullProfileIds.includes("rea"), "REA stays opt-in under the full profile");
 const reaEntries = await selectedMcpServiceEntries(true, {
   mode: "build", scope: "user", categoryFilter: new Set(["mcps"]), optionalServices: new Set(["rea"]),
 });

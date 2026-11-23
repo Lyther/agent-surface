@@ -71,8 +71,14 @@ export function selectedAssetCategories(categoryFilter) {
   return new Set([...(categoryFilter ?? [])].filter((name) => assetCategoryNames.has(name)));
 }
 
+// `--category everything` is one full sync whose live set is the general baseline plus external and
+// every asset category, so each category gate admits all of them while `categoryFilter` stays null.
+export function profileAssetCategories(context) {
+  return context.fullProfile ? new Set(assetCategoryNames) : selectedAssetCategories(context.categoryFilter);
+}
+
 export function assetCategoryAllowed(context, category) {
-  if (context.mode !== "install") return true;
+  if (context.mode !== "install" || context.fullProfile) return true;
   const selected = selectedAssetCategories(context.categoryFilter);
   return selected.size > 0 ? category !== null && selected.has(category) : category === null;
 }

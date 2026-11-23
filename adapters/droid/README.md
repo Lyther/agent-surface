@@ -22,7 +22,7 @@ Each command carries its source description as frontmatter, which Droid shows in
 The Droid adapter wires selected optional upstream projects instead of leaving their submodules inert:
 
 - `synapse` and `grimoire` are rendered by default as the first-party local MCP servers.
-- External packs are copied into `.agents/skills/` by category: `sanyuan-skills` with `--category external`; `archify` and `sanyuan-development-skills` with `--category development`; `ctf-skills` and `codex-redteam-mode` with `--category cybersecurity`. The general sync copies none.
+- External packs are copied into `.agents/skills/` by category: `sanyuan-skills` with `--category external`; `archify` and `sanyuan-development-skills` with `--category development`; `ctf-skills` and `codex-redteam-mode` with `--category cybersecurity`. The general sync copies none; `--category everything` copies all of them.
 - `anthropic-cybersecurity-skills` is kept as a pinned source asset but is not emitted into Droid skill roots by default.
 
 The adapter does not copy whole upstream repositories into Droid output. It copies native skill directories and the MCP registration needed for Droid to use them.

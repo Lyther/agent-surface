@@ -24,7 +24,7 @@ import { assertJsonPropertyType, isMcpLauncherCommand, MCP_ENV_LAUNCH_SCRIPT, mc
 import { pinnedNodePath } from "./mcp-shims.mjs";
 import { planSynapseHook } from "./synapse-hook.mjs";
 import { formatNotice, localDate, planNotices } from "./notices.mjs";
-import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
+import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, profileAssetCategories, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { antigravityCliStagedPlugin } from "./roots.mjs";
 import { readRules } from "./rules.mjs";
 import { adapterMcpConfigs, kiloRuleInstructionPaths, kiloRuleInstructionRoot, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets, withMcpServerOverrides } from "./targets.mjs";
@@ -108,7 +108,9 @@ export async function install(args) {
   const dryRun = args.includes("--dry-run");
   const allowScopeRoot = args.includes("--allow-scope-root");
   const categoryFilter = installCategoryFilter(args);
+  const fullProfile = installFullProfile(args);
   const optionalServices = optionalServiceFilter(args);
+  if (fullProfile && optionalServices) fail("--category everything cannot be combined with --service; run the service install separately");
   const agentName = argValue(args, "--agent") ?? "agent";
   // Resolve the credential env-file ONCE so the installer validates and the launcher loads exactly
   // the same file, independent of the launch working directory. Project scope keeps it beside the
@@ -132,13 +134,13 @@ export async function install(args) {
     fail("live install requires explicit --dest or --allow-scope-root after reviewing --dry-run");
   }
 
-  const planContext = { selectedTargets, allTargetsSelected, scope, dest, agentName, categoryFilter, optionalServices, envFilePath };
+  const planContext = { selectedTargets, allTargetsSelected, scope, dest, agentName, categoryFilter, fullProfile, optionalServices, envFilePath };
   let plans = await buildInstallPlans(planContext);
 
   // One credential plan drives interactive and headless installs. Reads existing values
   // (process env, then the scope's .env), classifies each selected MCP service's keys, and
   // never surfaces values — only names and the file path reach the plan/logs.
-  const credentials = await resolveInstallCredentials({ args, scope, categoryFilter, optionalServices, agentName, envFilePath, installRoot: credentialEnvRoot });
+  const credentials = await resolveInstallCredentials({ args, scope, categoryFilter, fullProfile, optionalServices, agentName, envFilePath, installRoot: credentialEnvRoot });
 
   // Detect (read-only) the executable prerequisites and runtime floors of the MCP services this
   // install will ACTUALLY WIRE, so the plan shows what would be installed and the install can
@@ -284,10 +286,10 @@ export async function install(args) {
 // ids from all config merges — used to skip wiring a service whose prerequisites could not be
 // provisioned, without disturbing any other service or the failed service's existing config.
 async function buildInstallPlans(context) {
-  const { selectedTargets, allTargetsSelected, scope, dest, agentName, categoryFilter, optionalServices, envFilePath } = context;
+  const { selectedTargets, allTargetsSelected, scope, dest, agentName, categoryFilter, fullProfile, optionalServices, envFilePath } = context;
   const excludeServices = context.excludeServices ?? null;
   const launchWiring = context.launchWiring ?? null;
-  const options = { agentName, categoryFilter, optionalServices, envFilePath, excludeServices, launchWiring };
+  const options = { agentName, categoryFilter, fullProfile, optionalServices, envFilePath, excludeServices, launchWiring };
   const selection = [];
   if (allTargetsSelected && scope === "user" && categoryFilter === null && optionalServices === null) {
     for (const [target, adapter] of Object.entries(retiredInstallTargets)) {
@@ -499,11 +501,8 @@ function otherClaims(plan, relativeOutput, participants) {
   return holders;
 }
 
-// `all` selects the WHOLE set, so pairing it with a sibling is ambiguous rather than additive:
-// `--category all,development` asks at once for the general reset (which REMOVES previously managed
-// opt-in assets) and for development to be added. Returning early on `all` also meant the siblings
-// were never validated, so `all,developmnet` was accepted in silence and installed neither. Require
-// `all` alone; every other value then reaches its own validation below.
+// `--target all` selects the WHOLE set, so pairing it with a sibling is ambiguous rather than
+// additive, and returning early would leave the siblings unvalidated. Require `all` alone.
 function exclusiveAll(values, flag) {
   if (!values.includes("all")) return false;
   const siblings = uniqueStrings(values.filter((value) => value !== "all"));
@@ -527,11 +526,24 @@ function selectedInstallTargets(args) {
   return selected;
 }
 
+// `everything` plans one full sync (`categoryFilter` stays null, so pruning is the general sync's)
+// whose live outputs add external and every asset category. It stands alone: a sibling would be
+// ambiguous between a reset and an addition.
+function installFullProfile(args) {
+  const values = splitArgValues(args, "--category", "--categories");
+  if (!values.includes("everything")) return false;
+  const siblings = uniqueStrings(values.filter((value) => value !== "everything"));
+  if (siblings.length > 0) fail(`--category everything cannot be combined with ${siblings.join(", ")}; run them as separate installs`);
+  return true;
+}
+
 function installCategoryFilter(args) {
   const values = splitArgValues(args, "--category", "--categories");
   if (values.length === 0) return null;
-  // Standalone `all` retains the full general sync; sensitive and specialized assets stay opt-in.
-  if (exclusiveAll(values, "--category")) return null;
+  // `all` was the general sync under a name that read like the full profile: running it after the
+  // external install stripped the external packs from every target.
+  if (values.includes("all")) fail("--category all is retired; omit --category for the general baseline, which removes managed opt-in assets, or use --category everything for the baseline plus external and every asset category");
+  if (installFullProfile(args)) return null;
   const known = new Set([
     "commands",
     "commands-as-workflows",
@@ -563,11 +575,11 @@ function optionalServiceFilter(args) {
   return values.length > 0 ? new Set(values) : null;
 }
 
-async function resolveInstallCredentials({ args, scope, categoryFilter, optionalServices, agentName, envFilePath, installRoot }) {
+async function resolveInstallCredentials({ args, scope, categoryFilter, fullProfile, optionalServices, agentName, envFilePath, installRoot }) {
   // Classify against the SAME env-file the wrapper will load at launch (resolved once by the
   // caller), so install-validated credentials are exactly the ones the MCP process receives.
   const serviceEntries = await selectedMcpServiceEntries(true, {
-    mode: "install", scope, categoryFilter, optionalServices, agentName,
+    mode: "install", scope, categoryFilter, fullProfile, optionalServices, agentName,
   });
   const status = credentialStatus(serviceEntries, { fileValues: await readEnvFile(envFilePath), processEnv: process.env });
   // Interactive only when a real TTY is attached and the caller did not pass -y.
@@ -891,6 +903,7 @@ export function outputLimitError({ relativeOutput, content, characterLimit, byte
 
 async function installPlan(target, adapter, installRoot, scope, rootSource, options = {}) {
   const categoryFilter = options.categoryFilter ?? null;
+  const fullProfile = options.fullProfile === true;
   const optionalServices = options.optionalServices ?? null;
   const excludeServices = options.excludeServices ?? null;
   const launchWiring = options.launchWiring ?? null;
@@ -919,6 +932,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     mode: "install",
     agentName: options.agentName ?? "agent",
     categoryFilter,
+    fullProfile,
     optionalServices,
     excludeServices,
     launchWiring,
@@ -1009,7 +1023,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   const partialInstall = categoryFilter !== null || optionalServices !== null;
   const liveOutputs = new Set(managed.map((item) => item.output));
   const previousFileEntries = manifestFileEntries(previousManifest, target);
-  const selectedCategories = selectedAssetCategories(categoryFilter);
+  const selectedCategories = profileAssetCategories({ categoryFilter, fullProfile });
   // A moved document keeps its identity (contract Migration step 4): until the new route records its
   // own category, the guard below reads the old route's, and once a selection plans the new route the
   // owned old route is retired with it, so a client that reads both never loads two copies.
@@ -1103,6 +1117,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     agentName: options.agentName ?? "agent",
     relocateExternalRoutes: rootSource === "explicit --dest",
     categoryFilter,
+    fullProfile,
     optionalServices,
     excludeServices,
     launchWiring,
@@ -1248,7 +1263,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     installRoot,
     manifestPath,
     generatedAt,
-    categories: categoryFilter ? [...categoryFilter].sort() : null,
+    categories: fullProfile ? ["everything"] : categoryFilter ? [...categoryFilter].sort() : null,
     services: optionalServices ? [...optionalServices].sort() : null,
     writes,
     staleRemovalActions,
@@ -2245,6 +2260,7 @@ async function kiloConfigMerge(installRoot, scope, options = {}) {
     ? await kiloRuleInstructionPaths(scope, {
       mode: "install",
       categoryFilter: options.categoryFilter ?? null,
+      fullProfile: options.fullProfile === true,
     })
     : [];
   const ruleRoot = kiloRuleInstructionRoot(scope);
@@ -2277,6 +2293,7 @@ async function kiloConfigMerge(installRoot, scope, options = {}) {
     ? await selectedMcpServiceEntries(true, {
       mode: "install",
       categoryFilter: options.categoryFilter ?? null,
+      fullProfile: options.fullProfile === true,
       optionalServices: options.optionalServices ?? null,
       excludeServices: options.excludeServices ?? null,
       launchWiring: options.launchWiring ?? null,

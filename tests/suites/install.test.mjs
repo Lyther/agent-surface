@@ -270,9 +270,14 @@ const qwenCodeModdingPlan = dryRun("qwen-code", ["--category", "modding"]);
 planHas(qwenCodeModdingPlan, [/\.qwen\/skills\/stellaris-design\/SKILL\.md/], "qwen-code modding assets");
 planLacks(qwenCodeModdingPlan, [/skills\/ctf-ai-ml\//], "qwen-code modding isolation");
 
-const qwenCodeAllPlan = dryRun("qwen-code", ["--category", "all"]);
-planHas(qwenCodeAllPlan, [/\.qwen\/skills\/ops-ask\/SKILL\.md/], "qwen-code all general outputs");
-planLacks(qwenCodeAllPlan, [/skills\/archify\//, /skills\/ctf-ai-ml\//, /skills\/stellaris-design\//], "qwen-code all keeps opt-in assets explicit");
+const qwenCodeEverythingPlan = dryRun("qwen-code", ["--category", "everything"]);
+planHas(qwenCodeEverythingPlan, [
+  /\.qwen\/skills\/ops-ask\/SKILL\.md/,
+  /\.qwen\/skills\/archify\//,
+  /\.qwen\/skills\/ctf-ai-ml\//,
+  /\.qwen\/skills\/stellaris-design\//,
+  /\.qwen\/skills\/book-study\//,
+], "qwen-code everything carries the baseline, external and every asset category");
 
 const antigravityCliModdingPlan = dryRun("antigravity-cli", ["--category", "modding"]);
 planHas(antigravityCliModdingPlan, [
@@ -318,12 +323,18 @@ const rejects = (flag, value, sibling) => {
   assert.notEqual(result.status, 0, `${flag} ${value} is rejected rather than silently broadened: ${result.stdout}`);
   assert.match(result.stderr, new RegExp(`${flag} all cannot be combined with ${sibling}`), `${flag} ${value} names the conflicting sibling: ${result.stderr}`);
 };
-rejects("--category", "all,development", "development");
-rejects("--category", "all,skills", "skills");
 rejects("--target", "all,codex", "codex");
 // A typo next to `all` must surface as an error, not vanish behind it.
-rejects("--category", "all,developmnet", "developmnet");
 rejects("--target", "all,codx", "codx");
+// `everything` stands alone for the same reason.
+for (const [value, sibling] of [["everything,development", "development"], ["everything,external", "external"], ["everything,developmnet", "developmnet"]]) {
+  const result = status(["install", "--target", "codex", "--dest", ownTmp("everything-combo"), "--category", value, "--dry-run"]);
+  assert.notEqual(result.status, 0, `--category ${value} is rejected: ${result.stdout}`);
+  assert.match(result.stderr, new RegExp(`--category everything cannot be combined with ${sibling}`), result.stderr);
+}
+const everythingService = status(["install", "--target", "codex", "--dest", ownTmp("everything-service"), "--category", "everything", "--service", "rea", "--dry-run"]);
+assert.notEqual(everythingService.status, 0, everythingService.stdout);
+assert.match(everythingService.stderr, /--category everything cannot be combined with --service; run the service install separately/);
 // A list option given only empty values names nothing. Read as the option left out, `--category ""`
 // was the general install, which removes the opt-in categories installed earlier.
 for (const [flag, value, extra = []] of [
@@ -334,11 +345,14 @@ for (const [flag, value, extra = []] of [
   assert.ok(result.stderr.includes(`ERROR: ${flag} ${JSON.stringify(value)} names no value; pass one or more comma-separated values`), result.stderr);
   assert.doesNotMatch(result.stdout, /^target: /m, "nothing is planned");
 }
-// Standalone `all` keeps its documented meaning on both selectors: the general full sync.
-const standaloneCategory = status(["install", "--target", "codex", "--dest", ownTmp("all-standalone"), "--category", "all", "--dry-run"]);
-assert.equal(standaloneCategory.status, 0, `--category all alone still performs the general sync: ${standaloneCategory.stderr}`);
-const noCategory = status(["install", "--target", "codex", "--dest", ownTmp("all-standalone"), "--dry-run"]);
-assert.equal(standaloneCategory.stdout, noCategory.stdout, "--category all alone plans exactly what omitting --category plans");
+// `--category all` was the general sync under a name that read like the full profile. It is retired
+// on both spellings, with or without siblings, and fails before anything is planned.
+for (const value of ["all", "all,development", "all,developmnet"]) {
+  const retired = status(["install", "--target", "codex", "--dest", ownTmp("all-retired"), "--category", value, "--dry-run"]);
+  assert.equal(retired.status, 1, `--category ${value} is rejected: ${retired.stdout}`);
+  assert.match(retired.stderr, /--category all is retired; omit --category for the general baseline, which removes managed opt-in assets, or use --category everything for the baseline plus external and every asset category/);
+  assert.doesNotMatch(retired.stdout, /^target: /m, "nothing is planned");
+}
 
 const kiroDevelopmentPlan = dryRun("kiro", ["--category", "development"]);
 planHas(kiroDevelopmentPlan, [
@@ -588,6 +602,102 @@ SUBSTITUTE_JUSTIFICATION
     assert.equal(existsSync(cyberSkill), true);
   } finally {
     rmSync(dest, { recursive: true, force: true });
+  }
+}
+
+// `--category everything` is one command for the three-step full distribution. A full distribution
+// run as the general sync plus `--category external` stripped the external packs from every target, so
+// the single run must reach exactly the state the ordered sequence reaches from a clean root, and
+// re-running it must change nothing. On an existing profile the two differ by design: `everything`
+// is one pass, so a host keeps the fields its merge does not render (Codex keeps compatible fields such as
+// `enabled = false` on a managed entry, but clears stale transport keys such as `url`; the sequence's
+// general step removes the entry), while a renderer resets the fields it
+// writes (Kilo's and OpenCode's `enabled`, Goose's `enabled` and `timeout`).
+{
+  const sequenced = mkdtempSync(path.join(os.tmpdir(), "agent-surface-everything-sequence-"));
+  const single = mkdtempSync(path.join(os.tmpdir(), "agent-surface-everything-single-"));
+  const installArgs = (dest, ...category) => ["install", "--target", "codex,kilo", "--scope", "user", "--dest", dest, ...category];
+  const files = (dest) => readdirSync(dest, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.relative(dest, path.join(entry.parentPath, entry.name)))
+    .sort();
+  try {
+    const plan = run([...installArgs(single, "--category", "everything"), "--dry-run"]);
+    assert.match(plan, /^categories: everything$/m);
+    assert.match(plan, /^mcp credentials:$/m);
+    assert.match(plan, /openosint/);
+    run(installArgs(sequenced));
+    run(installArgs(sequenced, "--category", "external"));
+    run(installArgs(sequenced, "--category", "development,cybersecurity,private,modding"));
+    run(installArgs(single, "--category", "everything"));
+    assert.deepEqual(files(single), files(sequenced), "one run writes the paths the three-step sequence writes");
+    // Every other file must match byte for byte. The merged host configs are the exception: each run
+    // merges into the file the earlier steps left, so key order may differ and they compare parsed.
+    // Manifests carry a run timestamp, so they compare without it.
+    const parsedFiles = new Map([
+      [path.join(".codex", "config.toml"), (text) => TOML.parse(text)],
+      [path.join(".config", "kilo", "kilo.jsonc"), (text) => parseJsonc(text, "kilo")],
+      ...["codex", "kilo"].map((target) => [path.join(".agent-surface", `${target}-manifest.json`), (text) => {
+        const parsed = JSON.parse(text);
+        delete parsed.generated_at;
+        return parsed;
+      }]),
+    ]);
+    for (const file of files(single)) {
+      const left = readFileSync(path.join(single, file));
+      const right = readFileSync(path.join(sequenced, file));
+      const parse = parsedFiles.get(file);
+      if (parse) assert.deepEqual(parse(left.toString("utf8")), parse(right.toString("utf8")), `${file} matches the sequence`);
+      else assert.ok(left.equals(right), `${file} has the same bytes as the sequence`);
+    }
+    const mcpIds = (dest) => Object.keys(TOML.parse(readFileSync(path.join(dest, ".codex", "config.toml"), "utf8")).mcp_servers).sort();
+    assert.deepEqual(mcpIds(single), ["chrome-devtools", "fenjing", "grimoire", "openosint", "synapse"]);
+    assert.deepEqual(mcpIds(single), mcpIds(sequenced));
+    const kilo = (dest) => parseJsonc(readFileSync(path.join(dest, ".config", "kilo", "kilo.jsonc"), "utf8"), "kilo");
+    assert.deepEqual(kilo(single).instructions, kilo(sequenced).instructions);
+    assert.deepEqual(Object.keys(kilo(single).mcp).sort(), Object.keys(kilo(sequenced).mcp).sort());
+    assert.equal(existsSync(path.join(single, ".agents", "skills", "book-study", "SKILL.md")), true, "external packs stay");
+
+    const again = run(installArgs(sequenced, "--category", "everything"));
+    for (const label of ["wrote", "removed stale"]) {
+      const counts = [...again.matchAll(new RegExp(`^\\s+${label}: (\\d+)$`, "gm"))].map((match) => match[1]);
+      assert.deepEqual(counts, ["0", "0"], `${label} is 0 on both targets: ${again}`);
+    }
+
+    run(installArgs(single));
+    assert.equal(existsSync(path.join(single, ".agents", "skills", "book-study", "SKILL.md")), false, "a general sync after everything still resets");
+    assert.equal(existsSync(path.join(single, ".agents", "skills", "dev-feature", "SKILL.md")), false);
+  } finally {
+    rmSync(sequenced, { recursive: true, force: true });
+    rmSync(single, { recursive: true, force: true });
+  }
+}
+
+// Routes that are off by default (Kimi Code's config.toml and editor settings, Kiro's permissions) wire
+// no service at all (`includeServices: false`), so the full profile must leave them exactly as the
+// sequence does while the enabled routes beside them get the same servers.
+{
+  const sequenced = mkdtempSync(path.join(os.tmpdir(), "agent-surface-everything-disabled-sequence-"));
+  const single = mkdtempSync(path.join(os.tmpdir(), "agent-surface-everything-disabled-single-"));
+  const installArgs = (dest, ...category) => ["install", "--target", "kimi-code,kiro", "--scope", "user", "--dest", dest, ...category];
+  const read = (dest, file) => readFileSync(path.join(dest, file), "utf8");
+  const mcpIds = (dest, file) => Object.keys(parseJsonc(read(dest, file), file).mcpServers).sort();
+  try {
+    run(installArgs(sequenced));
+    run(installArgs(sequenced, "--category", "external"));
+    run(installArgs(sequenced, "--category", "development,cybersecurity,private,modding"));
+    run(installArgs(single, "--category", "everything"));
+    for (const file of [path.join(".kiro", "settings", "mcp.json"), "mcp.json"]) {
+      assert.deepEqual(mcpIds(single, file), ["chrome-devtools", "fenjing", "grimoire", "openosint", "synapse"], file);
+      assert.deepEqual(mcpIds(single, file), mcpIds(sequenced, file), file);
+    }
+    for (const file of ["config.toml", path.join(".kiro", "settings", "permissions.yaml")]) {
+      assert.equal(read(single, file), read(sequenced, file), `${file} matches the sequence`);
+    }
+    assert.doesNotMatch(read(single, "config.toml"), /mcp_servers/, "a route that wires no service stays without one");
+  } finally {
+    rmSync(sequenced, { recursive: true, force: true });
+    rmSync(single, { recursive: true, force: true });
   }
 }
 
