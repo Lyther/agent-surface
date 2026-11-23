@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { vsCodeUserRoot } from "../../scripts/agent-surface/roots.mjs";
 import { readSkills } from "../../scripts/agent-surface/skills.mjs";
 import { subagentOutputs } from "../../scripts/agent-surface/source-primitives.mjs";
-import { codexOpenAiAgentPolicyOutput, produceSkillOutputs, targets } from "../../scripts/agent-surface/targets.mjs";
+import { codexOpenAiAgentPolicyOutput, externalSkillOutputs, produceSkillOutputs, targets } from "../../scripts/agent-surface/targets.mjs";
 import {
   assertCodexAgentTomlParses,
   disposableCheckout,
   files,
   hasLocalOpsServerSkill,
-  root, run, status,
+  ownTempRoot, root, run, status,
 } from "../lib/helpers.mjs";
 
 const buildAll = run(["build", "--target", "all"]);
@@ -389,7 +389,7 @@ run(["build", "--target", "all"]);
   const skillDir = path.join(".agents", "skills", "probe-skill");
   assert.ok(byOutput.has(path.join(skillDir, "SKILL.md")), "the skill itself is still produced");
   assert.equal(byOutput.get(path.join(skillDir, "references", "note.md"))?.content, "note", "a companion is emitted beside its skill with its own content");
-  assert.equal(byOutput.get(path.join(skillDir, "references", "note.md"))?.mode, undefined, "an ordinary companion declares no mode");
+  assert.equal(byOutput.get(path.join(skillDir, "references", "note.md"))?.mode, 0o644, "an ordinary companion declares 0644 so a lost execute bit is reset");
   assert.equal(byOutput.get(path.join(skillDir, "scripts", "run.sh"))?.mode, 0o755, "an executable companion declares the mode that keeps it runnable");
 
   // A metadata sidecar is not a skill directory: Codex's agents/openai.yaml gets no companions.
@@ -421,6 +421,35 @@ run(["build", "--target", "all"]);
     false,
   );
   assert.equal(parseYaml(folded.content).interface.short_description, "First line second line", "surrounding and interior whitespace folds to single spaces");
+}
+
+// An external pack's executable companion keeps its bit through both writers: a 0755 source that
+// lands 0644 fails with EACCES when run. Skipped on win32, which has no POSIX mode bits.
+const externalScriptRoot = path.join(root, "external", "sanyuan-skills", "skills", "skill-forge");
+if (process.platform !== "win32" && existsSync(externalScriptRoot)) {
+  const executableSource = path.join(externalScriptRoot, "scripts", "init_skill.py");
+  const plainSource = path.join(externalScriptRoot, "SKILL.md");
+  assert.notEqual(statSync(executableSource).mode & 0o111, 0, "the pack source is executable");
+  assert.equal(statSync(plainSource).mode & 0o111, 0, "and its SKILL.md is not");
+  const skillTail = path.join("skills", "skill-forge");
+  const modeOf = (file) => statSync(file).mode & 0o777;
+  const builtSkill = path.join(root, "dist", "antigravity-cli", "antigravity-cli", "plugins", "agent-surface", skillTail);
+  assert.equal(modeOf(path.join(builtSkill, "scripts", "init_skill.py")), 0o755, "a built external companion stays executable");
+  assert.equal(modeOf(path.join(builtSkill, "SKILL.md")), 0o644, "a built external document stays 0644");
+  // The producer declares the non-executable mode too, so an install over a copy that was once
+  // executable resets it instead of keeping the stale bit.
+  const externalOutputs = await externalSkillOutputs(targets["antigravity-cli"], { scope: "user", mode: "build", categoryFilter: null });
+  const declared = (suffix) => externalOutputs.find((output) => output.relativeOutput.endsWith(path.join(skillTail, suffix)))?.mode;
+  assert.equal(declared(path.join("scripts", "init_skill.py")), 0o755, "an executable external companion declares 0755");
+  assert.equal(declared("SKILL.md"), 0o644, "a non-executable external file declares 0644");
+
+  const installDest = ownTempRoot("external-mode")("dest");
+  const installed = status(["install", "--target", "antigravity-cli", "--dest", installDest, "--scope", "user", "--category", "development"]);
+  assert.equal(installed.status, 0, `${installed.stdout}${installed.stderr}`);
+  const installedSkill = files(installDest).find((file) => file.endsWith(path.join(skillTail, "scripts", "init_skill.py")));
+  assert.ok(installedSkill, "the external skill installs under --dest");
+  assert.equal(modeOf(installedSkill), 0o755, "an installed external companion stays executable");
+  assert.equal(modeOf(path.join(path.dirname(path.dirname(installedSkill)), "SKILL.md")), 0o644, "an installed external document stays 0644");
 }
 
 console.log("build: ok");
