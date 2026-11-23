@@ -57,4 +57,4 @@ Allowed only with a stated exception or clear repo precedent; name the exception
 
 ## Wired Services
 
-[P2] When Grimoire is configured, search its skill index before improvising a specialist procedure. If the host defers MCP tools behind a tool search, load them by the names it lists, and read a skill in full only when a hit's name and summary cover the task.
+[P2] When Grimoire is configured, call `grimoire_search` before improvising a security, forensics, reverse-engineering, malware, CTF, red-team or incident-response procedure, or an engineering one (frontend, web performance, accessibility, architecture, testing, CI, deployment) its installed packs cover: it serves skills missing from your native skill list; load it through your tool search if deferred. When Synapse is configured, `memory_recall` before re-deciding settled work and `memory_remember` confirmed decisions.
