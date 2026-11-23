@@ -26,6 +26,7 @@ from pathlib import Path
 
 from evals.arms import SKILL_DIRS, load_arms
 from evals.detect import verdict
+from evals.endreason import attempt_end
 from evals.gateway import GATEWAY_HOSTS, KEY_ENV, NO_PROXY_ENV, URL_ENV, gateway_url, no_proxy
 from evals.images import scenario_tag, write_task
 from evals.queries import TEMPLATE as TRIGGER_TEMPLATE, ledger_fields, load_queries, unit_name
@@ -148,6 +149,7 @@ def ledger_row(scenario: str, host: str, profile: str, rep: int, image: dict, ar
         "ended": now(),
         "harbor_exit": exit_code,
         "exception": (exception or {}).get("exception_type") if isinstance(exception, dict) else exception,
+        **attempt_end(trial, job_dir, host),
         "verifier_reward": rewards.get("reward"),
         "skills_loaded": detected["loaded"],
         "load_evidence": detected["evidence"],
