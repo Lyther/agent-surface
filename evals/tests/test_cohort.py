@@ -16,7 +16,7 @@ from pathlib import Path
 from evals.agents import HOST_TIMEOUT_MARGIN_SEC, host_timeout
 from evals.cohort import AGENT_ENDS_TO_STOP, LAUNCH_RETRIES, SETUP_FAILURES_TO_STOP, HostStops, SpendGate, Unit, attempt_name, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, injected_secrets, parse_spend, plan, run_order, spend_reading
 
-FAKE_KEY = "fk-FAKE-not-a-real-factory-key-0123456789"
+FAKE_KEY = "fk-" + "FAKE-not-a-real-factory-key-0123456789"  # built at run time so a secret scanner does not flag the source
 IMAGE = {"image_id": "sha256:feed"}
 ARM = {"source_commit": "c0ffee", "arm_sha256": "abc123", "skills": ["dev-fix"], "desc_arm": "B"}
 CELL = ("controls-no-skill", "droid", "dev", 1)

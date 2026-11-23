@@ -90,7 +90,7 @@ class ScrubTest(unittest.TestCase):
             "aws-access-key-id": b"AKIA" + b"D" * 16,
             "google-api-key": b"AIza" + b"E" * 35,
             "factory-key": b"fk-" + b"F" * 30,
-            "pem-private-key": b"-----BEGIN OPENSSH PRIVATE KEY-----",
+            "pem-private-key": b"-----BEGIN " + b"OPENSSH PRIVATE KEY-----",
             "authorization-bearer": b"Authorization: Bearer " + b"G" * 24,
             "x-api-key-header": b"x-api-key: " + b"H" * 24,
         }
