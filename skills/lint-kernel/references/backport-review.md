@@ -89,7 +89,9 @@ Cc: <stable@vger.kernel.org> # see patch description, needs adjustments for <= 6
 
 Both `# 3.3.x` and `# v5.14` spellings appear in accepted patches; a trailing `+` is redundant,
 not a range operator. The third form declares a prerequisite commit that must be cherry-picked
-first. Free-form comments are legal.
+first. Free-form comments are legal. Judge other people's patches by these forms. In mails you
+prepare, keep the line bare and write the backport note below `---` instead, as one checked
+sentence on what older trees lack and what the backport changes (`SKILL.md`, "Trailers").
 
 **An absent annotation is not a defect.** `stable-kernel-rules.rst` states the annotation is
 unnecessary when the stable team can derive the versions from the `Fixes:` tag. Flagging every
