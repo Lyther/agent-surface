@@ -1,6 +1,6 @@
 # Skill Evaluation Contract
 
-Status: DRAFT for operator review, 2026-11-21. No cohort has run under it; the SQ1 preregistration is separate and waits on the open items in the last section.
+Status: DRAFT for operator review, 2026-11-23, aligned with the lab as built at the SQ0.7 contract pass. No cohort has run under it; the SQ1 preregistration is separate, and the last section lists the open decisions and pending lab changes it waits on.
 Scope: [skill-quality concept](../skill-quality/concept-zero.md) and [architecture](../architecture.md#skill-quality-and-distribution), phase [SQ](../roadmap.md#phase-sq-skill-quality-and-distribution). Ids such as `G-SQ-02`, `Q-SQ-04` and `OQ-SQ-02` come from the concept; `E-nn` from its [research ledger](../skill-quality/concept-zero-research.md). The lab is `evals/`; see its [README](../../evals/README.md).
 
 ## Relation to the Grimoire Contract
@@ -29,7 +29,7 @@ The [Grimoire evaluation contract](grimoire-evaluation.md) stays binding. This c
 
 ## Arms
 
-**Description arms** compare how one skill's `description` is worded. Each is a source overlay on the full profile, so competing skills are present.
+**Description arms** compare how one skill's `description` is worded. Each is the full profile with the `description` line of the skills under test replaced, so competing skills are present.
 
 | Arm | Description | Role |
 |---|---|---|
@@ -37,15 +37,15 @@ The [Grimoire evaluation contract](grimoire-evaluation.md) stays binding. This c
 | B | Trigger form: "Use when …, before …"; what the skill does moves into the body | Candidate (`G-SQ-03`) |
 | C | What it does plus when to use it | Diagnostic: Anthropic's and agentskills.io's guidance differ (`E-22`, `E-23`) |
 
-Only the `description` field of the skills under test differs between arms. Bodies, names, other skills and the rest of the profile are byte-identical.
+The texts of B and C are preregistration inputs, one line of at most 200 characters each so that every host lists them whole, and are never revised after an outcome. Only the `description` field of the skills under test differs between arms. Bodies, names, other skills and the rest of the profile are byte-identical.
 
 **Outcome arms** compare the full profile with and without one asset (`G-SQ-04`). They run the hidden-verifier scenarios and change nothing but the asset's presence. A listing-only effect and a body effect are not separated by this comparison; step completion (Validity Gates) helps to separate them.
 
 **Materialisation.**
 - Each profile is a directory rendered by the production installer (`install --target <host> --scope user --dest <dir> --no-mcps`, general first, then each category) from a recorded source commit, then packed (`evals/arms.py`). A render writes nothing outside `--dest` and holds no absolute path, so the same tarball serves every lab host. The sources are never edited: a profile without a skill renders from a copy with that skill removed.
-- The profiles are `dev-minus-dev-fix`, `dev`, `full` and `full-minus-dev-fix`. `images.py arms` checks each rendered arm (`dev-fix` present or absent as named, `full` containing `dev`, each `-minus-dev-fix` differing from its parent by exactly `dev-fix`) and records the installed skills; a cohort starts only when every arm passes. The arm tarball's sha256 is a ledger field.
+- The profiles are a fixed table: `dev-minus-dev-fix`, `dev`, `full`, `full-minus-dev-fix`, `full-descB` and `full-descC`. A profile that drops a skill or replaces descriptions renders from a hard-linked copy of the sources. `images.py arms` checks each rendered arm (`dev-fix` present or absent as named, `full` containing `dev`, each `-minus-dev-fix` differing from its parent by exactly `dev-fix`) and records the installed skills. With `--desc-texts` it also diffs each description arm's tarball against `full`: only the `SKILL.md` of the skills under test may differ, in the description line alone and set to the approved text; on codex the `short_description` line of the same skills' derived `agents/openai.yaml` may differ too, set to that text. A cohort starts only when every arm passes. The arm tarball's sha256 is a ledger field.
 - One image per host holds the pinned base and the host CLI at its pinned version. Each attempt starts a fresh container from it and extracts the arm tarball into HOME before the agent starts, so HOME and workspace are pristine and the arm is data, not an image.
-- The profile names are not the description arms above; `desc_arm` names the description variant and is separate (`A` for the committed descriptions). Description arms and `full` with an asset removed need new source overlays (`full-minus-dev-fix` is the first); see Known Deviations.
+- Profile names encode the description arm, because the cohort's resume key and job names are scenario, host, profile and repetition: arm A is `full`, B is `full-descB`, C is `full-descC`. The ledger's `desc_arm` records the variant (`A`, `B` or `C`).
 
 **Held constant across arms of one comparison:** no MCP servers (`--no-mcps` renders none, so all arms have the same tools), the same host CLI version, the same model and the same scenario instruction and tools. The runner (Harbor 0.26.0), source commit and per-attempt resource caps are part of the preregistration. A run that mixes versions inside an arm is invalid.
 
@@ -55,7 +55,7 @@ Every metric is computed from ledger fields (see Ledger Fields) per host and per
 
 | Metric | Definition | Unit | Interval |
 |---|---|---|---|
-| Should-trigger recall (skill `s`) | attempts on should-trigger queries targeting `s` with `s` in `skills_loaded`, over all such attempts | proportion | Wilson 95% for a single cell; arm differences by paired percentile bootstrap over queries (repetitions of one query are not independent) |
+| Should-trigger recall (skill `s`) | attempts on should-trigger queries targeting `s` with `s` in `skills_loaded`, over all such attempts | proportion | Wilson 95% for a single cell (it treats repetitions of one query as independent, so it is too narrow and is labelled so); arm differences by a paired cluster bootstrap: queries resampled jointly across arms, then repetitions within each drawn query, with the queries-only interval printed beside it |
 | Near-miss false-trigger rate (`s`) | attempts on near-miss queries for `s` with `s` in `skills_loaded`, over all such attempts | proportion | as above |
 | Cross-skill confusion | on should-trigger queries targeting `s`, attempts that load an installed skill `t` other than `s`; reported as a target-by-loaded matrix, with the share that loads `t` and not `s` | proportion per cell | as above |
 | Time to first load | seconds from the start of agent execution to the first load of the target skill, and the number of tool calls before it | seconds, count | median with bootstrap interval, over attempts that loaded; always shown with the load count |
@@ -63,7 +63,8 @@ Every metric is computed from ledger fields (see Ledger Fields) per host and per
 | Load rate per arm | attempts in which the asset under test is in `skills_loaded`, over all attempts of the arm | proportion | Wilson 95% |
 
 Rules:
-- Loads of skills the host adds itself (OpenCode 1, Droid 21) are reported separately and are not cross-skill confusion unless the preregistration names them.
+- Loads of skills the host adds itself (the listing capture's `not_installed_but_listed`) are reported separately and are not cross-skill confusion unless the preregistration names them.
+- **Attempt classes**, from ledger fields alone. A launch failure (no `harbor` and no `cli_version`: nothing started) is not an attempt; it is retried at most three times in a fresh job directory (GR2 amendment 1 allowed three retries for connection failures), and every try keeps its row with its `attempt_no`. Every other row is an attempt: a setup failure (`exception` set, `seconds_agent` null) counts as not loaded with reward 0; an agent-end failure keeps the loads detected before the end and the verifier's reward if it ran, else 0; a missing verifier reward counts as 0 and is listed. `skipped` rows and `status: quarantined` rows count as missing attempts: in the denominator as not loaded with reward 0, the quarantined attempt's whole group also dropped in a labelled sensitivity table. No attempt is excluded after outcomes are seen.
 - Time to first load is censored by attempts that never loaded. Do not average it, and do not compare arms on it without the load counts.
 - The load rate of the without-asset arm is 0 by construction. The outcome comparison is intention-to-treat. A reward split by "loaded or not" inside the with-asset arm is descriptive only, because loading is not randomised.
 - "Not detected" is reported as such, never as equivalence. A claim that two arms are no worse needs an interval inside a preregistered margin (Promotion Rules).
@@ -73,13 +74,13 @@ Rules:
 
 The detector is `evals/detect.py`.
 
-- **A load** is one of: a host-recorded skill-tool call (OpenCode `skill`, Droid `Skill`) naming the skill, or a read-class tool call or shell command whose target is an installed `<skill>/SKILL.md`. The evidence mechanism is stored per skill (`load_evidence`).
-- **The file-open audit** (`inotifywait`, events after the startup scan) is a cross-check only. Both hosts open every `SKILL.md` at startup, so opens before `startup_end` are not loads. Droid's `Skill` tool opens no file, so the audit cannot see it; OpenCode's skill tool shows only a directory open.
+- **A load** is one of: a host-recorded skill-tool call (opencode `skill`; droid and claude-code `Skill`) naming the skill, or a read-class tool call or shell command whose target is an installed `<skill>/SKILL.md`. The evidence mechanism is stored per skill (`load_evidence`).
+- **The file-open audit** (`inotifywait`, events after the startup scan) is a cross-check only. Hosts open every `SKILL.md` at startup, so opens before `startup_end` are not loads. The `Skill` tools of droid and claude-code open no file, so the audit cannot see them; opencode's skill tool shows only a directory open. Codex has no skill tool: it loads by reading the file.
 - **Disagreements** are kept in `audit_disagreements` with a cause and never resolved by dropping either side. Two kinds exist:
   - expected: the audit cannot see the mechanism. They do not count against the cell.
   - unexplained: an audit open after the scan with no matching host record, or a recorded load the audit should have seen. They are counted per cell and may mean a detector miss. The preregistration sets how many block the cell.
-- **Workspace exposure.** Some scenarios place a copy of the agent-surface repository, with its own `skills/` tree, in the workspace (the SQ0.6 scenarios, in `/app`). A load counts only for skills in the installed skill roots of the host. A read of any other `SKILL.md` is recorded as `workspace_skill_reads` and used as an exposure covariate: results are reported with and without attempts that have such reads. This rule is being added to `detect.py`; until it lands, scenario cohorts do not report load metrics.
-- **Qualification.** A host is qualified when the three controls behave as designed: use-by-name and use-by-file loads are detected and the no-skill control shows no load. SQ0.2 observed 2/2, 2/2 and 0 loads with 2 repetitions per host, on OpenCode 1.19.6 and Droid 0.244.0, arm B only.
+- **Workspace exposure.** Some scenarios place a copy of the agent-surface repository, with its own `skills/` tree, in the workspace (the SQ0.6 scenarios, in `/app`). A load counts only for skills in the installed skill roots of the host. A read of any other `SKILL.md` is recorded as `workspace_skill_reads` and used as an exposure covariate: results are reported with and without attempts that have such reads. `detect.py` writes this covariate. A skill-tool call for a name that is not installed is recorded in `failed_skill_lookups`, not as a load.
+- **Qualification.** A host is qualified when the three controls behave as designed on every attempt: use-by-name and use-by-file loads are detected with reward 1 and the no-skill control shows no load, 2 repetitions per control. SQ0.2 qualified droid, claude-code and codex on the rendered `dev` profile. No host is qualified on `full` yet, and opencode on the gateway has not rerun its controls; both are pending runs (last section).
 - **Requalify** before a cohort whenever the host CLI version changes, a new host is added, or `detect.py` or the image's audit setup changes. Until it passes, the host's load metrics are not reported. A failed control is a host finding, not a data exclusion.
 
 ## Listing Rules
@@ -89,40 +90,45 @@ A description arm can only be compared on a host that shows the description to t
 - **Capture, per host.**
   - OpenCode: the `<available_skills>` block of the model request, kept by a forwarding proxy that stores no request headers.
   - Droid: the "Available skills" reminder in the session transcript.
-  - Other hosts need their own capture method, qualified against the host's real request, before they join a cohort.
+  - Claude Code and Codex: the skill list in the model request, kept by the same proxy pointed at the gateway.
+  - A new host needs its own capture method, qualified against the host's real request, before it joins a cohort.
 - **Classification.** Each installed skill is `surfaced` (name and description shown), `name-only` or `absent`. A surfaced description that is a shortened prefix of the installed one is also flagged `truncated`. Skills the host adds itself are listed as `not_installed_but_listed`.
-- **When.** Capture on every host and profile of a cohort, including each description arm, before the cohort and again after any host or image change. The result is a ledger input for the cohort. Per-attempt capture is not implemented.
+- **When.** Capture once per image, on every host and profile of a cohort including each description arm, before the cohort and again after any host or image change. The capture file is an input of the cohort; attempts do not capture.
 - **Gate.** A host and skill whose description is not `surfaced` untruncated in the arm under test is excluded from that skill's description cohort and reported as a host finding. A truncated description may be studied only when the preregistration treats truncation as the factor.
-- **Observations, not conclusions** (SQ0.3; to re-test in SQ1.1):
-  - OpenCode surfaced every installed skill with its full description in all images (57, 58 and 84 for A, B and F).
-  - Droid shortens descriptions to 200 characters; this hit 9 skills in A and B and 25 in F. In F it listed the last skill, `workflow-runtime`, by name only, which suggests a listing budget. The 200-character limit and the budget are not yet characterised, and whether trigger-form wording falls inside the limit is untested.
+- **Observations, not conclusions** (to re-test in SQ1.1): OpenCode, Claude Code and Codex list descriptions whole; Droid shortens them at 200 characters; Claude Code and Codex list fewer skills than are installed, and the missing ones are classified `absent`; no host has listed a skill by name only so far.
 
 ## Ledger Fields
 
-One JSONL row per attempt, written by `evals/cohort.py`, append-only. "Exists" means written at `6af59b4`; "To add" means this contract needs it and the code does not write it yet.
+One JSONL row per attempt, written by `evals/cohort.py`, append-only. "Written" means the code writes it; "Not written" means this contract needs it and the code does not yet.
 
-| Field | Meaning | Source |
+| Field | Meaning | State |
 |---|---|---|
-| `scenario`, `profile`, `desc_arm`, `host`, `model`, `rep` | The cell. `profile` is the rendered arm; `desc_arm` the description variant (`A` today) | Exists |
-| `harbor`, `cli_version` | Runner and host CLI versions as reported in the trial | Exists, from Harbor's `result.json` |
-| `source_commit`, `arm_sha256`, `image_id` | Which sources, arm tarball and host image the attempt ran on | Exists, from `arms.json` and `hosts.json` |
-| `started`, `ended`, `harbor_exit`, `exception` | Timing and how the runner ended; kept for failed attempts | Exists |
-| `skipped` | Row for a cell not run because of a stop rule or a missing credential; counts as `BLOCKED` in the denominator | Exists |
-| `verifier_reward` | The hidden verifier's reward, null when it did not run | Exists, from Harbor's `result.json` |
-| `skills_loaded`, `load_evidence` | Skills loaded by the detector rule, and the mechanism per skill | Exists, from `detect.verdict` |
-| `audit_loads`, `audit_disagreements`, `skill_files_scanned` | The audit's view and each disagreement with its cause | Exists |
-| `dev_fix_installed` | Whether the asset under test was installed; generalise to `asset_installed` | Exists for `dev-fix` |
-| `cost_usd`, `factory_credits`, `tokens_in`, `tokens_out`, `tokens_cache`, `model_requests` | Spend per attempt; `tokens_in` is the whole prompt summed over requests and `tokens_cache` its cached part; null when the host does not report it | Exists, from the agent result |
-| `seconds_setup`, `seconds_agent`, `seconds_verifier`, `seconds_total` | Phase times | Exists |
-| `key_files_remaining` | Count of retained files that still hold the key | Exists; replaced by the scrubber result (see Isolation and Secrets) |
-| `query_id`, `query_class`, `target_skill`, `split` | Trigger cohorts: the query, `should-trigger` or `near-miss`, the skill it targets, and `dev` or `held-out` | To add |
-| `first_load_seconds`, `calls_before_first_load` | Time to first load, from the start of agent execution, and the call index | To add, from the host record |
-| `workspace_skill_reads` | `SKILL.md` reads outside the installed roots | Exists |
-| `listing` | Per target skill, `surfaced`, `name-only` or `absent`, and `truncated`; or the id of the image-level capture | To add; captured by `listing.py` per image |
-| `pressure`, `steps_done` | Outcome cohorts: the pressure stratum, and the required steps whose world-state artifact exists | To add |
-| `prereg` | Id of the preregistration that planned the attempt | To add |
+| `scenario`, `profile`, `desc_arm`, `host`, `model`, `rep` | The cell. `profile` is the rendered arm, `desc_arm` its description variant (`A`, `B`, `C`), `model` the id the host requested (the served model is not on the row) | Written |
+| `attempt_no` | 1, or the try number of a retried launch failure | Written |
+| `harbor`, `cli_version` | The agent's name and the host CLI version, as reported in the trial's `result.json`; both null when nothing started. The runner version is pinned in `uv.lock` and in the preregistration | Written |
+| `source_commit`, `arm_sha256`, `image_id` | Which sources, arm tarball and host image the attempt ran on | Written, from `arms.json` and `hosts.json` |
+| `started`, `ended`, `harbor_exit`, `exception` | Timing and how the runner ended; kept for failed attempts | Written |
+| `skipped`, `group_incomplete` | A cell not run (spend stop, quarantine stop, missing credential); `group_incomplete` marks a cell abandoned after a quarantine stopped a started group | Written |
+| `status`, `hits`, `hit_names` | `status: quarantined` with the hit count and the label or pattern names, never matched text; such a row has no verdict or cost | Written |
+| `receipt_scan`, `scrub_input_echo` | `clean`; and, per pattern name, the count of hits that matched the frozen list of known input strings | Written |
+| `verifier_reward` | The hidden verifier's reward, null when it did not run or the unit has no verifier (trigger queries) | Written, from `result.json` |
+| `skills_loaded`, `load_evidence` | Skills loaded by the detector rule, and the mechanism per skill | Written, from `detect.verdict` |
+| `audit_loads`, `audit_disagreements`, `skill_files_scanned` | The audit's view and each disagreement with its cause | Written |
+| `workspace_skill_reads`, `failed_skill_lookups` | `SKILL.md` reads outside the installed roots; skill-tool calls naming a skill that is not installed | Written |
+| `first_load_seconds`, `calls_before_first_load` | Time to first load, from the start of agent execution, and the number of tool calls before it; null when nothing loaded | Written |
+| `query_id`, `query_class`, `target_skill`, `split` | Trigger cohorts: the query, `should-trigger` or `near-miss`, the skill it targets, and `dev` or `held-out` | Written (also on `skipped` rows) |
+| `prereg` | Id of the preregistration (the cohort) the run follows | Written when `--prereg` is given |
+| `purpose` | Label such as `timing-probe` or `capacity-ramp`; such rows are never outcome data | Written when given |
+| `dev_fix_installed` | Whether the asset under test was installed | Written for `dev-fix`; generalise to `asset_installed` |
+| `tokens_in`, `tokens_out`, `tokens_cache`, `model_requests`, `factory_credits` | Spend per attempt; `tokens_in` is the whole prompt summed over requests and `tokens_cache` its cached part; null when the host does not report it. Gateway hosts spend tokens, droid spends credits | Written, from the agent result |
+| `cost_usd` | Always null: no agent sets it, and a CLI's own price figure is not spend | Written, unused |
+| `seconds_env`, `seconds_setup`, `seconds_agent`, `seconds_verifier`, `seconds_total` | Phase times | Written |
+| `cpus`, `memory_mb`, `agent_timeout_sec`, `concurrency` | The attempt's caps and the run's parallelism | Written |
+| `listing` | Per target skill, `surfaced`, `name-only` or `absent`, and `truncated`; today the capture is an image-level file from `listing.py` | Not written |
+| `served_model`, applied output cap, end reason | The model that served the attempt; the output limit the request carried; whether the agent ended by output limit, timeout or exit | Not written |
+| `pressure`, `steps_done` | Outcome cohorts: the pressure stratum, and the required steps whose world-state artifact exists | Not written |
 
-`order.json` holds the seeded cell order; `hosts.json` one record per host image and `arms.json` one per host and profile. All are part of the receipt.
+`order.json` holds the seeded order as groups (every arm of one scenario, host and repetition) of cells; rows carry no order index and no cohort field beyond `prereg`. `hosts.json` holds one record per host image and `arms.json` one per host and profile. All are part of the receipt.
 
 ## Validity Gates
 
@@ -158,12 +164,13 @@ Rules:
 
 ## Isolation and Secrets
 
-- Cohorts run on a disposable Linux host with Docker, never on the operator's machine, with per-attempt CPU and memory caps and a bounded concurrency. The values come from SQ0.5's dynamic half.
-- Before and after every cohort and local step, compare against a baseline: `~/.local/bin`, `brew list`, `uv tool list` and the hash of the git config. Any difference stops the cohort and is reported.
-- Credentials follow the [SQ0.4 handling](../../evals/README.md): read from the first stdin line of the cohort process, passed to the container with `docker exec -e NAME`, never in argv, an image, a build argument, a scenario folder, an overlay, a ledger row or a receipt. Auth files are not copied in.
-- The scrubber `evals/scrub.py` scans each attempt directory for the exact injected values and for credential patterns after the container is removed. A hit quarantines the attempt directory, writes a `quarantined` row without the matched bytes, and stops the cohort. The whole output tree is scanned again before it leaves the lab host. A leak is quarantined, never edited into looking clean.
+- Cohorts run on a disposable Linux host with Docker, never on the operator's machine. Each attempt gets the CPU, memory and agent time limit its task declares, or the preregistration's value for the whole run; the host CLI's own timeout sits 100 s under the agent limit so a slow attempt ends by the host's cap, not Harbor's cut. Concurrency is a run input; measured safe levels per host are lab measurements in the [README](../../evals/README.md#capacity-sq05-2026-11-21), not contract values.
+- Before and after every cohort and local step, compare against a baseline: `~/.local/bin`, `brew list`, `uv tool list` and the hash of the git config. Any difference stops further work and is reported. The lab peer runs this comparison; `cohort.py` does not.
+- Credentials follow the [SQ0.4 handling](../../evals/README.md): read from stdin of the cohort process, passed to the container with `docker exec -e NAME`, never in argv, an image, a build argument, a scenario folder, an overlay, a ledger row or a receipt. Auth files are not copied in. Gateway hosts read the gateway address from the lab environment, never from the repository.
+- The scrubber `evals/scrub.py` scans each attempt's job directory, log and task folder for every injected value and for credential patterns after the container is removed. An exact-value hit is a leak. Third-party skills and scenario repositories carry credential-shaped placeholders: a pattern hit whose (pattern, sha256 of the match) is on a list frozen from a pre-flight scan of the arm tarballs and scenario inputs is an input echo, logged as `scrub_input_echo` and not a hit. Any other hit quarantines the attempt directory, writes a `quarantined` row without the matched bytes, and stops the cohort. The whole output tree is scanned again before it leaves the lab host. A leak is quarantined, never edited into looking clean.
+- **Stop semantics.** A quarantine stops all launches at once: attempts already running finish and are scanned, and the unstarted arms of every started group get `skipped` rows with `group_incomplete`. A spend stop admits no new group but lets started groups finish.
+- **Spend.** Per-cohort spend is capped in the preregistration, in tokens (prompt plus output) for gateway hosts and in credits for droid, with a reserve per attempt. A group is admitted only while spent plus the reserve times the attempts admitted and not finished, the new group included, stays within the cap; an attempt with no reading is charged the reserve, one that failed before the agent started is charged nothing. Refused groups are `skipped` rows, counted as `BLOCKED`.
 - Receipts are private (`.agent-surface/research/<date>-sq-<id>/`). Only accepted summaries are copied into this contract or the roadmap.
-- Per-cohort spend is capped in the preregistration, and attempts stop at the cap. Attempts not run are `BLOCKED` rows.
 
 ## Preregistration Template
 
@@ -174,7 +181,7 @@ Frozen in one JSON file before the first scored attempt. An amendment is a separ
 | `id`, `frozen_at`, `contract_commit` | Cohort id, time of freezing, this contract's commit | to set |
 | `hypothesis` | The decision the cohort serves, stated so that a result can contradict it | to set |
 | `arms` | Profiles with arm tarball hashes and the source commit; the description text of each description arm | to set |
-| `hosts` | Hosts, CLI versions, models, runner version, resource caps | to set |
+| `hosts` | Hosts, CLI versions, models, runner version, resource caps, the applied output limit of each gateway host, and the served-model probe | to set |
 | `credentials` | Which hosts run, and the credential decision for each | to set by the operator |
 | `scenarios` or `queries` | Ids and hashes of scenarios or of query files, with the `dev` and `held-out` split and how queries were written | to set |
 | `pilot` | Baseline-must-fail pilot: runs per scenario, ceiling, separate seeds | to set |
@@ -185,19 +192,56 @@ Frozen in one JSON file before the first scored attempt. An amendment is a separ
 | `detector` | Qualification evidence per host and the unexplained-disagreement limit | to set |
 | `listing` | The listing capture per image and the gate outcome | to set |
 | `exclusions` | Scenarios, hosts or attempts excluded in advance and why | to set |
+| `input_fingerprints` | The frozen list of known credential-shaped input strings (`python -m evals.scrub --fingerprint`) | to set |
 | `stop_rules` | Conditions that stop the cohort: scrubber hit, machine diff, failure rate, spend | to set |
-| `cost_cap` | Cap per cohort and per attempt, in the host's own unit | to set |
+| `cost_cap` | Cap and per-attempt reserve per host and cohort, in the host's own unit | to set (`O-6`) |
 | `analysis` | The script and the order of analyses | to set |
 
-## Known Deviations and Open Items
+## Hosts
+
+Operator decisions, 2026-11-22. The ledger's `model` is the requested id, and host comparisons mix host and model.
+
+| Host | Model | Role in SQ1 |
+|---|---|---|
+| `droid` | a Claude model, through the vendor's own service | Scored; the Claude-family host |
+| `codex` | `gpt-5.5` through the gateway | Scored |
+| `claude-code` | requested Claude id through the gateway | Runs but is not scored: the gateway serves a non-Claude model for that id, so its results are not Claude-model results |
+| `opencode` | `gpt-5.5` through the gateway, with an explicit output limit on every request | Candidate, added only by amendment before any of its attempts, after its controls pass; it shares codex's upstream model, so it is not an independent replicate |
+
+The gateway applies a default output limit when a client sends none; that default had cut codex turns short before it was raised. Gateway hosts need the applied limit recorded and the served model probed at the start and end of each cohort (a mismatch makes that host's cohort not poolable); neither is built yet.
+
+## Known Deviations
 
 - **Claude Code ran without rules before the import step.** Every Claude Code attempt before the arms carried `~/.claude/CLAUDE.md` with `@agent-surface/rules.md` ran without the agent-surface rules; those results are not comparable with later ones. Token fields before the unified definition (`tokens_in` as the whole prompt) differ per host.
-- **No MCP servers.** Arms render with `--no-mcps`, so they measure instruction ROI with the same tools. A real profile also carries Synapse and Grimoire; effects that depend on them are outside these cohorts.
+- **No MCP servers.** Arms render with `--no-mcps`, so the listing is captured and the cohorts run without Synapse and Grimoire. They measure instruction ROI with the same tools; effects that depend on the MCP servers are outside these cohorts, and a "full real profile" probe is the full profile without them.
 - **Repository skills in the workspace.** The SQ0.6 scenarios unpack the agent-surface repository, with its own `skills/` tree, into `/app`. Loads are restricted to installed roots and workspace reads are a covariate, but an agent may still learn from them.
-- **OpenCode on the rendered-arm path.** Its free model hit the provider's usage limit during the arm rework, so its controls were not re-run; the detector and arms are the same code as for the other hosts, and its SQ0.2 results predate the change. Re-run them when the limit resets.
 - **Audit rescans.** On the rendered-arm path the audit sees a mass reopening of `SKILL.md` files after the first tool call for Claude Code, and of skill directories for OpenCode; it is not caused by file mtimes. The detector reports it as one disagreement and loads come from the host record.
-- **Hosts.** Only OpenCode (free model) and Droid (approved key) are `ready`. Claude Code, Codex, Kiro CLI and Kilo need an operator credential that is not decided. The roadmap's SQ1.3 names Claude Code, which cannot run until then.
-- **Models.** OpenCode's free model and Droid's model differ, so host comparisons mix host and model.
-- **Capacity.** Measured 2026-11-21 (see `evals/README.md`, Capacity): a scenario attempt takes 4 to 8 minutes for the exec-bit case and 20 to 33 minutes for the two suite-heavy ones. Safe control concurrency is 8 or more on the public lab host, 6 on the gateway host for Codex (HTTP 429 at 8) and 1 for Claude Code (wall time at 2). Scenario concurrency is derived, not ramped. Codex ended 2 of 3 scenario attempts with `max_output_tokens`, so it is unproven as a host for the SQ1 cohorts.
-- **Code gaps** against this contract: the remaining To add ledger fields (query, first-load and step fields), description-arm overlays (`full-minus-dev-fix` exists; description variants do not), and `analyze.py`. Scenarios that carry their own `environment/Dockerfile` are layered on the host image by `write_task` but have not been built on it yet.
-- **Open numbers**: margins, ceilings, repetitions, query counts, disagreement limit and spend caps are not set here, because OQ-SQ-02 sets them from SQ0 variance.
+- **Capacity.** Attempt times and safe concurrency per host are in the README's Capacity section; the two suite-heavy scenarios take 20 to 33 minutes. The codex timings taken before the gateway's output-limit default was raised are not planning figures.
+- **Scenario images.** A scenario with its own `environment/Dockerfile` is layered once on each host image (`images.py scenarios`). Its qualification there, at the caps the cohort will use, has not been run.
+
+## Open Decisions and Pending Changes
+
+States the SQ1 preregistration waits on, once. `O-n` ids are the preregistration's.
+
+| Id | Decision | State |
+|---|---|---|
+| `O-1` | Query counts per skill and the held-out split | Open; waits for the pilots' measured cost |
+| `O-2` | Whether dev-split queries join the primary analysis | Open; decide before the first dev-split attempt |
+| `O-6` | Spend caps and reserves per cohort and host | Open; waits for the pilots' measured cost |
+| `O-3` | Promotion margin | Orchestrator's decision, operator may override: at SQ1 query counts a no-worse interval is out of reach, so B is promoted only on a practical gain with no practical harm on false triggers and misrouting; the Promotion Rules wording stays for cohorts with more queries |
+| `O-7` | Credential-shaped input text | Orchestrator's decision, operator may override: frozen input fingerprints, as in Isolation and Secrets; built |
+| `O-8` | Texts of arms B and C | Operator's, provisional; kept in the preregistration |
+| `O-9` | The workspace copy of `dev-fix` in SQ0.6 scenarios | Orchestrator's decision: keep it, report with and without attempts that read it |
+| `O-10` | Host-added competitors of `qa-review` | Orchestrator's decision: a separate column, not misrouting |
+| `O-11` | Resource caps | Orchestrator's decision: outcome attempts at the declared size and agent cap, trigger attempts at 1 CPU and 2048 MB; built as run inputs |
+| `O-12` | Query labelling | Orchestrator's decision: two independent blind sessions |
+| `O-13` | Reproducibility host and tolerance | Orchestrator's decision: rerun the whole cell sets on the cheaper required host; tolerance from run-to-run variance |
+
+Pending lab changes the contract waits on:
+- a per-attempt end reason and applied output limit, and the served-model probe and field;
+- stop rules for repeated setup failures and repeated agent-cap ends on one host (the cohort stops on a quarantine and on spend only);
+- the query selection tool, and `analyze.py`, which reads only the preregistration and the ledger;
+- the `listing`, `pressure`, `steps_done` and `asset_installed` ledger fields;
+- runs: detector requalification on `full` for every scored host and on opencode's gateway path, scenario qualification on the host images, and the codex outcome check after the output-limit default was raised.
+
+Margins, ceilings, repetitions, the disagreement limit and spend caps are set in the preregistration (`OQ-SQ-02`) from SQ0 variance, not here.
