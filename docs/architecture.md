@@ -319,7 +319,7 @@ Keep benchmarks outside the product runtime. For task ROI, use an official task 
 
 ## Skill Quality and Distribution
 
-Status: PROPOSED, 2026-11-20; the lab in `evals/` is built (SQ0.1 to SQ0.6) and no cohort has run, the delivery work is not started. Source concept: [skill-quality concept](skill-quality/concept-zero.md) with its [research ledger](skill-quality/concept-zero-research.md). The [Grimoire evaluation contract](contracts/grimoire-evaluation.md) binds the experiment method. The [skill-evaluation contract](contracts/skill-evaluation.md) (DRAFT, `SQ0.7`) holds the measurements, ledger fields and promotion rules. [Phase SQ](roadmap.md#phase-sq-skill-quality-and-distribution) schedules the work.
+Status: PROPOSED, 2026-11-20; the lab in `evals/` is built and tested and no scored cohort ran (SQ1 closed 2026-11-23 by operator stop), the delivery work is not started. Source concept: [skill-quality concept](skill-quality/concept-zero.md) with its [research ledger](skill-quality/concept-zero-research.md). The [Grimoire evaluation contract](contracts/grimoire-evaluation.md) binds the experiment method. The [skill-evaluation contract](contracts/skill-evaluation.md) (DRAFT, `SQ0.7`) holds the measurements, ledger fields and promotion rules. [Phase SQ](roadmap.md#phase-sq-skill-quality-and-distribution) schedules the work.
 
 ### Executive Decision (SQ)
 

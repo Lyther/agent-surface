@@ -1,6 +1,6 @@
 # Skill Evaluation Contract
 
-Status: DRAFT for operator review, 2026-11-23, aligned with the lab as built at the SQ0.7 contract pass. No cohort has run under it; the SQ1 preregistration is separate, and the last section lists the open decisions and pending lab changes it waits on.
+Status: DRAFT for operator review, 2026-11-23, aligned with the lab as built at the SQ0.7 contract pass. The lab is built and tested; no scored cohort ran, and the operator stopped SQ experiments on 2026-11-23 after qualification and pilots. The last section lists the open decisions and pending lab changes for a later resumption.
 Scope: [skill-quality concept](../skill-quality/concept-zero.md) and [architecture](../architecture.md#skill-quality-and-distribution), phase [SQ](../roadmap.md#phase-sq-skill-quality-and-distribution). Ids such as `G-SQ-02`, `Q-SQ-04` and `OQ-SQ-02` come from the concept; `E-nn` from its [research ledger](../skill-quality/concept-zero-research.md). The lab is `evals/`; see its [README](../../evals/README.md).
 
 ## Relation to the Grimoire Contract
@@ -224,7 +224,7 @@ The gateway applies a default output limit when a client sends none; that defaul
 
 ## Open Decisions and Pending Changes
 
-States the SQ1 preregistration waits on, once. `O-n` ids are the preregistration's.
+States a resumed SQ1 preregistration waits on, once. `O-n` ids are the preregistration's.
 
 | Id | Decision | State |
 |---|---|---|
