@@ -1,6 +1,6 @@
 ---
 name: dev-fix
-description: "Apply the minimal effective patch that restores functionality."
+description: "Use when a bug is confirmed and already diagnosed and you are about to change the code to restore the behavior that broke."
 ---
 
 ## Objective
