@@ -203,8 +203,8 @@ Operator decisions, 2026-11-22. The ledger's `model` is the requested id, and ho
 
 | Host | Model | Role in SQ1 |
 |---|---|---|
-| `droid` | a Claude model, through the vendor's own service | Scored; the Claude-family host |
-| `codex` | `gpt-5.5` through the gateway | Scored |
+| `droid` | a Claude model, through the vendor's own service | Scored; the Claude-family host, for qualification, the surfacing probe and the trigger cohort only; its outcome pilot and cohort are deferred (roadmap, Later / Not Now) |
+| `codex` | `gpt-5.5` through the gateway | Scored; the only host of the `dev-fix` outcome cohort |
 | `claude-code` | requested Claude id through the gateway | Runs but is not scored: the gateway serves a non-Claude model for that id, so its results are not Claude-model results |
 | `opencode` | `gpt-5.5` through the gateway, with an explicit output limit on every request | Candidate, added only by amendment before any of its attempts, after its controls pass; it shares codex's upstream model, so it is not an independent replicate |
 

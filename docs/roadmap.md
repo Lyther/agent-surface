@@ -511,7 +511,7 @@ Exit: recall, false-trigger and confusion rates with intervals per skill, arm an
 
 State: NOT STARTED. Depends on: SQ0.6, SQ0.7. Covers: `G-SQ-04`, `Q-SQ-05`.
 
-Run the SQ0.6 scenarios on the scored hosts of SQ1.3:
+Run the SQ0.6 scenarios on Codex only (Droid's outcome pilot and cohort are deferred, see Later / Not Now; OpenCode joins only by amendment):
 - arms: the profile without `dev-fix` versus the full profile;
 - 5 repetitions;
 - the detector records whether `dev-fix` loaded.
@@ -741,6 +741,9 @@ Exit: a reviewed diff, and `npm run check` and `check generated` passing. An opt
 - **Per-host description variants in the source model.**
   - Revisit trigger: SQ1 or SQ2 shows host-divergent winners.
   - Reason deferred: until then one description serves all hosts.
+- **Droid outcome pilot and outcome cohort** (SQ1.4 on Droid).
+  - Revisit trigger: the plan's credit allowance is known.
+  - Reason deferred: credit cost.
 - **Wholesale delegation to existing tools** (Candidate C).
   - Revisit trigger: SQ5.2 shows matching guarantees.
 - **Rejected by the operator and not scheduled:** context or token reduction, a skill-size cap, a transcript-diagnosing skill, skill removal.
