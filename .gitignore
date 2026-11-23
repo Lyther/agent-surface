@@ -2,6 +2,7 @@ node_modules/
 dist/
 .DS_Store
 *.log
+!evals/tests/fixtures/*/agent/skill-opens.log
 commands/ops-server.md
 skills/ops-server/
 .agent-surface/
