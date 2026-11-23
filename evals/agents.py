@@ -24,9 +24,9 @@ from harbor.models.agent.context import AgentContext
 from evals.arms import HOST_CLI, LOGS, SKILL_DIRS, detector_start
 from evals.gateway import CLAUDE_MODEL, KEY_ENV, claude_tier_exports, gateway_url, no_proxy
 
-CODEX_MODEL = "gpt-5.5"
-# OpenCode uses Codex's model so the two hosts differ only in harness.
-OPENCODE_MODEL = CODEX_MODEL
+CODEX_MODEL = "gpt-5.4"
+# OpenCode stays on gpt-5.5 (candidate host, not scored); it no longer shares Codex's model.
+OPENCODE_MODEL = "gpt-5.5"
 OPENCODE_PROVIDER = "gateway"
 # The gateway's upstream caps a gpt-5.5 response at 1000 tokens, reasoning included, when the request sets no max_output_tokens
 # (probe-cap, 2026-11-21); 5000 and 32000 were honored. OpenCode sends the model's limit.output, so every request carries this.

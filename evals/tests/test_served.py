@@ -111,26 +111,26 @@ class ProbeTest(unittest.TestCase):
 
     def test_codex_and_opencode_probe_the_responses_wire(self):
         url = self.serve(recorded("responses-stream-gpt55.json"))
-        for host in ("codex", "opencode"):
-            record = probe_gateway(host, url, "gpt-5.5", FAKE_KEY)
+        for host, model in (("codex", "gpt-5.4"), ("opencode", "gpt-5.5")):
+            record = probe_gateway(host, url, model, FAKE_KEY)
             self.assertEqual(Gateway.seen[-1]["path"], "/v1/responses")
-            self.assertEqual(Gateway.seen[-1]["body"]["model"], "gpt-5.5")
+            self.assertEqual(Gateway.seen[-1]["body"]["model"], model)
             self.assertEqual(record["provider"], "deployment-gpt-5.5-2026-04-24-platform-global")
 
     def test_a_gateway_error_is_a_null_record_that_never_carries_the_key(self):
         url = self.serve({"status": 401, "headers": {}, "body": "{}"})
-        record = probe_gateway("codex", url, "gpt-5.5", FAKE_KEY)
+        record = probe_gateway("codex", url, "gpt-5.4", FAKE_KEY)
         self.assertIsNone(record["model"])
         self.assertEqual(record["reason"], "HTTP 401")
         self.assertNotIn(FAKE_KEY, json.dumps(record))
 
     def test_an_unreachable_gateway_is_a_null_record(self):
-        record = probe_gateway("codex", "http://127.0.0.1:1", "gpt-5.5", FAKE_KEY)
+        record = probe_gateway("codex", "http://127.0.0.1:1", "gpt-5.4", FAKE_KEY)
         self.assertIsNone(record["model"])
         self.assertTrue(record["reason"].startswith("request failed"))
 
     def test_the_key_is_never_in_the_url_or_the_droid_command(self):
-        self.assertNotIn(FAKE_KEY, request_for("codex", "http://gw", "gpt-5.5", FAKE_KEY).full_url)
+        self.assertNotIn(FAKE_KEY, request_for("codex", "http://gw", "gpt-5.4", FAKE_KEY).full_url)
         self.assertNotIn(FAKE_KEY, " ".join(droid_command("sha256:feed", "claude-sonnet-5")))
 
 

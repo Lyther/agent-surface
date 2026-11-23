@@ -206,9 +206,9 @@ Operator decisions, 2026-11-22. The ledger's `model` is the requested id, and ho
 | Host | Model | Role in SQ1 |
 |---|---|---|
 | `droid` | a Claude model, through the vendor's own service | Scored; the Claude-family host, for qualification, the surfacing probe and the trigger cohort only; its outcome pilot and cohort are deferred (roadmap, Later / Not Now) |
-| `codex` | `gpt-5.5` through the gateway | Scored; the only host of the `dev-fix` outcome cohort |
+| `codex` | `gpt-5.4` through the gateway | Scored; the only host of the `dev-fix` outcome cohort |
 | `claude-code` | `glm-5.2` through the gateway, requested by its catalog id | Runs but is not scored: the model is not a Claude model, so its results are not Claude-model results |
-| `opencode` | `gpt-5.5` through the gateway, with an explicit output limit on every request | Candidate, added only by amendment before any of its attempts, after its controls pass; it shares codex's upstream model, so it is not an independent replicate |
+| `opencode` | `gpt-5.5` through the gateway, with an explicit output limit on every request | Candidate, added only by amendment before any of its attempts, after its controls pass; it runs `gpt-5.5`, a different model from codex's, so its results do not replicate codex's |
 
 The gateway applies a default output limit when a client sends none; that default had cut codex turns short before it was raised. The attempt's end reason and, where the host exposes it, the applied limit are on the ledger row. Gateway hosts also need the served model probed at the start and end of each cohort (a mismatch makes that host's cohort not poolable; a gateway host whose probe names no model is not poolable either, and does not start). The probe is one tiny request on the host's own wire with its model id and key (`evals/served.py`); droid has no gateway, so its model is the init event of a `droid exec` stream, and null with a reason when that names none.
 

@@ -34,13 +34,13 @@ from evals.scrub import Secret, load_known, parse_secrets, scan_receipt
 from evals.served import FIELDS as SERVED_FIELDS, compare as compare_served, identity as served_identity, ledger_value, probe_droid, probe_gateway
 
 HOSTS = {
-    # Through the gateway on Codex's model, so the two differ only in harness.
+    # Through the gateway; a candidate host that is not scored, so it keeps gpt-5.5 while codex moved to gpt-5.4.
     "opencode": {"agent": "evals.agents:ArmOpenCode", "model": "gpt-5.5"},
     "droid": {"agent": "evals.agents:ArmDroid", "model": "claude-sonnet-5"},
     # Through the gateway: a catalog id, so the requested model is the served one.
-    # Codex uses gpt-5.5: gpt-5.3-codex failed 3 of 6 control verifiers in each of two runs (it reported work it had not done).
+    # Codex uses gpt-5.4 (newer models are busy on the gateway); gpt-5.3-codex failed 3 of 6 control verifiers in each of two runs (it reported work it had not done).
     "claude-code": {"agent": "evals.agents:ArmClaude", "model": CLAUDE_MODEL},
-    "codex": {"agent": "evals.agents:ArmCodex", "model": "gpt-5.5"},
+    "codex": {"agent": "evals.agents:ArmCodex", "model": "gpt-5.4"},
 }
 # The environment variable that carries each host's key into its container.
 HOST_KEY = {"droid": "FACTORY_API_KEY", "opencode": KEY_ENV, "claude-code": KEY_ENV, "codex": KEY_ENV}

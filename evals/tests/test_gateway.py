@@ -6,7 +6,8 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from evals.agents import OPENCODE_MODEL, OPENCODE_OUTPUT_LIMIT, opencode_config
+from evals.agents import CODEX_MODEL, OPENCODE_MODEL, OPENCODE_OUTPUT_LIMIT, opencode_config
+from evals.cohort import HOSTS
 from evals.listing import parse_opencode_bodies
 from evals.gateway import GatewayConfigError, gateway_url, no_proxy
 
@@ -33,6 +34,13 @@ class OpenCodeConfigTest(unittest.TestCase):
         self.assertEqual(provider["options"], {"baseURL": "http://gateway.example:4000/v1", "apiKey": "{env:LAB_GATEWAY_KEY}"})
         self.assertEqual(provider["models"][OPENCODE_MODEL]["limit"]["output"], OPENCODE_OUTPUT_LIMIT)
         self.assertEqual((OPENCODE_MODEL, OPENCODE_OUTPUT_LIMIT), ("gpt-5.5", 32000))
+
+
+class HostModelTest(unittest.TestCase):
+    def test_codex_requests_gpt_5_4_and_opencode_stays_on_gpt_5_5(self):
+        self.assertEqual(CODEX_MODEL, "gpt-5.4")
+        self.assertEqual(HOSTS["codex"]["model"], CODEX_MODEL)
+        self.assertEqual((HOSTS["opencode"]["model"], OPENCODE_MODEL), ("gpt-5.5", "gpt-5.5"))
 
 
 class OpenCodeListingTest(unittest.TestCase):
