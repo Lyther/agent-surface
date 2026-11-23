@@ -114,7 +114,7 @@ On timeout:
 4. After a second stall on the same role/task, downgrade to a simpler profile or require human input; start no unbounded rescue chain.
 5. Mark late output from superseded sessions `stale`; it never overwrites current ledger state.
 
-Run `agent-surface workflow doctor --run <run_id>` before each formal transition. Stale heartbeats, contradictory task buckets, malformed monitor state, or mismatched ledger transitions fail closed.
+Run `agent-surface workflow doctor --run <run_id>` before each formal transition. The formal ledger needs the `agent-surface` CLI (`command -v agent-surface`, else `node <agent-surface checkout>/scripts/agent-surface.mjs`); with neither, do not start a formal run: route `reviewed` and say why. Stale heartbeats, contradictory task buckets, malformed monitor state, or mismatched ledger transitions fail closed.
 
 ## 6. Measure
 
