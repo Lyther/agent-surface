@@ -135,6 +135,13 @@ def first_target_load_seconds(trial: dict, first_loads: dict[str, dict], target_
     return round(first["ts"] - epoch(started), 1) if first and started else None
 
 
+def calls_before_first_target_load(first_loads: dict[str, dict], target_skill: str | None) -> int | None:
+    """Tool calls before the attempt's first load of its target skill, the same event `first_target_load_seconds` times; null for an attempt with no
+    target or one that never loaded it."""
+    first = first_loads.get(target_skill) if target_skill else None
+    return first["calls_before"] if first else None
+
+
 def ledger_row(scenario: str, host: str, profile: str, rep: int, image: dict, arm: dict, started: str, exit_code: int, job_dir: Path,
                target_skill: str | None = None) -> dict:
     trial = read_trial(job_dir)
@@ -170,6 +177,7 @@ def ledger_row(scenario: str, host: str, profile: str, rep: int, image: dict, ar
         "skill_files_scanned": detected["scanned"],
         **first_load_fields(trial, detected["first_load"]),
         "first_target_load_seconds": first_target_load_seconds(trial, detected["first_loads"], target_skill),
+        "calls_before_first_target_load": calls_before_first_target_load(detected["first_loads"], target_skill),
         "dev_fix_installed": "dev-fix" in arm["skills"],
         "cost_usd": agent_result.get("cost_usd"),
         "factory_credits": metadata.get("factory_credits"),

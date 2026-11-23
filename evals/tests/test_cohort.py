@@ -14,7 +14,7 @@ from unittest import mock
 from pathlib import Path
 
 from evals.agents import HOST_TIMEOUT_MARGIN_SEC, host_timeout
-from evals.cohort import AGENT_ENDS_TO_STOP, RETRIES, SETUP_FAILURES_TO_STOP, HostStops, SpendGate, Unit, attempt_name, is_capacity_end, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, first_target_load_seconds, injected_secrets, parse_spend, plan, run_order, spend_reading
+from evals.cohort import AGENT_ENDS_TO_STOP, RETRIES, SETUP_FAILURES_TO_STOP, HostStops, SpendGate, Unit, attempt_name, is_capacity_end, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, first_target_load_seconds, calls_before_first_target_load, injected_secrets, parse_spend, plan, run_order, spend_reading
 
 FAKE_KEY = "fk-" + "FAKE-not-a-real-factory-key-0123456789"  # built at run time so a secret scanner does not flag the source
 IMAGE = {"image_id": "sha256:feed"}
@@ -105,6 +105,12 @@ class FirstLoadTest(unittest.TestCase):
         self.assertIsNone(first_target_load_seconds(self.TRIAL, loads, "verify-test"))  # the target never loaded
         self.assertIsNone(first_target_load_seconds(self.TRIAL, loads, None))  # not a trigger attempt
         self.assertIsNone(first_target_load_seconds({}, loads, "dev-fix"))  # the agent never started
+
+    def test_calls_before_the_target_skills_own_first_load_not_the_first_of_any_skill(self):
+        loads = {"qa-review": {"ts": 5.0, "calls_before": 1}, "dev-fix": {"ts": 40.0, "calls_before": 6}}
+        self.assertEqual(calls_before_first_target_load(loads, "dev-fix"), 6)
+        self.assertIsNone(calls_before_first_target_load(loads, "verify-test"))  # the target never loaded
+        self.assertIsNone(calls_before_first_target_load(loads, None))  # not a trigger attempt
 
     def test_no_load_or_no_agent_start_gives_nulls(self):
         nulls = {"first_load_seconds": None, "calls_before_first_load": None}
