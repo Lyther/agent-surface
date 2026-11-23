@@ -373,12 +373,58 @@ class SpendGate:
         self.spent += int(reading or (self.reserve if ran else 0))
 
 
-async def run_order(groups: list[list], run_cell, concurrency: int, admit=None, abandon=None) -> bool:
+# Basis (preregistration section 8, rules 3 and 4): two setup failures with one exception on a host separated a deterministic arm-extraction fault
+# from a one-off (12 attempts failed identically in about 18 s each); three attempts in a row ending at the agent cap or in one agent-end exception
+# wasted ten minutes of a slot each (all three opencode attempts that reached the agent ended in the 600 s cap).
+SETUP_FAILURES_TO_STOP = 2
+AGENT_ENDS_TO_STOP = 3
+
+
+class HostStops:
+    """Per-host stop rules over consecutive attempts, in the order the attempts finish; the ledger's `exception` field is the exception type.
+
+    Setup: `SETUP_FAILURES_TO_STOP` rows in a row with an exception and no agent time, the same exception. Agent end: `AGENT_ENDS_TO_STOP` rows in a
+    row that reached the agent and ended at the agent cap (`end_reason: timeout`) or in the same exception. Any other row of the host, a launch
+    failure aside, breaks both streaks. A stopped host stays stopped; `reasons` maps it to why.
+    """
+
+    def __init__(self) -> None:
+        self.setup: dict[str, tuple[str | None, int]] = {}
+        self.agent: dict[str, tuple[str | None, int]] = {}
+        self.reasons: dict[str, str] = {}
+
+    def observe(self, host: str, row: dict) -> None:
+        if "status" in row or "skipped" in row or is_launch_failure(row):
+            return
+        started = row.get("seconds_agent") is not None
+        exception = row.get("exception")
+        setup_key = exception if exception and not started else None
+        agent_key = "agent cap" if started and row.get("end_reason") == "timeout" else exception if started else None
+        self._count(self.setup, host, setup_key, SETUP_FAILURES_TO_STOP, "setup failures")
+        self._count(self.agent, host, agent_key, AGENT_ENDS_TO_STOP, "attempts ending the same way")
+
+    def _count(self, table: dict, host: str, key: str | None, need: int, what: str) -> None:
+        if key is None:
+            table.pop(host, None)
+            return
+        previous, count = table.get(host, (None, 0))
+        count = count + 1 if previous == key else 1
+        table[host] = (key, count)
+        if count >= need and host not in self.reasons:
+            self.reasons[host] = f"host stop: {count} consecutive {what} on {host} ({key})"
+
+    def stopped(self, host: str) -> bool:
+        return host in self.reasons
+
+
+async def run_order(groups: list[list], run_cell, concurrency: int, admit=None, abandon=None, halted=None) -> bool:
     """Run groups with bounded concurrency, the arms of a group one after another; `run_cell(cell)` returns True to quarantine-stop the cohort.
 
     Two stops, two rules. A quarantine launches nothing further, not even the remaining arms of a group that has started: a leak may come
     from how something is passed, so every further attempt could repeat it. `abandon(cells)` records those arms, which leaves their group
     incomplete. A spend stop is `admit(group)` refusing a group (it records the refusal itself); started groups are not affected and finish.
+    A host stop (`halted(host)`, from `HostStops`) is the quarantine rule limited to that host: its started groups launch no further arm and are
+    abandoned incomplete, other hosts go on; a new group of a stopped host is refused by `admit`.
     """
     sem = asyncio.Semaphore(concurrency)
     stopped = False
@@ -389,7 +435,7 @@ async def run_order(groups: list[list], run_cell, concurrency: int, admit=None, 
             if stopped or (admit and not admit(group)):
                 return
             for index, cell in enumerate(group):
-                if stopped:
+                if stopped or (halted and halted(cell[1])):
                     if abandon:
                         abandon(group[index:])
                     return
@@ -420,6 +466,7 @@ async def main(args) -> None:
     first_attempt = {tuple(c): next_attempt(history.get(tuple(c), [])) for group in everything for c in group}
     order = [left for left in ([c for c in group if first_attempt[tuple(c)]] for group in everything) if left]
     gates = {host: SpendGate(cap, reserve) for host, (cap, reserve) in args.spend.items()}
+    stops = HostStops()
 
     def skip(cell, why: str, **more) -> None:
         scenario, host, profile, rep = cell
@@ -427,6 +474,10 @@ async def main(args) -> None:
             f.write(json.dumps({"scenario": scenario, "profile": profile, "host": host, "rep": rep, "skipped": why, **args.units[scenario].fields, **more}) + "\n")
 
     def admit(group) -> bool:
+        if stops.stopped(group[0][1]):
+            for cell in group:
+                skip(cell, stops.reasons[group[0][1]])
+            return False
         gate = gates.get(group[0][1])
         why = gate.admit(len(group)) if gate else None
         for cell in group if why else ():
@@ -448,6 +499,7 @@ async def main(args) -> None:
             return json.loads(ledger.read_text().splitlines()[-1]), stop
 
         last, stop = await run_with_retries(run_once, first_attempt[tuple(cell)])
+        stops.observe(host, last)
         if host in gates:
             # An attempt that failed before the agent started spent nothing; any other without a reading is charged the reserve.
             gates[host].settle(spend_reading(host, last), ran=last.get("seconds_agent") is not None)
@@ -455,11 +507,11 @@ async def main(args) -> None:
 
     def abandon(cells) -> None:
         for cell in cells:
-            skip(cell, "quarantine stop: group incomplete", group_incomplete=True)
+            skip(cell, stops.reasons.get(cell[1], "quarantine stop: group incomplete"), group_incomplete=True)
             if cell[1] in gates:
                 gates[cell[1]].settle(0, ran=False)
 
-    if await run_order(order, run_cell, args.concurrency, admit, abandon):
+    if await run_order(order, run_cell, args.concurrency, admit, abandon, stops.stopped):
         sys.exit("receipt scan found a credential: attempt quarantined, cohort stopped (see ledger and out/quarantine)")
 
 

@@ -14,12 +14,74 @@ from unittest import mock
 from pathlib import Path
 
 from evals.agents import HOST_TIMEOUT_MARGIN_SEC, host_timeout
-from evals.cohort import LAUNCH_RETRIES, SpendGate, Unit, attempt_name, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, injected_secrets, parse_spend, plan, run_order, spend_reading
+from evals.cohort import AGENT_ENDS_TO_STOP, LAUNCH_RETRIES, SETUP_FAILURES_TO_STOP, HostStops, SpendGate, Unit, attempt_name, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, injected_secrets, parse_spend, plan, run_order, spend_reading
 
 FAKE_KEY = "fk-FAKE-not-a-real-factory-key-0123456789"
 IMAGE = {"image_id": "sha256:feed"}
 ARM = {"source_commit": "c0ffee", "arm_sha256": "abc123", "skills": ["dev-fix"], "desc_arm": "B"}
 CELL = ("controls-no-skill", "droid", "dev", 1)
+
+
+def setup_failure(exception="RuntimeError"):
+    return {"harbor": "arm-codex", "cli_version": "1", "exception": exception, "seconds_agent": None, "end_reason": "setup_failure"}
+
+
+def agent_end(exception=None, end_reason="exit"):
+    return {"harbor": "arm-codex", "cli_version": "1", "exception": exception, "seconds_agent": 60.0, "end_reason": end_reason}
+
+
+class HostStopsTest(unittest.TestCase):
+    def feed(self, rows, host="codex"):
+        stops = HostStops()
+        for row in rows:
+            stops.observe(host, row)
+        return stops
+
+    def test_two_consecutive_setup_failures_with_one_exception_stop_the_host(self):
+        self.assertEqual(SETUP_FAILURES_TO_STOP, 2)
+        stops = self.feed([setup_failure(), setup_failure()])
+        self.assertTrue(stops.stopped("codex"))
+        self.assertIn("2 consecutive setup failures", stops.reasons["codex"])
+        self.assertFalse(stops.stopped("droid"))
+
+    def test_different_exceptions_or_a_success_between_do_not_stop_on_setup(self):
+        self.assertFalse(self.feed([setup_failure("RuntimeError"), setup_failure("OSError")]).stopped("codex"))
+        self.assertFalse(self.feed([setup_failure(), agent_end(), setup_failure()]).stopped("codex"))
+
+    def test_an_agent_exception_is_not_a_setup_failure(self):
+        self.assertFalse(self.feed([agent_end("NonZeroAgentExitCodeError"), agent_end("NonZeroAgentExitCodeError")]).stopped("codex"))
+
+    def test_three_consecutive_ends_at_the_agent_cap_stop_the_host(self):
+        self.assertEqual(AGENT_ENDS_TO_STOP, 3)
+        timeout = agent_end("AgentTimeoutError", "timeout")
+        self.assertFalse(self.feed([timeout, timeout]).stopped("codex"))
+        stops = self.feed([timeout, agent_end("NonZeroAgentExitCodeError", "timeout"), timeout])  # Harbor's cap and the host's own timeout are both the cap
+        self.assertIn("agent cap", stops.reasons["codex"])
+
+    def test_three_consecutive_ends_in_the_same_agent_exception_stop_the_host(self):
+        same = agent_end("NonZeroAgentExitCodeError", "error")
+        self.assertTrue(self.feed([same, same, same]).stopped("codex"))
+        self.assertFalse(self.feed([same, same, agent_end("RuntimeError", "error")]).stopped("codex"))
+
+    def test_a_normal_exit_or_a_setup_failure_breaks_the_agent_streak(self):
+        same = agent_end("NonZeroAgentExitCodeError", "error")
+        self.assertFalse(self.feed([same, same, agent_end(), same]).stopped("codex"))
+        self.assertFalse(self.feed([same, same, setup_failure(), same]).stopped("codex"))
+
+    def test_skipped_quarantined_and_launch_failure_rows_are_not_observed(self):
+        same = agent_end("NonZeroAgentExitCodeError", "error")
+        noise = [{"skipped": "spend stop"}, {"status": "quarantined"}, {"harbor": None, "cli_version": None, "exception": None, "seconds_agent": None}]
+        self.assertTrue(self.feed([same, noise[0], same, noise[1], noise[2], same]).stopped("codex"))
+
+    def test_hosts_are_counted_apart(self):
+        stops = HostStops()
+        for host in ("codex", "droid", "codex", "droid"):
+            stops.observe(host, setup_failure())
+        self.assertEqual(sorted(stops.reasons), ["codex", "droid"])
+        stops = HostStops()
+        for host in ("codex", "droid", "codex"):
+            stops.observe(host, setup_failure() if host == "codex" else agent_end())
+        self.assertTrue(stops.stopped("codex"))  # another host's row does not break codex's streak
 
 
 class FirstLoadTest(unittest.TestCase):
@@ -317,6 +379,23 @@ class AdmissionTest(unittest.TestCase):
         self.assertEqual(sorted({r for r, _ in ran}), [1, 2])  # 700 / 100 = 7 attempts: two groups of three fit, the third is refused whole
         self.assertEqual(len(ran), 6)
         self.assertEqual(refused, [3, 4])
+
+    def test_a_host_stop_abandons_that_hosts_started_groups_and_leaves_other_hosts_running(self):
+        ran, abandoned = [], []
+        stopped_hosts = set()
+
+        async def run_cell(cell):
+            ran.append((cell[1], cell[3], cell[2]))
+            if cell[1] == "bad" and cell[3] == 1 and cell[2] == "a":
+                stopped_hosts.add("bad")  # the host's rule trips on its first attempt
+            return False
+
+        groups = [[("s", host, p, r) for p in ("a", "b")] for host in ("bad", "good") for r in (1, 2)]
+        stopped = asyncio.run(run_order(groups, run_cell, 1, abandon=abandoned.extend, halted=stopped_hosts.__contains__))
+        self.assertFalse(stopped)  # the cohort is not stopped
+        self.assertEqual([(c[1], c[3], c[2]) for c in abandoned], [("bad", 1, "b"), ("bad", 2, "a"), ("bad", 2, "b")])  # main's admit refuses a new group beforehand
+        self.assertEqual([r for r in ran if r[0] == "good"], [("good", 1, "a"), ("good", 1, "b"), ("good", 2, "a"), ("good", 2, "b")])
+        self.assertEqual([r for r in ran if r[0] == "bad"], [("bad", 1, "a")])
 
     def test_a_refused_group_runs_none_of_its_arms(self):
         ran = []
