@@ -397,6 +397,21 @@ class AdmissionTest(unittest.TestCase):
         self.assertEqual([r for r in ran if r[0] == "good"], [("good", 1, "a"), ("good", 1, "b"), ("good", 2, "a"), ("good", 2, "b")])
         self.assertEqual([r for r in ran if r[0] == "bad"], [("bad", 1, "a")])
 
+    def test_concurrency_above_four_is_not_refused(self):
+        running, peak = 0, 0
+
+        async def run_cell(cell):
+            nonlocal running, peak
+            running += 1
+            peak = max(peak, running)
+            await asyncio.sleep(0.01)
+            running -= 1
+            return False
+
+        groups = [[("s", "h", "a", r)] for r in range(1, 17)]
+        asyncio.run(run_order(groups, run_cell, 8))
+        self.assertEqual(peak, 8)
+
     def test_a_refused_group_runs_none_of_its_arms(self):
         ran = []
 
