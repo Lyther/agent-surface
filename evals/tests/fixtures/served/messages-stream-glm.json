@@ -1,0 +1,11 @@
+{
+ "status": 200,
+ "headers": {
+  "x-litellm-call-id": "63813173-e979-44aa-9228-305515914f4e",
+  "x-litellm-model-id": "a073cbc347c90a53e859f9dfc408a7aac4f07446ce746e4461bace4deaf08e70",
+  "x-litellm-model-name": "azure/glm-5.2",
+  "x-litellm-version": "1.108.7",
+  "x-litellm-model-group": "claude-sonnet-5-5"
+ },
+ "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_318122e0-6016-487f-b23e-e9bfae553886\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-sonnet-5-5\",\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":0,\"output_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}}}\n\n"
+}

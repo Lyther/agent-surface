@@ -103,7 +103,7 @@ One JSONL row per attempt, written by `evals/cohort.py`, append-only. "Written" 
 
 | Field | Meaning | State |
 |---|---|---|
-| `scenario`, `profile`, `desc_arm`, `host`, `model`, `rep` | The cell. `profile` is the rendered arm, `desc_arm` its description variant (`A`, `B`, `C`), `model` the id the host requested (the served model is not on the row) | Written |
+| `scenario`, `profile`, `desc_arm`, `host`, `model`, `rep` | The cell. `profile` is the rendered arm, `desc_arm` its description variant (`A`, `B`, `C`), `model` the id the host requested (the served model is `served_model`) | Written |
 | `attempt_no` | 1, or the try number of a retried launch failure | Written |
 | `harbor`, `cli_version` | The agent's name and the host CLI version, as reported in the trial's `result.json`; both null when nothing started. The runner version is pinned in `uv.lock` and in the preregistration | Written |
 | `source_commit`, `arm_sha256`, `image_id` | Which sources, arm tarball and host image the attempt ran on | Written, from `arms.json` and `hosts.json` |
@@ -126,10 +126,10 @@ One JSONL row per attempt, written by `evals/cohort.py`, append-only. "Written" 
 | `cpus`, `memory_mb`, `agent_timeout_sec`, `concurrency` | The attempt's caps and the run's parallelism | Written |
 | `listing` | Per target skill, `surfaced`, `name-only` or `absent`, and `truncated`; today the capture is an image-level file from `listing.py` | Not written |
 | `end_reason`, `output_cap` | How the agent ended: `exit`, `output_cap`, `timeout`, `capacity`, `error` or `setup_failure`; and the output limit the attempt ran under where the host exposes it (opencode's configured limit; null for codex, droid and claude-code, whose cap the gateway or host applies). Codex's output-cap end is read from the host's "max_output_tokens" error text; droid has no such signal | Written |
-| `served_model` | The model that served the attempt | Not written |
+| `served_model` | The model the cohort's start probe read for the row's host (the gateway's `x-litellm-model-name` header, droid's init-event model); null when the probe read none. It is the cohort's value, not a per-attempt reading | Written |
 | `pressure`, `steps_done` | Outcome cohorts: the pressure stratum, and the required steps whose world-state artifact exists | Not written |
 
-`order.json` holds the seeded order as groups (every arm of one scenario, host and repetition) of cells; rows carry no order index and no cohort field beyond `prereg`. `hosts.json` holds one record per host image and `arms.json` one per host and profile. All are part of the receipt.
+`cohort.json` holds the run's `prereg`, start and end times, and per host the served-model probe at the start and at the end (`model`, gateway `deployment`, `provider` and body-reported model, or null with a `reason`), `poolable` and, when false, `why`. `order.json` holds the seeded order as groups (every arm of one scenario, host and repetition) of cells; rows carry no order index and no cohort field beyond `prereg`. `hosts.json` holds one record per host image and `arms.json` one per host and profile. All are part of the receipt.
 
 ## Validity Gates
 
@@ -209,7 +209,7 @@ Operator decisions, 2026-11-22. The ledger's `model` is the requested id, and ho
 | `claude-code` | requested Claude id through the gateway | Runs but is not scored: the gateway serves a non-Claude model for that id, so its results are not Claude-model results |
 | `opencode` | `gpt-5.5` through the gateway, with an explicit output limit on every request | Candidate, added only by amendment before any of its attempts, after its controls pass; it shares codex's upstream model, so it is not an independent replicate |
 
-The gateway applies a default output limit when a client sends none; that default had cut codex turns short before it was raised. The attempt's end reason and, where the host exposes it, the applied limit are on the ledger row. Gateway hosts also need the served model probed at the start and end of each cohort (a mismatch makes that host's cohort not poolable); the probe and the `served_model` field are not built.
+The gateway applies a default output limit when a client sends none; that default had cut codex turns short before it was raised. The attempt's end reason and, where the host exposes it, the applied limit are on the ledger row. Gateway hosts also need the served model probed at the start and end of each cohort (a mismatch makes that host's cohort not poolable; a gateway host whose probe names no model is not poolable either, and does not start). The probe is one tiny request on the host's own wire with its model id and key (`evals/served.py`); droid has no gateway, so its model is the init event of a `droid exec` stream, and null with a reason when that names none.
 
 ## Known Deviations
 
@@ -239,7 +239,6 @@ States the SQ1 preregistration waits on, once. `O-n` ids are the preregistration
 | `O-13` | Reproducibility host and tolerance | Orchestrator's decision: rerun the whole cell sets on the cheaper required host; tolerance from run-to-run variance |
 
 Pending lab changes the contract waits on:
-- the served-model probe and `served_model` field;
 - `analyze.py`, which reads only the preregistration and the ledger;
 - the `listing`, `pressure`, `steps_done` and `asset_installed` ledger fields;
 - runs: detector requalification on `full` for every scored host and on opencode's gateway path, scenario qualification on the host images, and the codex outcome check after the output-limit default was raised.

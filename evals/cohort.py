@@ -31,6 +31,7 @@ from evals.gateway import GATEWAY_HOSTS, KEY_ENV, NO_PROXY_ENV, URL_ENV, gateway
 from evals.images import scenario_tag, write_task
 from evals.queries import TEMPLATE as TRIGGER_TEMPLATE, ledger_fields, load_queries, unit_name
 from evals.scrub import Secret, load_known, parse_secrets, scan_receipt
+from evals.served import FIELDS as SERVED_FIELDS, compare as compare_served, identity as served_identity, ledger_value, probe_droid, probe_gateway
 
 HOSTS = {
     # Through the gateway on Codex's model, so the two differ only in harness.
@@ -312,6 +313,39 @@ async def attempt(cell: tuple, attempt_no: int, args, images: dict, arms: dict, 
     return started, proc.returncode or 0, time.monotonic() - t0
 
 
+COHORT_FILE = "cohort.json"
+
+
+def probe_hosts(hosts: list[str], images: dict, keys: dict[str, str]) -> dict[str, dict]:
+    """The served-model record of each host (`evals/served.py`), read with the host's own model id and key; a host with no key reads none."""
+    found = {}
+    for host in hosts:
+        if HOST_KEY[host] not in keys:
+            found[host] = {**{field: None for field in SERVED_FIELDS}, "reason": f"no {HOST_KEY[host]} on stdin"}
+        elif host in GATEWAY_HOSTS:
+            found[host] = probe_gateway(host, gateway_url(), HOSTS[host]["model"], keys[HOST_KEY[host]])
+        else:
+            found[host] = probe_droid(images[host]["image_id"], HOSTS[host]["model"], keys[HOST_KEY[host]])
+    return found
+
+
+def cohort_metadata(prior: dict, prereg: str | None, hosts: list[str], start: dict[str, dict], end: dict[str, dict] | None) -> dict:
+    """What `cohort.json` holds: the cohort's start and end times and, per host, the served model at each end and whether the host is poolable.
+
+    `end` is None while the cohort runs; a host whose end is not read yet is judged on its start alone and its verdict is replaced at the end.
+    """
+    served = {}
+    for host in hosts:
+        last = end[host] if end else None
+        verdict = compare_served(host, start[host], last) if end else {"poolable": None, "why": "the cohort has not ended"}
+        served[host] = {"start": start[host], "end": last, **verdict}
+    return {"prereg": prereg, "started": prior.get("started") or now(), "ended": now() if end else None, "served_model": served}
+
+
+def write_cohort(args, metadata: dict) -> None:
+    (args.out / COHORT_FILE).write_text(json.dumps(metadata, indent=1) + "\n")
+
+
 def row_extra(args) -> dict:
     """Run-level ledger fields: the parallelism, and a purpose label (`timing-probe` rows stay out of outcome analysis)."""
     extra = {"concurrency": args.concurrency}
@@ -457,6 +491,16 @@ async def main(args) -> None:
     args.spend = parse_spend(args.spend_items, args.hosts.split(","))
     args.units = make_units(args.scenario, load_queries(args.queries) if args.queries else [])
     ledger = args.out / "ledger.jsonl"
+    hosts = args.hosts.split(",")
+    cohort_file = args.out / COHORT_FILE
+    prior = json.loads(cohort_file.read_text()) if cohort_file.exists() else {}
+    # A resumed cohort keeps the start it first read; only a start that read no model is read again.
+    kept = {host: found["start"] for host, found in prior.get("served_model", {}).items() if served_identity(found["start"]) is not None}
+    args.served_start = {**await asyncio.to_thread(probe_hosts, [h for h in hosts if h not in kept], images, keys), **kept}
+    unnamed = [h for h in hosts if HOST_KEY[h] in keys and h in GATEWAY_HOSTS and served_identity(args.served_start[h]) is None]
+    if unnamed:  # gate 3 of the preregistration: a gateway host whose served model is not known does not start
+        sys.exit("; ".join(f"served-model probe of {h} named no model: {args.served_start[h].get('reason')}" for h in unnamed))
+    write_cohort(args, cohort_metadata(prior, args.prereg, hosts, args.served_start, None))
     known = load_known(args.input_fingerprints) if args.input_fingerprints else frozenset()
     history: dict[tuple, list[dict]] = {}
     for row in map(json.loads, ledger.read_text().splitlines() if ledger.exists() else []):
@@ -495,7 +539,8 @@ async def main(args) -> None:
         async def run_once(number: int) -> tuple[dict, bool]:
             started, code, seconds = await attempt(cell, number, args, images, arms, keys)
             stop = finish_attempt(cell, images[host], arms[f"{host}-{profile}"], started, code, args.out, injected_secrets(keys), ledger, seconds,
-                                  {**row_extra(args), **limits(args, args.units[scenario]), **args.units[scenario].fields}, number, known)
+                                  {**row_extra(args), **limits(args, args.units[scenario]), **args.units[scenario].fields,
+                                            "served_model": ledger_value(args.served_start[host])}, number, known)
             return json.loads(ledger.read_text().splitlines()[-1]), stop
 
         last, stop = await run_with_retries(run_once, first_attempt[tuple(cell)])
@@ -511,7 +556,14 @@ async def main(args) -> None:
             if cell[1] in gates:
                 gates[cell[1]].settle(0, ran=False)
 
-    if await run_order(order, run_cell, args.concurrency, admit, abandon, stops.stopped):
+    stopped = await run_order(order, run_cell, args.concurrency, admit, abandon, stops.stopped)
+    ended = await asyncio.to_thread(probe_hosts, hosts, images, keys)
+    metadata = cohort_metadata(prior, args.prereg, hosts, args.served_start, ended)
+    write_cohort(args, metadata)
+    for host, found in metadata["served_model"].items():
+        if not found["poolable"]:
+            print(f"{host}: not poolable: {found['why']}", file=sys.stderr)
+    if stopped:
         sys.exit("receipt scan found a credential: attempt quarantined, cohort stopped (see ledger and out/quarantine)")
 
 

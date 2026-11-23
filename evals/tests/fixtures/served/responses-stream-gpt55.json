@@ -1,0 +1,13 @@
+{
+ "status": 200,
+ "headers": {
+  "x-litellm-call-id": "6f662866-7ad8-4c8a-8585-22252e43ce5c",
+  "x-litellm-model-id": "b8b5e65beceb20880eafcf5c7198f7f67efb8623b375e085d8d68ea1ad1040ba",
+  "x-litellm-model-name": "openai/responses/gpt-5.5-2026-04-24",
+  "x-litellm-version": "1.108.7",
+  "x-litellm-model-group": "gpt-5.5",
+  "llm_provider-x-account-deployment": "deployment-gpt-5.5-2026-04-24-platform-global",
+  "llm_provider-x-request-model": "gpt-5.5-2026-04-24"
+ },
+ "body": "event: response.created\ndata: {\"type\": \"response.created\", \"response\": {\"created_at\": 1795276399, \"model\": \"deployment-gpt-5.5-2026-04-24-platform-global\", \"object\": \"response\", \"status\": \"in_progress\"}}\n\n"
+}
