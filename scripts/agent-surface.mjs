@@ -32,7 +32,7 @@ const COMMAND_FLAGS = {
   install: {
     values: ["--target", "--runtime", "--category", "--categories", "--service", "--scope", "--dest", "--agent", "--credentials-file"],
     lists: ["--target", "--runtime", "--category", "--categories", "--service"],
-    switches: ["--allow-scope-root", "--dry-run", "-y"],
+    switches: ["--allow-scope-root", "--dry-run", "--no-mcps", "-y"],
   },
   workflow: {},
   "workflow init": { values: ["--run"] },

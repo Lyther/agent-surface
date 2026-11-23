@@ -24,7 +24,7 @@ import { assertJsonPropertyType, isMcpLauncherCommand, MCP_ENV_LAUNCH_SCRIPT, mc
 import { pinnedNodePath } from "./mcp-shims.mjs";
 import { planSynapseHook } from "./synapse-hook.mjs";
 import { formatNotice, localDate, planNotices } from "./notices.mjs";
-import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readSourceKinds, profileAssetCategories, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
+import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readOptionalServices, readSourceKinds, profileAssetCategories, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { antigravityCliStagedPlugin } from "./roots.mjs";
 import { readRules } from "./rules.mjs";
 import { adapterMcpConfigs, kiloRuleInstructionPaths, kiloRuleInstructionRoot, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets, withMcpServerOverrides } from "./targets.mjs";
@@ -133,14 +133,24 @@ export async function install(args) {
   if (!dryRun && !dest && !allowScopeRoot) {
     fail("live install requires explicit --dest or --allow-scope-root after reviewing --dry-run");
   }
+  const noMcps = args.includes("--no-mcps");
+  if (noMcps && categoryFilter?.has("mcps") && categoryFilter.size === 1) fail("--no-mcps conflicts with --category mcps: that selection is only MCP servers, which --no-mcps excludes");
+  // Render-only: every MCP service is excluded, so no config merge adds or prunes one (an entry the
+  // operator already wired stays), no prerequisite is detected or provisioned, no hook follows, and
+  // no launcher is written. What the operator's HOME holds is never read or written.
+  const mcpServiceIds = noMcps ? Object.entries((await readOptionalServices()).services).filter(([, service]) => service.kind === "mcp").map(([id]) => id) : [];
+  // --service also names skill-packs and source-packs, which a render-only install still writes.
+  const requestedMcps = mcpServiceIds.filter((id) => optionalServices?.has(id));
+  if (requestedMcps.length > 0) fail(`--no-mcps conflicts with --service ${requestedMcps.join(",")}: those are MCP servers, which --no-mcps excludes`);
+  const excludeServices = noMcps ? new Set(mcpServiceIds) : undefined;
 
-  const planContext = { selectedTargets, allTargetsSelected, scope, dest, agentName, categoryFilter, fullProfile, optionalServices, envFilePath };
+  const planContext = { selectedTargets, allTargetsSelected, scope, dest, agentName, categoryFilter, fullProfile, optionalServices, envFilePath, excludeServices };
   let plans = await buildInstallPlans(planContext);
 
   // One credential plan drives interactive and headless installs. Reads existing values
   // (process env, then the scope's .env), classifies each selected MCP service's keys, and
   // never surfaces values — only names and the file path reach the plan/logs.
-  const credentials = await resolveInstallCredentials({ args, scope, categoryFilter, fullProfile, optionalServices, agentName, envFilePath, installRoot: credentialEnvRoot });
+  const credentials = await resolveInstallCredentials({ args, scope, categoryFilter, fullProfile, optionalServices, agentName, envFilePath, excludeServices, installRoot: credentialEnvRoot });
 
   // Detect (read-only) the executable prerequisites and runtime floors of the MCP services this
   // install will ACTUALLY WIRE, so the plan shows what would be installed and the install can
@@ -165,7 +175,8 @@ export async function install(args) {
   });
   if (applyDecision.kind === "proceed" || applyDecision.kind === "block") {
     const { failed, launchWiring } = wiringFromStatus(provisioning.status, provisioning.serviceEntries);
-    plans = await buildInstallPlans({ ...planContext, excludeServices: failed.size > 0 ? failed : undefined, launchWiring });
+    const excluded = new Set([...(planContext.excludeServices ?? []), ...failed]);
+    plans = await buildInstallPlans({ ...planContext, excludeServices: excluded.size > 0 ? excluded : undefined, launchWiring });
   }
 
   const blocked = [...plans.flatMap((plan) => plan.blocked.map((item) => `${plan.target}: ${item}`)), ...rootBlocks(plans)];
@@ -575,11 +586,11 @@ function optionalServiceFilter(args) {
   return values.length > 0 ? new Set(values) : null;
 }
 
-async function resolveInstallCredentials({ args, scope, categoryFilter, fullProfile, optionalServices, agentName, envFilePath, installRoot }) {
+async function resolveInstallCredentials({ args, scope, categoryFilter, fullProfile, optionalServices, agentName, envFilePath, excludeServices, installRoot }) {
   // Classify against the SAME env-file the wrapper will load at launch (resolved once by the
   // caller), so install-validated credentials are exactly the ones the MCP process receives.
   const serviceEntries = await selectedMcpServiceEntries(true, {
-    mode: "install", scope, categoryFilter, fullProfile, optionalServices, agentName,
+    mode: "install", scope, categoryFilter, fullProfile, optionalServices, agentName, excludeServices,
   });
   const status = credentialStatus(serviceEntries, { fileValues: await readEnvFile(envFilePath), processEnv: process.env });
   // Interactive only when a real TTY is attached and the caller did not pass -y.
@@ -736,7 +747,9 @@ async function establishPrerequisites({ provisioning, planContext }) {
   if (failed.size > 0) {
     console.log(`provisioning: skipping config for ${[...failed].sort().join(", ")} (existing config preserved)`);
   }
-  const plans = await buildInstallPlans({ ...planContext, excludeServices: failed.size > 0 ? failed : undefined, launchWiring });
+  // The caller's own exclusions (--no-mcps) stay in force beside the services that failed here.
+  const excluded = new Set([...(planContext.excludeServices ?? []), ...failed]);
+  const plans = await buildInstallPlans({ ...planContext, excludeServices: excluded.size > 0 ? excluded : undefined, launchWiring });
   return { plans, failed, error };
 }
 

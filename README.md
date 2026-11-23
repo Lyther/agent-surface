@@ -31,6 +31,8 @@ node scripts/agent-surface.mjs install --target claude-code --scope user --allow
 npm run install:mcps               # build + link the Synapse/Grimoire binaries the wired MCP configs point at
 ```
 
+`install --no-mcps` renders every non-MCP output (skills, rules, commands, agents) and nothing else: no MCP server is wired, pruned or provisioned, no Synapse hook or launcher is written, and only `--dest` is touched. It is for render-only installs such as evaluation arms and CI, and it refuses `--service` and `--category mcps`.
+
 The `install` step wires each host's MCP *config* to point at `~/.local/bin/synapse-bridge` and `~/.local/bin/grimoire-server`, and when either binary is missing it builds and links it through the registry recipe before writing any config. `npm run install:mcps` is the manual path: run it to rebuild the binaries after pulling MCP changes.
 
 ## What it does

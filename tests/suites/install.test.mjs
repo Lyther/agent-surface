@@ -18,6 +18,7 @@ import { targets } from "../../scripts/agent-surface/targets.mjs";
 import {
   clineIdeUserDataRoot,
   clineUserMcpRoutes,
+  files,
   hasLocalOpsServerSkill,
   installClineExtension,
   MAX_CAPTURE_BYTES,
@@ -2616,6 +2617,140 @@ try {
   }
 } finally {
   rmSync(allTargetsDest, { recursive: true, force: true });
+}
+
+// --no-mcps renders host files without provisioning the machine: no MCP wiring, no recipes, no
+// launcher, no hook, and nothing written outside --dest. The run gets an empty HOME and a PATH holding
+// only node and git, so a stray recipe or launcher write has nowhere to succeed silently.
+{
+  const noMcpsRoot = ownTmp("no-mcps");
+  const toolBin = path.join(noMcpsRoot, "bin");
+  mkdirSync(toolBin, { recursive: true });
+  const gitPath = execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim();
+  symlinkSync(process.execPath, path.join(toolBin, "node"));
+  symlinkSync(gitPath, path.join(toolBin, "git"));
+  const emptyHome = (name) => {
+    const home = path.join(noMcpsRoot, `${name}-home`);
+    mkdirSync(home, { recursive: true });
+    return home;
+  };
+  const renderOnlyEnv = (home) => ({ HOME: home, USERPROFILE: home, PATH: toolBin });
+  // Pure MCP wiring: a render without MCPs does not write these files at all. A category install holds
+  // no root properties, so opencode's config is only its MCP entry there.
+  const mcpOnlyFiles = (category) => new Set([".claude.json", ".claude/settings.json", ".codex/hooks.json", ".factory/hooks.json", ".factory/mcp.json", ...(category ? [".config/opencode/opencode.json"] : [])]);
+  const rel = (dir) => files(dir).map((file) => path.relative(dir, file).split(path.sep).join("/")).sort();
+  const checkoutState = () => {
+    const stat = (dir) => (existsSync(dir) ? statSync(dir).mtimeMs : null);
+    return {
+      git: execFileSync("git", ["status", "--porcelain", "--ignored"], { cwd: root, encoding: "utf8", maxBuffer: MAX_CAPTURE_BYTES }),
+      stamps: ["node_modules", ...readdirSync(path.join(root, "mcps")).flatMap((name) => [`mcps/${name}/dist`, `mcps/${name}/node_modules`])]
+        .map((dir) => [dir, stat(path.join(root, dir))]),
+    };
+  };
+  const withoutMcpKeys = (file, text) => {
+    if (file === ".codex/config.toml") {
+      const parsed = TOML.parse(text);
+      delete parsed.mcp_servers;
+      return JSON.stringify(parsed);
+    }
+    if (file.endsWith("opencode.json")) {
+      const parsed = JSON.parse(text);
+      delete parsed.mcp;
+      return JSON.stringify(parsed);
+    }
+    if (file.endsWith("-manifest.json")) {
+      const parsed = JSON.parse(text);
+      delete parsed.generated_at;
+      delete parsed.config_entries;
+      return JSON.stringify(parsed);
+    }
+    return text;
+  };
+  const cases = [
+    ["claude-code", []],
+    ["codex", []],
+    ["droid", []],
+    ["opencode", []],
+    ["opencode", ["--category", "development"]],
+  ];
+  for (const [target, extra] of cases) {
+    const label = `${target} ${extra.join(" ")}`.trim();
+    const withMcps = path.join(noMcpsRoot, `with-${target}-${extra.length}`);
+    const without = path.join(noMcpsRoot, `without-${target}-${extra.length}`);
+    // The reference install runs in the suite's provisioned home, as every other install here does.
+    const reference = status(["install", "--target", target, "--scope", "user", "--dest", withMcps, ...extra]);
+    assert.equal(reference.status, 0, `${label}: reference install\n${reference.stdout}${reference.stderr}`);
+
+    const home = emptyHome(`${target}-${extra.length}`);
+    const before = checkoutState();
+    const result = status(["install", "--target", target, "--scope", "user", "--dest", without, "--no-mcps", ...extra], { env: renderOnlyEnv(home) });
+    assert.equal(result.status, 0, `${label}: --no-mcps exits 0\n${result.stdout}${result.stderr}`);
+    assert.deepEqual(readdirSync(home), [], `${label}: --no-mcps leaves HOME empty`);
+    assert.deepEqual(checkoutState(), before, `${label}: --no-mcps leaves the repository checkout untouched`);
+    assert.doesNotMatch(result.stdout, /MCP servers wired|mcp launcher|provisioning|mcp prerequisites/, `${label}: no MCP or provisioning step runs`);
+
+    const referenceFiles = rel(withMcps);
+    const renderedFiles = rel(without);
+    for (const file of renderedFiles) assert.ok(referenceFiles.includes(file), `${label}: ${file} exists without the switch too`);
+    assert.deepEqual(
+      referenceFiles.filter((file) => !renderedFiles.includes(file)),
+      referenceFiles.filter((file) => mcpOnlyFiles(extra.length > 0).has(file)),
+      `${label}: the switch drops exactly the MCP-only files`,
+    );
+    for (const file of renderedFiles) {
+      assert.equal(
+        withoutMcpKeys(file, readFileSync(path.join(without, file), "utf8")),
+        withoutMcpKeys(file, readFileSync(path.join(withMcps, file), "utf8")),
+        `${label}: ${file} matches the install without the switch, MCP keys aside`,
+      );
+    }
+    for (const file of renderedFiles.filter((item) => /(^|\/)(config\.toml|opencode\.json|settings\.json|hooks\.json|mcp\.json|\.claude\.json)$/.test(item))) {
+      assert.doesNotMatch(readFileSync(path.join(without, file), "utf8"), /mcp_servers|mcpServers|"mcp"|synapse|grimoire|chrome-devtools/, `${label}: ${file} wires no MCP server or hook`);
+    }
+  }
+
+  // A server the operator already wired survives a render-only reinstall: excluded services are
+  // neither added nor pruned.
+  {
+    const dest = path.join(noMcpsRoot, "kept");
+    const first = status(["install", "--target", "claude-code", "--scope", "user", "--dest", dest]);
+    assert.equal(first.status, 0, `wired install\n${first.stdout}${first.stderr}`);
+    const wired = [".claude.json", ".claude/settings.json"].map((file) => [file, readFileSync(path.join(dest, file), "utf8")]);
+    assert.match(wired[0][1], /"synapse"/);
+    assert.match(wired[1][1], /synapse-hook/);
+    const home = emptyHome("kept");
+    const again = status(["install", "--target", "claude-code", "--scope", "user", "--dest", dest, "--no-mcps"], { env: renderOnlyEnv(home) });
+    assert.equal(again.status, 0, `render-only reinstall\n${again.stdout}${again.stderr}`);
+    for (const [file, text] of wired) assert.equal(readFileSync(path.join(dest, file), "utf8"), text, `${file} keeps its wired Synapse entry`);
+    assert.deepEqual(readdirSync(home), [], "the reinstall leaves HOME empty");
+  }
+
+  // install's --service only ever names MCP servers: a skill-pack id fails the same way with and
+  // without the switch, so --no-mcps adds no conflict claim of its own for it. An MCP server named
+  // beside it is refused by naming that server.
+  {
+    const args = ["install", "--target", "opencode", "--scope", "user", "--category", "development", "--service", "open-code-review", "--dry-run"];
+    const home = emptyHome("pack");
+    const plain = status([...args, "--dest", path.join(noMcpsRoot, "pack")], { env: renderOnlyEnv(home) });
+    const switched = status([...args, "--no-mcps", "--dest", path.join(noMcpsRoot, "pack")], { env: renderOnlyEnv(home) });
+    assert.equal(switched.status, plain.status, "the switch leaves a skill-pack --service outcome as it was");
+    assert.equal(switched.stderr, plain.stderr, "and its message");
+    assert.doesNotMatch(switched.stderr, /--no-mcps/, "the switch is not blamed for it");
+    const mixed = status(["install", "--target", "opencode", "--scope", "user", "--dest", path.join(noMcpsRoot, "pack-mixed"), "--category", "development", "--service", "open-code-review,chrome-devtools", "--no-mcps"], { env: renderOnlyEnv(emptyHome("pack-mixed")) });
+    assert.equal(mixed.status, 1, "a named MCP server is refused");
+    assert.match(mixed.stderr, /--no-mcps conflicts with --service chrome-devtools:/, "the error names the MCP server");
+    assert.doesNotMatch(mixed.stderr, /open-code-review/, "the skill-pack is not blamed");
+    assert.ok(!existsSync(path.join(noMcpsRoot, "pack-mixed")), "a refused install writes nothing");
+  }
+
+  // The switch contradicts a selection that is only MCPs.
+  for (const selection of [["--category", "mcps"], ["--category", "mcps", "--service", "synapse"], ["--category", "development", "--service", "chrome-devtools"]]) {
+    const result = status(["install", "--target", "claude-code", "--scope", "user", "--dest", path.join(noMcpsRoot, "conflict"), "--no-mcps", ...selection], { env: renderOnlyEnv(emptyHome("conflict")) });
+    assert.equal(result.status, 1, `--no-mcps ${selection.join(" ")} is refused`);
+    assert.match(result.stderr, /--no-mcps/, "the error names the switch");
+    assert.match(result.stderr, new RegExp(selection.includes("mcps") ? "--category mcps" : "--service"), "the error names the conflicting option");
+    assert.ok(!existsSync(path.join(noMcpsRoot, "conflict")), "a refused install writes nothing");
+  }
 }
 
 disposableHome.restore();
