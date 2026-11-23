@@ -52,7 +52,7 @@ Workflow mode is ON when `.agent-surface/workflows/<run_id>/run.json` is active,
    5. After two correction attempts on one task fail (the third failed attempt in `02-agent-workflow`), stop with `blocker.type="repeated_failure"` and route through reviewer and judger with fresh context. A task rejected twice (two review rounds) goes to `workflow-judger` or the user; a third review round happens only if the judger orders REWORK.
 3. Stop conditions, in priority order:
    1. `blocker`: the current task's verify fails or its ambiguity is unresolvable; hand off immediately.
-   2. `context_pressure`: self-assessed context budget at or above `batch_policy.context_pressure_threshold_pct` (default 70), judged from conversation length, file reads, and repeated context refreshes. Stop even without a blocker once this round opened ≥30 distinct files, ran ≥5 verify cycles, or context degrades. When in doubt, stop sooner; the reviewer picks up the rest.
+   2. `context_pressure`: self-assessed context budget at or above `batch_policy.context_pressure_threshold_pct`, judged from conversation length, file reads, and repeated context refreshes. Stop even without a blocker when context degrades. When in doubt, stop sooner; the reviewer picks up the rest.
    3. `queue_empty`: every task completed or was skipped for an upstream blocker.
    4. `drift_check`: every `batch_policy.drift_check_every` completed tasks (default 5), re-read `boss.json`; if completed work obsoleted a remaining task, stop and report.
 
