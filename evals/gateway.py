@@ -14,6 +14,20 @@ NO_PROXY_ENV = "LAB_NO_PROXY"
 KEY_ENV = "LAB_GATEWAY_KEY"
 # Hosts that reach their model through the gateway.
 GATEWAY_HOSTS = ("opencode", "claude-code", "codex")
+# Claude Code asks the gateway for these catalog ids and nothing else: the gateway's `claude-*` ids are being removed. Each id is the model the
+# host was served under the old Claude id (sonnet to glm-5.2, opus to glm-5.3, haiku to Minimax-M3), so the served model is the requested one.
+CLAUDE_MODEL = "glm-5.2"
+CLAUDE_TIER_MODELS = {
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": CLAUDE_MODEL,
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5.3",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "Minimax-M3",
+    "ANTHROPIC_SMALL_FAST_MODEL": "Minimax-M3",
+}
+
+
+def claude_tier_exports() -> str:
+    """The `export` line that points every model variable Claude Code reads at a catalog id."""
+    return "export " + " ".join(f"{name}={model}" for name, model in CLAUDE_TIER_MODELS.items()) + "; "
 
 
 class GatewayConfigError(RuntimeError):

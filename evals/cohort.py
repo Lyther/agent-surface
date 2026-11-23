@@ -27,7 +27,7 @@ from pathlib import Path
 from evals.arms import SKILL_DIRS, load_arms
 from evals.detect import verdict
 from evals.endreason import attempt_end
-from evals.gateway import GATEWAY_HOSTS, KEY_ENV, NO_PROXY_ENV, URL_ENV, gateway_url, no_proxy
+from evals.gateway import CLAUDE_MODEL, GATEWAY_HOSTS, KEY_ENV, NO_PROXY_ENV, URL_ENV, gateway_url, no_proxy
 from evals.images import scenario_tag, write_task
 from evals.queries import TEMPLATE as TRIGGER_TEMPLATE, ledger_fields, load_queries, unit_name
 from evals.scrub import Secret, load_known, parse_secrets, scan_receipt
@@ -37,9 +37,9 @@ HOSTS = {
     # Through the gateway on Codex's model, so the two differ only in harness.
     "opencode": {"agent": "evals.agents:ArmOpenCode", "model": "gpt-5.5"},
     "droid": {"agent": "evals.agents:ArmDroid", "model": "claude-sonnet-5"},
-    # Through the gateway: the requested model id. The gateway maps Claude ids to other models, so the served model differs.
+    # Through the gateway: a catalog id, so the requested model is the served one.
     # Codex uses gpt-5.5: gpt-5.3-codex failed 3 of 6 control verifiers in each of two runs (it reported work it had not done).
-    "claude-code": {"agent": "evals.agents:ArmClaude", "model": "claude-sonnet-5-5"},
+    "claude-code": {"agent": "evals.agents:ArmClaude", "model": CLAUDE_MODEL},
     "codex": {"agent": "evals.agents:ArmCodex", "model": "gpt-5.5"},
 }
 # The environment variable that carries each host's key into its container.

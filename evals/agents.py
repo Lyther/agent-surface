@@ -22,9 +22,8 @@ from harbor.environments.docker.docker import _sanitize_docker_compose_project_n
 from harbor.models.agent.context import AgentContext
 
 from evals.arms import HOST_CLI, LOGS, SKILL_DIRS, detector_start
-from evals.gateway import KEY_ENV, gateway_url, no_proxy
+from evals.gateway import CLAUDE_MODEL, KEY_ENV, claude_tier_exports, gateway_url, no_proxy
 
-CLAUDE_MODEL = "claude-sonnet-5-5"  # the gateway maps Claude ids to other models; the host does not show the served one
 CODEX_MODEL = "gpt-5.5"
 # OpenCode uses Codex's model so the two hosts differ only in harness.
 OPENCODE_MODEL = CODEX_MODEL
@@ -271,6 +270,7 @@ class ArmClaude(_DockerExecAgent):
             f"cd {shlex.quote(workdir)} && "
             f"export ANTHROPIC_BASE_URL={shlex.quote(gateway_url())} ANTHROPIC_AUTH_TOKEN=\"${KEY_ENV}\" IS_SANDBOX=1 "
             "DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1; "
+            f"{claude_tier_exports()}"
             f"timeout {host_timeout()} claude -p --output-format stream-json --verbose --dangerously-skip-permissions "
             f"--model {shlex.quote(self.model_name or CLAUDE_MODEL)} {shlex.quote(instruction)} </dev/null > {LOGS}/claude.jsonl 2> {LOGS}/claude.stderr; code=$?; "
             f"cp -r ~/.claude/projects {LOGS}/claude-projects 2>/dev/null; exit $code"

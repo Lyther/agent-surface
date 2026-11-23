@@ -31,7 +31,7 @@ from pathlib import Path
 from evals.agents import OPENCODE_PROVIDER, opencode_config
 from evals.arms import SKILL_DIRS, load_arms
 from evals.cohort import HOST_KEY, HOSTS, injected_secrets, read_keys
-from evals.gateway import GATEWAY_HOSTS, KEY_ENV, gateway_url, no_proxy
+from evals.gateway import GATEWAY_HOSTS, KEY_ENV, claude_tier_exports, gateway_url, no_proxy
 from evals.images import docker
 from evals.scrub import Secret, scan_receipt
 
@@ -253,6 +253,7 @@ def capture_opencode(container: str, keys: dict[str, str], quarantine_dir: Path)
 def capture_claude(container: str, keys: dict[str, str], quarantine_dir: Path) -> tuple[dict[str, str], dict]:
     launch = (
         f"export ANTHROPIC_BASE_URL=http://127.0.0.1:{PROXY_PORT} ANTHROPIC_AUTH_TOKEN=\"${KEY_ENV}\" IS_SANDBOX=1 DISABLE_AUTOUPDATER=1; "
+        f"{claude_tier_exports()}"
         f"timeout {CAPTURE_TIMEOUT_SEC} claude -p --dangerously-skip-permissions --model {HOSTS['claude-code']['model']} '{PROMPT}' </dev/null >/tmp/c.out 2>&1"
     )
     bodies, version = _proxied(container, keys, quarantine_dir, launch, "claude --version")

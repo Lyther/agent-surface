@@ -102,10 +102,10 @@ class ProbeTest(unittest.TestCase):
 
     def test_claude_code_probe_uses_the_messages_wire_and_reads_the_served_model(self):
         url = self.serve(recorded("messages-stream-glm.json"))
-        record = probe_gateway("claude-code", url, "claude-sonnet-5-5", FAKE_KEY)
+        record = probe_gateway("claude-code", url, "glm-5.2", FAKE_KEY)
         sent = Gateway.seen[0]
         self.assertEqual(sent["path"], "/v1/messages")
-        self.assertEqual(sent["body"]["model"], "claude-sonnet-5-5")
+        self.assertEqual(sent["body"]["model"], "glm-5.2")
         self.assertEqual({k.lower(): v for k, v in sent["headers"].items()}["authorization"], f"Bearer {FAKE_KEY}")
         self.assertEqual(record["model"], "azure/glm-5.2")
 
