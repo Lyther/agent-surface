@@ -7,7 +7,7 @@ Source baseline: `3dbdbfe9c67fa7a95cf72a25280d2aa588782956`
 
 Separate workstream, 2026-10-13: [agent-reuse capability trial](#agent-reuse-capability-trial), accepted for a bounded experiment with one supervised MCP route observed. Its source review uses agent-surface `886f237` and MOMO `779f35a`; runtime-refresh history below does not qualify the delegate or its comparative capability.
 
-Separate workstream, 2026-11-20: [skill quality and distribution](#skill-quality-and-distribution), PROPOSED. An evaluation lab outside the product runtime gates description, skill and delivery changes; nothing in it is implemented, and it does not change the compiler or installer architecture below.
+Separate workstream, 2026-11-20: [skill quality and distribution](#skill-quality-and-distribution), PROPOSED. An evaluation lab outside the product runtime gates description, skill and delivery changes; the lab (`evals/`) is built through SQ0.6 and no cohort has run, and it does not change the compiler or installer architecture below.
 
 ## Executive Decision
 
@@ -319,17 +319,17 @@ Keep benchmarks outside the product runtime. For task ROI, use an official task 
 
 ## Skill Quality and Distribution
 
-Status: PROPOSED, 2026-11-20; nothing implemented. Source concept: [skill-quality concept](skill-quality/concept-zero.md) with its [research ledger](skill-quality/concept-zero-research.md). The [Grimoire evaluation contract](contracts/grimoire-evaluation.md) binds the experiment method. The [skill-evaluation contract](contracts/skill-evaluation.md) (DRAFT, `SQ0.7`) holds the measurements, ledger fields and promotion rules. [Phase SQ](roadmap.md#phase-sq-skill-quality-and-distribution) schedules the work.
+Status: PROPOSED, 2026-11-20; the lab in `evals/` is built (SQ0.1 to SQ0.6) and no cohort has run, the delivery work is not started. Source concept: [skill-quality concept](skill-quality/concept-zero.md) with its [research ledger](skill-quality/concept-zero-research.md). The [Grimoire evaluation contract](contracts/grimoire-evaluation.md) binds the experiment method. The [skill-evaluation contract](contracts/skill-evaluation.md) (DRAFT, `SQ0.7`) holds the measurements, ledger fields and promotion rules. [Phase SQ](roadmap.md#phase-sq-skill-quality-and-distribution) schedules the work.
 
 ### Executive Decision (SQ)
 
 Add an evaluation lab outside the product runtime, and make it the gate for every skill, description and delivery change.
 - **Form:** a uv-managed Python tree, `evals/`, that the compiler and installer never import.
 - **Each attempt:**
-  1. An adopted runner (Harbor; BenchFlow as fallback; the GR2 harness for Droid) starts one disposable container on a remote Linux server.
-  2. The arm's profile, rendered once by the production installer (`install --no-mcps`) from an overlay copy of the sources and never by editing them in place, is extracted into that container's HOME.
+  1. An adopted runner (Harbor, pinned; every host, Droid included, runs as an installed agent in it) starts one disposable container on a remote Linux server.
+  2. The arm's profile, rendered once by the production installer (`install --no-mcps`), from a copy of the sources when a skill is dropped or a description replaced and never by editing them in place, is extracted into that container's HOME.
   3. The host CLI runs the scenario with run-time credentials.
-  4. A file-open audit records which skill bodies were read.
+  4. The host's own tool-call record decides which skill bodies loaded; a file-open audit cross-checks it.
   5. A verifier scores world state in its own sandbox.
 - **Ledgers, preregistrations and analysis** follow GR2's conventions.
 
@@ -368,13 +368,13 @@ The compiler and installer keep their current architecture. Delivery changes per
   - Verification gate: `SQ6`.
 
 **Quality scenarios**
-- `Q-SQ-01` Same frozen inputs → rerun on the same hosts and versions → arm means reproduce → within the preregistered tolerance (ASSUMPTION: ±10 points for trigger rates at 100 trials per arm).
+- `Q-SQ-01` Same frozen inputs → rerun on the same hosts and versions → arm means reproduce → within the preregistered tolerance (set from measured run-to-run variance; the concept's ASSUMPTION of ±10 points at 100 trials per arm does not match the held-out counts).
 - `Q-SQ-02` Any cohort → finishes or aborts → the operator machine and accounts are untouched → snapshot diff empty and a clean exact-match credential scan of receipts.
-- `Q-SQ-03` Full real profile installed → host session starts → listing captured → each skill classified as surfaced, name-only or absent.
+- `Q-SQ-03` Full profile installed without MCP servers (`--no-mcps`) → host session starts → listing captured → each skill classified as surfaced, name-only or absent.
 - `Q-SQ-04` Description arms → same queries, held-out split → trigger recall and near-miss false triggers → 95% intervals per skill and host against preregistered thresholds.
 - `Q-SQ-05` Profile with and without one asset → seeded tasks → verifier rewards → paired differences against the preregistered practical-effect rule.
 - `Q-SQ-06` A native route for one host and kind → install, discover, invoke, remove → same model-visible assets as the installer route → operator files and fields unchanged.
-- `Q-SQ-07` Any attempt → runs → cost, tokens or credits, and wall time recorded → the cohort stops at its cap.
+- `Q-SQ-07` Any attempt → runs → tokens or credits, and wall time recorded → the cohort admits no new group past its spend cap.
 
 `C-SQ-01` to `C-SQ-07` and `N-SQ-01` to `N-SQ-07` apply throughout; the concept states them.
 
@@ -423,7 +423,7 @@ Outside the system: the hosts' own release channels, public marketplaces (`OQ-SQ
 **Cohort**
 1. A preregistration is frozen (scenarios, arms, hosts, models, CLI versions, repetitions, seeded order, budgets, decision rules).
 2. Verifier qualification: each scenario's reference solution must pass and its untouched state must fail, else the cohort stops before any arm runs.
-3. Attempts run at the server's concurrency, with a per-attempt cost stop and a cohort cap.
+3. Attempts run at the chosen concurrency, in groups (every arm of one scenario, host and repetition) in seeded order; a cohort spend cap admits whole groups and a quarantine stops all launches ([stop semantics](contracts/skill-evaluation.md#isolation-and-secrets)).
 4. Receipts return to the operator's machine. They are scanned for every injected credential value and common token patterns, then retained.
 5. Analysis produces the decision table.
 
@@ -433,7 +433,7 @@ Outside the system: the hosts' own release channels, public marketplaces (`OQ-SQ
 |---|---|
 | Start container | Fresh container, from the scenario's image, with the host CLI pinned. |
 | Build the arm | The rendered arm tarball is extracted into the container HOME and its manifest is recorded. |
-| Capture the listing | The host's real skill listing is captured. |
+| Capture the listing | Not per attempt: the host's real skill listing is captured once per image before the cohort and its classification is the cohort's input. |
 | Run | The host runs headless on the scenario instruction, with the file-open audit active. |
 | Verify | The verifier runs on the final workspace in a separate sandbox. |
 | Record | A ledger row is appended and the container is destroyed. |
@@ -455,35 +455,39 @@ Outside the system: the hosts' own release channels, public marketplaces (`OQ-SQ
 | Component | Description |
 |---|---|
 | Scenario set | One task per folder in the runner's format: instruction, environment, hidden verifier and reference solution. It owns no data outside its folder. Its quality obligation is verifier qualification. |
-| Trigger query sets | Per skill: should-trigger and near-miss queries with train and held-out labels, written before any arm runs and graded blind. |
-| Arm builder | Input: an arm spec (categories, an excluded asset, description overlay). Output: a rendered HOME tarball plus its manifest. It must not write the canonical sources. Failure is an attempt failure. |
-| Runner adapter | A per-cohort Harbor or BenchFlow job configuration. Droid uses the GR2 scripts. |
-| Skill-load detector | Reads of installed skill bodies from a file-open audit inside the container. Host logs are a cross-check only, because a host can read skills through paths the audit misses. |
+| Trigger query sets | One input JSON file (`--queries`) of should-trigger and near-miss queries with dev and held-out labels, written outside the lab before any arm runs and graded blind; each query runs as one task on the shared `scenarios/trigger` template, which has no verifier. |
+| Arm builder | Input: a profile from a fixed table (categories, dropped skills, description arm) and, for description arms, a text file. Output: a rendered HOME tarball plus its manifest, checked against its parent profile. It never writes the canonical sources. |
+| Runner adapter | A Harbor agent class per host in `agents.py`, and a Harbor task written per attempt on the host image. |
+| Skill-load detector | Loads decided from the host's own tool-call record (a skill-tool call, or a read of an installed `SKILL.md`). The file-open audit inside the container is the cross-check, because a skill tool opens no file. |
 | Verifier library | Shared world-state checks: git state, commit signatures, hook outcomes, test runs, file diffs, and detection of weakened tests (removed assertions or skipped tests against the base commit). |
 | Ledger and analysis | Append-only JSONL plus derived analysis. Analysis is a pure function of preregistration and ledger. |
-| Receipt scrubber | Exact-match scan for injected credentials plus a pattern scan, before retention. |
+| Receipt scrubber | Exact-match scan for injected credentials plus a pattern scan, before retention; pattern hits on a frozen list of known input strings are logged, not quarantined. |
 | Delivery parity harness | The live plugin test pattern, extended to the plugin and shared-skills routes. It reuses the lab's surfacing probe for model-visible parity. |
 
 ### Source Tree and File Responsibilities (SQ)
 
 ```text
-evals/                                    - SQ0.1-SQ0.6 spike code; the behavioural evaluation lab; never imported by scripts/ or mcps/; excluded from the npm package via .npmignore.
+evals/                                    - The behavioural evaluation lab (SQ0.1-SQ0.6); never imported by scripts/ or mcps/; excluded from the npm package via .npmignore.
   pyproject.toml, uv.lock                 - Pinned lab dependencies (Harbor 0.26.0); nothing else depends on them.
   README.md                               - How to build images, run a cohort, capture listings and read the ledger; links to the contract.
-  arms.py                                 - Profiles (dev-minus-dev-fix, dev, full, full-minus-dev-fix), source copies without a dropped skill, the installer render with --no-mcps and the reproducible pack; never edits canonical sources.
-  images.py                               - Builds one image per host (pinned base plus the host CLI), renders and checks the arms, writes the Harbor task for an attempt.
-  agents.py                               - Harbor agent classes for OpenCode and Droid that run inside the prebuilt image; Droid's key goes in by `docker exec -e`.
+  arms.py                                 - Profiles (a fixed table incl. the description arms), source copies without a dropped skill or with replaced descriptions, the installer render with --no-mcps and the reproducible pack; never edits canonical sources.
+  images.py                               - `build`, `scenarios` and `arms`: one image per host (pinned base plus the host CLI), scenario images layered on them, rendered and checked arms; writes the Harbor task for an attempt.
+  agents.py                               - Harbor agent classes for OpenCode, Droid, Claude Code and Codex that run inside the prebuilt image; keys go in by `docker exec -e`.
+  gateway.py                              - Reads the gateway address and key names from the environment for the three gateway hosts; site details stay out of the repository.
   detect.py                               - Skill-load detector: host-recorded skill-tool calls and SKILL.md reads, with the file-open audit as a cross-check.
   stamp.py                                - Timestamps each file-open audit event with sub-second epoch time inside the container.
   listing.py                              - Captures the skill listing a host shows the model and classifies each installed skill as surfaced, name-only or absent.
-  capture_proxy.py                        - Forwarding proxy that keeps OpenCode's model request body (never its headers) for the listing capture.
-  cohort.py                               - Expands scenarios, hosts, arms and repetitions into seeded attempts, runs them through Harbor with a spend stop, appends the ledger.
+  capture_proxy.py                        - Forwarding proxy that keeps a host's model request body (never its headers) for the listing capture; direct or gateway upstream.
+  cohort.py                               - Expands scenarios or queries, hosts, profiles and repetitions into seeded groups, runs them through Harbor with a spend stop and a quarantine stop, retries launch failures, appends the ledger.
+  queries.py                              - Loads the trigger query file and turns each query into a unit on the trigger template.
   scenarios/controls/<case>/              - Harbor tasks for detector qualification: use-by-name, use-by-file, no-skill.
   scenarios/dev-fix/<case>/               - Harbor tasks with a hidden verifier (F10, F13, F14 from SQ0.6).
-  world.py                                - PROPOSED (SQ0.6 branch): shared verifier checks, including test-weakening against the base commit.
-  scrub.py                                - PROPOSED (SQ0.4 branch): receipt credential scan; a hit quarantines the receipt and stops the cohort.
+  scenarios/trigger/                      - The shared trigger task template and its fixture workspace.
+  world.py                                - Shared verifier checks, including test-weakening against the base commit; each scenario's `tests/world.py` is a copy that must stay identical.
+  scrub.py                                - Receipt credential scan with input fingerprints; a hit quarantines the receipt and stops the cohort.
+  sample.py                               - Samples host load and container usage for capacity runs.
+  tests/                                  - Unit tests and trimmed real trajectories as fixtures.
   analyze.py                              - PROPOSED SQ1: rates and means with intervals, paired differences, cost and time; reads only preregistration and ledger.
-  triggers/<skill>.jsonl                  - PROPOSED SQ1.3, SQ2.1: should-trigger and near-miss queries with split labels.
 docs/contracts/skill-evaluation.md        - DRAFT SQ0.7: arms, metrics, detector and listing rules, ledger fields, validity gates, promotion rules; extends the Grimoire evaluation contract.
 skills/*/SKILL.md                         - VERIFIED_EXISTING; SQ2 moves descriptions to trigger form and adds the what-it-does paragraph to the body, per family, each through its own skill workflow.
 scripts/agent-surface/targets.mjs         - VERIFIED_EXISTING; SQ1.2 (only if the probe shows dropped descriptions) emits host listing-budget settings; SQ5.3 adds plugin package outputs beside the existing exports.
@@ -500,7 +504,7 @@ tests/suites/live-plugin.test.mjs         - VERIFIED_EXISTING pattern; SQ5.3 ext
 - It owns the decision rules, so a result cannot choose its own threshold.
 
 **Attempt ledger (JSONL, append-only).**
-- Fields: cohort, scenario, arm, host, model, CLI version, order index, start and end, exit, verifier result, detector result, listing classification, tokens or credits, cost, wall time, receipt paths.
+- Fields: see the contract's [Ledger Fields](contracts/skill-evaluation.md#ledger-fields). The cohort is named by the `prereg` id and the seeded order is in `order.json`; rows carry no cohort or order-index field.
 - Failed, aborted and `BLOCKED` rows are kept.
 - `cohort.py` owns writes, and `analyze.py` reads only.
 
@@ -519,7 +523,7 @@ tests/suites/live-plugin.test.mjs         - VERIFIED_EXISTING pattern; SQ5.3 ext
 ### Interfaces and Contracts (SQ)
 
 - **Lab entry points:**
-  - `python -m evals.images build|verify`, `python -m evals.cohort --images <file> --scenario <dir> --out <dir>` and `python -m evals.listing capture`, as in the lab README (SQ1 adds a `--prereg` input to `cohort`);
+  - `python -m evals.images build|scenarios|arms`, `python -m evals.cohort --host-images <file> --arms <file> (--scenario <dir> | --queries <file>) --out <dir>` and `python -m evals.listing capture`, as in the lab README; `cohort --prereg <id>` only labels rows, and caps, spend and fingerprints are flags, not read from the preregistration;
   - `analyze.py`, proposed for SQ1, reading a ledger;
   - the runner's own CLI underneath.
 - **Arm injection** uses the existing public install command (`install --target <t> --scope user --dest <HOME>` with categories) with `--no-mcps` on an overlay checkout. Experiments add no installer flag of their own, and description variants are source overlays, not options.
@@ -587,7 +591,7 @@ ACCEPTED for the runner and the arm route, `SQ0.1` 2026-11-21; the detector stay
 
 PROPOSED.
 - **Context:** the operator chose the trigger form, and vendor guidance asks for what plus when (`E-22`). No published head-to-head comparison exists.
-- **Decision:** run arms A (current), B (trigger) and C (what plus when, diagnostic). B ships per host when it is no worse than A on recall, false triggers and existing outcome cohorts. If C beats B by the practical threshold, the operator decides.
+- **Decision:** run arms A (current), B (trigger) and C (what plus when, diagnostic). B ships per host when it is no worse than A on recall, false triggers and existing outcome cohorts (the first slice has too few queries to show no-worse; see the contract's open decision `O-3`). If C beats B by the practical threshold, the operator decides.
 - **Consequences:** descriptions may differ by host for a time, so the source model needs a per-host description only if results diverge (deferred until seen).
 - **Rejected:** a global switch without evidence.
 

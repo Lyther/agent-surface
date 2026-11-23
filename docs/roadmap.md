@@ -456,7 +456,7 @@ Exit: each verifier passes on the real fix and fails on the pre-fix state, insid
 
 #### SQ0.7 Skill-Evaluation Contract and First Preregistration
 
-State: 2026-11-21: contract drafted for operator review; the preregistration waits on SQ0.5's dynamic half, SQ0.6 and the operator's credential decision. Depends on: SQ0.1–SQ0.6. Covers: `C-SQ-02`, `OQ-SQ-02`.
+State: 2026-11-23: contract aligned with the lab as built; open decisions and pending lab changes are listed in its last section; the preregistration waits on them. Depends on: SQ0.1–SQ0.6. Covers: `C-SQ-02`, `OQ-SQ-02`.
 
 Write `docs/contracts/skill-evaluation.md`. It extends the Grimoire evaluation contract with:
 - the arms (A current, B trigger, C what plus when; without-asset and full profile);
@@ -477,7 +477,7 @@ Exit: a decision table with intervals and cost for three skills, a go/no-go on t
 
 State: NOT STARTED. Depends on: SQ0.3, SQ0.7. Covers: `G-SQ-02`, `Q-SQ-03`.
 
-Run the listing capture and one should-trigger query per skill on every runnable host with the full real profile. Report surfaced, name-only and absent counts per host.
+Run the listing capture and one should-trigger query per skill on every runnable host with the full profile (rendered without MCP servers). Report surfaced, name-only and absent counts per host.
 
 Exit: the per-host table. Any host with dropped descriptions triggers SQ1.2. A non-surfacing host is reported as a host finding and excluded from SQ1.3.
 
@@ -500,10 +500,10 @@ Design:
 - arms: A, B and C, as description overlays;
 - about 20 queries per skill (should-trigger and near-miss), with a held-out split;
 - 5 repetitions;
-- hosts: Claude Code and one of Codex or OpenCode;
+- hosts: Droid (the Claude-family host) and Codex; Claude Code runs but is not scored, and OpenCode joins only by amendment ([hosts](contracts/skill-evaluation.md#hosts));
 - each attempt in a fresh container with the full profile, so competing skills are present.
 
-Files: `evals/triggers/{dev-fix,verify-test,qa-review}.jsonl`; receipts.
+Files: a query file passed to `cohort.py --queries` (`evals/queries.py` holds its format); receipts.
 
 Exit: recall, false-trigger and confusion rates with intervals per skill, arm and host. Ledger completeness is checked against the preregistration.
 
@@ -511,7 +511,7 @@ Exit: recall, false-trigger and confusion rates with intervals per skill, arm an
 
 State: NOT STARTED. Depends on: SQ0.6, SQ0.7. Covers: `G-SQ-04`, `Q-SQ-05`.
 
-Run the SQ0.6 scenarios on the same two hosts:
+Run the SQ0.6 scenarios on the scored hosts of SQ1.3:
 - arms: the profile without `dev-fix` versus the full profile;
 - 5 repetitions;
 - the detector records whether `dev-fix` loaded.
@@ -541,7 +541,7 @@ State: NOT STARTED. Depends on: SQ1.5. Covers: `G-SQ-03`.
 
 Write should-trigger and near-miss query sets with held-out splits for the remaining canonical skills and for the commands. Do it family by family, and write each set before its arms run.
 
-Files: `evals/triggers/<skill>.jsonl`.
+Files: the query files (`evals/queries.py` holds the format).
 
 Exit: each set is reviewed blind against the skill list. Near-misses target sibling skills.
 
