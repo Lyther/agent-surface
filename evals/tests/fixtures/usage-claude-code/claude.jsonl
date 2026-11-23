@@ -1,0 +1,5 @@
+{"type": "assistant", "message": {"id": "msg_318122e0-6016-487f-b23e-e9bfae553886"}}
+{"type": "assistant", "message": {"id": "msg_318122e0-6016-487f-b23e-e9bfae553886"}}
+{"type": "assistant", "message": {"id": "msg_1857d31f-a554-4978-bd02-fb3166363a63"}}
+{"type": "assistant", "message": {"id": "msg_1857d31f-a554-4978-bd02-fb3166363a63"}}
+{"type": "result", "usage": {"input_tokens": 4372, "output_tokens": 102, "cache_read_input_tokens": 23104, "cache_creation_input_tokens": 0}}

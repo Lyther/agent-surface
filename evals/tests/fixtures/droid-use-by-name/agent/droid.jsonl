@@ -1,0 +1,3 @@
+{"type": "system", "subtype": "init", "cwd": "/app"}
+{"type": "tool_call", "toolName": "Skill", "parameters": {"skill": "dev-fix"}, "timestamp": 1795255111833}
+{"type": "tool_call", "toolName": "Create", "parameters": {"file_path": "/app/CONTROL.txt", "content": "Workflow Mode (run ledger v3)\n"}, "timestamp": 1795255115011}

@@ -1,0 +1,13 @@
+{
+ "status": 200,
+ "headers": {
+  "x-litellm-call-id": "21129477-8fe3-4270-8bd5-33df239f6e1f",
+  "x-litellm-model-id": "b8b5e65beceb20880eafcf5c7198f7f67efb8623b375e085d8d68ea1ad1040ba",
+  "x-litellm-model-name": "openai/responses/gpt-5.5-2026-04-24",
+  "x-litellm-version": "1.108.7",
+  "x-litellm-model-group": "gpt-5.5",
+  "llm_provider-x-account-deployment": "deployment-gpt-5.5-2026-04-24-platform-global",
+  "llm_provider-x-request-model": "gpt-5.5-2026-04-24"
+ },
+ "body": "{\"id\":\"resp_03e200462e17e6ca016b0183d901d481939dff86b611a6b265\",\"created\":1795261400,\"model\":\"gpt-5.5\",\"object\":\"chat.completion\",\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"message\":{\"content\":\"Hi!"
+}

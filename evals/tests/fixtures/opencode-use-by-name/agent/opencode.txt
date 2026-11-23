@@ -1,0 +1,4 @@
+{"type": "step_start", "timestamp": 1795255075962}
+{"type": "tool_use", "timestamp": 1795255076402, "sessionID": "ses_e02758a74ffe23xNmE2enwr848", "part": {"type": "tool", "tool": "skill", "state": {"input": {"name": "dev-fix"}}}}
+{"type": "tool_use", "timestamp": 1795255080299, "sessionID": "ses_e02758a74ffe23xNmE2enwr848", "part": {"type": "tool", "tool": "bash", "state": {"input": {"command": "ls -la /app/CONTROL.txt 2>/dev/null || echo \"absent\""}}}}
+{"type": "tool_use", "timestamp": 1795255081924, "sessionID": "ses_e02758a74ffe23xNmE2enwr848", "part": {"type": "tool", "tool": "write", "state": {"input": {"filePath": "/app/CONTROL.txt", "content": "Phase 0: Workflow Mode (run ledger v3)\n"}}}}

@@ -1,0 +1,16 @@
+schema_version = "1.4"
+
+[metadata]
+scenario = "dev-fix/qa-f13-umask-widening"
+category = "dev-fix"
+
+[verifier]
+timeout_sec = 1200.0
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 900.0
+cpus = 2
+memory_mb = 4096

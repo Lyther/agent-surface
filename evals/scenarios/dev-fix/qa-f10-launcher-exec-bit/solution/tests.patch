@@ -1,0 +1,29 @@
+diff --git a/tests/suites/provision.test.mjs b/tests/suites/provision.test.mjs
+index 3c68bdb..7a17507 100644
+--- a/tests/suites/provision.test.mjs
++++ b/tests/suites/provision.test.mjs
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env node
+ import assert from "node:assert/strict";
+-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
++import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+ import os from "node:os";
+ import path from "node:path";
+ import {
+@@ -70,6 +70,16 @@ try {
+     assert.equal(isExecutableFile(nonexec, "linux"), false, "a non-executable regular file is NOT usable");
+     assert.equal(isExecutableFile(path.join(dir, "missing"), "linux"), false, "a missing path is not executable");
+ 
++    // A bit set for someone else is not "executable": an owned 0655 file has no owner execute bit, and
++    // launching it fails with EACCES. root bypasses execute access, so the case cannot hold there.
++    if (process.getuid?.() !== 0) {
++      const ownerLocked = path.join(dir, "owner-locked");
++      writeFileSync(ownerLocked, "#!/bin/sh\nexit 0\n", { mode: 0o655 });
++      chmodSync(ownerLocked, 0o655);
++      assert.equal(isExecutableFile(ownerLocked, "linux"), false, "a file the current user cannot execute is NOT usable");
++      assert.equal(whichSync(ownerLocked, { platform: "linux" }), null, "and does not resolve as a launcher");
++    }
++
+ 
+     // ---- PATH resolution accepts only an executable regular file -----------
+     assert.equal(whichSync("toolx", { platform: "linux", env: { PATH: dir } }), path.resolve(bin), "resolves an executable PATH binary to an absolute path");

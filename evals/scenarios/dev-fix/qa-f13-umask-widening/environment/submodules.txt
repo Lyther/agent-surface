@@ -1,0 +1,14 @@
+# Pinned packs the installer and the suites need. external/trailofbits-skills is left out on purpose: an opt-in pack that the registry
+# serves only when present and skips without error (external/README.md), which no suite here needs.
+external/archify https://github.com/tt-a1i/archify.git 7e45f36c66de1254d5ad6ba1d878f6499ea269fd
+external/codex-redteam-mode https://github.com/chAng-L19/codex-redteam-mode.git cd8db548fd379d67fe6ec74e382ce7c101ca603f
+external/ctf-skills https://github.com/ljagiello/ctf-skills.git e79be2925d1612e8a97070d6201e300286672370
+external/diagram-design https://github.com/cathrynlavery/diagram-design.git f2496acbde9f45ccb55c24d4f75210c8a1355df8
+external/no-ai-slop https://github.com/petergyang/no-ai-slop.git 000650b156983f5159695b441477f4e63b25dc85
+external/open-code-review https://github.com/alibaba/open-code-review.git db5db6bec62ee45c02171a12e043b8239223aa07
+external/rea https://github.com/morluto/rea.git 5fde39454e5457448c87b107c0fc034d1674a74b
+external/sanyuan-skills https://github.com/sanyuan0704/sanyuan-skills.git 08b6572ef108f22d4e8a3ecf9182a4bbef097744
+external/tech-leads-club https://github.com/tech-leads-club/agent-skills.git e74dc8a7e8d59bb36f267afd089580e0858e224a
+external/anthropic-cybersecurity-skills https://github.com/mukul975/Anthropic-Cybersecurity-Skills.git 54a798831d2266a3ca61ce68a7acb80b81160d57
+external/hack-skills https://github.com/yaklang/hack-skills 6fbf0bc8d5c71830d62543a308d8744606c43d7c
+external/rev-skills https://github.com/Lyther/rev-skills.git bc7fac97f5898c5714e74ac18823fece715f48a9

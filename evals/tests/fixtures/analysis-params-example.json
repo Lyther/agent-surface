@@ -1,0 +1,147 @@
+{
+ "prereg": "sq1-synthetic",
+ "hosts": [
+  "droid",
+  "codex"
+ ],
+ "queries_sha256": "60b51aa866f0d946feca9b3165a65f728043ed78f7cc93493b7dc35944cc3fce",
+ "seeds": {
+  "bootstrap": 20261129
+ },
+ "interval": {
+  "confidence": "0.95",
+  "resamples": 200
+ },
+ "thresholds": {
+  "practical_difference": "0.10",
+  "better_numerator": 2,
+  "better_denominator": 3
+ },
+ "pool_dev_queries": false,
+ "arms": {
+  "codex-full": {
+   "desc_arm": "A",
+   "arm_sha256": "3a3560ced25189d5665199a5bc499d9e39011c13f0a3d2c3c79514ee88bd1e8e",
+   "skills": [
+    "dev-fix",
+    "verify-test",
+    "qa-review",
+    "dev-feature",
+    "qa-trace"
+   ]
+  },
+  "codex-full-descB": {
+   "desc_arm": "B",
+   "arm_sha256": "7773038af897ca0acea1d90a1df8099ae6124ad8e05ed8bd86a47b809fdb1a9c",
+   "skills": [
+    "dev-fix",
+    "verify-test",
+    "qa-review",
+    "dev-feature",
+    "qa-trace"
+   ]
+  },
+  "codex-full-descC": {
+   "desc_arm": "C",
+   "arm_sha256": "d5abd63a286353c7b2ca57e8115ed30a8558d64e1528cf5f1a195084495c8555",
+   "skills": [
+    "dev-fix",
+    "verify-test",
+    "qa-review",
+    "dev-feature",
+    "qa-trace"
+   ]
+  },
+  "droid-full": {
+   "desc_arm": "A",
+   "arm_sha256": "dc20d5a97dd08056d6f47ea429d6f27a2e3af8e523eea413ff4ea4fb645cdf85",
+   "skills": [
+    "dev-fix",
+    "verify-test",
+    "qa-review",
+    "dev-feature",
+    "qa-trace"
+   ]
+  },
+  "droid-full-descB": {
+   "desc_arm": "B",
+   "arm_sha256": "5c5edd931a016a50b0dff01fc012b6f0e9a6ae51579b4152109f8e4b34e70220",
+   "skills": [
+    "dev-fix",
+    "verify-test",
+    "qa-review",
+    "dev-feature",
+    "qa-trace"
+   ]
+  },
+  "droid-full-descC": {
+   "desc_arm": "C",
+   "arm_sha256": "09377153da6c59c790749848735ae5d81d1d80981710c84afdbd3f9c316b577b",
+   "skills": [
+    "dev-fix",
+    "verify-test",
+    "qa-review",
+    "dev-feature",
+    "qa-trace"
+   ]
+  },
+  "codex-full-minus-dev-fix": {
+   "desc_arm": "A",
+   "arm_sha256": "24cd6ec84f66b34b8893821780a66394d7060081d0105740e683c14558b26d16",
+   "skills": [
+    "verify-test",
+    "qa-review",
+    "dev-feature",
+    "qa-trace"
+   ]
+  }
+ },
+ "trigger": {
+  "cohort": "sq1-t1",
+  "skills": {
+   "droid": [
+    "dev-fix",
+    "verify-test",
+    "qa-review"
+   ],
+   "codex": [
+    "dev-fix",
+    "verify-test",
+    "qa-review"
+   ]
+  },
+  "contrasts": [
+   [
+    "B",
+    "A"
+   ],
+   [
+    "C",
+    "A"
+   ],
+   [
+    "C",
+    "B"
+   ]
+  ]
+ },
+ "outcome": {
+  "cohort": "sq1-o1",
+  "with": "full",
+  "without": "full-minus-dev-fix",
+  "asset": "dev-fix",
+  "scenarios": {
+   "codex": [
+    "dev-fix-s1",
+    "dev-fix-s2",
+    "dev-fix-s3"
+   ]
+  },
+  "merged": [
+   [
+    "dev-fix-s2",
+    "dev-fix-s3"
+   ]
+  ]
+ }
+}

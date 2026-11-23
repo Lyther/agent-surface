@@ -1,0 +1,4 @@
+[
+  {"id": "sample-fix-01", "class": "should-trigger", "skill": "dev-fix", "split": "dev", "text": "Bug 7 in docs/known-issues.md is diagnosed. Please change the code so formatCents(-5) prints -0.05."},
+  {"id": "sample-test-01", "class": "near-miss", "skill": "verify-test", "split": "held-out", "text": "Write a new test for parseAmount that covers amounts with three decimals, then show me the test."}
+]

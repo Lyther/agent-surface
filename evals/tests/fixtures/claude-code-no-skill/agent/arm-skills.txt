@@ -1,0 +1,5 @@
+.claude/skills/boot-repro/SKILL.md
+.claude/skills/dev-fix/SKILL.md
+.claude/skills/ops-ask/SKILL.md
+.claude/skills/qa-review/SKILL.md
+.claude/skills/verify-test/SKILL.md
