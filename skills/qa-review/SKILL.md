@@ -1,6 +1,6 @@
 ---
 name: qa-review
-description: "Find blocking issues before bad code lands."
+description: "Use when a change, diff, or set of files is finished and about to be merged or handed to a maintainer."
 ---
 
 ## Objective

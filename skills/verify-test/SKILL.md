@@ -1,6 +1,6 @@
 ---
 name: verify-test
-description: "Run the suite and detect whether it was weakened, faked, or bypassed to go green."
+description: "Use when a test run has just come back green, or is about to run, and the result will be relied on as proof that a change works."
 ---
 
 ## Objective
