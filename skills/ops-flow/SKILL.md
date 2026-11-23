@@ -15,12 +15,7 @@ Defaults: `--risk auto --mode auto --autonomy normal`. For an edit, `--mode auto
 
 ## 1. Locate the Task Shape
 
-Inside `agent-surface`, load both live procedure catalogs first:
-
-```bash
-node scripts/agent-surface.mjs skills --json
-node scripts/agent-surface.mjs commands --json
-```
+The Step 3 list names the next workflow for every route, so routing needs no catalog. Inside `agent-surface`, load the live catalogs (`node scripts/agent-surface.mjs skills --json`, `node scripts/agent-surface.mjs commands --json`) only when the route needs a procedure name that list lacks.
 
 Answer from the request and repository:
 
