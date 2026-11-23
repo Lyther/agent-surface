@@ -127,7 +127,16 @@ def first_load_fields(trial: dict, first: dict | None) -> dict:
     return {"first_load_seconds": round(first["ts"] - epoch(started), 1), "calls_before_first_load": first["calls_before"]}
 
 
-def ledger_row(scenario: str, host: str, profile: str, rep: int, image: dict, arm: dict, started: str, exit_code: int, job_dir: Path) -> dict:
+def first_target_load_seconds(trial: dict, first_loads: dict[str, dict], target_skill: str | None) -> float | None:
+    """Seconds from the agent's start to its first load of the attempt's target skill; null for an attempt with no target (not a trigger attempt),
+    or one that never loaded it or never started."""
+    started = (trial.get("agent_execution") or {}).get("started_at")
+    first = first_loads.get(target_skill) if target_skill else None
+    return round(first["ts"] - epoch(started), 1) if first and started else None
+
+
+def ledger_row(scenario: str, host: str, profile: str, rep: int, image: dict, arm: dict, started: str, exit_code: int, job_dir: Path,
+               target_skill: str | None = None) -> dict:
     trial = read_trial(job_dir)
     agent_result = trial.get("agent_result") or {}
     metadata = agent_result.get("metadata") or {}
@@ -160,6 +169,7 @@ def ledger_row(scenario: str, host: str, profile: str, rep: int, image: dict, ar
         "audit_disagreements": detected["disagreements"],
         "skill_files_scanned": detected["scanned"],
         **first_load_fields(trial, detected["first_load"]),
+        "first_target_load_seconds": first_target_load_seconds(trial, detected["first_loads"], target_skill),
         "dev_fix_installed": "dev-fix" in arm["skills"],
         "cost_usd": agent_result.get("cost_usd"),
         "factory_credits": metadata.get("factory_credits"),
@@ -275,7 +285,7 @@ def finish_attempt(cell: tuple, image: dict, arm: dict, started: str, exit_code:
         row = {"scenario": scenario, "profile": profile, "host": host, "rep": rep, "status": "quarantined", "attempt_no": attempt_no,
                "hits": len(hits), "hit_names": sorted({hit.name for hit in hits}), "ended": now()}
     else:
-        row = ledger_row(scenario, host, profile, rep, image, arm, started, exit_code, out / "jobs" / name)
+        row = ledger_row(scenario, host, profile, rep, image, arm, started, exit_code, out / "jobs" / name, (extra or {}).get("target_skill"))
         row["attempt_no"] = attempt_no
         row["seconds_total"] = None if seconds is None else round(seconds, 1)
         if echoes:  # credential-shaped text that was in an input the agent read, not a leak

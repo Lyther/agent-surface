@@ -168,13 +168,15 @@ def record_loads(attempt: Path, host: str, audit_files: set[str] | None = None) 
     workspace: list[dict] = []
     failed: list[dict] = []
     first: dict | None = None  # the earliest load: when, and how many tool calls came before it
+    first_loads: dict[str, dict] = {}  # the same for each skill's own first load
 
     def note_load(name: str, how: str, index: int, ts: float) -> None:
         nonlocal first
         if name not in loads:
             loads[name] = how
+            first_loads[name] = {"ts": ts, "calls_before": index}
             if first is None:
-                first = {"ts": ts, "calls_before": index}
+                first = first_loads[name]
 
     for index, call in enumerate(tool_calls(attempt, host)):
         tool, params = call["tool"], call["params"]
@@ -200,7 +202,7 @@ def record_loads(attempt: Path, host: str, audit_files: set[str] | None = None) 
                 note_load(name, how, index, call["ts"])
             else:
                 workspace.append({"tool": tool, "path": resolved or token})
-    return {"loads": loads, "workspace": workspace, "failed": failed, "first_load": first}
+    return {"loads": loads, "workspace": workspace, "failed": failed, "first_load": first, "first_loads": first_loads}
 
 
 def audit_events(attempt: Path) -> list[tuple[float, str, bool]]:
@@ -270,6 +272,7 @@ def verdict(attempt: Path, host: str) -> dict:
         "workspace_skill_reads": record["workspace"],
         "failed_lookups": record["failed"],
         "first_load": record["first_load"],
+        "first_loads": record["first_loads"],
         "disagreements": disagreements,
         "scanned": len({d for _, d, is_file in audit_events(attempt) if is_file}),
     }

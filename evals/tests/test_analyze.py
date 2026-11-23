@@ -209,8 +209,8 @@ class TriggerTest(unittest.TestCase):
 
 class FirstLoadTest(unittest.TestCase):
     def test_median_over_the_attempts_that_loaded_with_the_load_count(self):
-        rows = [trigger_row("A", "q1", "should-trigger", rep, ["dev-fix"], first_load_seconds=s, calls_before_first_load=c) for rep, (s, c) in enumerate(((10.0, 1), (30.0, 3), (20.0, 2)), 1)]
-        rows.append(trigger_row("A", "q2", "should-trigger", 1, [], first_load_seconds=None, calls_before_first_load=None))
+        rows = [trigger_row("A", "q1", "should-trigger", rep, ["dev-fix"], first_target_load_seconds=s, first_load_seconds=s - 5.0, calls_before_first_load=c) for rep, (s, c) in enumerate(((10.0, 1), (30.0, 3), (20.0, 2)), 1)]
+        rows.append(trigger_row("A", "q2", "should-trigger", 1, [], first_target_load_seconds=None, first_load_seconds=None, calls_before_first_load=None))
         got = next(e for e in analyse(rows, PARAMS)["trigger"]["codex"]["first_load"] if (e["skill"], e["arm"]) == ("dev-fix", "A"))
         self.assertEqual((got["attempts"], got["loaded"], got["median_seconds"], got["median_calls"]), (4, 3, 20.0, 2))
         self.assertLessEqual(got["interval_seconds"][0], 20.0)

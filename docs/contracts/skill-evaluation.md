@@ -116,6 +116,7 @@ One JSONL row per attempt, written by `evals/cohort.py`, append-only. "Written" 
 | `audit_loads`, `audit_disagreements`, `skill_files_scanned` | The audit's view and each disagreement with its cause | Written |
 | `workspace_skill_reads`, `failed_skill_lookups` | `SKILL.md` reads outside the installed roots; skill-tool calls naming a skill that is not installed | Written |
 | `first_load_seconds`, `calls_before_first_load` | Time to first load, from the start of agent execution, and the number of tool calls before it; null when nothing loaded | Written |
+| `first_target_load_seconds` | Time to the first load of the attempt's `target_skill`, from the start of agent execution; null on attempts with no target skill and when the target never loaded. Time to first load in the analysis is this field | Written |
 | `query_id`, `query_class`, `target_skill`, `split` | Trigger cohorts: the query, `should-trigger` or `near-miss`, the skill it targets, and `dev` or `held-out` | Written (also on `skipped` rows) |
 | `prereg` | Id of the preregistration (the cohort) the run follows | Written when `--prereg` is given |
 | `purpose` | Label such as `timing-probe` or `capacity-ramp`; such rows are never outcome data | Written when given |

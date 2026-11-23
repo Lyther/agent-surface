@@ -14,7 +14,7 @@ from unittest import mock
 from pathlib import Path
 
 from evals.agents import HOST_TIMEOUT_MARGIN_SEC, host_timeout
-from evals.cohort import AGENT_ENDS_TO_STOP, RETRIES, SETUP_FAILURES_TO_STOP, HostStops, SpendGate, Unit, attempt_name, is_capacity_end, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, injected_secrets, parse_spend, plan, run_order, spend_reading
+from evals.cohort import AGENT_ENDS_TO_STOP, RETRIES, SETUP_FAILURES_TO_STOP, HostStops, SpendGate, Unit, attempt_name, is_capacity_end, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, first_target_load_seconds, injected_secrets, parse_spend, plan, run_order, spend_reading
 
 FAKE_KEY = "fk-" + "FAKE-not-a-real-factory-key-0123456789"  # built at run time so a secret scanner does not flag the source
 IMAGE = {"image_id": "sha256:feed"}
@@ -97,6 +97,14 @@ class FirstLoadTest(unittest.TestCase):
     def test_seconds_run_from_the_agent_start_to_the_first_load(self):
         start = 1795255200.0  # 2026-11-21T10:00:00Z
         self.assertEqual(first_load_fields(self.TRIAL, {"ts": start + 12.34, "calls_before": 3}), {"first_load_seconds": 12.3, "calls_before_first_load": 3})
+
+    def test_the_target_skills_own_first_load_is_timed_not_the_first_of_any_skill(self):
+        start = 1795255200.0
+        loads = {"qa-review": {"ts": start + 5.0, "calls_before": 1}, "dev-fix": {"ts": start + 40.26, "calls_before": 6}}
+        self.assertEqual(first_target_load_seconds(self.TRIAL, loads, "dev-fix"), 40.3)
+        self.assertIsNone(first_target_load_seconds(self.TRIAL, loads, "verify-test"))  # the target never loaded
+        self.assertIsNone(first_target_load_seconds(self.TRIAL, loads, None))  # not a trigger attempt
+        self.assertIsNone(first_target_load_seconds({}, loads, "dev-fix"))  # the agent never started
 
     def test_no_load_or_no_agent_start_gives_nulls(self):
         nulls = {"first_load_seconds": None, "calls_before_first_load": None}

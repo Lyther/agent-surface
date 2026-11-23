@@ -135,6 +135,12 @@ class Constructed(unittest.TestCase):
         got = verdict(self.attempt("claude-code", calls), "claude-code")
         self.assertEqual(got["first_load"], {"ts": 1001.002, "calls_before": 2})
 
+    def test_first_loads_give_each_skills_own_first_load(self):
+        calls = [("Skill", {"skill": "qa-review"}), ("Bash", {"command": "ls"}), ("Skill", {"skill": "dev-fix"}), ("Skill", {"skill": "qa-review"})]
+        got = verdict(self.attempt("claude-code", calls, installed=("qa-review", "dev-fix")), "claude-code")
+        self.assertEqual(got["first_loads"], {"qa-review": {"ts": 1001.0, "calls_before": 0}, "dev-fix": {"ts": 1001.002, "calls_before": 2}})
+        self.assertEqual(got["first_load"], got["first_loads"]["qa-review"])
+
     def test_no_load_has_no_first_load(self):
         got = verdict(self.attempt("claude-code", [("Read", {"file_path": "/app/skills/dev-fix/SKILL.md"})]), "claude-code")
         self.assertIsNone(got["first_load"])

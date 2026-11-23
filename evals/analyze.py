@@ -385,7 +385,8 @@ def median_interval(values: list[float], seed: str, p: Params) -> list[float] | 
 
 
 def first_load(host: str, rows: list[dict], p: Params) -> list[dict]:
-    """Section 10.4: per skill (and pooled) and arm, the median seconds and tool calls before the first load, over should-trigger attempts that loaded.
+    """Section 10.4: per skill (and pooled) and arm, the median seconds to the first load of the target skill (`first_target_load_seconds`) and the median
+    tool calls before the first load of any skill, over should-trigger attempts that loaded.
 
     Shown with the number that loaded of the attempts, never averaged over the ones that did not (the time is censored).
     """
@@ -394,7 +395,7 @@ def first_load(host: str, rows: list[dict], p: Params) -> list[dict]:
     for skill in [*p.trigger["skills"][host], POOLED]:
         for arm in sorted({a["desc_arm"] for a in p.arms.values()}):
             group = [r for r in should if arm_entry(p, r).get("desc_arm") == arm and (skill == POOLED or r["target_skill"] == skill)]
-            seconds = [r["first_load_seconds"] for r in group if r.get("first_load_seconds") is not None]
+            seconds = [r["first_target_load_seconds"] for r in group if r.get("first_target_load_seconds") is not None]
             calls = [r["calls_before_first_load"] for r in group if r.get("calls_before_first_load") is not None]
             out.append({"skill": skill, "arm": arm, "attempts": len(group), "loaded": len(seconds), "median_seconds": median(seconds) if seconds else None,
                         "interval_seconds": median_interval(seconds, f"{p.seed}-{host}-{skill}-{arm}-first-load", p), "median_calls": median(calls) if calls else None})
