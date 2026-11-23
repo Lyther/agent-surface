@@ -57,7 +57,7 @@ Classify task by task, or per batch when the failure is structural:
 
 ## Output
 
-Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/rescue.json` and the compatibility copy `.agent-surface/workflows/<run_id>/rescue.json`. Before replying in chat, advance the ledger with `agent-surface workflow apply --role workflow-rescue --run <run_id> --artifact .agent-surface/workflows/<run_id>/rescue.json`; apply sets `run.json.workflow_next_command` (including `null` for HUMAN) and appends the rescue event, which only apply writes. Never hand-edit `run.json`. These calls need the `agent-surface` CLI: check `command -v agent-surface`, else use `node <agent-surface checkout>/scripts/agent-surface.mjs`; with neither, write the artifacts, skip the call, and report the ledger as not advanced.
+Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/rescue.json` and the compatibility copy `.agent-surface/workflows/<run_id>/rescue.json`. Before replying in chat, advance the ledger with `agent-surface workflow apply --role workflow-rescue --run <run_id> --artifact .agent-surface/workflows/<run_id>/rescue.json`; apply sets `run.json.workflow_next_command` (including `null` for HUMAN) and appends the rescue event, which only apply writes. Never hand-edit `run.json`. Needs the `agent-surface` CLI (see `boot-workflow`); if it is absent, write the artifacts, skip the call, and report the ledger as not advanced.
 
 ```json
 {

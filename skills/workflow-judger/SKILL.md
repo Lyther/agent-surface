@@ -43,7 +43,7 @@ Helpers sharpen arbitration when evidence is thin or risk is high; summarize the
 
 ## Output
 
-Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/judger.json` and the compatibility copy `.agent-surface/workflows/<run_id>/judger.json`. Before replying in chat, advance the ledger with `agent-surface workflow apply --role workflow-judger --run <run_id> --artifact .agent-surface/workflows/<run_id>/judger.json`; apply moves `run_state_update` task IDs, sets `run.json.workflow_next_command`, and appends the judger event, which only apply writes. Never hand-edit `run.json`. These calls need the `agent-surface` CLI: check `command -v agent-surface`, else use `node <agent-surface checkout>/scripts/agent-surface.mjs`; with neither, write the artifacts, skip the call, and report the ledger as not advanced.
+Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/judger.json` and the compatibility copy `.agent-surface/workflows/<run_id>/judger.json`. Before replying in chat, advance the ledger with `agent-surface workflow apply --role workflow-judger --run <run_id> --artifact .agent-surface/workflows/<run_id>/judger.json`; apply moves `run_state_update` task IDs, sets `run.json.workflow_next_command`, and appends the judger event, which only apply writes. Never hand-edit `run.json`. Needs the `agent-surface` CLI (see `boot-workflow`); if it is absent, write the artifacts, skip the call, and report the ledger as not advanced.
 
 ```json
 {

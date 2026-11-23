@@ -24,7 +24,7 @@ Validate the active agent-surface workflow state before any role acts on it. Sta
 
 ## Checks
 
-Resolve `<run_id>` from `.agent-surface/workflows/current.json`, then run `agent-surface workflow doctor --run <run_id>` (check `command -v agent-surface`, else use `node <agent-surface checkout>/scripts/agent-surface.mjs`; with neither, report the CLI checks as `not available`, never as passed, and run only the manual checks below). It fails when:
+Resolve `<run_id>` from `.agent-surface/workflows/current.json`, then run `agent-surface workflow doctor --run <run_id>` (needs the `agent-surface` CLI, see `boot-workflow`; if it is absent, report the CLI checks as `not available`, never as passed, and run only the manual checks below). It fails when:
 
 1. `run.json` or `events.ndjson` is missing, `run.json` fails `workflow.run.schema.json`, or its `run_id` is not `<run_id>`.
 2. An `events.ndjson` line is not JSON, fails the event schema, names another run, or breaks the `prev_event_hash`/`event_hash` chain.
