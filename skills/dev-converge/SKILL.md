@@ -25,7 +25,7 @@ When invoked from `workflow-orchestrator` or `ops-swarm`, the workflow ledger is
    - Diff against the base branch, trusting `git symbolic-ref refs/remotes/origin/HEAD` rather than assuming `main`/`master`.
    - Run the assigned lint, type, test, generated-output, or SAST checks.
    - Remove temporary worktrees only when this convergence run clearly created them and no evidence still depends on local-only files.
-   - Hand off to `ship-commit` rather than running `git commit` inline. In workflow mode, instead write `worker.json` as the routed `dev-*` role, run `agent-surface workflow apply --role <that dev-* role> --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`, and hand off to `workflow-reviewer`.
+   - Hand off to `ship-commit` rather than running `git commit` inline. In workflow mode, instead write `worker.json` as the routed `dev-*` role, run `agent-surface workflow apply --role <that dev-* role> --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`, and hand off to `workflow-reviewer` (`apply` needs the `agent-surface` CLI as in `dev-feature`; when it is absent, report the ledger as not advanced).
 
 ## Output
 

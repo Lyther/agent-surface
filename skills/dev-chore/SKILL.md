@@ -118,7 +118,7 @@ Routed worker mode is ON only when `.agent-surface/workflows/<run_id>/run.json` 
 6. A corrected or pivoted task is `PASS` only when its AC and verify gates pass; a checkpoint that finds no required edit may also be `PASS`, with the inspected delta and decisions recorded.
 7. Apply Blocker Discipline before marking a task blocked, and never skip ahead after a blocker.
 8. Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and the latest copy `.agent-surface/workflows/<run_id>/worker.json` in the normal `workflow.worker.schema.json` shape.
-9. Set `workflow.owner = "dev-chore"` and `workflow.next_command = "workflow-reviewer"`, then run `agent-surface workflow apply --role dev-chore --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`. Never hand-edit `run.json`.
+9. Set `workflow.owner = "dev-chore"` and `workflow.next_command = "workflow-reviewer"`, then run `agent-surface workflow apply --role dev-chore --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`. Never hand-edit `run.json`. These calls need the `agent-surface` CLI: check `command -v agent-surface`, else use `node <agent-surface checkout>/scripts/agent-surface.mjs`; with neither, write the artifacts, skip the call, and report the ledger as not advanced.
 
 Edit only the worker artifact, assigned files, and evidence files; the role's event comes from `workflow apply`. A completed task makes its quality decisions inspectable:
 
