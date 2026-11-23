@@ -19,6 +19,13 @@ CODEX_CUT = [
 ]
 
 
+# The real codex stream of an attempt the gateway's upstream provider refused with HTTP 429 after codex's own retries (SQ0.5 ramp), trimmed.
+CODEX_CAPACITY = [
+    {"type": "error", "message": "exceeded retry limit, last status: 429 Too Many Requests"},
+    {"type": "turn.failed", "error": {"message": "exceeded retry limit, last status: 429 Too Many Requests"}},
+]
+
+
 def exception(kind: str, message: str = "") -> dict:
     return {"exception_type": kind, "exception_message": message}
 
@@ -58,6 +65,18 @@ class EndReasonTest(unittest.TestCase):
         self.record("codex", [{"type": "error", "message": "exceeded retry limit, last status: 429 Too Many Requests"}])
         trial = {"agent_execution": STARTED, "exception_info": exception("NonZeroAgentExitCodeError", "codex exec exited 1")}
         self.assertEqual(self.end("codex", trial)["end_reason"], "capacity")
+
+    def test_the_real_codex_429_stream_is_capacity_from_either_event(self):
+        trial = {"agent_execution": STARTED, "exception_info": exception("NonZeroAgentExitCodeError", "codex exec exited 1")}
+        for events in (CODEX_CAPACITY, CODEX_CAPACITY[:1], CODEX_CAPACITY[1:]):
+            with self.subTest(events=len(events)):
+                self.record("codex", events)
+                self.assertEqual(self.end("codex", trial), {"end_reason": "capacity", "output_cap": None})
+
+    def test_a_capacity_stream_with_no_exception_or_before_the_agent_is_not_capacity(self):
+        self.record("codex", CODEX_CAPACITY)
+        self.assertEqual(self.end("codex", {"agent_execution": STARTED})["end_reason"], "exit")
+        self.assertEqual(self.end("codex", {"exception_info": exception("RuntimeError", "codex exec exited 1")})["end_reason"], "setup_failure")
 
     def test_any_other_exception_is_an_error_and_one_before_the_agent_is_a_setup_failure(self):
         self.assertEqual(self.end("droid", {"agent_execution": STARTED, "exception_info": exception("NonZeroAgentExitCodeError", "droid exec exited 1")})["end_reason"], "error")

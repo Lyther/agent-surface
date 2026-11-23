@@ -208,9 +208,11 @@ def injected_secrets(keys: dict[str, str]) -> list[Secret]:
     return parse_secrets([f"{name}={value}" for name, value in sorted(keys.items()) if value])
 
 
-# A launch failure (no trial result: the container never started the agent) is retried at most this many times, each in a fresh job directory.
-# Basis: GR2 amendment 1 allowed three retries for connection failures.
-LAUNCH_RETRIES = 3
+# A try that is not an attempt is retried at most this many times, each in a fresh job directory: a launch failure (no trial result: the container never
+# started the agent) or a capacity end (the gateway's upstream provider cut the agent off, `end_reason: capacity`). The two share the budget.
+# Basis: GR2 amendment 1 allowed three retries for connection failures; orchestrator decision O-14 extends it to upstream capacity ends, which say
+# nothing about the skill and could penalise whichever arm sends more requests.
+RETRIES = 3
 
 
 def attempt_name(cell: tuple, attempt_no: int = 1) -> str:
@@ -224,24 +226,33 @@ def is_launch_failure(row: dict) -> bool:
     return row.get("harbor") is None and row.get("cli_version") is None and "status" not in row and "skipped" not in row
 
 
+def is_capacity_end(row: dict) -> bool:
+    return row.get("end_reason") == "capacity" and "status" not in row and "skipped" not in row
+
+
+def is_retried(row: dict) -> bool:
+    """A row that is not an attempt: its cell runs again in a fresh job directory while retries remain. It keeps its row and `attempt_no`."""
+    return is_launch_failure(row) or is_capacity_end(row)
+
+
 def next_attempt(rows: list[dict]) -> int | None:
-    """The attempt number a cell runs next given its ledger rows, or None when the cell is finished: it has a row that is not a launch failure,
-    or it used up its retries."""
-    if any(not is_launch_failure(row) for row in rows):
+    """The attempt number a cell runs next given its ledger rows, or None when the cell is finished: it has a row that is an attempt (a `skipped` row
+    included), or it used up its retries."""
+    if any(not is_retried(row) for row in rows):
         return None
     number = max((row.get("attempt_no", 1) for row in rows), default=0) + 1
-    return number if number <= LAUNCH_RETRIES + 1 else None
+    return number if number <= RETRIES + 1 else None
 
 
-async def run_with_retries(run_once, first: int) -> tuple[dict, bool]:
+async def run_with_retries(run_once, first: int, halted=lambda: False) -> tuple[dict, bool]:
     """Run attempts of one cell from number `first`; `run_once(number)` returns its ledger row and whether the cohort must stop.
 
-    Only a launch failure is retried. Every attempt keeps its row in the ledger.
+    Only a launch failure or a capacity end is retried, and not once `halted()` says the host is stopped. Every try keeps its row in the ledger.
     """
     number = first
     while True:
         row, stop = await run_once(number)
-        if stop or not is_launch_failure(row) or number > LAUNCH_RETRIES:
+        if stop or not is_retried(row) or number > RETRIES or halted():
             return row, stop
         number += 1
 
@@ -401,6 +412,10 @@ class SpendGate:
         self.pending += attempts
         return None
 
+    def charge(self, reading: int | None) -> None:
+        """Spend of an attempt that is retried: it holds no slot of its own, but its tokens are spent."""
+        self.spent += int(reading or self.reserve)
+
     def settle(self, reading: int | None, ran: bool = True) -> None:
         """One admitted attempt is over. `ran` is False when it failed before the model did anything: it spent nothing."""
         self.pending -= 1
@@ -418,7 +433,7 @@ class HostStops:
     """Per-host stop rules over consecutive attempts, in the order the attempts finish; the ledger's `exception` field is the exception type.
 
     Setup: `SETUP_FAILURES_TO_STOP` rows in a row with an exception and no agent time, the same exception. Agent end: `AGENT_ENDS_TO_STOP` rows in a
-    row that reached the agent and ended at the agent cap (`end_reason: timeout`) or in the same exception. Any other row of the host, a launch
+    row that reached the agent and ended at the agent cap (`end_reason: timeout`), at the provider's capacity limit (`end_reason: capacity`) or in the same exception. Any other row of the host, a launch
     failure aside, breaks both streaks. A stopped host stays stopped; `reasons` maps it to why.
     """
 
@@ -433,7 +448,7 @@ class HostStops:
         started = row.get("seconds_agent") is not None
         exception = row.get("exception")
         setup_key = exception if exception and not started else None
-        agent_key = "agent cap" if started and row.get("end_reason") == "timeout" else exception if started else None
+        agent_key = {"timeout": "agent cap", "capacity": "upstream capacity"}.get(row.get("end_reason") or "", exception) if started else None
         self._count(self.setup, host, setup_key, SETUP_FAILURES_TO_STOP, "setup failures")
         self._count(self.agent, host, agent_key, AGENT_ENDS_TO_STOP, "attempts ending the same way")
 
@@ -541,13 +556,19 @@ async def main(args) -> None:
             stop = finish_attempt(cell, images[host], arms[f"{host}-{profile}"], started, code, args.out, injected_secrets(keys), ledger, seconds,
                                   {**row_extra(args), **limits(args, args.units[scenario]), **args.units[scenario].fields,
                                             "served_model": ledger_value(args.served_start[host])}, number, known)
-            return json.loads(ledger.read_text().splitlines()[-1]), stop
+            row = json.loads(ledger.read_text().splitlines()[-1])
+            stops.observe(host, row)  # every try counts toward the host stop rules, retried ones too
+            if host in gates and is_capacity_end(row):
+                gates[host].charge(spend_reading(host, row))
+            return row, stop
 
-        last, stop = await run_with_retries(run_once, first_attempt[tuple(cell)])
-        stops.observe(host, last)
+        last, stop = await run_with_retries(run_once, first_attempt[tuple(cell)], lambda: stops.stopped(host))
+        capacity_end = is_capacity_end(last)
+        if capacity_end and not stop:  # retries used up, or the host stopped: BLOCKED in the denominator, the capacity rows stay as the record
+            skip(cell, f"upstream capacity ended {last['attempt_no']} tries" + (f"; {stops.reasons[host]}" if stops.stopped(host) else ""), attempts=last["attempt_no"])
         if host in gates:
-            # An attempt that failed before the agent started spent nothing; any other without a reading is charged the reserve.
-            gates[host].settle(spend_reading(host, last), ran=last.get("seconds_agent") is not None)
+            # An attempt that failed before the agent started spent nothing; any other without a reading is charged the reserve. A capacity end was charged above.
+            gates[host].settle(None if capacity_end else spend_reading(host, last), ran=not capacity_end and last.get("seconds_agent") is not None)
         return stop
 
     def abandon(cells) -> None:

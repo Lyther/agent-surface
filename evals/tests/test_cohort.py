@@ -14,7 +14,7 @@ from unittest import mock
 from pathlib import Path
 
 from evals.agents import HOST_TIMEOUT_MARGIN_SEC, host_timeout
-from evals.cohort import AGENT_ENDS_TO_STOP, LAUNCH_RETRIES, SETUP_FAILURES_TO_STOP, HostStops, SpendGate, Unit, attempt_name, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, injected_secrets, parse_spend, plan, run_order, spend_reading
+from evals.cohort import AGENT_ENDS_TO_STOP, RETRIES, SETUP_FAILURES_TO_STOP, HostStops, SpendGate, Unit, attempt_name, is_capacity_end, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, injected_secrets, parse_spend, plan, run_order, spend_reading
 
 FAKE_KEY = "fk-" + "FAKE-not-a-real-factory-key-0123456789"  # built at run time so a secret scanner does not flag the source
 IMAGE = {"image_id": "sha256:feed"}
@@ -72,6 +72,13 @@ class HostStopsTest(unittest.TestCase):
         same = agent_end("NonZeroAgentExitCodeError", "error")
         noise = [{"skipped": "spend stop"}, {"status": "quarantined"}, {"harbor": None, "cli_version": None, "exception": None, "seconds_agent": None}]
         self.assertTrue(self.feed([same, noise[0], same, noise[1], noise[2], same]).stopped("codex"))
+
+    def test_three_consecutive_capacity_ends_stop_the_host_whatever_their_exception(self):
+        cap = agent_end("NonZeroAgentExitCodeError", "capacity")
+        self.assertFalse(self.feed([cap, cap]).stopped("codex"))
+        stops = self.feed([cap, agent_end("RuntimeError", "capacity"), cap])
+        self.assertIn("upstream capacity", stops.reasons["codex"])
+        self.assertFalse(self.feed([cap, cap, agent_end("NonZeroAgentExitCodeError", "error"), cap]).stopped("codex"))
 
     def test_hosts_are_counted_apart(self):
         stops = HostStops()
@@ -239,7 +246,32 @@ class LaunchRetryTest(unittest.TestCase):
         self.assertEqual(next_attempt([LAUNCH_FAILED]), 2)
         self.assertEqual(next_attempt([LAUNCH_FAILED, {**LAUNCH_FAILED, "attempt_no": 2}]), 3)
         self.assertIsNone(next_attempt([LAUNCH_FAILED, {**RAN, "attempt_no": 2}]))
-        self.assertIsNone(next_attempt([{**LAUNCH_FAILED, "attempt_no": n} for n in range(1, LAUNCH_RETRIES + 2)]))
+        self.assertIsNone(next_attempt([{**LAUNCH_FAILED, "attempt_no": n} for n in range(1, RETRIES + 2)]))
+
+    def test_a_capacity_end_is_a_retried_try_like_a_launch_failure(self):
+        cap = {**RAN, "exception": "NonZeroAgentExitCodeError", "end_reason": "capacity", "attempt_no": 1}
+        self.assertTrue(is_capacity_end(cap))
+        self.assertFalse(is_capacity_end({**cap, "end_reason": "error"}))
+        self.assertFalse(is_capacity_end({"skipped": "upstream capacity ended 4 tries", "end_reason": "capacity"}))
+        self.assertEqual(next_attempt([cap]), 2)
+        self.assertEqual(next_attempt([LAUNCH_FAILED, {**cap, "attempt_no": 2}]), 3)  # one budget for both kinds
+        self.assertIsNone(next_attempt([{**cap, "attempt_no": n} for n in range(1, RETRIES + 2)]))
+        self.assertIsNone(next_attempt([{**cap, "attempt_no": n} for n in range(1, RETRIES + 2)] + [{"skipped": "upstream capacity ended 4 tries"}]))
+        self.assertIsNone(next_attempt([cap, {**RAN, "attempt_no": 2}]))
+
+    def test_capacity_ends_are_retried_up_to_the_limit_unless_the_host_stopped(self):
+        cap = {**RAN, "end_reason": "capacity"}
+        calls = []
+
+        async def run_once(number):
+            calls.append(number)
+            return cap, False
+
+        row, _ = asyncio.run(run_with_retries(run_once, 1))
+        self.assertEqual((calls, row), ([1, 2, 3, 4], cap))
+        calls.clear()
+        asyncio.run(run_with_retries(run_once, 1, lambda: len(calls) >= 2))
+        self.assertEqual(calls, [1, 2])
 
     def test_launch_failures_are_retried_up_to_the_limit_and_nothing_else_is(self):
         def runner(rows):
@@ -332,6 +364,14 @@ class AdmissionTest(unittest.TestCase):
         gate.settle(None, ran=True)  # an agent timeout: the model may have run
         gate.settle(None, ran=False)  # a setup failure
         self.assertEqual(gate.spent, 100)
+
+    def test_a_retried_capacity_end_spends_without_holding_a_slot(self):
+        gate = SpendGate(cap=1000, reserve=100)
+        gate.admit(1)
+        gate.charge(250)  # a capacity end with a reading
+        gate.charge(None)  # one without: the reserve
+        gate.settle(None, ran=False)  # the cell's slot, its spend already charged
+        self.assertEqual((gate.spent, gate.pending), (350, 0))
 
     def groups(self):
         return [[("s", "h", p, r) for p in ("a", "b", "c")] for r in (1, 2, 3, 4)]

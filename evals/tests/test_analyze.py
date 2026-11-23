@@ -234,6 +234,13 @@ class DenominatorTest(unittest.TestCase):
             # a launch failure retried: only the second try is an attempt
             trigger_row("A", "q5", "should-trigger", 1, [], harbor=None, cli_version=None, seconds_agent=None),
             trigger_row("A", "q5", "should-trigger", 1, [], attempt_no=2),
+            # a capacity end retried: only the retry is an attempt; its partial load is never read
+            trigger_row("A", "q7", "should-trigger", 1, ["dev-fix"], exception="NonZeroAgentExitCodeError", end_reason="capacity"),
+            trigger_row("A", "q7", "should-trigger", 1, [], attempt_no=2),
+            # a capacity cell that used up its retries is skipped, the capacity tries kept as the record
+            trigger_row("A", "q8", "should-trigger", 1, ["dev-fix"], exception="NonZeroAgentExitCodeError", end_reason="capacity"),
+            {"scenario": "trigger-q8", "profile": "full", "host": "codex", "rep": 1, "skipped": "upstream capacity ended 4 tries", "prereg": "sq1-t1", "query_id": "q8",
+             "query_class": "should-trigger", "target_skill": "dev-fix", "split": "held-out"},
             # a cell whose every try was a launch failure is no attempt
             trigger_row("A", "q6", "should-trigger", 1, [], harbor=None, cli_version=None, seconds_agent=None),
         ]
@@ -243,14 +250,20 @@ class DenominatorTest(unittest.TestCase):
         result = analyse(self.rows(), PARAMS)
         entry = result["denominators"]["trigger"][0]
         self.assertEqual({k: entry[k] for k in ("completed", "setup_failure", "agent_end_failure", "verifier_failure", "skipped", "group_incomplete", "quarantined", "denominator", "launch_failure_cells")},
-                         {"completed": 3, "setup_failure": 1, "agent_end_failure": 1, "verifier_failure": 0, "skipped": 1, "group_incomplete": 1, "quarantined": 1, "denominator": 8, "launch_failure_cells": 1})
+                         {"completed": 4, "setup_failure": 1, "agent_end_failure": 1, "verifier_failure": 0, "skipped": 2, "group_incomplete": 1, "quarantined": 1, "denominator": 10, "launch_failure_cells": 1})
+        self.assertEqual((entry["capacity_tries"], entry["capacity_cells"]), (2, 0))
         self.assertEqual((entry["host"], entry["arm"], entry["split"]), ("codex", "A", "held-out"))
 
     def test_every_row_that_is_an_attempt_is_in_the_rate_denominator(self):
         result = analyse(self.rows(), PARAMS)
         recall = cell(result, "codex", "dev-fix", "A", "recall")
-        # 8 attempts; loads: q1 twice and the agent-end failure's load once.
-        self.assertEqual((recall["successes"], recall["attempts"]), (3, 8))
+        # 10 attempts (the capacity ends are not); loads: q1 twice and the agent-end failure's load once, not the capacity ends' loads.
+        self.assertEqual((recall["successes"], recall["attempts"]), (3, 10))
+
+    def test_a_cell_with_only_capacity_ends_and_no_skip_row_is_reported_not_counted(self):
+        rows = [outcome_row("full", "dev-fix-s1", 1, 1, end_reason="capacity", exception="NonZeroAgentExitCodeError"), outcome_row("full", "dev-fix-s1", 2, 1)]
+        table = denominators(rows, True, lambda r: r["profile"])
+        self.assertEqual((table[0]["capacity_tries"], table[0]["capacity_cells"], table[0]["completed"], table[0]["denominator"]), (1, 1, 1, 1))
 
     def test_a_verifier_failure_is_an_outcome_attempt_with_reward_zero(self):
         rows = [outcome_row("full", "dev-fix-s1", 1, None), outcome_row("full", "dev-fix-s1", 2, 1)]

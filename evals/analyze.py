@@ -102,9 +102,15 @@ def check_rows(rows: list[dict], p: Params) -> None:
 
 
 # ---- attempt classes (section 9.1) ----
+# Not attempts: a launch failure and a capacity end (O-14). Both are retried in a fresh job directory; a cell still capacity-ended after its retries has a `skipped` row.
 
 def is_launch_failure(row: dict) -> bool:
     return row.get("harbor") is None and row.get("cli_version") is None and "status" not in row and "skipped" not in row
+
+
+def is_capacity_end(row: dict) -> bool:
+    """An attempt the host's upstream provider cut off (`end_reason: capacity`); like a launch failure it is not an attempt."""
+    return row.get("end_reason") == "capacity" and "status" not in row and "skipped" not in row
 
 
 def attempt_class(row: dict, graded: bool) -> str:
@@ -121,29 +127,35 @@ def attempt_class(row: dict, graded: bool) -> str:
 
 
 def attempts(rows: list[dict]) -> list[dict]:
-    """Rows that are attempts: a launch failure is not one."""
-    return [row for row in rows if not is_launch_failure(row)]
+    """Rows that are attempts: a launch failure and a capacity end are not. A capacity end's loads and reward are never read."""
+    return [row for row in rows if not is_launch_failure(row) and not is_capacity_end(row)]
 
 
 def denominators(rows: list[dict], graded: bool, arm_of, split_of=None) -> list[dict]:
-    """Per host, arm (and split): the count of each attempt class, the denominator, and the cells whose every try was a launch failure."""
+    """Per host, arm (and split): the count of each attempt class, the denominator, the capacity-ended tries, and the cells with no attempt at all:
+    `launch_failure_cells` (every try a launch failure) and `capacity_cells` (every try a launch failure or capacity end, at least one the latter)."""
     table: dict[tuple, Counter] = defaultdict(Counter)
-    tries: dict[tuple, list[bool]] = defaultdict(list)
+    cells: dict[tuple, list[dict]] = defaultdict(list)
     for row in rows:
-        key = (row["host"], arm_of(row), split_of(row) if split_of else None)
-        cell = (row["scenario"], row["host"], row["profile"], row["rep"])
-        tries[cell].append(is_launch_failure(row))
-        if not is_launch_failure(row):
-            table[key][attempt_class(row, graded)] += 1
-    for cell, flags in tries.items():
-        if all(flags):
-            row = next(r for r in rows if (r["scenario"], r["host"], r["profile"], r["rep"]) == cell)
-            table[(row["host"], arm_of(row), split_of(row) if split_of else None)]["launch_failure_cells"] += 1
+        cells[(row["scenario"], row["host"], row["profile"], row["rep"])].append(row)
+    for tries in cells.values():
+        first = tries[0]
+        counts = table[(first["host"], arm_of(first), split_of(first) if split_of else None)]
+        for row in tries:
+            if is_capacity_end(row):
+                counts["capacity_tries"] += 1
+            elif not is_launch_failure(row):
+                counts[attempt_class(row, graded)] += 1
+        if all(is_launch_failure(r) for r in tries):
+            counts["launch_failure_cells"] += 1
+        elif all(is_launch_failure(r) or is_capacity_end(r) for r in tries):
+            counts["capacity_cells"] += 1
     out = []
     for (host, arm, split), counts in sorted(table.items(), key=lambda item: tuple(str(x) for x in item[0])):
         entry = {"host": host, "arm": arm, **({"split": split} if split_of else {}), **{c: counts[c] for c in ATTEMPT_CLASSES}}
         entry["denominator"] = sum(counts[c] for c in ATTEMPT_CLASSES)
-        entry["launch_failure_cells"] = counts["launch_failure_cells"]
+        for extra in ("capacity_tries", "launch_failure_cells", "capacity_cells"):
+            entry[extra] = counts[extra]
         out.append(entry)
     return out
 

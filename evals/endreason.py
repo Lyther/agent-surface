@@ -8,6 +8,8 @@
 - `capacity`: another exception whose text, or the host's error text, names a provider limit (rate limit, 429, overload, quota, 5xx);
 - `error`: any other exception;
 - `exit`: no exception.
+The only capacity shape seen in real receipts is codex's `exceeded retry limit, last status: 429 Too Many Requests` (an `error` and a `turn.failed` event). No
+receipt of an opencode, droid or claude-code capacity end exists yet: droid's record is not read for errors, and the other two rely on the generic pattern alone.
 droid's record has no output-cap signal, so a droid cap end shows as `error` or `exit`.
 
 `output_cap` is the cap the attempt ran under when it is known: opencode gets `limit.output` from the lab's config, which its requests carry. Codex
