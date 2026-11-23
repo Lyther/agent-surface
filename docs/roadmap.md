@@ -441,7 +441,7 @@ Exit: a recorded concurrency and a per-attempt time estimate that the SQ1 prereg
 
 #### SQ0.6 Rebuilt QA-History Scenarios
 
-State: NOT STARTED. Depends on: SQ0.1. Covers: `G-SQ-04`, `S-SQ-06`.
+State: DONE 2026-11-23. The three `dev-fix` scenarios (`qa-f10`, `qa-f13`, `qa-f14`) are built under `evals/scenarios` and qualified as oracle 1, untouched 0 and code-only 0, on the public host and layered on each host image. Depends on: SQ0.1. Covers: `G-SQ-04`, `S-SQ-06`.
 
 Rebuild three to five real defects from this repository's QA rounds as runner tasks, at their pre-fix commits:
 - the 0655 launcher detection (F10);
