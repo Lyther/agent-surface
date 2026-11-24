@@ -9,14 +9,14 @@ It is a **source compiler**, not an app: there is no `src/`. Typed source primit
 ## Quick start
 
 ```bash
-git submodule update --init --recursive   # external skill packs; check and tests read them
+git submodule update --init --recursive # external skill packs; check and tests read them
 npm ci
-npm run check                      # validate source, registry, generated output
-npm run install:mcps               # installs, builds and links the Synapse/Grimoire servers the tests need
+npm run check                           # validate source, registry, generated output
+npm run install:mcps                    # installs, builds and links the Synapse/Grimoire servers the tests need
 # one-time prerequisite for npm test: installs OpenOSINT (and uv, if absent) so the Qwen MCP case finds them
 node scripts/agent-surface.mjs install --target droid --dest "$(mktemp -d)" --category mcps --service openosint -y
-npm test                           # integration tests
-npm run build -- --target all      # render every target into dist/
+npm test                                # integration tests
+npm run build -- --target all           # render every target into dist/
 ```
 
 `npm test` also needs `python3` >= 3.11 on PATH: the generated Codex TOML is checked against Python's `tomllib`, an oracle independent of the generator, and macOS's `/usr/bin/python3` is 3.9. The check also tries `python3.13`, `python3.12` and `python3.11`, and otherwise fails naming this requirement.
@@ -28,7 +28,7 @@ Preview an install before touching disk, then apply it:
 ```bash
 node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
 node scripts/agent-surface.mjs install --target claude-code --scope user --allow-scope-root
-npm run install:mcps               # build + link the Synapse/Grimoire binaries the wired MCP configs point at
+npm run install:mcps    # build + link the Synapse/Grimoire binaries the wired MCP configs point at
 ```
 
 `install --no-mcps` renders every non-MCP output (skills, rules, commands, agents) and nothing else: no MCP server is wired, pruned or provisioned, no Synapse hook or launcher is written, and only `--dest` is touched. It is for render-only installs such as evaluation arms and CI, and it refuses `--service` and `--category mcps`.
@@ -85,11 +85,11 @@ These are choices for delegation, not a required sequence. The parent handles pl
 ## Commands
 
 ```bash
-node scripts/agent-surface.mjs inventory          # source counts
-node scripts/agent-surface.mjs check              # full validation (skills, manual commands, rules, generated, registry)
-node scripts/agent-surface.mjs doctor             # repo health summary
-node scripts/agent-surface.mjs skills --json      # auto-invocable skill catalog (add --phase <phase> to filter)
-node scripts/agent-surface.mjs commands --json    # explicit-only command catalog
+node scripts/agent-surface.mjs inventory        # source counts
+node scripts/agent-surface.mjs check            # full validation (skills, manual commands, rules, generated, registry)
+node scripts/agent-surface.mjs doctor           # repo health summary
+node scripts/agent-surface.mjs skills --json    # auto-invocable skill catalog (add --phase <phase> to filter)
+node scripts/agent-surface.mjs commands --json  # explicit-only command catalog
 node scripts/agent-surface.mjs build --target <t> --dry-run
 node scripts/agent-surface.mjs install --target <t> --scope user --dry-run
 ```

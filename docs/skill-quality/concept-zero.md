@@ -289,7 +289,7 @@ Exit: a description decision for the three skills, and a go/no-go on the lab for
 | `OQ-SQ-01` What is the default path, and which alternatives fit which scenarios? | `G-SQ-07`. | The operator's research, with the brief below. | operator |
 | `OQ-SQ-02` What practical-effect thresholds and repetition counts apply per cohort type? | Decision rules must precede outcomes. | Preregistration after the first slice's variance is known. | operator plus lab peer |
 | `OQ-SQ-03` Does delivery stay private or become a public marketplace? | Changes packaging and support. | Operator decision; default private. | operator |
-| `OQ-SQ-04` What makes a model follow rules better? It appears to depend on the harness. | Rules and skills only help when followed; the answer decides where to invest. | No experiment has run. An investigation dated 2026-11-23 is reported by the operator as desk-only; its findings await the operator's review and are not recorded in this repo. USER_DECISION 2026-11-23: no answer yet. | operator |
+| `OQ-SQ-04` What makes a model follow rules better? It appears to depend on the harness. | Rules and skills only help when followed; the answer decides where to invest. | No experiment has run. A read-only desk investigation of this question ran on 2026-11-23 under agent coordination; its report is not in this repo, and its review is deferred to the operator. USER_DECISION 2026-11-23: no answer yet. | operator |
 
 **Research brief for `OQ-SQ-01`**, for the operator's research agent:
 - **Goal:** choose one small default development path for coding agents (Claude Code, Codex, Droid, OpenCode and similar), plus a short list of optional paths, each tied to the scenario where it wins.
