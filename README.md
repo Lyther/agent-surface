@@ -2,7 +2,7 @@
 
 Write your coding-agent setup **once**, render it into **every** agent host.
 
-Reusable workflows, rules, subagents, external skill packs, ignore files, and first-party MCP services live once in this repo's source tree. `agent-surface` compiles them into native formats for 28 registry targets (27 implemented, including the `codex-plugin` export, plus the deprecated `windsurf`) - Claude Code, Codex, Cursor, Droid, Kilo, Kimi Code, Qoder, Qwen Code, Kiro, DSH, Zed, OpenCode, OpenHands, and more - so you maintain one source instead of editing each host's config by hand. OpenHands is deprecated (see [Supported targets](#supported-targets)).
+Reusable workflows, rules, subagents, external skill packs, ignore files, and first-party MCP services live once in this repo's source tree. `agent-surface` compiles them into native formats for 28 registry targets (26 implemented, including the `codex-plugin` export, plus the deprecated `openhands` and `windsurf`) - Claude Code, Codex, Cursor, Droid, Kilo, Kimi Code, Qoder, Qwen Code, Kiro, DSH, Zed, OpenCode, OpenHands, and more - so you maintain one source instead of editing each host's config by hand.
 
 It is a **source compiler**, not an app: there is no `src/`. Typed source primitives in → host-native surfaces out, validated by `check` and tracked by per-target manifests.
 
@@ -44,7 +44,7 @@ The `install` step wires each host's MCP *config* to point at `~/.local/bin/syna
 
 ## Supported targets
 
-Twenty-six host targets and the deprecated `windsurf`, ranked 1–5 by how much of the source model maps to native surfaces. The general sync delivers the six general-purpose skills and the first-party MCP wiring; with `--category development` (see [Install behavior](#install-behavior)) full adapters receive the canonical skill catalog, configured external skill packs, and every high-impact manual command; the intentionally limited DSH adapter receives skills only. Commands use a native explicit surface where one exists and an explicit-invocation compatibility skill otherwise.
+Twenty-five implemented host targets and the deprecated `openhands` and `windsurf`, ranked 1–5 by how much of the source model maps to native surfaces. The general sync delivers the six general-purpose skills and the first-party MCP wiring; with `--category development` (see [Install behavior](#install-behavior)) full adapters receive the canonical skill catalog, configured external skill packs, and every high-impact manual command; the intentionally limited DSH adapter receives skills only. Commands use a native explicit surface where one exists and an explicit-invocation compatibility skill otherwise.
 
 **Full matrix - per-target surfaces and MCP wiring: [docs/reference/targets.md](docs/reference/targets.md).**
 
