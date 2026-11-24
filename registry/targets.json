@@ -206,7 +206,7 @@
       ]
     },
     "openhands": {
-      "status": "implemented",
+      "status": "deprecated",
       "build_supported": true,
       "install_supported": true,
       "renders": [

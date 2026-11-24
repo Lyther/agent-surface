@@ -2,7 +2,7 @@
 
 Write your coding-agent setup **once**, render it into **every** agent host.
 
-Reusable workflows, rules, subagents, external skill packs, ignore files, and first-party MCP services live once in this repo's source tree. `agent-surface` compiles them into native formats for 28 registry targets (27 implemented, including the `codex-plugin` export, plus the deprecated `windsurf`) - Claude Code, Codex, Cursor, Droid, Kilo, Kimi Code, Qoder, Qwen Code, Kiro, DSH, Zed, OpenCode, OpenHands, and more - so you maintain one source instead of editing each host's config by hand.
+Reusable workflows, rules, subagents, external skill packs, ignore files, and first-party MCP services live once in this repo's source tree. `agent-surface` compiles them into native formats for 28 registry targets (27 implemented, including the `codex-plugin` export, plus the deprecated `windsurf`) - Claude Code, Codex, Cursor, Droid, Kilo, Kimi Code, Qoder, Qwen Code, Kiro, DSH, Zed, OpenCode, OpenHands, and more - so you maintain one source instead of editing each host's config by hand. OpenHands is deprecated (see [Supported targets](#supported-targets)).
 
 It is a **source compiler**, not an app: there is no `src/`. Typed source primitives in → host-native surfaces out, validated by `check` and tracked by per-target manifests.
 
@@ -16,7 +16,7 @@ npm run install:mcps                    # installs, builds and links the Synapse
 # one-time prerequisite for npm test: installs OpenOSINT (and uv, if absent) so the Qwen MCP case finds them
 node scripts/agent-surface.mjs install --target droid --dest "$(mktemp -d)" --category mcps --service openosint -y
 npm test                                # integration tests
-npm run build -- --target all           # render every target into dist/
+npm run build -- --target all           # render every non-deprecated target into dist/
 ```
 
 `npm test` also needs `python3` >= 3.11 on PATH: the generated Codex TOML is checked against Python's `tomllib`, an oracle independent of the generator, and macOS's `/usr/bin/python3` is 3.9. The check also tries `python3.13`, `python3.12` and `python3.11`, and otherwise fails naming this requirement.
@@ -100,7 +100,7 @@ node scripts/agent-surface.mjs install --target <t> --scope user --dry-run
 
 - Sync-oriented: existing managed files are overwritten; manifests let stale outputs be pruned on the next install.
 - Ownership comes from every manifest in the install root. An existing file that no manifest claims blocks the install (`UNOWNED_DESTINATION`) instead of being overwritten; move or remove it and rerun. A file several targets own stays until the last owner releases it, and an interrupted install can be rerun to finish.
-- `--target all` at project scope (the default) leaves out the hosts that only install into the home directory (codex, vscode, cursor, antigravity, antigravity-cli, trae, trae-cn, trae-cli) and prints one line for each; name one explicitly, or pass `--dest`, to plan it.
+- `--target all` at project scope (the default) leaves out the hosts that only install into the home directory (codex, vscode, cursor, antigravity, antigravity-cli, trae, trae-cn, trae-cli) and prints one line for each; name one explicitly, or pass `--dest`, to plan it. `--target all` also leaves out deprecated targets (`openhands`, `windsurf`) at every scope and prints one line for each; naming one still plans or builds it.
 - A plan prints `counts:` per target and a `plan total:` over several; it lists only the files it would write or whose permissions it would change (execute bits only, from the file's own mode) and counts the unchanged ones and the stale paths already gone (`already gone`, apart from `remove`), so a re-run on an installed root is short.
 - Project-only artifacts (`ignores/`) are skipped on user-scope installs — pass `--dest <project>` to write them.
 - A live write to the real scope root needs `--allow-scope-root` (or an explicit `--dest`) after a dry-run.

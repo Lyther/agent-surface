@@ -1920,13 +1920,13 @@
       },
       "notices": [
         {
-          "code": "OPENHANDS_CLI_LEGACY",
+          "code": "OPENHANDS_DEPRECATED",
           "kind": "maintenance",
           "surface": "target",
-          "message": "The OpenHands V1 CLI is no longer actively maintained. This retained adapter targets that CLI; it does not represent Agent Canvas or OpenHands SDK support.",
-          "action": "Existing CLI users can keep this target; evaluate a maintained OpenHands component separately before adopting it for new work.",
-          "source_url": "https://github.com/OpenHands/OpenHands-CLI#project-status",
-          "checked_at": "2026-09-28"
+          "message": "Deprecated 2026-11-24: upstream no longer maintains the OpenHands V1 CLI (OpenHands-CLI commit 954f2ba646, 2026-08-11; OpenHands docs PR #1059, 2026-11-02) and recommends Agent Canvas (@openhands/agent-canvas, BETA). --target all no longer selects this target. An explicit --target openhands still installs and builds it, and existing installs are left in place. This target does not write Agent Canvas MCP config, and no Canvas target exists yet. While its user manifest (~/.agent-surface/openhands-manifest.json) still claims a skill, a skill removed from the repo stays in ~/.agents/skills; see adapters/openhands/README.md, Existing installs.",
+          "action": "Name --target openhands only for an existing V1 CLI install. Canvas users need a separate target; agent-surface does not configure Canvas MCP servers.",
+          "source_url": "https://github.com/OpenHands/OpenHands-CLI/commit/954f2ba646e8d749261a8f2b2b7e3031fa39be9f",
+          "checked_at": "2026-11-24"
         },
         {
           "code": "OPENHANDS_MANUAL_SKILLS_MODEL_INVOCABLE",

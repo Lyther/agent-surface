@@ -99,9 +99,12 @@ try {
 
   // Stored notices stay with their target: one run, two plans.
   const combined = planSections(run(["install", "--target", "openhands,cursor", "--scope", "project", "--dest", path.join(scratch, "combined"), "--dry-run"]));
-  assert.match(combined.openhands, /^ {2}OPENHANDS_CLI_LEGACY \(maintenance; target\)$/m);
+  assert.match(combined.openhands, /^ {2}OPENHANDS_DEPRECATED \(maintenance; target\)$/m);
   assert.match(combined.openhands, /^ {2}OPENHANDS_MANUAL_SKILLS_MODEL_INVOCABLE \(compatibility; skills\)$/m);
   assert.doesNotMatch(combined.cursor, /^notices:$/m);
+  // `all` leaves the deprecated target out, so its notice is not printed for a plan that does not write it.
+  const allPlan = run(["install", "--target", "all", "--scope", "project", "--dest", path.join(scratch, "all-targets"), "--dry-run"]);
+  assert.doesNotMatch(allPlan, /OPENHANDS_DEPRECATED/);
 
   // The shared-root notice follows the resolved root, not --scope: a user-scope --dest workspace gets
   // it, a home-root install does not.
@@ -164,6 +167,7 @@ try {
   assert.match(windsurfPlan, /^  WINDSURF_CASCADE_LEGACY \(retirement; target; /m);
   assert.match(windsurfPlan, /^  WINDSURF_RULE_SIZE_LIMITS \(compatibility; rules\)/m);
   const openhandsBuild = run(["build", "--target", "openhands", "--dry-run"]);
+  assert.match(openhandsBuild, /^openhands notice: OPENHANDS_DEPRECATED \(/m);
   assert.match(openhandsBuild, /^openhands notice: OPENHANDS_MANUAL_SKILLS_MODEL_INVOCABLE \(/m);
   assert.ok(openhandsBuild.indexOf("openhands notice:") < openhandsBuild.indexOf("[dry-run]"), "notices precede the planned writes");
   const doctor = run(["doctor"], { env: { ...process.env, HOME: home } });

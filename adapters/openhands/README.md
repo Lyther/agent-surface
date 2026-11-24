@@ -2,7 +2,7 @@
 
 Generates OpenHands AgentSkills, instructions, external AgentSkills, and user-scope MCP wiring.
 
-Status: upstream no longer actively maintains the OpenHands V1 CLI this adapter targets ([project status](https://github.com/OpenHands/OpenHands-CLI#project-status)). The target stays implemented, selectable and included in `--target all` for existing CLI users; it does not target Agent Canvas or the SDK. Install and build plans show the `OPENHANDS_CLI_LEGACY` notice.
+Status: deprecated 2026-11-24. Upstream no longer maintains the OpenHands V1 CLI this adapter targets ([project status](https://github.com/OpenHands/OpenHands-CLI#project-status); the docs say the same in OpenHands/docs PR #1059) and recommends Agent Canvas (`@openhands/agent-canvas`, BETA), which this adapter does not target. `--target all` leaves it out; an explicit `--target openhands` still installs and builds it for existing CLI users, and existing installs and manifests stay in place. The adapter does not write Agent Canvas MCP config: Canvas keeps MCP servers in its server's settings API, not `~/.openhands/mcp.json`. Install and build plans show the `OPENHANDS_DEPRECATED` notice.
 
 ## Outputs
 
@@ -14,6 +14,18 @@ Status: upstream no longer actively maintains the OpenHands V1 CLI this adapter 
 - Project: `AGENTS.md`
 - Project: `.openhands/references/rules/<rule>.md`
 - External skills: user/project `.agents/skills/<external-skill>/...`
+
+## Existing installs
+
+agent-surface leaves an existing OpenHands install in place. `--target all` does not touch it, and an explicit `--target openhands` only rewrites what it still renders.
+
+- `~/.agents/skills` and project `.agents/skills` are shared with other targets and stay. Agent Canvas reads them too.
+- The install record is `~/.agent-surface/openhands-manifest.json` for user scope and `<project>/.agent-surface/openhands-manifest.json` for project scope. The path comes from `scripts/agent-surface/install.mjs` (`manifestPath`), and the user root is the home directory (`scripts/agent-surface/roots.mjs`, `installRootUserOrProject`).
+- To drop the OpenHands-specific install, run these steps in order, with the scope the install was made with:
+  1. Run `install --target openhands` at that scope (user: `--scope user --allow-scope-root`; project: `--scope project --dest <project>`). It prunes the skills and references this record claims that the repo no longer has. The steps below remove the files it rewrites.
+  2. Delete `~/.openhands/skills/agent-surface-rules.md`. Delete the synapse and grimoire entries in `~/.openhands/mcp.json`. Delete the files under `~/.openhands/references/rules/` if present; they exist only when the install included the `development` category. For project scope, do the same with `<project>/.openhands/references/rules/`.
+  3. Delete `~/.agent-surface/openhands-manifest.json`, or remove the `managed` entries whose `output` starts with `.agents/skills/` or `.openhands/` and the `config_entries` entry for `.openhands/mcp.json`.
+- Until step 1 runs, this record keeps the files openhands wrote for a skill removed from the repo, such as `.agents/skills/<name>/SKILL.md`. Every `--target all` run retains them as claimed by openhands.
 
 ## Notes
 

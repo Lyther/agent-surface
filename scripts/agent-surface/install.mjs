@@ -44,7 +44,7 @@ export async function build(args) {
 
   const excluded = target === "all" ? deprecatedTargets(registry) : [];
   const selected = target === "all" ? Object.keys(targets).filter((item) => !excluded.includes(item)) : [target];
-  for (const item of excluded) console.log(`${item}: excluded from --target all (deprecated; not buildable)`);
+  for (const item of excluded) console.log(`${item}: excluded from --target all (deprecated${registry[item].build_supported ? "" : "; not buildable"})`);
   const catalog = await exportableCatalog();
   const sourceKindsConfig = await readSourceKinds();
   const today = localDate();

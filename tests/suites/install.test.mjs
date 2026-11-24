@@ -2649,6 +2649,8 @@ try {
     .filter(([, entry]) => entry.status === "deprecated")
     .map(([target]) => target);
   assert.ok(deprecated.length > 0, "the registry still holds a deprecated target to exercise");
+  assert.ok(deprecated.includes("openhands"), "openhands is deprecated: all leaves it out");
+  assert.match(allTargetsInstall, /^openhands: excluded from --target all \(deprecated\); its installed files and manifest stay as they are;/m);
   const runtimeAllPlan = run(["install", "--runtime", "all", "--scope", "user", "--dest", allTargetsDest, "--dry-run"]);
   for (const target of deprecated) {
     assert.match(allTargetsInstall, new RegExp(`^${target}: excluded from --target all \\(deprecated\\)`, "m"));

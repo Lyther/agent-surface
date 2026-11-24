@@ -21,7 +21,7 @@ Every host `agent-surface` renders into, and how much of the source model each r
 | GitHub Copilot | 53 `~/.copilot/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | CLI instructions + 6 scoped refs; shared VS Code profile instructions + 6 scoped instruction files | 5 `.copilot/agents/*.agent.md` | External skills; Synapse + Grimoire | 5 |
 | VS Code | 53 shared `~/.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills in the same root | Profile instructions + 6 scoped instruction files | None | External skills; Synapse + Grimoire in the VS Code user profile | 4 |
 | OpenCode | 53 `.config/opencode/skills/*/SKILL.md` | 5 `.config/opencode/commands/*.md` | `AGENTS.md` + 6 scoped refs | 5 agents | External skills; Synapse + Grimoire; whole-object full-access permission; sharing disabled | 5 |
-| OpenHands | 53 `.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | User rules or project `AGENTS.md`; 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
+| OpenHands (deprecated: explicit `--target openhands` only) | 53 `.agents/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | User rules or project `AGENTS.md`; 6 scoped refs | None | External skills; Synapse + Grimoire | 4 |
 | Trae (international IDE) | 53 `.trae/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | `.trae/user_rules.md` + 6 scoped refs (refs co-owned with Trae CLI) | 5 `.trae-cn/agents/*.md` (co-owned with Trae CN) | External skills; Synapse + Grimoire in the IDE's `User/mcp.json` | 5 |
 | Trae CN | 53 `.trae-cn/skills/*/SKILL.md` | 5 explicit-invocation compatibility skills | 12 `.trae-cn/user_rules/*.md` + 6 scoped refs | 5 `.trae-cn/agents/*.md` (co-owned with Trae) | External skills; Synapse + Grimoire in the IDE's `User/mcp.json` | 5 |
 | Trae CLI | 53 `.trae/skills/*/SKILL.md` (co-owned with Trae) | 5 explicit-invocation compatibility skills | 12 `.trae/rules/*.md` + 6 scoped refs | 5 `.trae/agents/*.md` | External skills; Synapse + Grimoire and full CLI policy in `.trae/traecli.toml` | 5 |
@@ -65,6 +65,8 @@ Permission configuration is deliberately split. Full user installs merge `defaul
 Live Kimi CLI `0.29.1` probes on 2026-07-27 started the generated project target in the TUI, connected both first-party MCP servers, activated `/skill:ops-flow`, returned its IRON LAW, and called `mcp__synapse__lock_list` through the generated project `mcp.json`. Cursor extension `0.6.4` was inventoried and its shared-home contract was verified from installed code and official documentation, but no extension-originated task or MCP call was run.
 
 ## OpenHands Notes
+
+Deprecated 2026-11-24: upstream no longer maintains the V1 CLI this target renders and recommends Agent Canvas, which has no target here. `--target all` leaves it out; an explicit `--target openhands` still installs or builds it, and its `OPENHANDS_DEPRECATED` notice says so.
 
 OpenHands support was added from live probes of the installed CLI/SDK. `openhands mcp add` writes `~/.openhands/mcp.json` with an `mcpServers` map, and the CLI accepts the same JSON shape that agent-surface already renders. The SDK loader found project AgentSkills in `.agents/skills`, root `AGENTS.md` as the project instruction file, and user skills in `~/.agents/skills` before `~/.openhands/skills`. Because of that lookup order, user-scope command/external skills intentionally use the shared `.agents/skills` root; OpenHands-specific user rules live in `~/.openhands/skills/agent-surface-rules.md`.
 
