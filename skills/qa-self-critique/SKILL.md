@@ -16,19 +16,15 @@ Check your own recent changes before commit and fix what is wrong. A wrong fix i
 
 ## Pass 1: Tool Scan
 
-With shell access, run these on the target and work from their output; without it, inspect visually and say coverage is reduced.
+With shell access, run one scan for the whole target and work from its output; without it, inspect visually and say coverage is reduced. Classify each hit as incomplete work, test substitute, or secret-looking assignment when you read it.
 
 ```bash
-# Incomplete work
-rg -n 'TODO|FIXME|HACK|XXX|STUB|NotImplementedError|todo!\(|unimplemented!\(|^\s*pass\s*$' {{target}}
-# Type escape hatches
-rg -n '\bany\b|@ts-ignore|@ts-expect-error|\bAny\b|# *type: *ignore|\.unwrap\(\)|\.expect\(' {{target}}
-# Test substitutes and their justifications
-rg -n -i 'mock|fake|stub|spy|emulat|in[-_ ]?memory|monkeypatch|recorded|sandbox|test[-_ ]?mode' {{target}}
-rg -n 'SUBSTITUTE_JUSTIFICATION' {{target}}
-# Secret-looking assignments
-rg -n -i '(password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["'"'"'][^"'"'"']{8,}' {{target}}
+rg -n -e 'TODO|FIXME|HACK|XXX|STUB|NotImplementedError|todo!\(|unimplemented!\(' \
+  -e '(?i:mock|fake|stub|spy|emulat|in[-_ ]?memory|monkeypatch|recorded|sandbox|test[-_ ]?mode)|SUBSTITUTE_JUSTIFICATION' \
+  -e '(?i:(password|passwd|secret|api[_-]?key|token))\s*[:=]\s*["'"'"'][^"'"'"']{8,}' {{target}}
 ```
+
+Type escape hatches are language-specific: add one more `rg -n` only for the languages of the changed files, with `\bany\b|@ts-ignore|@ts-expect-error` for TypeScript, `\bAny\b|# *type: *ignore|^\s*pass\s*$` for Python, and `\.unwrap\(\)|\.expect\(` for Rust.
 
 Then run the repo's type checker or compiler (`npm run typecheck`, `pyright`, `cargo check`, `go vet`) for unresolved imports and type errors, and its formatter and linter in check mode on the changed files (`05-tooling`); format-on-save can leave drift the gate rejects.
 

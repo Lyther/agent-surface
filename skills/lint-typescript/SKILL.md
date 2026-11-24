@@ -15,14 +15,7 @@ description: "Apply strict TypeScript engineering rules before code is accepted.
    - States: render loading, error, empty, partial-data, permission-denied, and success states; destructive or irreversible actions need confirmation and visible pending and failure states.
    - Accessibility and tests: prefer semantic queries; add stable selectors only where they improve diagnosis of table rows, action buttons, and status fields; keyboard and focus behavior survives drawers, modals, and table actions.
    - Visuals: use design-system tokens and components, not ad hoc colors, spacing, button styles, or one-off table renderers; internal tools stay dense and scannable, not marketing pages.
-4. Run the toolchain gates:
-
-   ```bash
-   npm run typecheck   # or the repository's equivalent scripts (rules/13-typescript.mdc)
-   npm run lint
-   npm run format:check
-   npm test
-   ```
+4. Run the narrowest check first (`05-tooling`), using the scripts the repository defines (read its `package.json`): the typecheck script, the linter and format check on the touched files, and the tests covering them. Before finishing, run the broad gate from `rules/13-typescript.mdc` (the full test script) when the change touches shared behavior, public APIs, security, data, or build tooling.
 
 5. Report findings, fixes, and gate status.
 
