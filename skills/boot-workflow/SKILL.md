@@ -135,7 +135,7 @@ Artifact shapes live with their owning commands; load the owner instead of dupli
 
 ## Runtime Control
 
-Invoke `workflow-runtime` only when the selected profile delegates to a runtime that has not already passed a current task-shaped probe. That command owns CLI/version/help checks, resolved model identity, repository read/command/write/artifact probes, permission and output-shape evidence, provider-family independence, and liveness and cancellation behavior. Keep no volatile model catalog in this map; re-probe model and provider availability.
+Invoke `workflow-runtime` only when the selected profile delegates to a runtime that has not already passed a current task-shaped probe. That command owns CLI/help checks, resolved model identity, repository read/command/write/artifact probes, permission and output-shape evidence, provider-family independence, and liveness and cancellation behavior. Keep no volatile model catalog in this map; re-probe model and provider availability.
 
 ## Command Protocol
 

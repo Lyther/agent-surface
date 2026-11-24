@@ -2,7 +2,7 @@
 
 Companion reference for `ops-swarm`. Read it once a packet has a runtime and a model, and while probing providers, whose records use the shape at the end. The rule that a packet must name its runtime before launch is in `SKILL.md`; this file records how each host runs one packet, how far it may write, and how it fans out.
 
-These shapes track host CLIs and change with them; check the installed version, login, model access, and current help before use. Reuse current access evidence instead of repeating probes. The full-autonomy commands that qualify a runtime are in `workflow-runtime`. A swarm packet takes the least permission its question needs.
+These shapes track host CLIs and change with them; check that the CLI is installed, its login, model access, and current help before use. Reuse current access evidence instead of repeating probes. The full-autonomy commands that qualify a runtime are in `workflow-runtime`. A swarm packet takes the least permission its question needs.
 
 ## One packet per launch
 
@@ -13,7 +13,7 @@ Give research, analysis, and critic packets a read-only launch. Give a writing p
 | Droid | `droid exec --cwd "$repo" -m "$model" -r "$effort" -o stream-json "$packet"` (read-only by default) | add `--auto low` for edits or `--auto medium` for installs, builds, and local git; `--cwd "$repo"` already places it in the packet's worktree, so do not add `-w`, which would create a second one | Custom droids through the Task tool, at `--auto high` only; `--mission` |
 | Codex | `codex exec -m "$model" -c "model_reasoning_effort=\"$effort\"" -C "$repo" -s read-only --ephemeral --json "$packet"` | `-s workspace-write` instead of `-s read-only` | Subagents spawned by the parent session |
 | Claude Code | `claude -p "$packet" --model "$model" --permission-mode plan --output-format json` | `--permission-mode acceptEdits` instead of `plan`, plus one `--allowedTools` prefix rule per verification command, such as `"Bash(npm test:*)"`, since `-p` cannot approve other shell commands | Agent tool or agent teams |
-| Grok Build | qualify read-only controls in the current build; `--permission-mode plan` alone is not proof | `grok --cwd "$repo" -m "$model" --reasoning-effort "$effort" --permission-mode dontAsk --allow "$rule" -p "$packet" --output-format json --max-turns "$turns"`, with one `--allow` per tool the packet needs, such as `Read`, `Grep`, `Edit`, and each verification command, because `dontAsk` silently denies everything else; never `bypassPermissions`, which also permits `git push` | `.grok/agents` roles (1.0.46 or later) |
+| Grok Build | qualify read-only controls in the current build; `--permission-mode plan` alone is not proof | `grok --cwd "$repo" -m "$model" --reasoning-effort "$effort" --permission-mode dontAsk --allow "$rule" -p "$packet" --output-format json --max-turns "$turns"`, with one `--allow` per tool the packet needs, such as `Read`, `Grep`, `Edit`, and each verification command, because `dontAsk` silently denies everything else; never `bypassPermissions`, which also permits `git push` | `.grok/agents` roles |
 | Cursor Agent | qualify read-only controls in the current build; `--mode ask` alone is not proof | `cursor-agent -p --force --workspace "$repo" --model "$model" --output-format json "$packet"`; `--force` allows commands unless explicitly denied | check current runtime |
 | Kimi Code | check current permission rules; `--plan` cannot be combined with `-p`, and prompt mode runs tool calls automatically | `kimi -m "$model" -p "$packet" --output-format stream-json`, started inside the packet's worktree | check current runtime |
 | Kilo CLI | `kilo run --dir "$repo" --model "$model" --variant "$effort" --agent ask --format json "$packet"` | `--auto --agent code` instead of `--agent ask` | Task tool or `@agent-name` subagents |
@@ -35,7 +35,7 @@ Policy: every harness and model works with at most 300K tokens of context, or th
 
 | Runtime | General control |
 |---|---|
-| Claude Code | `autoCompactWindow` in user settings (read by 2.1.311). `CLAUDE_CODE_AUTO_COMPACT_WINDOW` takes precedence; `--autocompact <size>` lowers it for one launch. |
+| Claude Code | `autoCompactWindow` in user settings. `CLAUDE_CODE_AUTO_COMPACT_WINDOW` takes precedence; `--autocompact <size>` lowers it for one launch. |
 | codex | `model_context_window` in `config.toml`, clamped to the model's maximum. Compaction starts at about 90% of the window. |
 | Droid | General `compactionTokenLimit`, clamped to each model's maximum input. A per-model map is redundant. |
 | Grok Build | No general key: set `context_window` in each `[model."<id>"]` entry. Compaction fires at 80% of it. Read current help before assuming a per-launch override exists. |
@@ -48,7 +48,7 @@ References: [Claude model configuration](https://code.claude.com/docs/en/model-c
 Assign a worker lead only on a runtime whose fan-out the probe confirmed, and name that mechanism in the prompt. A generic "use subagents" instruction is not an assignment.
 
 ```text
-Runtime: <runtime and version from the probe>.
+Runtime: <runtime id from the probe>.
 Model: <model that ran>; subagents: <model or tier per subtask>.
 Fan-out: <Task tool | custom droids | Agent tool | @agent-name | parent-spawned subagents>.
 Write scope: <worktree path and files>, or read-only.

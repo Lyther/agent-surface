@@ -61,12 +61,12 @@ Set reasoning effort for the task. Independent review can use another family on 
 
 ## Check access before assignment
 
-1. Resolve the runtime and version. Check login, credentials, and access on the surface being used: an IDE login does not prove headless CLI access.
+1. Resolve the runtime binary. Check login, credentials, and access on the surface being used: an IDE login does not prove headless CLI access.
 2. Read its current model list, settings, and help. Confirm the selected model, context controls, and required tools; use the runtime's exact selector.
 3. Check available quota and the applicable budget. When access is unproven, run one bounded probe on the selected route and record its result; model listing alone does not prove inference access. Reuse current evidence for the same runtime, model, and configuration.
 4. Verify the packet's permissions and any required fan-out through [runtime-launch.md](runtime-launch.md). Use `workflow-runtime` when skill discovery or task-shaped qualification is needed.
 
-Keep device versions, login state, failures, and probe receipts with the run evidence, rather than in this catalog.
+Keep device login state, failures, and probe receipts with the run evidence, rather than in this catalog.
 
 ## Operator notes — temporary
 

@@ -18,7 +18,7 @@ Every remaining section applies only to `discovery`, `materialization`, `mcp`, o
 
 ## Objective
 
-Qualify a complete coding runtime for one bounded workflow role, not a model name or a successful chat response. Never assign a runtime without a task-shaped materialization probe. A runtime is the resolved binary, version, provider, model, command or skill loader, tool protocol, working-directory behavior, filesystem reach, permission mode, output format, and authentication state; every layer must be reachable through the exact invocation orchestration will use.
+Qualify a complete coding runtime for one bounded workflow role, not a model name or a successful chat response. Never assign a runtime without a task-shaped materialization probe. A runtime is the resolved binary, provider, model, command or skill loader, tool protocol, working-directory behavior, filesystem reach, permission mode, output format, and authentication state; every layer must be reachable through the exact invocation orchestration will use.
 
 ## Input
 
@@ -56,7 +56,7 @@ The runtime executing this skill is the driver; the `--runtime` value is the can
 
 Before a materialization probe:
 
-1. Resolve the executable with `command -v`, resolve symlinks, and record `--version`.
+1. Resolve the executable with `command -v` and resolve symlinks.
 2. Read the live subcommand help; flags from another runtime or an older release are invalid evidence.
 3. Verify authentication through the same CLI/provider path.
 4. Verify the generated command, skill, workflow, recipe, agent, and MCP config at the path the runtime actually scans.
@@ -87,7 +87,7 @@ Assign no long unattended work until progress, cancellation, timeout, and artifa
 
 ## Full-Autonomy Starting Points
 
-These commands are version-sensitive; re-read live help before use.
+These commands differ between host builds; re-read live help before use.
 
 ### Codex
 
@@ -115,7 +115,7 @@ Verify `claude auth status` first; an IDE subscription session does not prove CL
 
 ### Cline
 
-Resolve and version the exact binary before building a command. Headless surfaces are incompatible across releases: recent Node CLI builds expose `--cwd`, `--provider`, `--model`, `--thinking`, `--auto-approve`, and `--json`; legacy Core CLI builds use `--oneshot`, `--yolo`, `--output-format`, and settings-owned model selection. This machine exposed both families during the 2026-09-03 probe, so no unversioned Cline command is a valid standing recipe.
+Resolve the exact binary and read its live help before building a command. Headless surfaces are incompatible across releases: recent Node CLI builds expose `--cwd`, `--provider`, `--model`, `--thinking`, `--auto-approve`, and `--json`; legacy Core CLI builds use `--oneshot`, `--yolo`, `--output-format`, and settings-owned model selection. This machine exposed both families during the 2026-09-03 probe, so no Cline command is a valid standing recipe without a live probe.
 
 Configure the Ollama integration with `ollama launch cline --model "$ollama_model" --config`, then re-read the resolved `cline --help` and run a task-shaped probe. Only the Cline CLI and Cline's SDK-based extension read the shared `~/.cline` MCP settings file; the pre-SDK extension most installs run reads its IDE's `globalStorage` file. A plain prompt without a skill-selection event proves the agent, not skill discovery.
 
@@ -251,7 +251,6 @@ curl -sS http://localhost:11434/api/generate \
 ```json
 {
   "runtime": "exact runtime id",
-  "version": "observed version",
   "provider": "provider id",
   "requested_model": "requested id or null",
   "resolved_model": "observed id or unknown",
