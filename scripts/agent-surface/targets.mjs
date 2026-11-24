@@ -798,7 +798,7 @@ export const targets = {
     }],
   },
   windsurf: {
-    label: "Windsurf workflows, rules, and skills",
+    label: "Devin Desktop (Windsurf) Cascade workflows, rules, and skills",
     commandRenders: ["commands-as-workflows"],
     staticRenders: ["rules"],
     commandOutputRoot: windsurfWorkflowRoot,

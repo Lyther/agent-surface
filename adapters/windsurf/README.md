@@ -1,8 +1,8 @@
-# Windsurf Adapter
+# Windsurf Adapter (Cascade)
 
-Generates Windsurf workflows, rules, and local skills.
+Generates Cascade workflows, rules, and local skills for Devin Desktop, which Windsurf became on 2026-06-02 ([FAQ](https://docs.devin.ai/desktop/devin-desktop-faq)).
 
-Status: deprecated. Devin Desktop (formerly Windsurf) removed the Cascade harness in 3.9.19 on 2026-09-08 ([changelog](https://docs.devin.ai/desktop/changelog)). This adapter targets existing Cascade installs only; it is not Devin Local or CLI support. `--target all` leaves it out and says so, `build` refuses it, and an explicit `install --target windsurf` still works. Install plans show the `WINDSURF_CASCADE_LEGACY` and `WINDSURF_RULE_SIZE_LIMITS` notices.
+Status: deprecated. Devin Desktop removed the Cascade harness in 3.9.19 on 2026-09-08 ([changelog](https://docs.devin.ai/desktop/changelog)). This adapter targets existing Cascade installs only; it is not Devin Local or CLI support. `--target all` leaves it out and says so, `build` refuses it, and an explicit `install --target windsurf` still works. Install plans show the `WINDSURF_CASCADE_LEGACY` and `WINDSURF_RULE_SIZE_LIMITS` notices.
 
 Cascade documents a 6,000-character global rules file and 12,000 characters per workspace rule file ([limits](https://docs.devin.ai/desktop/cascade/memories)). The installer refuses a selected rules file over its scope's limit before writing anything (`OUTPUT_LIMIT_EXCEEDED`): user-scope rules and any development rules exceed them, while a project-scope general install fits. At user scope, leave rules out with `--category skills,commands-as-workflows,external,mcps`.
 

@@ -2598,7 +2598,7 @@
       }
     },
     "windsurf": {
-      "summary": "Windsurf supports workflows, rule files, skills, and MCP configuration; agent-surface generates workflows, rules, external skills, and first-party MCP wiring (Synapse + Grimoire).",
+      "summary": "Cascade, the legacy harness of Windsurf (renamed Devin Desktop on 2026-06-02), supports workflows, rule files, skills, and MCP configuration; agent-surface generates workflows, rules, external skills, and first-party MCP wiring (Synapse + Grimoire).",
       "generated_render_tokens": [
         "skills",
         "commands-as-workflows",
@@ -2608,15 +2608,15 @@
       ],
       "evidence": [
         {
-          "label": "Windsurf memories and rules",
+          "label": "Devin Desktop Cascade memories and rules",
           "url": "https://docs.devin.ai/desktop/cascade/memories"
         },
         {
-          "label": "Windsurf workflows",
+          "label": "Devin Desktop Cascade workflows",
           "url": "https://docs.devin.ai/desktop/cascade/workflows"
         },
         {
-          "label": "Windsurf skills",
+          "label": "Devin Desktop Cascade skills",
           "url": "https://docs.devin.ai/desktop/cascade/skills"
         }
       ],
