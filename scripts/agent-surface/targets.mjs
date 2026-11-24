@@ -1434,6 +1434,16 @@ export function outputRootFor(value, context) {
   return typeof value === "function" ? value(context) : value;
 }
 
+// The directories a target writes skills, commands and subagents into. A prune removes emptied
+// directories only beneath one of them (install.mjs removeEmptiedDirs).
+const ASSET_ROOT_FIELDS = ["skillOutputRoot", "externalSkillOutputRoot", "commandOutputRoot", "subagentOutputRoot"];
+export function targetAssetRoots(adapter, context) {
+  return ASSET_ROOT_FIELDS
+    .filter((field) => adapter[field] !== undefined)
+    .map((field) => outputRootFor(adapter[field], context))
+    .filter((value) => typeof value === "string" && value !== "");
+}
+
 export function outputAppliesToScope(output, scope, sourceKindsConfig) {
   const policy = sourceKindPolicy(sourceKindsConfig, output.sourceKind);
   if (!policy) return false;

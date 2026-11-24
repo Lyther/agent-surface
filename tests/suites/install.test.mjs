@@ -508,6 +508,74 @@ assert.doesNotMatch(
 );
 rmSync(syncDest, { recursive: true, force: true });
 
+// A pruned managed file removes the directories it leaves empty only beneath an asset root (targets.mjs
+// ASSET_ROOT_FIELDS): `.claude/skills/ghost-only` goes with its single file while `.claude/skills` stays, a
+// file that sits directly in the `.claude/agents` root empties that root, which stays, a directory outside
+// every root stays, and so does a directory that still holds a user's file.
+{
+  const emptyDirsDest = ownTmp("prune-empty-dirs");
+  rmSync(emptyDirsDest, { recursive: true, force: true });
+  run(["install", "--target", "claude-code", "--dest", emptyDirsDest]);
+  const manifestPath = path.join(emptyDirsDest, ".agent-surface", "claude-code-manifest.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const agentsRoot = path.join(emptyDirsDest, ".claude", "agents");
+  rmSync(agentsRoot, { recursive: true, force: true });
+  manifest.managed = manifest.managed.filter((entry) => !/[\\/]agents[\\/]/.test(entry.output));
+  const ghostAgent = path.join(".claude", "agents", "ghost-agent.md");
+  const ghostNote = path.join(".claude", "notes", "ghost", "ghost.md");
+  const ghostKept = path.join(".claude", "skills", "ghost-kept", "SKILL.md");
+  const ghostOnly = path.join(".claude", "skills", "ghost-only", "SKILL.md");
+  const ghostFiles = [ghostAgent, ghostNote, ghostKept, ghostOnly];
+  for (const rel of ghostFiles) {
+    mkdirSync(path.dirname(path.join(emptyDirsDest, rel)), { recursive: true });
+    writeFileSync(path.join(emptyDirsDest, rel), "ghost\n");
+    manifest.managed.push({ target: "claude-code", source: "rules/ghost.md", output: rel, version: "test" });
+  }
+  writeFileSync(path.join(emptyDirsDest, ghostKept.replace(/SKILL\.md$/, "notes.md")), "user notes\n");
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  const pruned = run(["install", "--target", "claude-code", "--dest", emptyDirsDest]);
+  assert.match(pruned, /removed stale: 4/);
+  for (const rel of ghostFiles) assert.equal(existsSync(path.join(emptyDirsDest, rel)), false, `${rel} is pruned`);
+  assert.equal(existsSync(path.join(emptyDirsDest, ".claude", "skills", "ghost-only")), false, "a directory the prune empties beneath an asset root is removed");
+  assert.equal(existsSync(path.join(emptyDirsDest, ".claude", "skills")), true, "the skills asset root stays");
+  assert.equal(existsSync(agentsRoot), true, "an asset root the prune empties stays");
+  assert.deepEqual(readdirSync(agentsRoot), [], "the asset root stays empty");
+  assert.equal(existsSync(path.join(emptyDirsDest, ".claude", "notes", "ghost")), true, "a directory outside every asset root stays");
+  assert.deepEqual(readdirSync(path.join(emptyDirsDest, ".claude", "notes", "ghost")), [], "its pruned file leaves it empty and in place");
+  assert.equal(readFileSync(path.join(emptyDirsDest, ghostKept.replace(/SKILL\.md$/, "notes.md")), "utf8"), "user notes\n", "a directory with entries is left alone");
+  assert.equal(existsSync(path.join(emptyDirsDest, ".claude", "skills", "ghost-kept")), true);
+  rmSync(emptyDirsDest, { recursive: true, force: true });
+}
+
+// A directory the install cannot remove is reported on stderr, and the install completes its other work.
+if (process.platform !== "win32") {
+  const lockedDest = ownTmp("prune-locked-parent");
+  rmSync(lockedDest, { recursive: true, force: true });
+  run(["install", "--target", "claude-code", "--dest", lockedDest]);
+  const lockedManifestPath = path.join(lockedDest, ".agent-surface", "claude-code-manifest.json");
+  const lockedManifest = JSON.parse(readFileSync(lockedManifestPath, "utf8"));
+  const lockedRoot = path.join(lockedDest, ".claude", "skills");
+  const lockedGhost = path.join(lockedRoot, "ghost-locked", "SKILL.md");
+  mkdirSync(path.dirname(lockedGhost), { recursive: true });
+  writeFileSync(lockedGhost, "ghost\n");
+  lockedManifest.managed.push({ target: "claude-code", source: "rules/ghost.md", output: path.join(".claude", "skills", "ghost-locked", "SKILL.md"), version: "test" });
+  writeFileSync(lockedManifestPath, `${JSON.stringify(lockedManifest, null, 2)}\n`);
+  chmodSync(lockedRoot, 0o555);
+  try {
+    const locked = status(["install", "--target", "claude-code", "--dest", lockedDest]);
+    assert.equal(locked.status, 0, locked.stderr);
+    assert.match(locked.stdout, /removed stale: 1/);
+    assert.match(locked.stderr, /ghost-locked/);
+    assert.match(locked.stderr, /EACCES/);
+    assert.equal(existsSync(lockedGhost), false);
+    const afterLocked = JSON.parse(readFileSync(lockedManifestPath, "utf8"));
+    assert.equal(afterLocked.managed.some((entry) => entry.output.includes("ghost-locked")), false, "the manifest is written without the pruned file");
+  } finally {
+    chmodSync(lockedRoot, 0o755);
+  }
+  rmSync(lockedDest, { recursive: true, force: true });
+}
+
 // SUBSTITUTE_JUSTIFICATION
 // - substitute: a manifest and files left by an install made before Droid's skills moved roots
 // - replaces: a real earlier agent-surface release writing Droid skills under .factory/skills

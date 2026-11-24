@@ -3,7 +3,7 @@
 // and MCP/Kilo config merges) into a host root. Both drive the shared producer
 // engine in targets.mjs; neither owns rendering or validation.
 import { randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readdir, readFile, rename, rmdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -27,7 +27,7 @@ import { formatNotice, localDate, planNotices } from "./notices.mjs";
 import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readOptionalServices, readSourceKinds, profileAssetCategories, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { antigravityCliStagedPlugin } from "./roots.mjs";
 import { readRules } from "./rules.mjs";
-import { adapterMcpConfigs, kiloRuleInstructionPaths, kiloRuleInstructionRoot, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets, withMcpServerOverrides } from "./targets.mjs";
+import { adapterMcpConfigs, kiloRuleInstructionPaths, kiloRuleInstructionRoot, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetAssetRoots, targetOutputs, targets, withMcpServerOverrides } from "./targets.mjs";
 import { argValue, fail, isPathInside, isSafeRelativePath, isSafeTargetName, splitArgValues, uniqueStrings } from "./util.mjs";
 
 export async function build(args) {
@@ -939,7 +939,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   if (documentsDir && relativeDocuments !== "" && !isSafeRelativePath(relativeDocuments)) {
     warnings.push(`DOCUMENTS_OUTSIDE_HOME: the OS Documents folder ${documentsDir} is outside the home, so ${target}'s user workflows and rules stay under ~/Documents only; the editor extensions that read the OS folder will not see them`);
   }
-  const outputs = (await targetOutputs(adapter, catalog, {
+  const outputContext = {
     target,
     scope,
     mode: "install",
@@ -951,7 +951,10 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     launchWiring,
     envFilePath: options.envFilePath ?? null,
     documentsDir,
-  })).filter((output) => outputAppliesToCategory(output, categoryFilter));
+  };
+  const outputs = (await targetOutputs(adapter, catalog, outputContext)).filter((output) => outputAppliesToCategory(output, categoryFilter));
+  const assetRoots = uniqueStrings(targetAssetRoots(adapter, outputContext).map((assetRoot) => path.resolve(installRoot, assetRoot)))
+    .filter((assetRoot) => assetRoot !== installRoot && isPathInside(installRoot, assetRoot));
   const writes = [];
   const managed = [];
   const nonApplicable = [];
@@ -1280,6 +1283,7 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     services: optionalServices ? [...optionalServices].sort() : null,
     writes,
     staleRemovalActions,
+    assetRoots,
     configMerges,
     hookMerges,
     blocked,
@@ -2056,6 +2060,7 @@ async function applyInstallPlan(plan) {
     if (item.action !== "remove") continue;
     await assertInstallPath(plan.installRoot, item.output, `stale managed output ${item.relativeOutput}`);
     await rm(item.output, { force: true });
+    await removeEmptiedDirs(plan.assetRoots, item.output);
     removed += 1;
   }
 
@@ -2099,6 +2104,30 @@ async function writeManifestFile(plan, manifest) {
   await mkdir(path.dirname(plan.manifestPath), { recursive: true });
   await assertInstallPath(plan.installRoot, plan.manifestPath, "manifest path");
   await replaceFile(plan.manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+// A pruned file can leave directories empty. Only directories beneath the deepest asset root that holds
+// the file are removed, so the root and everything above it stay. The file is already gone, so a
+// directory that cannot be removed is reported and the install goes on; rmdir removes only empty
+// directories, so a directory with entries is left as it is.
+async function removeEmptiedDirs(assetRoots, file) {
+  const assetRoot = assetRoots
+    .filter((candidate) => candidate !== file && isPathInside(candidate, file))
+    .sort((left, right) => right.length - left.length)[0];
+  if (assetRoot === undefined) return;
+  let dir = path.dirname(file);
+  while (dir !== assetRoot && isPathInside(assetRoot, dir)) {
+    try {
+      await rmdir(dir);
+    } catch (error) {
+      if (error?.code === "ENOTEMPTY" || error?.code === "EEXIST") return;
+      if (error?.code !== "ENOENT") {
+        console.error(`warning: empty directory ${dir} was not removed (${error?.code ?? error?.message})`);
+        return;
+      }
+    }
+    dir = path.dirname(dir);
+  }
 }
 
 async function assertInstallPath(safetyRoot, candidate, label) {
