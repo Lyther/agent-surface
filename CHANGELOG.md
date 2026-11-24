@@ -123,6 +123,7 @@ Notable changes to agent-surface and its first-party MCP services. Format: [Keep
 
 ### Removed
 
+- **Host version checks** - `doctor` reports host CLIs (`claude`, `codex`, `kilo`, `opencode`) as present or missing instead of probing `--version`, and no longer prints the Kilo plugin version; `host-acceptance` finds hosts on PATH without reading their versions; the Poolside notice that pinned a `pool` 1.0.7 client floor is gone; the OpenHands notice no longer names one CLI build. Every device gets the current-version behaviour.
 - **The `stellaris` skills and the `modding` category** - the nine `stellaris-*` skills (design, implement, init, logs, perf-audit, translate, ui, uplink, validate) and `--category modding` are gone, together with the `stellaris` command prefix and its registry, schema and check entries. `--category modding` is now rejected as an unsupported category. A general install (no `--category`) removes the `stellaris-*` skill files an earlier `modding` install wrote, on every host, by the manifest that recorded them.
 
 ### Fixed

@@ -111,7 +111,7 @@ Exit: unowned files stay protected, identical or differing, with zero mutation; 
 
 ### RT2.1 Poolside Personal Route
 
-State: IMPLEMENTED; pool 1.0.2, older than the v1.0.7 switch to the global `AGENTS.md`, reads only `.poolside` (standalone-mode capture, 2026-09-30), so plans carry the `POOL_AGENTS_MD_CLIENT_FLOOR` notice; pool 1.0.16 sends both the personal `AGENTS.md` and `.poolside`, so a selection that writes `AGENTS.md` retires `.poolside` with it (simplified 2026-09-30 from a byte-equality rule that blocked most upgrades). Depends on: `RT2.0`. Covers: `G-RT-05`, `Q-RT-04`.
+State: IMPLEMENTED; pool 1.0.2, older than the v1.0.7 switch to the global `AGENTS.md`, reads only `.poolside` (standalone-mode capture, 2026-09-30); pool 1.0.16 sends both the personal `AGENTS.md` and `.poolside`, so a selection that writes `AGENTS.md` retires `.poolside` with it (simplified 2026-09-30 from a byte-equality rule that blocked most upgrades). Depends on: `RT2.0`. Covers: `G-RT-05`, `Q-RT-04`.
 
 Current personal output is `.poolside`; native documentation names `AGENTS.md`. Fix that one route and declare the old one beside it under contract Migration step 4: the category guard reads the old route's category, and a selection that writes the replacement retires the old file. No general managed-file editor, backup store or journal.
 

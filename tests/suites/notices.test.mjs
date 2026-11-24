@@ -163,12 +163,22 @@ try {
   });
   assert.match(windsurfPlan, /^  WINDSURF_CASCADE_LEGACY \(retirement; target; /m);
   assert.match(windsurfPlan, /^  WINDSURF_RULE_SIZE_LIMITS \(compatibility; rules\)/m);
-  const poolBuild = run(["build", "--target", "pool", "--dry-run"]);
-  assert.match(poolBuild, /^pool notice: POOL_AGENTS_MD_CLIENT_FLOOR \(/m);
-  assert.ok(poolBuild.indexOf("pool notice:") < poolBuild.indexOf("[dry-run]"), "notices precede the planned writes");
+  const openhandsBuild = run(["build", "--target", "openhands", "--dry-run"]);
+  assert.match(openhandsBuild, /^openhands notice: OPENHANDS_MANUAL_SKILLS_MODEL_INVOCABLE \(/m);
+  assert.ok(openhandsBuild.indexOf("openhands notice:") < openhandsBuild.indexOf("[dry-run]"), "notices precede the planned writes");
   const doctor = run(["doctor"], { env: { ...process.env, HOME: home } });
   assert.match(doctor, /^notice windsurf: WINDSURF_RULE_SIZE_LIMITS \(/m);
-  assert.match(doctor, /^notice pool: POOL_AGENTS_MD_CLIENT_FLOOR \(/m);
+  assert.doesNotMatch(doctor, /^notice pool:/m, "the pool target has no stored notice");
+  // Host presence comes from an executable on PATH; no version string is read.
+  const hostBin = path.join(scratch, "host-bin");
+  const emptyBin = path.join(scratch, "empty-bin");
+  mkdirSync(hostBin);
+  mkdirSync(emptyBin);
+  writeFileSync(path.join(hostBin, "claude"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  const presentDoctor = run(["doctor"], { env: { ...process.env, HOME: home, PATH: hostBin } });
+  assert.match(presentDoctor, /^claude: present$/m);
+  const missingDoctor = run(["doctor"], { env: { ...process.env, HOME: home, PATH: emptyBin } });
+  assert.match(missingDoctor, /^claude: missing$/m);
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }

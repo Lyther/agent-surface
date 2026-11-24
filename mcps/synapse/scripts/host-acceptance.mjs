@@ -22,6 +22,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { whichSync } from "../../../scripts/agent-surface/provision.mjs";
 import { mergeSynapseHook, synapseHookRoute } from "../../../scripts/agent-surface/synapse-hook.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -84,11 +85,6 @@ const HOSTS = {
 
 const shellQuote = (value) => `'${value.replace(/'/g, "'\\''")}'`;
 
-function versionOf(cli) {
-  const result = spawnSync(cli, ["--version"], { encoding: "utf8" });
-  return result.status === 0 ? result.stdout.trim().split("\n")[0] : null;
-}
-
 async function startWriter(dbDir, project) {
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -137,10 +133,9 @@ async function waitForReceiver(db, b) {
 
 async function runHost(name, model) {
   const host = HOSTS[name];
-  const version = versionOf(host.cli);
-  if (version === null) return { name, status: "BLOCKED", detail: `${host.cli} is not on PATH` };
+  if (whichSync(host.cli) === null) return { name, status: "BLOCKED", detail: `${host.cli} is not on PATH` };
   const blocker = host.blocked?.();
-  if (blocker) return { name, version, status: "BLOCKED", detail: blocker };
+  if (blocker) return { name, status: "BLOCKED", detail: blocker };
 
   const dir = mkdtempSync(path.join(tmpdir(), `synapse-acceptance-${name}-`));
   const project = path.join(dir, "project");
@@ -157,7 +152,7 @@ async function runHost(name, model) {
   writeFileSync(run.emptyMcpConfig, "{\"mcpServers\":{}}\n");
   writeFileSync(run.promptFile, `${PROMPT}\n`);
 
-  const fail = (detail, extra = "") => ({ name, version, status: "FAIL", detail: `${detail}; kept ${dir}${extra}` });
+  const fail = (detail, extra = "") => ({ name, status: "FAIL", detail: `${detail}; kept ${dir}${extra}` });
   const writer = await startWriter(dbDir, project);
   let db;
   let passed = false;
@@ -190,7 +185,7 @@ async function runHost(name, model) {
     });
     if (rerun.status !== 0 || rerun.stdout !== "") return fail(`a further hook run for B printed ${JSON.stringify(rerun.stdout)} (exit ${rerun.status})`);
     passed = true;
-    return { name, version, status: "PASS", detail: `${marker} (#${markerId}) delivered once; cursor ${cursor}` };
+    return { name, status: "PASS", detail: `${marker} (#${markerId}) delivered once; cursor ${cursor}` };
   } finally {
     db?.close();
     await writer.close();
@@ -214,6 +209,6 @@ const results = [];
 for (const [name, model] of runs) {
   const result = await runHost(name, model);
   results.push(result);
-  console.log(`${result.name}${result.version ? ` (${result.version})` : ""}: ${result.status} - ${result.detail}`);
+  console.log(`${result.name}: ${result.status} - ${result.detail}`);
 }
 process.exitCode = results.every((result) => result.status === "PASS") ? 0 : 1;

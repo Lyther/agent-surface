@@ -669,18 +669,7 @@
           ],
           "notes": "First-party secretless MCP services are non-destructively merged into Poolside YAML `mcp_servers`; external or secret-bearing MCPs remain opt-in."
         }
-      },
-      "notices": [
-        {
-          "code": "POOL_AGENTS_MD_CLIENT_FLOOR",
-          "kind": "compatibility",
-          "surface": "rules",
-          "message": "The Poolside CLI reads the personal ~/.config/poolside/AGENTS.md only from 1.0.7 (released 2026-06-26). Earlier builds read ~/.config/poolside/.poolside instead, which an install that writes AGENTS.md now removes; a pool 1.0.2 capture sent .poolside and never the personal AGENTS.md.",
-          "action": "Update the pool CLI to 1.0.7 or later before a user install. On an older build, keep a copy of ~/.config/poolside/.poolside, because an install that writes AGENTS.md removes it.",
-          "source_url": "https://github.com/poolsideai/pool/releases/tag/v1.0.7",
-          "checked_at": "2026-09-30"
-        }
-      ]
+      }
     },
     "cline": {
       "summary": "Cline supports workflows, rules, Agent Skills, Configured Agents, MCP, plugins, hooks, scheduling, connectors, built-in spawn_agent delegation, and agent teams. The agent-surface subagents primitive compiles to Cline Configured Agent YAML; spawn_agent is separate runtime behavior that needs no generated artifact. agent-surface also generates workflows, rules, external skills, the ignore file, and first-party MCP wiring for the CLI plus installed VS Code/Cursor/Windsurf/Devin Desktop extension routes.",
@@ -1943,7 +1932,7 @@
           "code": "OPENHANDS_MANUAL_SKILLS_MODEL_INVOCABLE",
           "kind": "compatibility",
           "surface": "skills",
-          "message": "OpenHands CLI 1.16.0 (SDK 1.21.0) ignores disable-model-invocation. The explicit-only skills agent-surface writes for its high-impact workflows are listed among the skills the model may load, and the invoke_skill tool OpenHands attaches can load them without the user selecting them. Each skill body still says the workflow must be selected explicitly.",
+          "message": "The OpenHands CLI ignores disable-model-invocation. The explicit-only skills agent-surface writes for its high-impact workflows are listed among the skills the model may load, and the invoke_skill tool OpenHands attaches can load them without the user selecting them. Each skill body still says the workflow must be selected explicitly.",
           "action": "Where a workflow must not load without explicit invocation, leave out the asset categories that carry high-impact commands: development. OpenHands reads user skills from the shared ~/.agents/skills root, and a skill another target there (for example codex, vscode or zed) still claims is kept when only OpenHands drops it, so every target installed into that root must leave the categories out. To remove skills an earlier install wrote, rerun the general install of each of those targets, or delete only the explicit-only skill directories (boot-facade, ops-nuke, ship-commit, ship-deploy, and ship-release) once no other target needs them.",
           "source_url": "https://docs.openhands.dev/overview/skills",
           "checked_at": "2026-10-19"

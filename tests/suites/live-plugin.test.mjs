@@ -63,9 +63,8 @@ const enabled = process.env.AGENT_SURFACE_LIVE_PLUGIN === "1";
 if (!enabled) console.log("live-plugin: evidence rule ok; native acceptance skipped (set AGENT_SURFACE_LIVE_PLUGIN=1 to run it)");
 
 if (enabled) {
-  const host = spawnSync("codex", ["--version"], { encoding: "utf8" });
+  const host = spawnSync("codex", ["--help"], { encoding: "utf8" });
   assert.equal(host.status, 0, "the host CLI must be installed to run this acceptance; it is not emulated");
-  const hostVersion = host.stdout.trim();
   const skillName = CODEX_PLUGIN_SKILLS[0];
   const namespaced = `${CODEX_PLUGIN_NAME}:${skillName}`;
 
@@ -153,7 +152,7 @@ if (enabled) {
     assert.ok(existsSync(pluginSkillPath), "and that cached file exists on disk");
     const companion = path.join(path.dirname(pluginSkillPath), "references", "runtime-catalog.md");
     assert.ok(existsSync(companion), `the skill's companion file was cached with it: ${companion}`);
-    console.log(`live-plugin: ${hostVersion} discovered ${namespaced} at ${pluginSkillPath}`);
+    console.log(`live-plugin: codex discovered ${namespaced} at ${pluginSkillPath}`);
 
     // ---- phase 4: a harmless task that names the packaged skill --------------------------
     // The evidence is a COMPLETED, SUCCESSFUL tool call and the output that call returned. Assistant

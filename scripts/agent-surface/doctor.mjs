@@ -8,14 +8,18 @@ import path from "node:path";
 import process from "node:process";
 
 import { files } from "./fs-tree.mjs";
-import { readJsonIfExists, readJsoncIfExists } from "./io.mjs";
+import { readJsoncIfExists } from "./io.mjs";
 import { allStoredNotices, localDate, noticeHeading } from "./notices.mjs";
 import { commandVersion } from "./proc.mjs";
+import { whichSync } from "./provision.mjs";
 import { root } from "./registry.mjs";
 import { SYNAPSE_HOOK_TARGETS, synapseHookStatus } from "./synapse-hook.mjs";
 import { antigravityCliImportedPlugin, antigravityCliStagedPlugin } from "./roots.mjs";
 import { kiloRuleInstructionRoot } from "./targets.mjs";
 import { exists } from "./util.mjs";
+
+// Presence only: no host version is read, compared or required, because devices run different builds.
+const HOST_CLIS = ["claude", "codex", "kilo", "opencode"];
 
 export async function doctor() {
   const checks = [];
@@ -32,11 +36,8 @@ export async function doctor() {
   ]);
   const antigravityImport = await antigravityImportStatus();
   if (antigravityImport !== null) checks.push(["antigravity-cli-import", antigravityImport]);
-  checks.push(["claude", commandVersion("claude", ["--version"])]);
-  checks.push(["codex", commandVersion("codex", ["--version"])]);
-  checks.push(["kilo", commandVersion("kilo", ["--version"])]);
+  for (const cli of HOST_CLIS) checks.push([cli, whichSync(cli) ? "present" : "missing"]);
   checks.push(["kilo-config", await kiloConfigStatus()]);
-  checks.push(["opencode", commandVersion("opencode", ["--version"])]);
   checks.push(["gh", commandVersion("gh", ["--version"])]);
 
   // First-party MCP health: launchers linked, the Grimoire index present, the Synapse hook registered per host.
@@ -66,12 +67,9 @@ async function kiloConfigStatus() {
   const configDir = path.join(os.homedir(), ".config", "kilo");
   if (!(await exists(configDir))) return "missing";
 
-  const metadata = await readJsonIfExists(path.join(configDir, "package.json"));
-  const pluginVersion = metadata?.dependencies?.["@kilocode/plugin"] ?? metadata?.devDependencies?.["@kilocode/plugin"];
   const config = await readJsoncIfExists(path.join(configDir, "kilo.jsonc"));
   const instructions = Array.isArray(config?.instructions) ? config.instructions : [];
   const markers = [];
-  if (pluginVersion) markers.push(`plugin ${pluginVersion}`);
   if (await exists(path.join(configDir, "AGENTS.md"))) markers.push("AGENTS.md");
   if (await exists(path.join(configDir, "commands"))) markers.push("commands");
   if (instructions.includes(`${kiloRuleInstructionRoot("user")}/00-precedence-and-safety.md`)) markers.push("rules configured");
