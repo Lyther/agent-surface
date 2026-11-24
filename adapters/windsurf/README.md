@@ -1,6 +1,6 @@
 # Windsurf Adapter (Cascade)
 
-Generates Cascade workflows, rules, and local skills for Devin Desktop, which Windsurf became on 2026-06-02 ([FAQ](https://docs.devin.ai/desktop/devin-desktop-faq)).
+Generates Cascade workflows, rules, and local skills for existing Cascade installs of Devin Desktop, which Windsurf became on 2026-06-02 ([FAQ](https://docs.devin.ai/desktop/devin-desktop-faq)).
 
 Status: deprecated. Devin Desktop removed the Cascade harness in 3.9.19 on 2026-09-08 ([changelog](https://docs.devin.ai/desktop/changelog)). This adapter targets existing Cascade installs only; it is not Devin Local or CLI support. `--target all` leaves it out and says so, `build` refuses it, and an explicit `install --target windsurf` still works. Install plans show the `WINDSURF_CASCADE_LEGACY` and `WINDSURF_RULE_SIZE_LIMITS` notices.
 

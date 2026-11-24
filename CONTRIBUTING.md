@@ -1,6 +1,6 @@
 # Contributing
 
-agent-surface compiles one source tree into 28 agent-host targets (27 implemented, plus the deprecated `windsurf`). Architecture: [docs/architecture.md](docs/architecture.md). Registries are the source of truth; `check` + `test` gate every change.
+agent-surface compiles one source tree into 28 registry targets (27 implemented, including the `codex-plugin` export, plus the deprecated `windsurf`). Architecture: [docs/architecture.md](docs/architecture.md). Registries are the source of truth; `check` + `test` gate every change.
 
 ## Setup
 
