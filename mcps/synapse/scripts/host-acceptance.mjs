@@ -16,7 +16,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -63,6 +63,8 @@ const HOSTS = {
       "exec", "-C", run.project, "-s", "workspace-write",
       // ADR-17: a user trusts the hook once through /hooks; an unattended run skips that review.
       "--dangerously-bypass-hook-trust",
+      // Trusts only this run's temp project. The CLI's --trust would persist the entry to ~/.codex/config.toml.
+      "-c", `projects={${JSON.stringify(run.trustKey)}={trust_level="trusted"}}`,
       "-c", "mcp_servers.synapse.enabled=false", "-c", "model_reasoning_effort=\"low\"",
       ...(run.model ? ["-m", run.model] : []), "--json", PROMPT,
     ],
@@ -151,7 +153,7 @@ async function runHost(name, model) {
   const route = await synapseHookRoute(host.target, project);
   mkdirSync(path.dirname(path.join(project, route.relativeOutput)), { recursive: true });
   writeFileSync(path.join(project, route.relativeOutput), mergeSynapseHook(null, route.eventPath, { launcher: wrapper, command: wrapper }, true, route.relativeOutput));
-  const run = { project, model, emptyMcpConfig: path.join(dir, "no-mcp.json"), promptFile: path.join(dir, "prompt.txt") };
+  const run = { project, trustKey: realpathSync(project), model, emptyMcpConfig: path.join(dir, "no-mcp.json"), promptFile: path.join(dir, "prompt.txt") };
   writeFileSync(run.emptyMcpConfig, "{\"mcpServers\":{}}\n");
   writeFileSync(run.promptFile, `${PROMPT}\n`);
 
