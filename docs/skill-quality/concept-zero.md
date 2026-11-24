@@ -1,6 +1,6 @@
 # Concept Zero: Skill Quality and Distribution
 
-Status: PROPOSED
+Status: SQ closed 2026-11-23 and experiments stopped by the operator; the lab is built and no scored cohort ran. The document is kept as the record of the proposal and its evidence.
 Last updated: 2026-11-20
 Baseline: `main` at `f93fda4` (2026-11-15)
 Scope: agent-surface's canonical skills and commands, how hosts surface and load them, how their effect is measured, a skill-by-skill comparison with obra/superpowers, the default development path, and how assets reach hosts. Separate from [runtime refresh](../context/concept-zero.md) and [computer use](../computer-use/concept-zero.md). The [Grimoire evaluation contract](../contracts/grimoire-evaluation.md) is the binding experiment method. Evidence IDs (`E-nn`) refer to the [research ledger](concept-zero-research.md).
@@ -289,6 +289,7 @@ Exit: a description decision for the three skills, and a go/no-go on the lab for
 | `OQ-SQ-01` What is the default path, and which alternatives fit which scenarios? | `G-SQ-07`. | The operator's research, with the brief below. | operator |
 | `OQ-SQ-02` What practical-effect thresholds and repetition counts apply per cohort type? | Decision rules must precede outcomes. | Preregistration after the first slice's variance is known. | operator plus lab peer |
 | `OQ-SQ-03` Does delivery stay private or become a public marketplace? | Changes packaging and support. | Operator decision; default private. | operator |
+| `OQ-SQ-04` What makes a model follow rules better? It appears to depend on the harness. | Rules and skills only help when followed; the answer decides where to invest. | No experiment has run. A read-only desk investigation of this question ran on 2026-11-23 under agent coordination; its report is not in this repo, and its review is deferred to the operator. USER_DECISION 2026-11-23: no answer yet. | operator |
 
 **Research brief for `OQ-SQ-01`**, for the operator's research agent:
 - **Goal:** choose one small default development path for coding agents (Claude Code, Codex, Droid, OpenCode and similar), plus a short list of optional paths, each tied to the scenario where it wins.

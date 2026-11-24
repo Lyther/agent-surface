@@ -7,7 +7,7 @@ Inputs: [concept](context/concept-zero.md), [research](context/concept-zero-rese
 
 Separate workstream added 2026-10-13: [Phase AS-AR](#phase-as-ar-agent-reuse-capability-trial). The bounded native spike and supervised stop have real proof; comparative capability remains untested. This does not change the runtime-refresh task dispositions or authorize deployment by checkbox.
 
-Separate workstream added 2026-11-20: [Phase SQ](#phase-sq-skill-quality-and-distribution), PROPOSED and not started. It measures skills before changing them and moves delivery to native routes only by parity; it does not reopen any task above.
+Separate workstream added 2026-11-20: [Phase SQ](#phase-sq-skill-quality-and-distribution), closed 2026-11-23 after SQ1's pilots; the evaluation lab stays in the repo and no further SQ experiments run. It measures skills before changing them and moves delivery to native routes only by parity; it does not reopen any task above.
 
 The [previous completed roadmap](https://github.com/Lyther/agent-surface/blob/3dbdbfe9c67fa7a95cf72a25280d2aa588782956/docs/roadmap.md) is historical. This roadmap does not reopen its accepted implementations or transfer old runtime PASS evidence to new releases. It schedules design-approved corrections, bounded native spikes and separate operational work. Each task is a commit-sized concern unless its acceptance requires an atomic change; publication and deployment are not implied. Selection, notice, ownership and migration rules live in the [contract](contracts/runtime-refresh.md); tasks below reference them rather than restating them.
 
@@ -475,7 +475,17 @@ State: CLOSED 2026-11-23, stopped by the operator after qualification and pilots
 - codex (gpt-5.5) used the target skill on 15/18 should-trigger requests (dev-fix 6/6, qa-review 6/6, verify-test 3/6), on 0/18 near-miss requests, and used the right sibling on 17/18. droid (a Claude model) used the target on 0/27 should-trigger requests and a sibling on 4/18 near-miss requests.
 - No outcome comparison ran, so whether `dev-fix` improves fixes is unknown.
 
-Decision: ship trigger-form descriptions ("Use when ...") for `dev-fix`, `verify-test` and `qa-review` in a separate change (branch `feat/trigger-form-descriptions`). The lab stays in the repo for later use.
+Decision: ship trigger-form descriptions ("Use when ...") for `dev-fix`, `verify-test` and `qa-review`. Shipped in #142. The lab stays in the repo for later use.
+
+Program conclusions (operator, 2026-11-23). Evidence: USER_DECISION 2026-11-23; no new measurement backs any of them.
+1. To raise the chance that a model picks a skill or MCP on its own, the description should give the model a reason to choose the asset over ordinary work. As an illustration only, not a change to any skill: a `verify-test` description reading "Use when reviewing whether a test change made the suite pass by weakening an assertion, skipping a case, or replacing a real dependency" gives the model a reason to prefer it over plain test execution. The trigger form was never measured in a cohort (see the SQ1 findings above); that caveat stands.
+2. How to make a model follow rules better has no answer yet. It appears to depend on the harness. The question is open as [`OQ-SQ-04`](skill-quality/concept-zero.md#open-questions-and-spikes).
+3. Hard-coded text, code or commands can change the route, the number of rounds, the tool calls and the cost, even when final correctness stays the same. The conclusion covers skills, rules and installers. This is the operator's conclusion only; the repository holds no receipt that shows such a difference at equal correctness.
+
+Follow-ups shipped after the SQ1 closure:
+- #144: the context cap policy, 300K for ops-swarm packets through each runtime's general setting.
+- #145: trigger-first MCP instructions and tool descriptions for Grimoire and Synapse.
+- #147: hard-coded skill commands, scans and thresholds removed from the skills (it supersedes #146, closed unmerged).
 
 Lab notes:
 - A gateway's upstream applied a hidden 1000-token output default to clients that send no limit, which truncated codex silently; fill the limit gateway-side.
