@@ -11,7 +11,7 @@ export const stripAiAttributionHook = path.join(root, "hooks", "strip-ai-attribu
 const opsServerSkillPath = path.join(root, "skills", "ops-server", "SKILL.md");
 export const hasLocalOpsServerSkill = existsSync(opsServerSkillPath);
 export const expectedCommandCount = 5;
-export const expectedSkillCount = 62 + Number(hasLocalOpsServerSkill);
+export const expectedSkillCount = 53 + Number(hasLocalOpsServerSkill);
 
 export function clineIdeUserDataRoot(product) {
   if (process.platform === "darwin") return path.join("Library", "Application Support", product);

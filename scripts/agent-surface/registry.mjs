@@ -44,7 +44,6 @@ export const assetCategoryFiles = {
   development: "development-assets.json",
   cybersecurity: "cybersecurity-assets.json",
   private: "private-secret.json",
-  modding: "modding.json",
 };
 export const assetCategoryNames = new Set(Object.keys(assetCategoryFiles));
 

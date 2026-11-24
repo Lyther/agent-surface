@@ -129,11 +129,11 @@ for (const target of [
       assert.match(readFileSync(instructionPath, "utf8"), /^## 02-agent-workflow\.mdc$/m, "codex: re-running the owning category restores the document");
 
       run(installArgs);
-      run([...installArgs, "--category", "development,cybersecurity,private,modding", "--service", "synapse,grimoire"]);
+      run([...installArgs, "--category", "development,cybersecurity,private", "--service", "synapse,grimoire"]);
       const primaryMcpConfig = TOML.parse(readFileSync(path.join(targetDest, ".codex", "config.toml"), "utf8"));
       assert.deepEqual(Object.keys(primaryMcpConfig.mcp_servers).sort(), ["grimoire", "synapse"]);
       assert.match(readFileSync(instructionPath, "utf8"), /^## 02-agent-workflow\.mdc$/m);
-      for (const skill of ["dev-feature", "solve-challenge", "stellaris-design"]) {
+      for (const skill of ["dev-feature", "solve-challenge"]) {
         assert.ok(existsSync(path.join(targetDest, ".agents", "skills", skill, "SKILL.md")), skill);
       }
     }

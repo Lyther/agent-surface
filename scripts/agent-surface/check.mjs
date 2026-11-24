@@ -23,7 +23,7 @@ import { argValue, exists, fail, globMatches, isSafeTargetName } from "./util.mj
 export const commandMetadataFields = new Set(["name", "aliases", "phase", "description"]);
 export const skillMetadataFields = new Set(["name", "description", "license", "compatibility", "metadata", "allowed-tools"]);
 
-export const commandPrefixes = new Set(["arch", "boot", "dev", "lint", "ops", "qa", "ship", "stellaris", "verify", "workflow"]);
+export const commandPrefixes = new Set(["arch", "boot", "dev", "lint", "ops", "qa", "ship", "verify", "workflow"]);
 
 export const commandPhases = new Set(["observe", "decide", "build", "verify", "review", "arbitrate", "ship", "improve", "bootstrap", "game", "misc"]);
 
@@ -52,7 +52,6 @@ export const registrySchemaFiles = [
   { schema: "asset-category.schema.json", file: "registry/development-assets.json" },
   { schema: "asset-category.schema.json", file: "registry/cybersecurity-assets.json" },
   { schema: "asset-category.schema.json", file: "registry/private-secret.json" },
-  { schema: "asset-category.schema.json", file: "registry/modding.json" },
   { schema: "legacy-owned.schema.json", file: "registry/legacy-owned.json" },
 ];
 
@@ -1290,7 +1289,7 @@ export function collectRuleReferenceFindings(rule, commandNames, errors, warning
     ["duplicate crate absolutism", /No duplicate crate versions/],
     ["errgroup absolutism", /Always Use errgroup/],
   ];
-  const commandRefPattern = /`((?:arch|boot|dev|lint|ops|qa|ship|stellaris|verify|workflow)-[a-z0-9-]+)`/g;
+  const commandRefPattern = /`((?:arch|boot|dev|lint|ops|qa|ship|verify|workflow)-[a-z0-9-]+)`/g;
 
   for (const [label, pattern] of fatalPatterns) {
     if (pattern.test(rule.text)) errors.push(`${rule.file}: ${label}`);

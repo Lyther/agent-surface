@@ -108,7 +108,6 @@ export function commandPhaseFromName(name) {
     ops: "improve",
     qa: "review",
     ship: "ship",
-    stellaris: "game",
     verify: "verify",
     workflow: "arbitrate",
   };

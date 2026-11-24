@@ -113,6 +113,10 @@ Notable changes to agent-surface and its first-party MCP services. Format: [Keep
 - **`lint-kernel` stable and CI guidance** - a `Fixes:` naming a commit in a released kernel now needs an explicit stable decision (`Cc: stable`, or `stable+noautosel` with a reason), since Greg's patch bot otherwise asks for a resend; stable prerequisite lines keep their SHA and shorten the subject to fit a subsystem gitlint limit; and a crash inside a subsystem CI's test harness counts as tests that never ran, not as a pass or a kernel finding.
 - **`lint-kernel` disclosure and notes** - the `Assisted-by:` trailer, which mainline docs dropped in 1e035297ffda, gives way to one body line, "AI assistance was used."; `ship-commit` and the response-style and cybersecurity rules follow. Notes below `---` keep only test status, runtime results and base facts. Net fixes state discovery and testing in the body. Recipient comparisons pin Perl's hash seed. Redundant guards are deleted, and locking claims are checked against the target tree's version.
 
+### Removed
+
+- **The `stellaris` skills and the `modding` category** - the nine `stellaris-*` skills (design, implement, init, logs, perf-audit, translate, ui, uplink, validate) and `--category modding` are gone, together with the `stellaris` command prefix and its registry, schema and check entries. `--category modding` is now rejected as an unsupported category. A general install (no `--category`) removes the `stellaris-*` skill files an earlier `modding` install wrote, on every host, by the manifest that recorded them.
+
 ### Fixed
 
 - **`install --target all` at project scope** - the default scope is project, and the run failed on the first host with no project layout (`codex install supports --scope user only unless --dest is supplied`). `all` now leaves out the eight home-only hosts (antigravity, antigravity-cli, codex, cursor, trae, trae-cli, trae-cn, vscode) with one printed line each; naming one still fails, and `--dest` keeps them all.
