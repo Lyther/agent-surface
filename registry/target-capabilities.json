@@ -193,7 +193,7 @@
       }
     },
     "deepagents": {
-      "summary": "Deep Agents Code supports skills, instruction files, custom subagents, and MCP config; agent-surface generates skills, instructions, the representable worker subagent, and optional registry-backed MCP config.",
+      "summary": "Deep Agents Code (`dcode`, PyPI `deepagents-code`) supports skills, instruction files, custom subagents, and MCP config; agent-surface generates skills, instructions, the representable worker subagent, and optional registry-backed MCP config.",
       "generated_render_tokens": [
         "skills",
         "rules",

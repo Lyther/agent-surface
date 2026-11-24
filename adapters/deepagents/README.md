@@ -1,6 +1,6 @@
 # Deep Agents adapter
 
-Deep Agents Code target for `agent-surface`.
+Deep Agents Code target for `agent-surface`: the `dcode` binary from the PyPI package `deepagents-code` (0.2.14, released 2026-11-24, [PyPI](https://pypi.org/project/deepagents-code/)). `deepagents-cli` is a separate deployment tool, deprecated upstream in 0.3.0 (2026-08-24) in favour of managed-deepagents (`mda`) ([PyPI](https://pypi.org/project/deepagents-cli/)); this target uses neither.
 
 ## Generated surfaces
 
