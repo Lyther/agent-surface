@@ -49,7 +49,6 @@
     "workflow-runtime"
   ],
   "commands": [
-    "boot-facade",
     "ops-nuke",
     "ship-commit",
     "ship-deploy",

@@ -123,6 +123,7 @@ Notable changes to agent-surface and its first-party MCP services. Format: [Keep
 
 ### Removed
 
+- **`boot-facade` command** - the manual command is gone, so targets carry four manual workflows.
 - **The `stellaris` skills and the `modding` category** - the nine `stellaris-*` skills (design, implement, init, logs, perf-audit, translate, ui, uplink, validate) and `--category modding` are gone, together with the `stellaris` command prefix and its registry, schema and check entries. `--category modding` is now rejected as an unsupported category. A general install (no `--category`) removes the `stellaris-*` skill files an earlier `modding` install wrote, on every host, by the manifest that recorded them.
 
 ### Fixed

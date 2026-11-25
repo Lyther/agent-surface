@@ -279,7 +279,7 @@ assert.equal(devCoreSkill?.model_invocation, true);
 
 const registry = JSON.parse(run(["commands", "--json"]));
 assert.equal(registry.count, expectedCommandCount);
-const expectedCommands = ["boot-facade", "ops-nuke", "ship-commit", "ship-deploy", "ship-release"];
+const expectedCommands = ["ops-nuke", "ship-commit", "ship-deploy", "ship-release"];
 assert.deepEqual(registry.commands.map((command) => command.name).sort(), expectedCommands.sort());
 assert.equal(registry.commands.every((command) => command.model_invocation === false), true);
 assert.equal(registry.commands.some((command) => command.name === "ops-server"), false);
@@ -312,7 +312,7 @@ try {
   const packagedCommands = await packagedCheck.exportableCommands();
   assert.deepEqual(
     packagedCommands.map((command) => command.name).sort(),
-    ["boot-facade", "ops-nuke", "ship-commit", "ship-deploy", "ship-release"],
+    ["ops-nuke", "ship-commit", "ship-deploy", "ship-release"],
   );
 } finally {
   rmSync(consumerRoot, { recursive: true, force: true });

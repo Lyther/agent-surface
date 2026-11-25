@@ -9,7 +9,7 @@ On macOS arm64, Kiro CLI 2.32.0's V3 engine listed a `--category development` in
 - its 52 skills;
 - its six custom agents, as modes and as delegate commands;
 - its 14 steering files, each with the `always`, `fileMatch` or `manual` inclusion it declares;
-- the five manual workflows, as slash commands labelled `Steering: command-<name>`. A `description` in a manual file does not change that label.
+- the four manual workflows, as slash commands labelled `Steering: command-<name>`. A `description` in a manual file does not change that label.
 
 Project agents and skills shadow same-named user ones. The MCP server in that install's `mcp.json` connected. The engine's pre-turn context report lists the session's `always` files for any agent, plus that agent's matched `file://` resources. With the old resources, switching to `boss` added all 14 files per scope, the `always` ones a second time, at about five times the tokens. Without them, it added nothing beyond the `always` files. What a model turn receives was read from the engine source, not observed: the sessions were driven with `initialize`, `session/new` and `session/set_mode`, with no login and no prompt. `kiro-cli agent list` and `mcp list` refuse to run without a login.
 
