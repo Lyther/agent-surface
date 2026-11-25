@@ -27,7 +27,7 @@
     "owner": "workflow-reviewer",
     "run_id": "run-fixture-001",
     "round_id": 1,
-    "next_command": "dev-refactor",
+    "next_skill": "dev-refactor",
     "parent_artifact_hashes": [
       "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"

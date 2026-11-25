@@ -162,7 +162,7 @@ System boundary, subsystems, data, integrations, deployment shape, operations, r
 The smallest production-shaped release that proves the concept with real data, real users or operators, real checks, and realistic deployment constraints.
 
 ## Open Questions and Spikes
-| Question | Why it matters | How to resolve | Owner / next command |
+| Question | Why it matters | How to resolve | Owner / next step |
 |---|---|---|---|
 
 ## Handoff to Architecture and Roadmap

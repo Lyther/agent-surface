@@ -14,7 +14,7 @@
     ]
   },
   "next": {
-    "command": "workflow-boss",
+    "skill": "workflow-boss",
     "requires_human": false,
     "why": "AC for T2 is under-specified"
   },
@@ -48,7 +48,7 @@
       "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
     ],
-    "next_command": "workflow-boss",
+    "next_skill": "workflow-boss",
     "requires_human": false
   }
 }

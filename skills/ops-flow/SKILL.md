@@ -53,7 +53,7 @@ Parallel width comes from independent workstreams, not checklist length; a seque
 
 ```text
 direct/standard: dev-feature | dev-fix | dev-core | dev-chore | dev-refactor
-reviewed:        route-specific dev command -> qa-review|qa-audit|qa-trace
+reviewed:        route-specific dev-* skill -> qa-review|qa-audit|qa-trace
 orchestrated:    workflow-orchestrator
 release:         verify-prove -> verify-readiness when the claim requires it
 audit:           qa-review | qa-audit | qa-trace | ops-report
@@ -83,7 +83,7 @@ Must remain unchanged:
 Acceptance checks:
 ```
 
-Use architecture commands only when the answer would materially change the implementation. Before choosing a provider, prove the runtime can read, edit when authorized, run checks, and materialize the required output. Workflow artifacts, agent messages, and model diversity are not product progress.
+Use the `arch-*` skills only when the answer would materially change the implementation. Before choosing a provider, prove the runtime can read, edit when authorized, run checks, and materialize the required output. Workflow artifacts, agent messages, and model diversity are not product progress.
 
 ## Readiness Claims
 
@@ -121,7 +121,7 @@ Return exactly one routing object:
   "risk": "low|medium|high|critical",
   "autonomy": "low|normal|high",
   "why": ["short evidence-backed reason"],
-  "next_command": "command name or null",
+  "next": "skill or command name, or null",
   "writer_count": 1,
   "independent_review": false,
   "real_acceptance": false,

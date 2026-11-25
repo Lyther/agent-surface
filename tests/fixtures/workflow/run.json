@@ -6,7 +6,7 @@
   "base_commit": "0000000000000000000000000000000000000000",
   "base_tree_hash": "1111111111111111111111111111111111111111",
   "current_round": 1,
-  "workflow_next_command": "dev-chore",
+  "workflow_next_skill": "dev-chore",
   "active_task_ids": [
     "T1"
   ],

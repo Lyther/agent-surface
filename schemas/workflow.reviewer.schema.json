@@ -158,7 +158,7 @@
         "owner",
         "run_id",
         "round_id",
-        "next_command"
+        "next_skill"
       ],
       "properties": {
         "dir": {
@@ -170,7 +170,7 @@
         "owner": {
           "const": "workflow-reviewer"
         },
-        "next_command": {
+        "next_skill": {
           "enum": [
             "workflow-boss",
             "dev-feature",

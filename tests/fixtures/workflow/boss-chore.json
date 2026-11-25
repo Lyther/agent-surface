@@ -33,7 +33,7 @@
     "run_id": "run-fixture-001",
     "round_id": 0,
     "route": "chore",
-    "next_command": "dev-chore",
+    "next_skill": "dev-chore",
     "parent_artifact_hashes": []
   }
 }

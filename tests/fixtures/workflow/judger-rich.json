@@ -80,6 +80,6 @@
       "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     ],
-    "next_command": "dev-feature"
+    "next_skill": "dev-feature"
   }
 }

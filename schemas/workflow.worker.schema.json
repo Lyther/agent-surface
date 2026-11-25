@@ -352,7 +352,7 @@
         "owner",
         "run_id",
         "round_id",
-        "next_command"
+        "next_skill"
       ],
       "properties": {
         "dir": {
@@ -369,7 +369,7 @@
             "dev-refactor"
           ]
         },
-        "next_command": {
+        "next_skill": {
           "const": "workflow-reviewer"
         },
         "run_id": {

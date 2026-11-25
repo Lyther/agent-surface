@@ -84,7 +84,7 @@
         "owner",
         "run_id",
         "round_id",
-        "next_command"
+        "next_skill"
       ],
       "properties": {
         "dir": {
@@ -96,7 +96,7 @@
         "owner": {
           "const": "workflow-judger"
         },
-        "next_command": {
+        "next_skill": {
           "type": [
             "string",
             "null"

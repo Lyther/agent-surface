@@ -24,7 +24,7 @@ const workflowRunDir = path.join(workflowDest, ".agent-surface", "workflows", "r
 mkdirSync(workflowRunDir, { recursive: true });
 const workflowRun = JSON.parse(readFileSync(path.join(root, "tests", "fixtures", "workflow", "run.json"), "utf8"));
 workflowRun.active_task_ids = ["T2"];
-workflowRun.workflow_next_command = "workflow-reviewer";
+workflowRun.workflow_next_skill = "workflow-reviewer";
 writeFileSync(path.join(workflowRunDir, "run.json"), `${JSON.stringify(workflowRun, null, 2)}\n`);
 const provenanceBoss = JSON.parse(readFileSync(path.join(root, "tests", "fixtures", "workflow", "boss-chore.json"), "utf8"));
 provenanceBoss.round_id = 1;
@@ -73,13 +73,13 @@ assert.equal(workflowApply.status, 0, `${workflowApply.stdout}${workflowApply.st
 const appliedRun = JSON.parse(readFileSync(path.join(workflowRunDir, "run.json"), "utf8"));
 assert.deepEqual(appliedRun.active_task_ids, []);
 assert.deepEqual(appliedRun.rework_task_ids, ["T2"]);
-assert.equal(appliedRun.workflow_next_command, "dev-refactor");
+assert.equal(appliedRun.workflow_next_skill, "dev-refactor");
 const workflowDoctor = status(["workflow", "doctor", "--run", "run-fixture-001"], { cwd: workflowDest });
 assert.equal(workflowDoctor.status, 0, `${workflowDoctor.stdout}${workflowDoctor.stderr}`);
 
 const acceptedTransitionRun = {
   ...appliedRun,
-  workflow_next_command: "workflow-reviewer",
+  workflow_next_skill: "workflow-reviewer",
   accepted_task_ids: ["T2"],
   rework_task_ids: [],
 };
@@ -173,7 +173,7 @@ writeFileSync(
   `${JSON.stringify({
     ...workflowRun,
     current_round: 1,
-    workflow_next_command: "workflow-boss",
+    workflow_next_skill: "workflow-boss",
     active_task_ids: ["T2"],
   }, null, 2)}\n`,
 );
@@ -210,7 +210,7 @@ assert.equal(nextBossApply.status, 0, `${nextBossApply.stdout}${nextBossApply.st
 const nextBossRun = JSON.parse(readFileSync(path.join(bossTransitionRunDir, "run.json"), "utf8"));
 assert.equal(nextBossRun.current_round, 2);
 assert.deepEqual(nextBossRun.active_task_ids, ["T3"]);
-assert.equal(nextBossRun.workflow_next_command, "dev-chore");
+assert.equal(nextBossRun.workflow_next_skill, "dev-chore");
 const nextBossEvents = readFileSync(path.join(bossTransitionRunDir, "events.ndjson"), "utf8")
   .trim()
   .split(/\r?\n/)
@@ -234,7 +234,7 @@ writeFileSync(
   `${JSON.stringify({
     ...workflowRun,
     current_round: 1,
-    workflow_next_command: "workflow-boss",
+    workflow_next_skill: "workflow-boss",
     active_task_ids: [],
     accepted_task_ids: ["T2"],
     rework_task_ids: [],
@@ -519,7 +519,7 @@ assert.equal(lifecycleInit.status, 0, `${lifecycleInit.stdout}${lifecycleInit.st
 const initRun = JSON.parse(readFileSync(path.join(lifecycleRunDir, "run.json"), "utf8"));
 assert.equal(initRun.base_commit, lifecycleGit("rev-parse", "HEAD"));
 assert.equal(initRun.base_tree_hash, lifecycleGit("rev-parse", "HEAD^{tree}"));
-assert.equal(initRun.workflow_next_command, "workflow-boss");
+assert.equal(initRun.workflow_next_skill, "workflow-boss");
 assert.match(lifecycle("init", "--run", "run-fixture-001").stderr, /workflow run already exists/);
 assert.equal(JSON.parse(readFileSync(currentPath, "utf8")).run_id, "run-fixture-001", "init points current.json at the new run");
 assert.match(lifecycle("init", "--run", "run-fixture-002").stderr, /workflow run run-fixture-001 is still active; close it before starting another/);
@@ -555,7 +555,7 @@ const lifecycleClose = lifecycle("close", "--run", "run-fixture-001", "--state",
 assert.equal(lifecycleClose.status, 0, `${lifecycleClose.stdout}${lifecycleClose.stderr}`);
 const closedRun = JSON.parse(readFileSync(path.join(lifecycleRunDir, "run.json"), "utf8"));
 assert.equal(closedRun.status, "closed");
-assert.equal(closedRun.workflow_next_command, null);
+assert.equal(closedRun.workflow_next_skill, null);
 const lifecycleEvents = readFileSync(path.join(lifecycleRunDir, "events.ndjson"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
 assert.deepEqual(lifecycleEvents.map((event) => [event.role, event.from, event.to]), [
   ["workflow-boss", "workflow-boss", "dev-chore"],

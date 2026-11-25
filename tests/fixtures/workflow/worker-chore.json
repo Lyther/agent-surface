@@ -24,7 +24,7 @@
     "owner": "dev-chore",
     "run_id": "run-fixture-001",
     "round_id": 1,
-    "next_command": "workflow-reviewer",
+    "next_skill": "workflow-reviewer",
     "parent_artifact_hashes": [
       "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     ]

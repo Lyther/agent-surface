@@ -19,10 +19,10 @@ orchestrated-> BOSS -> isolated workers -> integration -> reviewer using workflo
 release     -> freeze candidate -> build/prove -> independent release QA using workflow.v3 when durable state is needed
 audit       -> read-only QA/analysis; no implementation without a new route decision
 parallel    -> bounded read-only probes or isolated proposals; one owner consolidates
-ship        -> route to the requested shipping command after accepted evidence exists
+ship        -> route to the requested ship-* command or skill after accepted evidence exists
 ```
 
-- `direct` or `standard`: collapse the workflow immediately; never open `.agent-surface/workflows/` merely because this command was invoked.
+- `direct` or `standard`: collapse the workflow immediately; never open `.agent-surface/workflows/` merely because this skill was invoked.
 - `reviewed`: a lightweight loop whose handoff is the Git diff and check output. Create no BOSS, judger, or rescue artifacts. Allow at most two rework cycles (three review rounds); repeated disagreement needs a human decision or a fresh route classification.
 - Only `orchestrated` and `release` may create or rehydrate the formal workflow ledger.
 
@@ -134,7 +134,7 @@ State: developing|verifying|reviewing|acceptance|done|blocked|stalled
 Owner: <role/runtime>
 Materialized: <diff/artifact/check ref or none>
 Elapsed: <wall time>
-Next: <command/action or human decision>
+Next: <skill, command, action, or human decision>
 ```
 
 ## Anti-Patterns

@@ -71,7 +71,7 @@ blocked task. When to write it and what each task must record are in `SKILL.md`,
       "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     ],
-    "next_command": "workflow-reviewer"
+    "next_skill": "workflow-reviewer"
   }
 }
 ```

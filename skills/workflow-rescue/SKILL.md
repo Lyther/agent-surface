@@ -23,7 +23,7 @@ Run ledger (`run.json`, `events.ndjson`); the original BOSS JSON v3 (goal, files
 - If role files disagree on `workflow.run_id`, choose RESPEC or HUMAN instead of guessing which handoff is current.
 - Create or replace only this round's rescue artifacts and apply them; read other role files but never edit, repair, delete, or rewrite them.
 
-Diagnose with helpers before choosing, then fold their findings into `rescue.json`, keeping this output format and next-command set: `workflow-doctor` (artifact, schema, run-state, and handoff integrity), `boot-context` (missing repository context), `qa-review` (disputed patch quality or regression risk), `qa-trace` (repeated root-cause failure, dataflow, race, or security-path uncertainty), and `qa-audit` (architecture, dependency, security, test, operations, or install-risk uncertainty).
+Diagnose with helpers before choosing, then fold their findings into `rescue.json`, keeping this output format and next-skill set: `workflow-doctor` (artifact, schema, run-state, and handoff integrity), `boot-context` (missing repository context), `qa-review` (disputed patch quality or regression risk), `qa-trace` (repeated root-cause failure, dataflow, race, or security-path uncertainty), and `qa-audit` (architecture, dependency, security, test, operations, or install-risk uncertainty).
 
 ## Diagnosis
 
@@ -43,8 +43,8 @@ Classify task by task, or per batch when the failure is structural:
 - RESPEC: set `respec` to a full replacement BOSS JSON (`scope: batch`) or a partial patch listing only the affected `tasks[]` entries (`scope: task`). Always set `target_task_ids`.
 - CONTEXT: set `context_request` to `{ "task_ids": [...], "task": "short investigation prompt", "filescope_hint": [...] }` and route to `workflow-boss`, which uses `boot-context` before respeccing.
 - PATCH: set `patch` to `{ "task_ids": [...], "mode": "proposed_only|apply_authorized", "diff": "<unified diff>", "verify": ["..."], "applies_to_tree_hash": "..." }`. The diff must apply cleanly to the current worktree/tree hash. Use `apply_authorized` when GENUINE_DIFFICULTY requires rescue takeover.
-- HUMAN: explain the blocker in `diagnosis.evidence`, set `next.command = null` and `requires_human = true`, and invent no diffs or specs.
-- `workflow.next_command` mirrors `next.command` exactly; `null` stops automation, and downstream commands follow `workflow.next_command`. `next.command` must be a `workflow_next_command` value in `workflow.run.schema.json`, or apply aborts: `boot-context` and `verify-test` are helpers, so send CONTEXT to `workflow-boss` and a missing test to the route-specific worker.
+- HUMAN: explain the blocker in `diagnosis.evidence`, set `next.skill = null` and `requires_human = true`, and invent no diffs or specs.
+- `workflow.next_skill` mirrors `next.skill` exactly; `null` stops automation, and downstream skills follow `workflow.next_skill`. `next.skill` must be a `workflow_next_skill` value in `workflow.run.schema.json`, or apply aborts: `boot-context` and `verify-test` are helpers, so send CONTEXT to `workflow-boss` and a missing test to the route-specific worker.
 
 ## Rules
 
@@ -57,7 +57,7 @@ Classify task by task, or per batch when the failure is structural:
 
 ## Output
 
-Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/rescue.json` and the compatibility copy `.agent-surface/workflows/<run_id>/rescue.json`. Before replying in chat, advance the ledger with `agent-surface workflow apply --role workflow-rescue --run <run_id> --artifact .agent-surface/workflows/<run_id>/rescue.json`; apply sets `run.json.workflow_next_command` (including `null` for HUMAN) and appends the rescue event, which only apply writes. Never hand-edit `run.json`. Needs the `agent-surface` CLI (see `boot-workflow`); if it is absent, write the artifacts, skip the call, and report the ledger as not advanced.
+Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/rescue.json` and the compatibility copy `.agent-surface/workflows/<run_id>/rescue.json`. Before replying in chat, advance the ledger with `agent-surface workflow apply --role workflow-rescue --run <run_id> --artifact .agent-surface/workflows/<run_id>/rescue.json`; apply sets `run.json.workflow_next_skill` (including `null` for HUMAN) and appends the rescue event, which only apply writes. Never hand-edit `run.json`. Needs the `agent-surface` CLI (see `boot-workflow`); if it is absent, write the artifacts, skip the call, and report the ledger as not advanced.
 
 ```json
 {
@@ -69,7 +69,7 @@ Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/r
   "target_task_ids": ["T7"],
   "diagnosis": { "type": "<category>", "evidence": [] },
   "next": {
-    "command": "workflow-boss|dev-feature|dev-fix|dev-chore|dev-refactor|workflow-reviewer|workflow-judger|null",
+    "skill": "workflow-boss|dev-feature|dev-fix|dev-chore|dev-refactor|workflow-reviewer|workflow-judger|null",
     "requires_human": false,
     "why": ""
   },
@@ -88,7 +88,7 @@ Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/r
       "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
     ],
-    "next_command": "workflow-boss|dev-feature|dev-fix|dev-chore|dev-refactor|workflow-reviewer|workflow-judger|null",
+    "next_skill": "workflow-boss|dev-feature|dev-fix|dev-chore|dev-refactor|workflow-reviewer|workflow-judger|null",
     "requires_human": false
   }
 }

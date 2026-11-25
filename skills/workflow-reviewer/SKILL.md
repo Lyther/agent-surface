@@ -51,7 +51,7 @@ Use `qa-review` (code quality, regression risk), `qa-trace` (root cause, dataflo
 Batch invariants:
 
 - `worker.workflow.run_id` matches `boss.workflow.run_id`; a mismatch means a stale worker and rejects the whole batch.
-- Malformed JSON, a missing `workflow.next_command`, or missing per-task evidence refs is REJECT.
+- Malformed JSON, a missing `workflow.next_skill`, or missing per-task evidence refs is REJECT.
 - With `stop_reason=queue_empty`, every task appears in `tasks_processed` or has a recorded upstream blocker; otherwise REJECT.
 - Completed tasks do not contradict each other (e.g. T1 adds an API that T3 removes without a `depends_on` chain).
 - Ledger buckets (`active_task_ids`, `accepted_task_ids`, `rework_task_ids`, `deferred_task_ids`, `closed_task_ids`) are mutually exclusive, every current BOSS task is in one, prior-round accepted/closed IDs may remain, and transitions match reviewer/judger handoffs. Check them with the `workflow-doctor` skill; schema-valid contradictory buckets are a blocker.
@@ -88,9 +88,9 @@ Aggregate:
 Escalation, tracked per `task_id`, not per run:
 
 - For each REJECT task, increment `consecutive_rejections` when the prior `reviewer.json` of the same `run_id` also rejected it; otherwise start at 1. Reset to 0 on PASS; under a PARTIAL batch, do not reset tasks that remain unresolved.
-- Once any task reaches `consecutive_rejections >= 2`, set `escalation.recommend = "JUDGER"`, list the task in `escalation.escalated_task_ids`, and set `workflow.next_command = "workflow-judger"`; never route back to a worker in that run.
+- Once any task reaches `consecutive_rejections >= 2`, set `escalation.recommend = "JUDGER"`, list the task in `escalation.escalated_task_ids`, and set `workflow.next_skill = "workflow-judger"`; never route back to a worker in that run.
 
-Next command:
+Next skill:
 
 - PASS → `workflow-boss` (next batch or close the run).
 - PARTIAL without escalation → the route-specific worker, which keeps the `run_id` and re-attempts only the rejected/deferred task IDs.
@@ -98,11 +98,11 @@ Next command:
 - Any counter ≥ 2 → `workflow-judger`, with the escalated task IDs.
 - Stale or invalid handoff → `workflow-boss` to respec.
 
-A `workflow-doctor` or artifact-schema mismatch is a tooling/process blocker, not a per-task code REJECT. When valid worker output fails doctor only because the artifact schema and the generated command contract disagree, do not down-score the code: record a process blocker, report the schema/doctor drift (route to `workflow-judger`, whose RESCUE verdict reaches `workflow-rescue`), and re-run the gate. Reserve code REJECT for real AC, scope, security, or evidence failures.
+A `workflow-doctor` or artifact-schema mismatch is a tooling/process blocker, not a per-task code REJECT. When valid worker output fails doctor only because the artifact schema and the installed skill's artifact contract disagree, do not down-score the code: record a process blocker, report the schema/doctor drift (route to `workflow-judger`, whose RESCUE verdict reaches `workflow-rescue`), and re-run the gate. Reserve code REJECT for real AC, scope, security, or evidence failures.
 
 ## Output
 
-Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/reviewer.json` and the compatibility copy `.agent-surface/workflows/<run_id>/reviewer.json`. Create or replace only these reviewer artifacts for the current round; read `boss.json`, `worker.json`, `judger.json`, `rescue.json`, and evidence files but never edit, repair, delete, or rewrite them. Before replying in chat, advance the ledger with `agent-surface workflow apply --role workflow-reviewer --run <run_id> --artifact .agent-surface/workflows/<run_id>/reviewer.json`; apply moves `run_state_update` task IDs into `run.json`, sets `run.json.workflow_next_command`, and appends the reviewer's transition event. Never hand-edit `run.json`. Needs the `agent-surface` CLI (see `boot-workflow`); if it is absent, write the artifacts, skip the call, and report the ledger as not advanced.
+Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/reviewer.json` and the compatibility copy `.agent-surface/workflows/<run_id>/reviewer.json`. Create or replace only these reviewer artifacts for the current round; read `boss.json`, `worker.json`, `judger.json`, `rescue.json`, and evidence files but never edit, repair, delete, or rewrite them. Before replying in chat, advance the ledger with `agent-surface workflow apply --role workflow-reviewer --run <run_id> --artifact .agent-surface/workflows/<run_id>/reviewer.json`; apply moves `run_state_update` task IDs into `run.json`, sets `run.json.workflow_next_skill`, and appends the reviewer's transition event. Never hand-edit `run.json`. Needs the `agent-surface` CLI (see `boot-workflow`); if it is absent, write the artifacts, skip the call, and report the ledger as not advanced.
 
 ```json
 {
@@ -155,7 +155,7 @@ Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/r
       "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     ],
-    "next_command": "workflow-boss|dev-feature|dev-fix|dev-chore|dev-refactor|workflow-judger|workflow-close"
+    "next_skill": "workflow-boss|dev-feature|dev-fix|dev-chore|dev-refactor|workflow-judger|workflow-close"
   }
 }
 ```

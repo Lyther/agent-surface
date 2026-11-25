@@ -73,7 +73,7 @@
         {
           "id": "AC1",
           "type": "functional",
-          "text": "run.json.workflow_next_command becomes workflow-reviewer after worker apply",
+          "text": "run.json.workflow_next_skill becomes workflow-reviewer after worker apply",
           "verify": "npm test"
         }
       ],
@@ -122,6 +122,6 @@
     "round_id": 0,
     "parent_artifact_hashes": [],
     "route": "feature",
-    "next_command": "dev-feature"
+    "next_skill": "dev-feature"
   }
 }

@@ -66,7 +66,7 @@ async function workflowInit(args) {
     base_commit: baseCommit,
     base_tree_hash: gitValue(["rev-parse", "HEAD^{tree}"]),
     current_round: 0,
-    workflow_next_command: "workflow-boss",
+    workflow_next_skill: "workflow-boss",
     ...Object.fromEntries(workflowTaskStateKeys.map((key) => [key, []])),
     last_artifact_hashes: {},
   };
@@ -104,16 +104,16 @@ async function workflowClose(args) {
     return;
   }
 
-  const fromCommand = runData.workflow_next_command ?? null;
+  const fromSkill = runData.workflow_next_skill ?? null;
   runData.status = state;
-  runData.workflow_next_command = null;
+  runData.workflow_next_skill = null;
   await writeWorkflowFile(runPath, `${JSON.stringify(runData, null, 2)}\n`);
   const eventHash = await appendWorkflowEvent(runDir, {
     event_id: `workflow-close-${Date.now()}`,
     run_id: runId,
     round_id: runData.current_round,
     role: "workflow-close",
-    from: fromCommand,
+    from: fromSkill,
     to: null,
     timestamp: new Date().toISOString(),
     summary: `Closed the run as ${state}.`,
@@ -162,11 +162,11 @@ async function workflowDoctor(args) {
   // edited by hand or an apply did not finish. An artifact that was never applied
   // changes neither file and passes this check.
   if (runData && lastTransition && runData.status === "active") {
-    const ledgerNext = runData.workflow_next_command ?? null;
+    const ledgerNext = runData.workflow_next_skill ?? null;
     const transitionTo = lastTransition.to ?? null;
     if (ledgerNext !== transitionTo) {
       errors.push(
-        `run.json.workflow_next_command (${JSON.stringify(ledgerNext)}) does not match the latest transition in events.ndjson (to=${JSON.stringify(transitionTo)}); run.json changed outside a completed \`agent-surface workflow apply\``,
+        `run.json.workflow_next_skill (${JSON.stringify(ledgerNext)}) does not match the latest transition in events.ndjson (to=${JSON.stringify(transitionTo)}); run.json changed outside a completed \`agent-surface workflow apply\``,
       );
     }
   }
@@ -246,15 +246,15 @@ async function workflowApply(args) {
 
   if (artifact.workflow?.owner !== role) fail("artifact owner does not match --role");
 
-  const fromCommand = runData.workflow_next_command ?? null;
-  const nextCommand = artifact.workflow.next_command ?? null;
+  const fromSkill = runData.workflow_next_skill ?? null;
+  const nextSkill = artifact.workflow.next_skill ?? null;
   const update = artifact.run_state_update ?? {};
   const updateErrors = workflowTaskStateErrors(update, artifactBossHistory, "artifact run_state_update", false);
   if (updateErrors.length > 0) fail(updateErrors.join("; "));
   const moved = new Set(workflowTaskStateKeys.flatMap((key) => Array.isArray(update[key]) ? update[key] : []));
 
   runData.current_round = Math.max(runData.current_round, artifact.round_id);
-  runData.workflow_next_command = nextCommand;
+  runData.workflow_next_skill = nextSkill;
   for (const key of workflowTaskStateKeys) {
     runData[key] = uniqueStrings([
       ...(runData[key] ?? []).filter((taskId) => !moved.has(taskId)),
@@ -272,8 +272,8 @@ async function workflowApply(args) {
     ...(runData.last_artifact_hashes ?? {}),
     [role]: artifactHash,
   };
-  if (role === "workflow-judger" && ["MERGE", "MERGE_PARTIAL"].includes(artifact.final_verdict) && nextCommand === "workflow-close") {
-    runData.workflow_next_command = "workflow-close";
+  if (role === "workflow-judger" && ["MERGE", "MERGE_PARTIAL"].includes(artifact.final_verdict) && nextSkill === "workflow-close") {
+    runData.workflow_next_skill = "workflow-close";
   }
 
   const nextStateErrors = workflowTaskStateErrors(runData, artifactBossHistory, "run.json");
@@ -290,8 +290,8 @@ async function workflowApply(args) {
     run_id: runId,
     round_id: artifact.round_id,
     role,
-    from: fromCommand,
-    to: nextCommand ?? null,
+    from: fromSkill,
+    to: nextSkill ?? null,
     artifact: path.relative(runDir, artifactPath),
     artifact_hash: artifactHash,
     timestamp: new Date().toISOString(),

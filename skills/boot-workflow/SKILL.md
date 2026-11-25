@@ -1,6 +1,6 @@
 ---
 name: boot-workflow
-description: "Show the risk-adaptive agent-surface workflow map, execution profiles, formal-ledger boundary, and next-command rules without starting implementation."
+description: "Show the risk-adaptive agent-surface workflow map, execution profiles, formal-ledger boundary, and next-step rules without starting implementation."
 ---
 
 ## Objective
@@ -131,7 +131,7 @@ agent-surface workflow doctor --run <run_id>
 - `agents.json` is mutable runtime state under `workflow.monitor.v2`; it records liveness and materialized outputs, not product acceptance.
 - A stalled session is an execution failure; it does not make the product task human-blocked.
 
-Artifact shapes live with their owning commands; load the owner instead of duplicating them here: `workflow-boss` (spec and task queue), the route-specific `dev-*` worker (worker artifact), `workflow-reviewer` (independent per-task verdict), `workflow-judger` (repeated-failure decision), `workflow-rescue` (exceptional recovery or human escalation), `workflow-close` (terminal run transition), and `workflow-doctor` (CLI schema, event-chain, task-state, and liveness checks, plus the manual checks the CLI skips).
+Artifact shapes live with their owning skills; load the owner instead of duplicating them here: `workflow-boss` (spec and task queue), the route-specific `dev-*` worker (worker artifact), `workflow-reviewer` (independent per-task verdict), `workflow-judger` (repeated-failure decision), `workflow-rescue` (exceptional recovery or human escalation), `workflow-close` (terminal run transition), and `workflow-doctor` (CLI schema, event-chain, task-state, and liveness checks, plus the manual checks the CLI skips).
 
 ## Runtime Control
 
@@ -158,5 +158,5 @@ Why: <short evidence>
 Roles: <minimal required roles>
 Formal ledger: yes|no
 Runtime probe: required|not required
-Next: <one command>
+Next: <one skill or command>
 ```

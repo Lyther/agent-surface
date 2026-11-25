@@ -35,7 +35,7 @@
     "base_commit",
     "base_tree_hash",
     "current_round",
-    "workflow_next_command"
+    "workflow_next_skill"
   ],
   "properties": {
     "schema_version": {
@@ -65,7 +65,7 @@
       "type": "integer",
       "minimum": 0
     },
-    "workflow_next_command": {
+    "workflow_next_skill": {
       "type": [
         "string",
         "null"

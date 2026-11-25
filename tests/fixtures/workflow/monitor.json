@@ -11,7 +11,7 @@
   "agents": [
     {
       "agent_id": "worker-001",
-      "command": "dev-fix",
+      "skill": "dev-fix",
       "role_class": "worker",
       "runtime": "current-session",
       "provider": "local",

@@ -19,21 +19,21 @@ Use it when the BOSS route is `refactor`, the target surface is narrow with an e
 - `qa-review`: independent review for public API, config, or broad module moves.
 - `ops-swarm`: parallel non-blocking analysis/check packets, only with clear FILESCOPE isolation.
 
-In workflow mode, helper output is evidence, not the output format: `dev-refactor` keeps worker-artifact ownership, applies `dev-chore` findings itself, and still writes `worker.json`, evidence refs, and `workflow.next_command = "workflow-reviewer"`.
+In workflow mode, helper output is evidence, not the output format: `dev-refactor` keeps worker-artifact ownership, applies `dev-chore` findings itself, and still writes `worker.json`, evidence refs, and `workflow.next_skill = "workflow-reviewer"`.
 
 ## Workflow Mode
 
 Workflow mode is ON when `.agent-surface/workflows/<run_id>/run.json` is active, `.agent-surface/workflows/<run_id>/boss.json` uses `schema_version: workflow.v3`, and `boss.workflow.route = "refactor"`.
 
-1. Load `run.json`, `boss.json`, and the latest reviewer/judger/rescue handoff when `workflow.next_command = "dev-refactor"`.
+1. Load `run.json`, `boss.json`, and the latest reviewer/judger/rescue handoff when `workflow.next_skill = "dev-refactor"`.
 2. Start from `boss.context_capsule`; inspect only deltas unless evidence is missing, stale, contradictory, or changed since BOSS captured it.
 3. Process only active task IDs, respecting dependencies and FILESCOPE.
 4. Capture pre-change proof (tests, lint, typecheck, behavior snapshot) or an explicit reason it is unavailable; when coverage is weak, add pinning tests before changing structure.
 5. Apply one structural transformation at a time. Preserve public API unless BOSS AC explicitly permits a rename or move.
 6. Run task verify commands and record each in `verify_results`; save the output the reviewer needs under `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/evidence/<task_id>/` and list it in `evidence_refs`.
 7. Apply Blocker Discipline before marking a task blocked.
-8. Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and the latest copy `.agent-surface/workflows/<run_id>/worker.json`, with `workflow.owner = "dev-refactor"` and `workflow.next_command = "workflow-reviewer"`.
-9. Advance the ledger with `agent-surface workflow apply --role dev-refactor --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`; this appends the transition event and sets `run.json.workflow_next_command`. Never hand-edit `run.json`. Needs the `agent-surface` CLI (see `boot-workflow`); if it is absent, write the artifacts, skip the call, and report the ledger as not advanced.
+8. Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and the latest copy `.agent-surface/workflows/<run_id>/worker.json`, with `workflow.owner = "dev-refactor"` and `workflow.next_skill = "workflow-reviewer"`.
+9. Advance the ledger with `agent-surface workflow apply --role dev-refactor --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`; this appends the transition event and sets `run.json.workflow_next_skill`. Never hand-edit `run.json`. Needs the `agent-surface` CLI (see `boot-workflow`); if it is absent, write the artifacts, skip the call, and report the ledger as not advanced.
 
 Worker artifact shape:
 
@@ -63,7 +63,7 @@ Worker artifact shape:
     "run_id": "<run_id>",
     "round_id": 1,
     "parent_artifact_hashes": ["sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
-    "next_command": "workflow-reviewer"
+    "next_skill": "workflow-reviewer"
   }
 }
 ```

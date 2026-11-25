@@ -108,7 +108,7 @@ Helper output is evidence, not a different ownership or completion model.
 
 ## Workflow Mode
 
-Routed worker mode is ON only when `.agent-surface/workflows/<run_id>/run.json` is active, BOSS uses `schema_version: workflow.v3`, `boss.workflow.route = "chore"`, and `run.json.workflow_next_command = "dev-chore"`.
+Routed worker mode is ON only when `.agent-surface/workflows/<run_id>/run.json` is active, BOSS uses `schema_version: workflow.v3`, `boss.workflow.route = "chore"`, and `run.json.workflow_next_skill = "dev-chore"`.
 
 1. Validate `run.json`, `boss.json`, branch, baseline, round, parent hashes, active task IDs, AC, FILESCOPE, and the latest reviewer/judger/rescue handoff.
 2. Start from `boss.context_capsule`; inspect deltas unless evidence is missing, stale, contradictory, or changed.
@@ -118,7 +118,7 @@ Routed worker mode is ON only when `.agent-surface/workflows/<run_id>/run.json` 
 6. A corrected or pivoted task is `PASS` only when its AC and verify gates pass; a checkpoint that finds no required edit may also be `PASS`, with the inspected delta and decisions recorded.
 7. Apply Blocker Discipline before marking a task blocked, and never skip ahead after a blocker.
 8. Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/worker.json` and the latest copy `.agent-surface/workflows/<run_id>/worker.json` in the normal `workflow.worker.schema.json` shape.
-9. Set `workflow.owner = "dev-chore"` and `workflow.next_command = "workflow-reviewer"`, then run `agent-surface workflow apply --role dev-chore --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`. Never hand-edit `run.json`. Needs the `agent-surface` CLI (see `boot-workflow`); if it is absent, write the artifacts, skip the call, and report the ledger as not advanced.
+9. Set `workflow.owner = "dev-chore"` and `workflow.next_skill = "workflow-reviewer"`, then run `agent-surface workflow apply --role dev-chore --run <run_id> --artifact .agent-surface/workflows/<run_id>/worker.json`. Never hand-edit `run.json`. Needs the `agent-surface` CLI (see `boot-workflow`); if it is absent, write the artifacts, skip the call, and report the ledger as not advanced.
 
 Edit only the worker artifact, assigned files, and evidence files; the role's event comes from `workflow apply`. A completed task makes its quality decisions inspectable:
 
@@ -177,5 +177,5 @@ Changed: <files or none>
 Size: <lines added/removed in code, tests, and docs>
 Checks: <command/scenario -> passed/failed/not run>
 Remaining: <real issue or none>
-Workflow: <worker path and next command when routed worker mode is active>
+Workflow: <worker path and next skill when routed worker mode is active>
 ```

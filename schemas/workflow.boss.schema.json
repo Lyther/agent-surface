@@ -208,7 +208,7 @@
         "run_id",
         "round_id",
         "route",
-        "next_command"
+        "next_skill"
       ],
       "properties": {
         "dir": {
@@ -241,7 +241,7 @@
             "research"
           ]
         },
-        "next_command": {
+        "next_skill": {
           "enum": [
             "dev-feature",
             "dev-fix",

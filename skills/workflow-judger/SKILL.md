@@ -22,7 +22,7 @@ Helpers sharpen arbitration when evidence is thin or risk is high; summarize the
 
 ## Verdicts
 
-| Verdict | Meaning | Next command |
+| Verdict | Meaning | Next skill |
 |---|---|---|
 | MERGE | Every task in the batch is PASS; ship the entire run. | `workflow-boss` (close the run or queue the next batch) |
 | MERGE_PARTIAL | Accept only PASS tasks whose changes are isolated (their own worktree or commits), dependency-complete, and apply cleanly without rejected hunks; they are accepted in `run_state_update`. Stuck or REJECT tasks go back through the route-specific worker or RESPEC. | route-specific worker for the `rework_task_ids` |
@@ -43,7 +43,7 @@ Helpers sharpen arbitration when evidence is thin or risk is high; summarize the
 
 ## Output
 
-Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/judger.json` and the compatibility copy `.agent-surface/workflows/<run_id>/judger.json`. Before replying in chat, advance the ledger with `agent-surface workflow apply --role workflow-judger --run <run_id> --artifact .agent-surface/workflows/<run_id>/judger.json`; apply moves `run_state_update` task IDs, sets `run.json.workflow_next_command`, and appends the judger event, which only apply writes. Never hand-edit `run.json`. Needs the `agent-surface` CLI (see `boot-workflow`); if it is absent, write the artifacts, skip the call, and report the ledger as not advanced.
+Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/judger.json` and the compatibility copy `.agent-surface/workflows/<run_id>/judger.json`. Before replying in chat, advance the ledger with `agent-surface workflow apply --role workflow-judger --run <run_id> --artifact .agent-surface/workflows/<run_id>/judger.json`; apply moves `run_state_update` task IDs, sets `run.json.workflow_next_skill`, and appends the judger event, which only apply writes. Never hand-edit `run.json`. Needs the `agent-surface` CLI (see `boot-workflow`); if it is absent, write the artifacts, skip the call, and report the ledger as not advanced.
 
 ```json
 {
@@ -82,7 +82,7 @@ Write the canonical `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/j
       "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     ],
-    "next_command": "workflow-boss|dev-feature|dev-fix|dev-chore|dev-refactor|workflow-rescue|workflow-close"
+    "next_skill": "workflow-boss|dev-feature|dev-fix|dev-chore|dev-refactor|workflow-rescue|workflow-close"
   }
 }
 ```
