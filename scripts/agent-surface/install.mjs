@@ -2278,29 +2278,47 @@ async function kiloConfigMerge(installRoot, scope, options = {}) {
     : [];
   const ruleRoot = kiloRuleInstructionRoot(scope);
   const rules = await readRules();
-  const ruleName = (rule) => path.basename(rule.file, ".mdc");
+  // The always-on rules the plain-Markdown rules replaced. Installs wrote each of them in the
+  // current form, so an entry naming one in that form is this installer's.
+  const replacedAlwaysOnRules = [
+    "00-precedence-and-safety",
+    "01-response-style",
+    "02-agent-workflow",
+    "03-project-defaults",
+    "05-tooling",
+    "06-test-policy",
+  ];
   const retiredRuleNames = [
     "agent-surface",
     "00-core",
-    ...rules.filter((rule) => rule.alwaysApply === false).map(ruleName),
+    ...replacedAlwaysOnRules,
+    "04-cybersecurity",
+    "10-python",
+    "11-rust",
+    "12-go",
+    "13-typescript",
+    "14-shell",
     "10-lang-python",
     "11-lang-rust",
     "12-lang-go",
     "13-lang-typescript",
     "14-lang-shell",
   ];
-  const alwaysOnRuleNames = rules.filter((rule) => rule.alwaysApply !== false).map(ruleName);
   // Earlier user-scope installs wrote `./rules/<rule>.md`, which Kilo resolves against the project
   // directory instead of ~/.config/kilo, so those entries never loaded the installed rules. No
-  // install wrote a retired rule in the home form, so an entry like that is the operator's.
+  // install wrote a scoped rule in the home form, or a current rule in the `./rules/` form, so an
+  // entry like that is the operator's.
   const legacyInstructions = scope === "user"
-    ? [...retiredRuleNames, ...alwaysOnRuleNames].map((name) => `./rules/${name}.md`)
+    ? [
+      ...retiredRuleNames.map((name) => `./rules/${name}.md`),
+      ...replacedAlwaysOnRules.map((name) => `${ruleRoot}/${name}.md`),
+    ]
     : retiredRuleNames.map((name) => `${ruleRoot}/${name}.md`);
-  // Every always-on rule path this installer can manage, across all categories. A full general
-  // install (no category/service filter) prunes the category rule FILES, so it must also drop
-  // their now-dangling instruction entries instead of only appending — otherwise kilo.jsonc keeps
-  // pointing at removed `.kilo/rules/*.md` files after `general -> development -> general`.
-  const managedRuleInstructions = alwaysOnRuleNames.map((name) => `${ruleRoot}/${name}.md`);
+  // Every rule path this installer can manage, across all categories. A full general install (no
+  // category/service filter) prunes the category rule FILES, so it must also drop their now-dangling
+  // instruction entries instead of only appending — otherwise kilo.jsonc keeps pointing at removed
+  // `.kilo/rules/*.md` files after `general -> development -> general`.
+  const managedRuleInstructions = rules.map((rule) => `${ruleRoot}/${rule.name}.md`);
   const pruneStaleInstructions = includeInstructions && !options.categoryFilter && !options.optionalServices;
   const mcpEntries = includeMcp
     ? await selectedMcpServiceEntries(true, {

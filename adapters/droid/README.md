@@ -6,8 +6,7 @@ Droid support targets Factory's current `.factory/` project/user surfaces.
 
 - `skills/*/SKILL.md` -> `.agents/skills/<name>/SKILL.md`, the shared root Droid reads alongside `.factory/skills`
 - `commands/*.md` -> `.factory/commands/<command>.md`
-- always-on `rules/*.mdc` -> `AGENTS.md` for project installs, `.factory/AGENTS.md` for user installs
-- scoped language rules -> `.factory/references/rules/<rule>.md`
+- `rules/*.md` -> `AGENTS.md` for project installs, `.factory/AGENTS.md` for user installs
 - `subagents/*.md` -> `.factory/droids/<name>.md`
 - first-party Synapse and Grimoire MCP wiring -> `.factory/mcp.json`
 - optional external MCP wiring -> `.factory/mcp.json` only when explicitly requested
@@ -30,5 +29,3 @@ The adapter does not copy whole upstream repositories into Droid output. It copi
 Generated droids list no tools and no model, so each runs with all tools on the parent's model. The explorer and worker are not generated: a custom droid replaces Droid's same-named built-in, which runs on the light or medium subagent model, with one on the parent's model.
 
 External skill directories are optional: they render only when the corresponding `external/*` submodule checkout is present.
-
-Generated Droid instructions bundle only always-on rules. Language policies are distributed as references for project-aware commands to attach when applicable.

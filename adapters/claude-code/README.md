@@ -6,8 +6,8 @@ Implemented target paths:
 
 - user: `~/.claude/skills/<name>/SKILL.md`
 - project: `.claude/skills/<name>/SKILL.md`
-- user: `~/.claude/agent-surface/rules.md`, scoped rules under `~/.claude/agent-surface/references/rules/`
-- project: `.claude/agent-surface/rules.md`, scoped rules under `.claude/agent-surface/references/rules/`
+- user: `~/.claude/agent-surface/rules.md`
+- project: `.claude/agent-surface/rules.md`
 - user: `~/.claude/agents/<name>.md`
 - project: `.claude/agents/<name>.md`
 - user merge: `~/.claude.json` `mcpServers.{synapse,grimoire}`

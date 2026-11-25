@@ -107,18 +107,6 @@ export function uniqueStrings(values) {
   return [...new Set(values)].sort();
 }
 
-export function globMatches(glob, file) {
-  if (glob === file) return true;
-  const escaped = glob
-    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replaceAll("**/", "\0DOUBLE_STAR_SLASH\0")
-    .replaceAll("**", "\0DOUBLE_STAR\0")
-    .replaceAll("*", "[^/]*")
-    .replaceAll("\0DOUBLE_STAR_SLASH\0", "(?:.*/)?")
-    .replaceAll("\0DOUBLE_STAR\0", ".*");
-  return new RegExp(`^${escaped}$`).test(file);
-}
-
 export function isSafeTargetName(target) {
   return typeof target === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(target);
 }

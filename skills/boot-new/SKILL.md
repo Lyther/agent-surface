@@ -65,7 +65,7 @@ Every kind gets these files; `references/baseline.md` holds their content.
 
 ## Software maturity
 
-Size the scaffold to the requested maturity (`03-project-defaults`):
+Size the scaffold to the requested maturity (`rules/task.md`, `rules/repository.md`):
 
 - `prototype`: the baseline, the blueprint's test runner, and a README note that the project is disposable; no formatter, linter, or type-checker setup, hooks, or CI.
 - `mvp` (default): the blueprint's lint, formatter, and type-checker config and focused tests. Add `.pre-commit-config.yaml`, CI, or `audit` at `mvp` only when the request or repository workflow asks for them.

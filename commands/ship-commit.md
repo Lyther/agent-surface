@@ -23,7 +23,7 @@ Pick one mode, state it in one line, and ask when signals conflict.
 
 ## 2. Pre-Flight
 
-1. Format and lint with the repo's own config (`05-tooling`); in kernel mode skip blanket reformatters and run `lint-kernel` (checkpatch, `make C=2 W=1`, smatch, coccicheck, kernel-doc). Re-stage formatter changes; never mix formatter churn into a feature commit.
+1. Format and lint with the repo's own config and matching `lint-*` skill (`rules/code.md`, `rules/git.md`); in kernel mode skip blanket reformatters and run `lint-kernel` (checkpatch, `make C=2 W=1`, smatch, coccicheck, kernel-doc). Re-stage formatter changes; never mix formatter churn into a feature commit.
 2. Check the staged snapshot, not only the working tree: after staging, run `pre-commit run`, or the repo's format/lint checks on the staged files, because format-on-save can re-touch files after your last check. Re-stage until clean. Never `--no-verify`.
 3. Run `git status`; add or remove each untracked file deliberately.
 4. Run focused tests for touched areas. In kernel mode build the affected subsystem and fix new warnings.

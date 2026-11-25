@@ -12,6 +12,7 @@ import { readJsonIfExists, readJsoncIfExists } from "./io.mjs";
 import { allStoredNotices, localDate, noticeHeading } from "./notices.mjs";
 import { commandVersion } from "./proc.mjs";
 import { root } from "./registry.mjs";
+import { readRules } from "./rules.mjs";
 import { SYNAPSE_HOOK_TARGETS, synapseHookStatus } from "./synapse-hook.mjs";
 import { antigravityCliImportedPlugin, antigravityCliStagedPlugin } from "./roots.mjs";
 import { kiloRuleInstructionRoot } from "./targets.mjs";
@@ -23,7 +24,7 @@ export async function doctor() {
   checks.push(["source", root]);
   checks.push(["cwd", process.cwd()]);
   checks.push(["commands", String((await files("commands", [".md"])).length)]);
-  checks.push(["rules", String((await files("rules", [".md", ".mdc"])).length)]);
+  checks.push(["rules", String((await files("rules", [".md"])).length)]);
   checks.push(["git", commandVersion("git", ["--version"])]);
   checks.push(["cline-dir", (await exists(path.join(os.homedir(), ".cline"))) ? "present" : "missing"]);
   checks.push([
@@ -74,7 +75,8 @@ async function kiloConfigStatus() {
   if (pluginVersion) markers.push(`plugin ${pluginVersion}`);
   if (await exists(path.join(configDir, "AGENTS.md"))) markers.push("AGENTS.md");
   if (await exists(path.join(configDir, "commands"))) markers.push("commands");
-  if (instructions.includes(`${kiloRuleInstructionRoot("user")}/00-precedence-and-safety.md`)) markers.push("rules configured");
+  const ruleEntries = (await readRules()).map((rule) => `${kiloRuleInstructionRoot("user")}/${rule.name}.md`);
+  if (ruleEntries.some((entry) => instructions.includes(entry))) markers.push("rules configured");
   // Earlier installs wrote this form, which Kilo resolves against the project directory.
   else if (instructions.includes("./rules/00-precedence-and-safety.md")) markers.push("rule entries never load; rerun a general user install");
   return markers.length > 0 ? `present (${markers.join(", ")})` : "present";

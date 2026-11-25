@@ -165,7 +165,7 @@ clean: ## Remove build output
 - Requirements: Go; `golangci-lint` v2 (`mvp` and up).
 - Generate: `go mod init <module-path>`, using the repository path (`github.com/<owner>/<name>`) when the host is known, otherwise `<name>` plus an open item.
 - Layout (<https://go.dev/doc/modules/layout>): one command keeps `main.go` at the root; supporting packages go in `internal/<package>/`; several commands, or commands beside importable packages, use `cmd/<command>/main.go`; a library keeps its package at the root. Tests sit beside the code as `*_test.go`. Add `pkg/` or `src/` only when the repository already uses them. Commit `go.sum` once dependencies exist.
-- Seed `.golangci.yml` from the recipe in rule `12-go` (`mvp` and up); `golangci-lint run` checks formatting as well as lint rules, and `golangci-lint fmt` fixes formatting.
+- Seed `.golangci.yml` from the recipe in `lint-go` (`mvp` and up); `golangci-lint run` checks formatting as well as lint rules, and `golangci-lint fmt` fixes formatting.
 - CI setup steps: `actions/setup-go` with `go-version-file: go.mod`, then `golangci/golangci-lint-action` with a pinned `version` and `install-only: true`, so the shared `make check` step runs lint and tests once.
 - Optional `audit` target: `go get -tool golang.org/x/vuln/cmd/govulncheck@latest`, then `go tool govulncheck ./...`.
 
@@ -214,7 +214,7 @@ clean: ## Remove build output
 - CI setup step: `actions/setup-node` with `node-version-file: package.json`.
 - Optional `audit` script: `"audit": "npm audit --omit=dev"`.
 
-`tsconfig.json` (`mvp` and up; the strict flags from rule `13-typescript`, plus the options for code Node runs directly):
+`tsconfig.json` (`mvp` and up; the strict flags in `lint-typescript`, plus the options for code Node runs directly):
 
 ```json
 {

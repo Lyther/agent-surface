@@ -7,12 +7,9 @@ Deep Agents Code target for `agent-surface`.
 - `skills/*/SKILL.md` -> Deep Agents Code skills:
   - user: `~/.deepagents/<agent>/skills/<name>/SKILL.md`
   - project: `.deepagents/skills/<name>/SKILL.md`
-- `rules/*.mdc` -> Deep Agents Code instructions:
+- `rules/*.md` -> Deep Agents Code instructions:
   - user: `~/.deepagents/<agent>/AGENTS.md`
   - project: `.deepagents/AGENTS.md`
-- scoped language rules -> references:
-  - user: `~/.deepagents/<agent>/references/rules/<rule>.md`
-  - project: `.deepagents/references/rules/<rule>.md`
 - `subagents/*.md` -> Deep Agents Code subagents:
   - user: `~/.deepagents/<agent>/agents/<name>/AGENTS.md`
   - project: `.deepagents/agents/<name>/AGENTS.md`
@@ -29,8 +26,6 @@ External skill packs render only when the optional-service entry declares `skill
 Available high-impact commands use explicit-invocation compatibility skills with `disable-model-invocation: true`; Deep Agents Code enforcement remains unproven.
 
 dcode 0.1.86 mounts every MCP server through FastMCP's proxy, which advertises MCP roots and then answers `roots/list` with an error, so Synapse's bridge cannot route by roots and fails closed. A project install sets `SYNAPSE_ROOTS=ignore` on Synapse: dcode starts trusted project servers in the session directory, so the bridge keys the project by cwd. User-level servers start in dcode's server work directory instead, so a user-scope Synapse does not connect; use a project install for Synapse. With dcode's own `get_mcp_tools` (macOS arm64, 2026-10-19), the project config connected Synapse (7 tools) and Grimoire (4), and the user config connected only Grimoire.
-
-Generated instruction files bundle only `alwaysApply: true` rules. The scoped cybersecurity and language policies are reference files for project-aware commands such as `boot-new`.
 
 ## References
 

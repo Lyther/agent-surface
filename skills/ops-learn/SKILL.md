@@ -25,7 +25,7 @@ Tactical bug mechanics never go in `AGENTS.md`. When a lesson is both tactical a
 3. Classify the failure mode: knowledge gap ("didn't know API X changed"), process failure ("forgot to run tests before commit"), or tooling gap ("linter didn't catch it").
 4. Write the lesson in under 2 lines, general rather than specific ("don't hardcode IDs", not "don't hardcode ID 123"): "Always use Optional Chaining (`?.`) on nullable relations", not "We forgot to check if the user was null before accessing the id property in the service." Skip it when an equivalent lesson already exists.
 5. Tactical: add it to `.cursor/lessons.md` in the file's existing sectioned bullet style, as `- [Topic] Lesson learned (Context)` or tighter, e.g. `- [Docker] Always pin base images to SHA, not tags.`
-6. Durable: if `AGENTS.md` does not exist, create it with only `## Learned User Preferences` and `## Learned Workspace Facts`. Add plain bullets only inside those two sections, e.g. `- Prefer exact, verifiable file counts in plans — do not estimate.` Deduplicate semantically similar bullets, keep each section to at most 12 bullets, and preserve the generated rule content above them. Never move durable facts into `rules/*.mdc`; those files are policy source, not learned memory.
+6. Durable: if `AGENTS.md` does not exist, create it with only `## Learned User Preferences` and `## Learned Workspace Facts`. Add plain bullets only inside those two sections, e.g. `- Prefer exact, verifiable file counts in plans — do not estimate.` Deduplicate semantically similar bullets, keep each section to at most 12 bullets, and preserve the generated rule content above them. Never move durable facts into `rules/*.md`; those files are policy source, not learned memory.
 
 ## Output
 

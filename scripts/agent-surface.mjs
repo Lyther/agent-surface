@@ -22,7 +22,7 @@ const COMMAND_FLAGS = {
   commands: { values: ["--phase"], switches: ["--json"] },
   skills: { values: ["--phase"], switches: ["--json"] },
   check: {},
-  "check rules": { values: ["--scenario"] },
+  "check rules": {},
   "check commands": {},
   "check skills": {},
   "check generated": { values: ["--target"] },
@@ -78,7 +78,7 @@ async function main() {
 
   if (command === "check") {
     if (args[0] === "rules") {
-      await checkRules(args.slice(1));
+      await checkRules();
     } else if (args[0] === "commands") {
       await checkCommands(args.slice(1));
     } else if (args[0] === "skills") {
@@ -126,7 +126,7 @@ Usage:
   agent-surface commands [--phase <phase>] [--json]
   agent-surface skills [--phase <phase>] [--json]
   agent-surface check
-  agent-surface check rules [--scenario <name>]
+  agent-surface check rules
   agent-surface check commands
   agent-surface check skills
   agent-surface check generated [--target <target|all>]
@@ -144,7 +144,7 @@ Usage:
 
 async function inventory() {
   const counts = {
-    rules: (await files("rules", [".md", ".mdc"])).length,
+    rules: (await files("rules", [".md"])).length,
     commands: (await files("commands", [".md"])).length,
     // Skills are DIRECTORIES, counted through the same loader everything else uses. Counting .md
     // files here would report a skill's companion references as if each were another skill.

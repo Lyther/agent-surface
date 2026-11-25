@@ -270,7 +270,7 @@ try {
     const dest = path.join(scratch, "copilot-legacy");
     const plan = install(["--target", "copilot", "--scope", "user", "--dest", dest, "--dry-run"]);
     const planned = plan.out.split("\n").map((line) => line.trim())
-      .find((line) => line.endsWith(`prompts${path.sep}agent-surface.instructions.md <- rules/*.mdc`))
+      .find((line) => line.endsWith(`prompts${path.sep}agent-surface.instructions.md <- rules/*.md`))
       ?.split(" <- ")[0];
     assert.ok(planned, plan.out);
     const nestedRoot = path.dirname(path.dirname(planned));
@@ -317,7 +317,7 @@ try {
   // - proof-limit: proves the handover rule, not what either Trae edition loads
   // - real-proof: a read-only dry-run of the new keys against the operator's pre-split profile
   {
-    const cnRule = path.join(".trae-cn", "user_rules", "00-precedence-and-safety.md");
+    const cnRule = path.join(".trae-cn", "user_rules", "core.md");
     const cli1Skill = path.join(".traecli", "skills", "ops-flow", "SKILL.md");
     const cliConfig = path.join(".trae", "traecli.toml");
     const unreadMcp = path.join(".trae", "mcp.json");
@@ -686,18 +686,18 @@ try {
   // instead of ending the run with a bare filesystem error; nothing is written.
   {
     const dest = path.join(scratch, "unreadable");
-    const rule = path.join(".cursor", "rules", "00-precedence-and-safety.mdc");
+    const rule = path.join(".cursor", "rules", "core.mdc");
     // A directory where a file belongs fails the same read for any user.
     mkdirSync(path.join(dest, rule), { recursive: true });
     const directory = project(dest, "cursor", ["--category", "rules"]);
     assert.equal(directory.code, 1, directory.out);
-    assert.match(directory.out, /^ {2}managed output \.cursor\/rules\/00-precedence-and-safety\.mdc cannot be read \(EISDIR\)$/m);
+    assert.match(directory.out, /^ {2}managed output \.cursor\/rules\/core\.mdc cannot be read \(EISDIR\)$/m);
     assert.equal(manifest(dest, "cursor"), null, "the refused run wrote no manifest");
     rmSync(path.join(dest, rule), { recursive: true });
 
     const unreadable = [
       ["cursor", path.join(".cursor", "mcp.json"), "mcps", "{\"mcpServers\":{}}\n", /^ {2}MCP config \.cursor\/mcp\.json cannot be read \(EACCES\)$/m],
-      ["cursor", rule, "rules", "the operator's text\n", /^ {2}managed output \.cursor\/rules\/00-precedence-and-safety\.mdc cannot be read \(EACCES\)$/m],
+      ["cursor", rule, "rules", "the operator's text\n", /^ {2}managed output \.cursor\/rules\/core\.mdc cannot be read \(EACCES\)$/m],
       ["kilo", "kilo.jsonc", "rules", "{}\n", /^ {2}Kilo config kilo\.jsonc cannot be read \(EACCES\)$/m],
     ];
     for (const [target, relative, category, content, line] of unreadable) {
@@ -722,7 +722,7 @@ try {
   // rules a later general install no longer plans, and one of them has lost its read permission.
   {
     const dest = path.join(scratch, "unreadable-stale");
-    const staleRule = path.join(".cursor", "rules", "02-agent-workflow.mdc");
+    const staleRule = path.join(".cursor", "rules", "code.mdc");
     const developed = project(dest, "cursor", ["--category", "development"]);
     assert.equal(developed.code, 0, developed.out);
     const content = read(dest, staleRule);
@@ -733,7 +733,7 @@ try {
       if (!canOpen(file)) {
         const refused = project(dest, "cursor");
         assert.equal(refused.code, 1, refused.out);
-        assert.match(refused.out, /^ {2}stale managed output \.cursor\/rules\/02-agent-workflow\.mdc cannot be read \(EACCES\)$/m);
+        assert.match(refused.out, /^ {2}stale managed output \.cursor\/rules\/code\.mdc cannot be read \(EACCES\)$/m);
         assert.doesNotMatch(refused.out, /EACCES: permission denied/, "no bare filesystem error");
       }
     } finally {
@@ -741,7 +741,7 @@ try {
     }
     assert.equal(read(dest, staleRule), content, "the stale rule is untouched");
     assert.deepEqual(manifest(dest, "cursor"), recorded, "the refused run kept the manifest");
-    assert.ok(!existsSync(path.join(dest, ".cursor", "rules", "00-precedence-and-safety.mdc")), "the refused run wrote no general rule");
+    assert.ok(!existsSync(path.join(dest, ".cursor", "rules", "core.mdc")), "the refused run wrote no general rule");
   }
 
   // A manifest directory that cannot be listed or searched, or a legacy nested manifest whose

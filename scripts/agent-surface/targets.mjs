@@ -11,8 +11,8 @@ import { directDirectories, filesUnder } from "./fs-tree.mjs";
 import { MCP_ENV_LAUNCHER, mcpLauncherInvocation, optionalServiceMcpServers, renderMcpConfig } from "./merge.mjs";
 import { normalizeExternalSkillFile } from "./postprocess.mjs";
 import { assetCategoryAllowed, assetCategoryFor, packageVersion, profileAssetCategories, readAssetCategories, readOptionalServices, relative, root, selectedAssetCategories } from "./registry.mjs";
-import { firstHeading, renderAntigravityCliRuleDocument, renderAntigravityWorkflow, renderClineWorkflow, renderCodexSubagent, renderCursorCommand, renderCursorSubagent, renderDroidCommand, renderGooseRecipe, renderInstructionDocument, renderKiloRuleDocument, renderKiloWorkflow, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderMarkdownSubagent, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderScopedRuleReferenceDocument, renderVanillaSkill, renderVsCodeInstructionDocument, renderVsCodeScopedInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
-import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, claudeRulesDocument, clineAgentRoot, clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexInstructionPath, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildAgentRoot, grokBuildInstructionPath, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleReferenceRoot, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piMcpPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleFolder, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
+import { firstHeading, renderAlwaysApplyRuleDocument, renderAntigravityCliRuleDocument, renderAntigravityWorkflow, renderClineWorkflow, renderCodexSubagent, renderCursorCommand, renderCursorSubagent, renderDroidCommand, renderGooseRecipe, renderInstructionDocument, renderKiloRuleDocument, renderKiloWorkflow, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderMarkdownSubagent, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderVanillaSkill, renderVsCodeInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
+import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, claudeRulesDocument, clineAgentRoot, clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexInstructionPath, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildAgentRoot, grokBuildInstructionPath, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piMcpPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleFolder, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
 import { readRulesForContext } from "./rules.mjs";
 import { SKILL_RESOURCE_EXTENSIONS } from "./skills.mjs";
 import { ignoreOutputs, subagentOutputs } from "./source-primitives.mjs";
@@ -951,7 +951,7 @@ export async function targetOutputs(adapter, catalog, context) {
   // always-on rules instead of installing that category's skills without its instruction document.
   const contextRules = await readRulesForContext(context);
   const selectedRuleCategory = [...selectedCategories].find(
-    (category) => contextRules.some((rule) => rule.assetCategory === category && rule.alwaysApply !== false),
+    (category) => contextRules.some((rule) => rule.assetCategory === category),
   ) ?? null;
 
   // A per-file baseline rule is explicitly uncategorized. A category run never emits one, so only the
@@ -1450,18 +1450,6 @@ export function outputAppliesToCategory(output, categoryFilter) {
   return categoryFilter.has(output.renderKind) || categoryFilter.has(output.sourceKind);
 }
 
-export async function scopedRuleReferenceOutputs(_context, outputRoot) {
-  const rules = (await readRulesForContext(_context)).filter((rule) => rule.alwaysApply === false);
-  return rules.map((rule) => ({
-    sourceKind: "rules",
-    renderKind: "rules",
-    source: rule.file,
-    relativeOutput: path.join(outputRoot, `${path.basename(rule.file, ".mdc")}.md`),
-    content: renderScopedRuleReferenceDocument(rule),
-    assetCategory: rule.assetCategory,
-  }));
-}
-
 // Kilo resolves a relative `instructions` entry against the project directory, even one in the user
 // config, so user-scope entries name the rules by home path; Kilo expands a leading `~/`.
 export function kiloRuleInstructionRoot(scope) {
@@ -1469,11 +1457,8 @@ export function kiloRuleInstructionRoot(scope) {
 }
 
 export async function kiloRuleInstructionPaths(scope, context = {}) {
-  const ruleNames = (await readRulesForContext(context))
-    .filter((rule) => rule.alwaysApply !== false)
-    .map((rule) => path.basename(rule.file, ".mdc"));
   const prefix = kiloRuleInstructionRoot(scope);
-  return ruleNames.map((name) => `${prefix}/${name}.md`);
+  return (await readRulesForContext(context)).map((rule) => `${prefix}/${rule.name}.md`);
 }
 
 export function commandRelativeOutput(adapter, command, context) {
@@ -1597,7 +1582,6 @@ export async function codexPluginPackageOutputs(catalog, _context) {
 
 export async function antigravityCliStaticOutputs(catalog, context) {
   const rules = await readRulesForContext(context);
-  const alwaysApplyRules = rules.filter((rule) => rule.alwaysApply !== false);
   return [
     {
       sourceKind: "commands",
@@ -1626,25 +1610,20 @@ export async function antigravityCliStaticOutputs(catalog, context) {
         "",
       ].join("\n"),
     },
-    ...alwaysApplyRules.map((rule) => ({
+    ...rules.map((rule) => ({
       sourceKind: "rules",
       renderKind: "rules",
       source: rule.file,
-      relativeOutput: path.join("antigravity-cli", "plugins", "agent-surface", "rules", `${path.basename(rule.file, ".mdc")}.md`),
+      relativeOutput: path.join("antigravity-cli", "plugins", "agent-surface", "rules", `${rule.name}.md`),
       content: renderAntigravityCliRuleDocument(rule),
       assetCategory: rule.assetCategory,
     })),
-    ...await scopedRuleReferenceOutputs(
-      context,
-      path.join("antigravity-cli", "plugins", "agent-surface", "references", "rules"),
-    ),
   ];
 }
 
-// Fourteen hosts take the same two things from the rules tree: one always-on instruction document
-// and the scoped rule references beside it. Only the document's title and label, its path, and the
-// references root differ per host, so each host supplies those and nothing else. Hosts whose rules
-// land as one file per rule, or that also write a config document, keep their own producer below.
+// Most hosts take one thing from the rules tree: the always-on instruction document. Only its title
+// and label and its path differ per host, so each host supplies those and nothing else. Hosts whose
+// rules land as one file per rule, or that also write a config document, keep their own producer below.
 //
 // Several hosts write the workspace AGENTS.md at project scope, where every target shares one install
 // root. They all render one target-neutral header there, so co-selected hosts plan identical bytes
@@ -1652,12 +1631,12 @@ export async function antigravityCliStaticOutputs(catalog, context) {
 // a host's own config root (Kimi Code's) is not shared and keeps its host header.
 const SHARED_AGENTS_DOCUMENT = { title: "AGENTS.md - agent-surface rules", label: "Project instructions" };
 
-async function rulesDocumentOutputs(context, { title, label, relativeOutput, referencesRoot, renderKind = "rules" }) {
+async function rulesDocumentOutputs(context, { title, label, relativeOutput, renderKind = "rules" }) {
   const shared = context.scope === "project" && relativeOutput === "AGENTS.md";
   const header = shared ? SHARED_AGENTS_DOCUMENT : { title, label };
-  const document = { source: "rules/*.mdc", relativeOutput, content: await renderInstructionDocument(header.title, header.label, context) };
+  const document = { source: "rules/*.md", relativeOutput, content: await renderInstructionDocument(header.title, header.label, context) };
   if (renderKind) document.renderKind = renderKind;
-  return [document, ...await scopedRuleReferenceOutputs(context, referencesRoot)];
+  return [document];
 }
 
 export async function clineStaticOutputs(_commands, context) {
@@ -1665,7 +1644,6 @@ export async function clineStaticOutputs(_commands, context) {
     title: "agent-surface Cline global rules",
     label: "Cline rules",
     relativeOutput: path.join(outputRootFor(clineRuleRoot, context), "agent-surface.md"),
-    referencesRoot: path.join(outputRootFor(clineRuleRoot, context), "references", "rules"),
     renderKind: null,
   });
 }
@@ -1733,36 +1711,33 @@ export function droidRelocatedRoutes(previousOutputs, plannedOutputs) {
 }
 
 export async function codexStaticOutputs(_commands, context) {
-  const [document, ...references] = await rulesDocumentOutputs(context, {
+  const [document] = await rulesDocumentOutputs(context, {
     title: "AGENTS.md - agent-surface global Codex rules",
     label: "Codex global instructions",
     relativeOutput: codexInstructionPath(context),
-    referencesRoot: path.join(".codex", "references", "rules"),
   });
   // Codex stops reading project AGENTS.md files at project_doc_max_bytes, 32 KiB by default; it read
   // a larger ~/.codex/AGENTS.md whole (codex-cli 0.166.0, `codex debug prompt-input`, 2026-11-03).
-  if (context.scope !== "project") return [document, ...references];
-  return [{ ...document, byteLimit: 32 * 1024 }, ...references];
+  if (context.scope !== "project") return [document];
+  return [{ ...document, byteLimit: 32 * 1024 }];
 }
 
 export async function copilotStaticOutputs(_commands, context) {
-  const nativeRoot = context.scope === "user" ? ".copilot" : ".github";
   const outputs = [
     {
       sourceKind: "rules",
       renderKind: "instructions",
-      source: "rules/*.mdc",
+      source: "rules/*.md",
       relativeOutput: copilotInstructionPath(context),
       content: await renderInstructionDocument("agent-surface GitHub Copilot instructions", "GitHub Copilot CLI instructions", context),
     },
-    ...await scopedRuleReferenceOutputs(context, path.join(nativeRoot, "references", "rules")),
   ];
   if (context.scope !== "user") return outputs;
   outputs.push(...await vsCodeProfileInstructionOutputs(context));
   return outputs;
 }
 
-// One always-on document that CLAUDE.md imports, plus scoped rules as references. Not ~/.claude/rules:
+// One always-on document that CLAUDE.md imports. Not ~/.claude/rules:
 // VS Code also reads that folder (a rule without `paths` applies to every request), so a co-installed
 // vscode target would attach the same rules twice; VS Code reads CLAUDE.md but resolves no @imports.
 export async function claudeCodeStaticOutputs(_commands, context) {
@@ -1770,7 +1745,6 @@ export async function claudeCodeStaticOutputs(_commands, context) {
     title: "agent-surface Claude Code rules",
     label: "Claude Code instructions",
     relativeOutput: claudeRulesDocument,
-    referencesRoot: path.join(".claude", "agent-surface", "references", "rules"),
   });
 }
 
@@ -1778,8 +1752,8 @@ export async function cursorStaticOutputs(_commands, context) {
   const rules = await readRulesForContext(context);
   return rules.map((rule) => ({
     source: rule.file,
-    relativeOutput: path.join(".cursor", "rules", path.basename(rule.file)),
-    content: rule.text,
+    relativeOutput: path.join(".cursor", "rules", `${rule.name}.mdc`),
+    content: renderAlwaysApplyRuleDocument(rule),
     assetCategory: rule.assetCategory,
   }));
 }
@@ -1789,7 +1763,6 @@ export async function deepagentsStaticOutputs(_commands, context) {
     title: "AGENTS.md - agent-surface Deep Agents Code rules",
     label: "Deep Agents Code instructions",
     relativeOutput: deepagentsInstructionPath(context),
-    referencesRoot: path.join(deepagentsConfigRoot(context), "references", "rules"),
   });
 }
 
@@ -1798,7 +1771,6 @@ export async function droidStaticOutputs(_commands, context) {
     title: "AGENTS.md - agent-surface Droid rules",
     label: "Droid instructions",
     relativeOutput: droidInstructionPath(context),
-    referencesRoot: path.join(droidConfigRoot(context), "references", "rules"),
   });
 }
 
@@ -1807,22 +1779,19 @@ export async function grokBuildStaticOutputs(_commands, context) {
     title: "AGENTS.md - agent-surface Grok Build rules",
     label: "Grok Build instructions",
     relativeOutput: grokBuildInstructionPath(context),
-    referencesRoot: path.join(".grok", "references", "rules"),
   });
 }
 
 export async function kiloStaticOutputs(_commands, context) {
   const rules = await readRulesForContext(context);
-  const alwaysApplyRules = rules.filter((rule) => rule.alwaysApply !== false);
-  const scopedRules = rules.filter((rule) => rule.alwaysApply === false);
   const firstPartyMcpEntries = await selectedMcpServiceEntries(true, {
     categoryFilter: null,
     optionalServices: null,
   });
   const outputs = [
-    ...alwaysApplyRules.map((rule) => ({
+    ...rules.map((rule) => ({
       source: rule.file,
-      relativeOutput: path.join(kiloRuleRoot(context), `${path.basename(rule.file, ".mdc")}.md`),
+      relativeOutput: path.join(kiloRuleRoot(context), `${rule.name}.md`),
       content: renderKiloRuleDocument(rule),
       assetCategory: rule.assetCategory,
     })),
@@ -1838,17 +1807,11 @@ export async function kiloStaticOutputs(_commands, context) {
       kiloConfig.mcp = optionalServiceMcpServers(firstPartyMcpEntries, "local-command-map");
     }
     outputs.unshift({
-      source: "rules/*.mdc",
+      source: "rules/*.md",
       relativeOutput: kiloConfigPath(context.scope),
       content: `${JSON.stringify(kiloConfig, null, 2)}\n`,
     });
   }
-  outputs.push(...scopedRules.map((rule) => ({
-    source: rule.file,
-    relativeOutput: path.join(kiloRuleReferenceRoot(context), `${path.basename(rule.file, ".mdc")}.md`),
-    content: renderScopedRuleReferenceDocument(rule),
-    assetCategory: rule.assetCategory,
-  })));
   return outputs;
 }
 
@@ -1857,7 +1820,6 @@ export async function kimiCodeStaticOutputs(_commands, context) {
     title: "AGENTS.md - agent-surface Kimi Code rules",
     label: "Kimi Code instructions",
     relativeOutput: kimiCodeInstructionPath(context),
-    referencesRoot: path.join(kimiCodeConfigRoot(context), "references", "rules"),
   });
 }
 
@@ -1866,7 +1828,6 @@ export async function qoderStaticOutputs(_commands, context) {
     title: "AGENTS.md - agent-surface Qoder rules",
     label: "Qoder instructions",
     relativeOutput: qoderInstructionPath(context),
-    referencesRoot: path.join(qoderConfigRoot(context), "references", "rules"),
   });
 }
 
@@ -1875,7 +1836,6 @@ export async function qwenCodeStaticOutputs(_commands, context) {
     title: "QWEN.md - agent-surface Qwen Code rules",
     label: "Qwen Code instructions",
     relativeOutput: qwenCodeInstructionPath(context),
-    referencesRoot: path.join(qwenCodeConfigRoot(context), "references", "rules"),
   });
 }
 
@@ -1884,7 +1844,7 @@ export async function kiroStaticOutputs(_commands, context) {
   return rules.map((rule) => ({
     source: rule.file,
     renderKind: "rules",
-    relativeOutput: path.join(kiroSteeringRoot(context), `${path.basename(rule.file, ".mdc")}.md`),
+    relativeOutput: path.join(kiroSteeringRoot(context), `${rule.name}.md`),
     content: renderKiroRuleDocument(rule),
     assetCategory: rule.assetCategory,
   }));
@@ -1895,7 +1855,6 @@ export async function opencodeStaticOutputs(_commands, context) {
     title: "AGENTS.md - agent-surface global OpenCode rules",
     label: "OpenCode global instructions",
     relativeOutput: opencodeInstructionPath(context),
-    referencesRoot: path.join(opencodeConfigRoot(context), "references", "rules"),
     renderKind: null,
   });
 }
@@ -1905,7 +1864,6 @@ export async function openhandsStaticOutputs(_commands, context) {
     title: "AGENTS.md - agent-surface OpenHands rules",
     label: "OpenHands instructions",
     relativeOutput: openhandsInstructionPath(context),
-    referencesRoot: path.join(openhandsConfigRoot(context), "references", "rules"),
   });
 }
 
@@ -1914,7 +1872,6 @@ export async function piStaticOutputs(_commands, context) {
     title: "AGENTS.md - agent-surface Pi rules",
     label: "Pi instructions",
     relativeOutput: piInstructionPath(context),
-    referencesRoot: path.join(piConfigRoot(context), "references", "rules"),
   });
 }
 
@@ -1923,43 +1880,30 @@ export async function poolStaticOutputs(_commands, context) {
     title: "agent-surface Poolside rules",
     label: "Poolside instructions",
     relativeOutput: poolInstructionPath(context),
-    referencesRoot: path.join(poolConfigRoot(context), "references", "rules"),
   });
 }
 
 // The international IDE reads user rules from the single user_rules.md its current build still loads
 // beside the documented user_rules folder; projects get the per-rule files every edition reads.
 export async function traeStaticOutputs(_commands, context) {
-  if (context.scope !== "user") return traeRuleFolderOutputs(context);
+  if (context.scope !== "user") return traeRuleFileOutputs(context);
   return [
     {
-      source: "rules/*.mdc",
+      source: "rules/*.md",
       relativeOutput: path.join(".trae", "user_rules.md"),
       content: await renderInstructionDocument("agent-surface Trae user rules", "Trae user rules", context),
     },
-    ...await scopedRuleReferenceOutputs(context, path.join(".trae", "references", "rules")),
   ];
 }
 
 export async function traeCnStaticOutputs(_commands, context) {
-  if (context.scope !== "user") return traeRuleFolderOutputs(context);
-  return [
-    ...await traeRuleFileOutputs(context),
-    ...await scopedRuleReferenceOutputs(context, path.join(".trae-cn", "references", "rules")),
-  ];
+  return traeRuleFileOutputs(context);
 }
 
 // Trae CLI 2.0 loads ~/.trae/rules the way it loads a project's .trae/rules, and reads neither IDE's
 // user_rules route, so a user install writes the files a project install does.
 export async function traeCliStaticOutputs(_commands, context) {
-  return traeRuleFolderOutputs(context, traeRuleFolder());
-}
-
-async function traeRuleFolderOutputs(context, ruleRoot = traeRuleRoot(context)) {
-  return [
-    ...await traeRuleFileOutputs(context, ruleRoot),
-    ...await scopedRuleReferenceOutputs(context, path.join(".trae", "references", "rules")),
-  ];
+  return traeRuleFileOutputs(context, traeRuleFolder());
 }
 
 async function traeRuleFileOutputs(context, ruleRoot = traeRuleRoot(context)) {
@@ -1968,8 +1912,8 @@ async function traeRuleFileOutputs(context, ruleRoot = traeRuleRoot(context)) {
     sourceKind: "rules",
     renderKind: "rules",
     source: rule.file,
-    relativeOutput: path.join(ruleRoot, `${path.basename(rule.file, ".mdc")}.md`),
-    content: rule.text,
+    relativeOutput: path.join(ruleRoot, `${rule.name}.md`),
+    content: renderAlwaysApplyRuleDocument(rule),
     assetCategory: rule.assetCategory,
   }));
 }
@@ -1979,30 +1923,20 @@ async function traeRuleFileOutputs(context, ruleRoot = traeRuleRoot(context)) {
 // agent-surface wrote before, is not one of them in 1.116: its default list is .github/instructions,
 // .claude/rules, ~/.claude/rules and ~/.copilot/instructions, and the profile folder appended for
 // instructions is promptsHome alone. Only *.instructions.md, copilot-instructions.md and
-// .claude/rules/*.md are read there, so a scoped rule reaches this host as its own instruction file
-// rather than as a reference nothing would load.
+// .claude/rules/*.md are read there.
 //
 // Both targets that reach this surface write one shared document, as the project AGENTS.md hosts do:
 // a co-installed pair then plans identical bytes instead of attaching the same always-on rules twice.
 async function vsCodeProfileInstructionOutputs(context) {
   const promptRoot = path.join(vsCodeUserRoot("Code", context), "prompts");
-  const scoped = (await readRulesForContext(context)).filter((rule) => rule.alwaysApply === false);
   return [
     {
       sourceKind: "rules",
       renderKind: "instructions",
-      source: "rules/*.mdc",
+      source: "rules/*.md",
       relativeOutput: path.join(promptRoot, "agent-surface.instructions.md"),
       content: await renderVsCodeInstructionDocument("agent-surface VS Code instructions", context),
     },
-    ...scoped.map((rule) => ({
-      sourceKind: "rules",
-      renderKind: "rules",
-      source: rule.file,
-      relativeOutput: path.join(promptRoot, `agent-surface-${path.basename(rule.file, ".mdc")}.instructions.md`),
-      content: renderVsCodeScopedInstructionDocument(rule),
-      assetCategory: rule.assetCategory,
-    })),
   ];
 }
 
@@ -2011,14 +1945,13 @@ export async function vscodeStaticOutputs(_commands, context) {
 }
 
 export async function windsurfStaticOutputs(_commands, context) {
-  const [document, ...references] = await rulesDocumentOutputs(context, {
+  const [document] = await rulesDocumentOutputs(context, {
     title: "agent-surface Windsurf rules",
     label: "Windsurf instructions",
     relativeOutput: windsurfRulePath(context),
-    referencesRoot: path.join(windsurfConfigRoot(context), "references", "rules"),
   });
   // Cascade reads at most 6,000 characters of the global rules file and 12,000 of a workspace rule file.
-  return [{ ...document, characterLimit: context.scope === "user" ? 6000 : 12000 }, ...references];
+  return [{ ...document, characterLimit: context.scope === "user" ? 6000 : 12000 }];
 }
 
 export async function zedStaticOutputs(_commands, context) {
@@ -2026,7 +1959,6 @@ export async function zedStaticOutputs(_commands, context) {
     title: "AGENTS.md - agent-surface Zed rules",
     label: "Zed instructions",
     relativeOutput: zedInstructionPath(context),
-    referencesRoot: path.join(zedConfigRoot(context), "references", "rules"),
   });
 }
 

@@ -12,7 +12,6 @@ User scope, rooted at `$KIMI_CODE_HOME` or `~/.kimi-code`:
 - manual commands: explicit-only flow skills in `skills/<command>/SKILL.md`
 - external Agent Skills: `skills/<skill>/...`
 - always-on instructions: `AGENTS.md`
-- scoped rule references: `references/rules/<rule>.md`
 - custom agents: `agents/<name>.md`
 - MCP: `mcp.json`
 - terminal policy merge: `config.toml`
@@ -24,7 +23,6 @@ Project scope:
 - manual commands: explicit-only flow skills in `.kimi-code/skills/<command>/SKILL.md`
 - external Agent Skills: `.kimi-code/skills/<skill>/...`
 - always-on instructions: the root `AGENTS.md`, shared with the other hosts that read it
-- scoped rule references: `.kimi-code/references/rules/<rule>.md`
 - custom agents: `.kimi-code/agents/<name>.md`
 - MCP: `.kimi-code/mcp.json`, which Kimi Code 2.1.1 reads from the launch directory rather than the git root, once the folder is trusted at its "Trust this folder?" prompt
 

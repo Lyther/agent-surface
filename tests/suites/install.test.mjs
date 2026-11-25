@@ -134,7 +134,7 @@ planHas(clinePlan, [
   /^target: cline$/m,
   /\.cline\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/,
   /\.clinerules\/workflows\/ops-nuke\.md <- commands\/ops-nuke\.md/,
-  /\.clinerules\/agent-surface\.md <- rules\/\*\.mdc/,
+  /\.clinerules\/agent-surface\.md <- rules\/\*\.md/,
   /\.cline\/agents\/explorer\.yaml <- subagents\/explorer\.md/,
   /\.agent-surface\/cline-manifest\.json/,
 ], "cline");
@@ -161,11 +161,11 @@ const kiloPlan = dryRun("kilo", ["--category", "development"]);
 planHas(kiloPlan, [
   /\.kilo\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/,
   /\.kilo\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/,
-  /\.kilo\/rules\/03-project-defaults\.md <- rules\/03-project-defaults\.mdc/,
+  /\.kilo\/rules\/repository\.md <- rules\/repository\.md/,
   /\.kilo\/agents\/explorer\.md <- subagents\/explorer\.md/,
-  /kilo\.jsonc instructions \+= \.kilo\/rules\/02-agent-workflow\.md/,
+  /kilo\.jsonc instructions \+= \.kilo\/rules\/code\.md/,
 ], "kilo");
-planLacks(kiloPlan, [/^  AGENTS\.md <- rules\/\*\.mdc$/m, /kilo\.jsonc instructions \+= .*14-shell/], "kilo");
+planLacks(kiloPlan, [/^  AGENTS\.md <- rules\/\*\.md$/m, /kilo\.jsonc instructions \+= .*core\.md/], "kilo");
 
 const kimiCodeDevelopmentPlan = dryRun("kimi-code", ["--category", "development"]);
 planHas(kimiCodeDevelopmentPlan, [
@@ -1231,7 +1231,7 @@ const userScopeEnv = { ...process.env, HOME: userScopeHome, XDG_CONFIG_HOME: pat
 const clineUserScope = status(["install", "--target", "cline", "--scope", "user", "--dry-run"], { env: userScopeEnv });
 assert.equal(clineUserScope.status, 0, `${clineUserScope.stdout}${clineUserScope.stderr}`);
 assert.match(clineUserScope.stdout, /\.cline\/skills\/ops-ask\/SKILL\.md <- skills\/ops-ask\/SKILL\.md/);
-assert.match(clineUserScope.stdout, /Documents\/Cline\/Rules\/agent-surface\.md <- rules\/\*\.mdc/);
+assert.match(clineUserScope.stdout, /Documents\/Cline\/Rules\/agent-surface\.md <- rules\/\*\.md/);
 assert.doesNotMatch(clineUserScope.stdout, /workflow-boss|ops-nuke|agents\/explorer\.yaml/);
 assert.match(clineUserScope.stdout, /\.cline\/data\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
 assert.match(clineUserScope.stdout, /Code\/User\/globalStorage\/saoudrizwan\.claude-dev\/settings\/cline_mcp_settings\.json MCP \+= grimoire, synapse/);
@@ -1245,20 +1245,21 @@ const clineDevelopmentUserScope = status(
 assert.equal(clineDevelopmentUserScope.status, 0, `${clineDevelopmentUserScope.stdout}${clineDevelopmentUserScope.stderr}`);
 assert.match(clineDevelopmentUserScope.stdout, /\.cline\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/);
 assert.match(clineDevelopmentUserScope.stdout, /Documents\/Cline\/Workflows\/ops-nuke\.md <- commands\/ops-nuke\.md/);
-assert.match(clineDevelopmentUserScope.stdout, /Documents\/Cline\/Rules\/references\/rules\/14-shell\.md <- rules\/14-shell\.mdc/);
+assert.match(clineDevelopmentUserScope.stdout, /Documents\/Cline\/Rules\/agent-surface\.md <- rules\/\*\.md/);
 assert.match(clineDevelopmentUserScope.stdout, /\.cline\/agents\/explorer\.yaml <- subagents\/explorer\.md/);
 
 const kiloUserScope = status(["install", "--target", "kilo", "--scope", "user", "--dry-run"], { env: userScopeEnv });
 assert.equal(kiloUserScope.status, 0, `${kiloUserScope.stdout}${kiloUserScope.stderr}`);
 assert.match(kiloUserScope.stdout, /\.kilo\/skills\/ops-ask\/SKILL\.md <- skills\/ops-ask\/SKILL\.md/);
-assert.doesNotMatch(kiloUserScope.stdout, /\.config\/kilo\/AGENTS\.md <- rules\/\*\.mdc/);
-assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/00-precedence-and-safety\.md <- rules\/00-precedence-and-safety\.mdc/);
-assert.match(kiloUserScope.stdout, /\.config\/kilo\/rules\/01-response-style\.md <- rules\/01-response-style\.mdc/);
-assert.doesNotMatch(kiloUserScope.stdout, /workflow-boss|ops-nuke|references\/rules\/14-shell|agents\/explorer\.md/);
-assert.match(kiloUserScope.stdout, /\.config\/kilo\/kilo\.jsonc instructions \+= ~\/\.config\/kilo\/rules\/00-precedence-and-safety\.md, ~\/\.config\/kilo\/rules\/01-response-style\.md/);
+assert.doesNotMatch(kiloUserScope.stdout, /\.config\/kilo\/AGENTS\.md <- rules\/\*\.md/);
+for (const name of ["core", "git", "hitl", "tool"]) {
+  assert.match(kiloUserScope.stdout, new RegExp(`\\.config/kilo/rules/${name}\\.md <- rules/${name}\\.md`));
+}
+assert.doesNotMatch(kiloUserScope.stdout, /workflow-boss|ops-nuke|kilo\/rules\/code\.md|agents\/explorer\.md/);
+assert.match(kiloUserScope.stdout, /\.config\/kilo\/kilo\.jsonc instructions \+= ~\/\.config\/kilo\/rules\/core\.md, ~\/\.config\/kilo\/rules\/git\.md, ~\/\.config\/kilo\/rules\/hitl\.md, ~\/\.config\/kilo\/rules\/tool\.md$/m);
 assert.doesNotMatch(kiloUserScope.stdout, /skills\.paths/);
 assert.doesNotMatch(kiloUserScope.stdout, /permission\.skill/);
-assert.doesNotMatch(kiloUserScope.stdout, /kilo\.jsonc instructions \+= .*14-shell/);
+assert.doesNotMatch(kiloUserScope.stdout, /kilo\.jsonc instructions \+= .*code\.md/);
 assert.match(kiloUserScope.stdout, /kilo\.jsonc permission := \{"\*":"allow"\}/);
 assert.match(kiloUserScope.stdout, /kilo\.jsonc share := "disabled"/);
 assert.match(kiloUserScope.stdout, /\.kilocodeignore \(project-scope only\)/);
@@ -1270,9 +1271,9 @@ const kiloDevelopmentUserScope = status(
 assert.equal(kiloDevelopmentUserScope.status, 0, `${kiloDevelopmentUserScope.stdout}${kiloDevelopmentUserScope.stderr}`);
 assert.match(kiloDevelopmentUserScope.stdout, /\.kilo\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/);
 assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/);
-assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/references\/rules\/14-shell\.md <- rules\/14-shell\.mdc/);
+assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/rules\/test\.md <- rules\/test\.md/);
 assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/agents\/explorer\.md <- subagents\/explorer\.md/);
-assert.match(kiloDevelopmentUserScope.stdout, /kilo\.jsonc instructions \+= ~\/\.config\/kilo\/rules\/02-agent-workflow\.md, .*~\/\.config\/kilo\/rules\/06-test-policy\.md/);
+assert.match(kiloDevelopmentUserScope.stdout, /kilo\.jsonc instructions \+= ~\/\.config\/kilo\/rules\/code\.md, .*~\/\.config\/kilo\/rules\/test\.md/);
 
 const kimiCodeHome = path.join(userScopeHome, "custom-kimi-home");
 const kimiCodeUserScope = status(["install", "--target", "kimi-code", "--scope", "user", "--dry-run"], {
@@ -1297,8 +1298,8 @@ assert.doesNotMatch(claudeUserScope.stdout, /\.claude\/agents\/explorer\.md/);
 const openhandsUserScope = status(["install", "--target", "openhands", "--scope", "user", "--dry-run"], { env: userScopeEnv });
 assert.equal(openhandsUserScope.status, 0, `${openhandsUserScope.stdout}${openhandsUserScope.stderr}`);
 assert.match(openhandsUserScope.stdout, /\.agents\/skills\/ops-ask\/SKILL\.md <- skills\/ops-ask\/SKILL\.md/);
-assert.match(openhandsUserScope.stdout, /\.openhands\/skills\/agent-surface-rules\.md <- rules\/\*\.mdc/);
-assert.doesNotMatch(openhandsUserScope.stdout, /workflow-boss|references\/rules\/10-python/);
+assert.match(openhandsUserScope.stdout, /\.openhands\/skills\/agent-surface-rules\.md <- rules\/\*\.md/);
+assert.doesNotMatch(openhandsUserScope.stdout, /workflow-boss|references\/rules/);
 assert.match(openhandsUserScope.stdout, /\.openhands\/mcp\.json MCP \+= grimoire, synapse/);
 rmSync(userScopeHome, { recursive: true, force: true });
 
@@ -1338,6 +1339,8 @@ writeFileSync(
     "    \".kilo/rules/10-lang-python.md\",",
     "    \".kilo/rules/14-shell.md\",",
     "    \".kilo/rules/14-lang-shell.md\",",
+    "    \".kilo/rules/00-precedence-and-safety.md\",",
+    "    \".kilo/rules/06-test-policy.md\",",
     "  ],",
     "  \"marker\": \",]\",",
     "  \"share\": \"manual\",",
@@ -1360,9 +1363,11 @@ assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/agent-surface\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/00-core\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/10-python\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/10-lang-python\.md"/);
-assert.match(mergedKiloConfig, /"\.kilo\/rules\/00-precedence-and-safety\.md"/);
-assert.match(mergedKiloConfig, /"\.kilo\/rules\/01-response-style\.md"/);
+assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/00-precedence-and-safety\.md"/, "a replaced rule's entry goes");
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/06-test-policy\.md"/);
+assert.match(mergedKiloConfig, /"\.kilo\/rules\/core\.md"/);
+assert.match(mergedKiloConfig, /"\.kilo\/rules\/tool\.md"/);
+assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/code\.md"/, "a general install registers no development rule");
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/14-shell\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/14-lang-shell\.md"/);
 rmSync(existingKiloDest, { recursive: true, force: true });
@@ -1377,8 +1382,10 @@ const inlineKiloConfig = JSON.parse(readFileSync(path.join(inlineKiloDest, "kilo
 assert.deepEqual(inlineKiloConfig.instructions, [
   "./existing-rule.md",
   "./rules/00-precedence-and-safety.md",
-  ".kilo/rules/00-precedence-and-safety.md",
-  ".kilo/rules/01-response-style.md",
+  ".kilo/rules/core.md",
+  ".kilo/rules/git.md",
+  ".kilo/rules/hitl.md",
+  ".kilo/rules/tool.md",
 ]);
 assert.equal(Object.hasOwn(inlineKiloConfig, "skills"), false);
 assert.deepEqual(inlineKiloConfig.permission, { "*": "allow" });
@@ -1389,34 +1396,43 @@ rmSync(inlineKiloDest, { recursive: true, force: true });
 // Kilo resolves a relative user-config instruction against the project directory, so the
 // `./rules/<rule>.md` entries earlier user installs wrote never loaded ~/.config/kilo/rules
 // (Kilo CLI 7.8.8). A user install swaps them for home paths and keeps the operator's own entries, a home-path one included.
+// It also drops the home-path entries earlier installs wrote for the rules the Markdown rules replaced,
+// and keeps a `./rules/<name>.md` entry that shares a current rule's name: no install wrote that form for it.
 const kiloUserMigrationRoot = ownTmp("kilo-user-migration");
 rmSync(kiloUserMigrationRoot, { recursive: true, force: true });
 mkdirSync(path.join(kiloUserMigrationRoot, ".config", "kilo"), { recursive: true });
 writeFileSync(path.join(kiloUserMigrationRoot, ".config", "kilo", "kilo.jsonc"), `${JSON.stringify({
-  instructions: ["./my-rule.md", "~/.config/kilo/rules/10-python.md", "./rules/00-precedence-and-safety.md", "./rules/01-response-style.md", "./rules/14-lang-shell.md"],
+  instructions: [
+    "./my-rule.md",
+    "~/.config/kilo/rules/10-python.md",
+    "~/.config/kilo/rules/00-precedence-and-safety.md",
+    "./rules/core.md",
+    "./rules/00-precedence-and-safety.md",
+    "./rules/01-response-style.md",
+    "./rules/14-lang-shell.md",
+  ],
 }, null, 2)}\n`);
 const kiloUserMigrationConfig = () => JSON.parse(readFileSync(path.join(kiloUserMigrationRoot, ".config", "kilo", "kilo.jsonc"), "utf8")).instructions;
 const kiloDoctor = () => run(["doctor"], { env: { ...process.env, HOME: kiloUserMigrationRoot } });
 assert.match(kiloDoctor(), /^kilo-config: present \(rule entries never load; rerun a general user install\)$/m);
 const kiloUserMigration = run(["install", "--target", "kilo", "--scope", "user", "--category", "rules", "--dest", kiloUserMigrationRoot]);
 assert.match(kiloUserMigration, /kilo\.jsonc instructions -= .*\.\/rules\/00-precedence-and-safety\.md/);
-assert.deepEqual(kiloUserMigrationConfig(), [
+const kiloUserRules = [
   "./my-rule.md",
   "~/.config/kilo/rules/10-python.md",
-  "~/.config/kilo/rules/00-precedence-and-safety.md",
-  "~/.config/kilo/rules/01-response-style.md",
-]);
+  "./rules/core.md",
+  "~/.config/kilo/rules/core.md",
+  "~/.config/kilo/rules/git.md",
+  "~/.config/kilo/rules/hitl.md",
+  "~/.config/kilo/rules/tool.md",
+];
+assert.deepEqual(kiloUserMigrationConfig(), kiloUserRules);
 assert.match(kiloDoctor(), /^kilo-config: present \(rules configured\)$/m);
 // A general user install after a development one prunes the development entries by home path.
 run(["install", "--target", "kilo", "--scope", "user", "--category", "development", "--dest", kiloUserMigrationRoot]);
-assert.ok(kiloUserMigrationConfig().includes("~/.config/kilo/rules/06-test-policy.md"), "development rules are registered by home path");
+assert.ok(kiloUserMigrationConfig().includes("~/.config/kilo/rules/test.md"), "development rules are registered by home path");
 run(["install", "--target", "kilo", "--scope", "user", "--dest", kiloUserMigrationRoot]);
-assert.deepEqual(kiloUserMigrationConfig(), [
-  "./my-rule.md",
-  "~/.config/kilo/rules/10-python.md",
-  "~/.config/kilo/rules/00-precedence-and-safety.md",
-  "~/.config/kilo/rules/01-response-style.md",
-]);
+assert.deepEqual(kiloUserMigrationConfig(), kiloUserRules);
 rmSync(kiloUserMigrationRoot, { recursive: true, force: true });
 
 // Regression: MCP commands must be ABSOLUTE at install time. Hosts posix_spawn the stdio
@@ -2175,7 +2191,7 @@ for (const fx of [
   try {
     run(["install", "--target", "trae", "--scope", "project", "--dest", dest]);
     assert.equal(existsSync(path.join(dest, ".trae", "agents", "explorer.md")), false);
-    const nativeRule = readFileSync(path.join(dest, ".trae", "rules", "00-precedence-and-safety.md"), "utf8");
+    const nativeRule = readFileSync(path.join(dest, ".trae", "rules", "core.md"), "utf8");
     assert.match(nativeRule, /^alwaysApply: true$/m);
     assert.equal(existsSync(path.join(dest, ".trae", "user_rules.md")), false, "no Trae edition reads a project user_rules.md");
     run(["install", "--target", "trae", "--scope", "project", "--dest", dest, "--category", "development"]);
@@ -2201,14 +2217,14 @@ for (const fx of [
     assert.equal(parsed.default_permissions, ":danger-full-access");
     assert.equal(parsed.profile.default.model, "keep-me");
     assert.equal(parsed.mcp_servers.synapse.command, path.join(os.homedir(), ".local", "bin", "synapse-bridge"));
-    assert.match(readFileSync(path.join(dest, ".trae", "rules", "00-precedence-and-safety.md"), "utf8"), /^alwaysApply: true$/m,
+    assert.match(readFileSync(path.join(dest, ".trae", "rules", "core.md"), "utf8"), /^alwaysApply: true$/m,
       "Trae CLI user rules go to the ~/.trae/rules folder it loads");
     assert.equal(existsSync(path.join(dest, ".trae", "user_rules.md")), false, "the CLI does not read the IDE's user_rules.md");
     run(args);
     assert.equal(readFileSync(configPath, "utf8"), config, "Trae user config re-merge is idempotent");
     run([...args, "--category", "development"]);
-    assert.match(readFileSync(path.join(dest, ".trae", "rules", "10-python.md"), "utf8"), /^globs:/m, "scoped rules keep their globs");
-    assert.equal(existsSync(path.join(dest, ".trae", "references", "rules", "10-python.md")), true, "scoped references are written");
+    assert.match(readFileSync(path.join(dest, ".trae", "rules", "code.md"), "utf8"), /^alwaysApply: true$/m, "development rules apply to every request too");
+    assert.equal(existsSync(path.join(dest, ".trae", "references")), false, "no rule is written as a reference");
   } finally {
     rmSync(dest, { recursive: true, force: true });
   }

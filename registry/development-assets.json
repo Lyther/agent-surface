@@ -55,15 +55,10 @@
     "ship-release"
   ],
   "rules": [
-    "02-agent-workflow",
-    "03-project-defaults",
-    "05-tooling",
-    "06-test-policy",
-    "10-python",
-    "11-rust",
-    "12-go",
-    "13-typescript",
-    "14-shell"
+    "code",
+    "repository",
+    "task",
+    "test"
   ],
   "subagents": [
     "explorer",

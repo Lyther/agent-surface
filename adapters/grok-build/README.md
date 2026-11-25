@@ -7,7 +7,7 @@ Outputs:
 - `.grok/skills/<name>/SKILL.md`
 - `.grok/skills/<external-skill>/...`
 - `.grok/agents/<name>.md` for the six subagents, with `--category development`
-- `~/.grok/AGENTS.md` at user scope, which Grok loads as global instructions, or the project's root `AGENTS.md`, plus `.grok/references/rules/<rule>.md`
+- `~/.grok/AGENTS.md` at user scope, which Grok loads as global instructions, or the project's root `AGENTS.md`
 - `.grok/config.toml` with `mcp_servers`; user-scope installs also set `ui.permission_mode = "always-approve"`
 
 Grok loads a project's `AGENTS.md`, skills, MCP servers and hooks only after the folder is trusted (`grok --trust`, `/hooks-trust`, or `~/.grok/trusted_folders.toml`). On grok 1.0.46 and 1.0.62, `grok inspect --json` in an untrusted project-only install listed no project instructions and no skills until the folder was trusted, while a user install's `~/.grok/AGENTS.md` is listed with `scope: global` either way.

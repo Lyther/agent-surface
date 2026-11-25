@@ -8,11 +8,9 @@ Status: upstream no longer actively maintains the OpenHands V1 CLI this adapter 
 
 - User: `~/.agents/skills/<name>/SKILL.md`
 - User: `~/.openhands/skills/agent-surface-rules.md`
-- User: `~/.openhands/references/rules/<rule>.md`
 - User merge: `~/.openhands/mcp.json` `mcpServers.{synapse,grimoire}`
 - Project: `.agents/skills/<name>/SKILL.md`
 - Project: `AGENTS.md`
-- Project: `.openhands/references/rules/<rule>.md`
 - External skills: user/project `.agents/skills/<external-skill>/...`
 
 ## Notes

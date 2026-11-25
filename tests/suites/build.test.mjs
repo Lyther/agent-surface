@@ -87,11 +87,11 @@ const mustExist = [
   ["trae", path.join(".trae", "user_rules.md")],
   ["trae-cn", path.join(".trae-cn", "agents", "explorer.md")],
   ["trae-cn", path.join(".trae-cn", "skills", "workflow-runtime", "SKILL.md")],
-  ["trae-cn", path.join(".trae-cn", "user_rules", "00-precedence-and-safety.md")],
+  ["trae-cn", path.join(".trae-cn", "user_rules", "core.md")],
   ["trae-cli", path.join(".trae", "agents", "explorer.md")],
   ["trae-cli", path.join(".trae", "skills", "workflow-runtime", "SKILL.md")],
   ["trae-cli", path.join(".trae", "traecli.toml")],
-  ["trae-cli", path.join(".trae", "rules", "00-precedence-and-safety.md")],
+  ["trae-cli", path.join(".trae", "rules", "core.md")],
   ["grok-build", path.join(".grok", "agents", "explorer.md")],
   ["grok-build", path.join(".grok", "AGENTS.md")],
   ["openhands", path.join(".openhands", "mcp.json")],
@@ -196,20 +196,22 @@ assert.match(
   /^disable-model-invocation: true$/m,
 );
 
-// Claude Code gets one always-on document that CLAUDE.md imports, and scoped rules as references; nothing
-// lands in .claude/rules, which VS Code also reads.
+// Claude Code gets one always-on document that CLAUDE.md imports, and Codex one AGENTS.md; each carries
+// every rule whole. Nothing lands in .claude/rules, which VS Code also reads, and no rule is a reference.
 const claudeRules = readFileSync(path.join(root, "dist", "claude-code", ".claude", "agent-surface", "rules.md"), "utf8");
-assert.match(claudeRules, /^## 00-precedence-and-safety\.mdc$/m);
-assert.doesNotMatch(claudeRules, /^## 10-python\.mdc$/m);
-assert.ok(existsSync(path.join(root, "dist", "claude-code", ".claude", "agent-surface", "references", "rules", "10-python.md")));
+const codexInstructions = readFileSync(path.join(root, "dist", "codex", ".codex", "AGENTS.md"), "utf8");
+const ruleSources = readdirSync(path.join(root, "rules")).filter((name) => name.endsWith(".md")).sort();
+assert.ok(ruleSources.length > 0, "rules/ holds rule sources");
+for (const name of ruleSources) {
+  const ruleText = readFileSync(path.join(root, "rules", name), "utf8").trim();
+  for (const [label, document] of [["claude-code", claudeRules], ["codex", codexInstructions]]) {
+    assert.ok(document.includes(`## ${name}\n\n${ruleText}\n`), `${label}: the rules document carries ${name} whole`);
+  }
+}
+assert.equal(existsSync(path.join(root, "dist", "claude-code", ".claude", "agent-surface", "references")), false);
 assert.equal(existsSync(path.join(root, "dist", "claude-code", ".claude", "rules")), false);
 
-// Substitute-policy contract lands in always-on Codex instructions + verify-test skill.
-const codexInstructions = readFileSync(path.join(root, "dist", "codex", ".codex", "AGENTS.md"), "utf8");
-assert.match(codexInstructions, /SUBSTITUTE_JUSTIFICATION/);
-assert.match(codexInstructions, /A test substitute stands in for something the code under test calls/);
-assert.doesNotMatch(codexInstructions, /## 04-cybersecurity\.mdc/);
-assert.doesNotMatch(codexInstructions, /## 10-python\.mdc/);
+// The substitute-policy contract lands in the verify-test skill.
 const codexVerifyTest = readFileSync(path.join(root, "dist", "codex", ".agents", "skills", "verify-test", "SKILL.md"), "utf8");
 assert.match(codexVerifyTest, /No substitute-backed proof of a replaced boundary/);
 

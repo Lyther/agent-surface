@@ -1,12 +1,11 @@
 # Antigravity CLI plugin adapter
 
-Packages canonical skills, explicit high-impact workflow skills, rules, scoped references, subagents, external skills, and first-party MCP wiring under Antigravity CLI's active staged-plugin root:
+Packages canonical skills, explicit high-impact workflow skills, rules, subagents, external skills, and first-party MCP wiring under Antigravity CLI's active staged-plugin root:
 
 - `~/.gemini/antigravity-cli/plugins/agent-surface/plugin.json`
 - `~/.gemini/antigravity-cli/plugins/agent-surface/skills/<name>/SKILL.md`
 - `~/.gemini/antigravity-cli/plugins/agent-surface/agents/<name>.md`
 - `~/.gemini/antigravity-cli/plugins/agent-surface/rules/<rule>.md`
-- `~/.gemini/antigravity-cli/plugins/agent-surface/references/rules/<rule>.md`
 - `~/.gemini/antigravity-cli/plugins/agent-surface/mcp_config.json`
 
 Validate and register the staged plugin after every install that changes it, since Antigravity keeps running its imported copy until then; `install` prints the `agy plugin install` step when it does, and `doctor` reports `antigravity-cli-import: differs` when the imported copy at `~/.gemini/config/plugins/agent-surface` no longer matches the staged one:

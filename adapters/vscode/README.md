@@ -5,7 +5,6 @@ VS Code uses native Agent Skills for both safe reusable procedures and available
 Implemented user-profile surfaces:
 
 - `prompts/agent-surface.instructions.md` (Local agent only; Agent Host sessions read their harness folders, such as `~/.copilot/instructions`, instead, and a co-installed `copilot` target writes the same document)
-- `prompts/agent-surface-<scoped-rule>.instructions.md`
 - `mcp.json` with `servers.{synapse,grimoire}`
 
 Canonical skills, manual workflows, and reviewed external skill packs install under `~/.agents/skills/`, which the current VS Code documentation lists as a personal skill location without naming a harness. Manual workflows carry `disable-model-invocation: true`, which the documentation defines as invocable through the `/` slash command only.
@@ -26,4 +25,4 @@ VS Code and Copilot have native MCP and Agent Skills support. Policy-gated exten
 
 `prompts` is the profile folder VS Code discovers (its `promptsHome`), appended to the `chat.instructionsFilesLocations` defaults `.github/instructions`, `.claude/rules`, `~/.claude/rules` and `~/.copilot/instructions`. `Code/User/instructions`, written until 1.116 was read for this, is not a discovery location, and only `*.instructions.md`, `copilot-instructions.md` and `.claude/rules/*.md` are loaded from one.
 
-Generated instructions bundle only always-on rules. Each scoped language policy is an instruction file of its own, which VS Code attaches when one of its `applyTo` globs matches a file in the request; `applyTo: "**"` on the bundle is the host's always-attach pattern.
+`applyTo: "**"` on the generated instructions is the host's always-attach pattern.

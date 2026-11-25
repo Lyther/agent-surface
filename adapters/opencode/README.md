@@ -8,12 +8,11 @@ Implemented target paths:
 - user: `~/.config/opencode/skills/<name>/SKILL.md`
 - user: `~/.config/opencode/agents/<name>.md`
 - user: `~/.config/opencode/AGENTS.md` for always-on rules
-- user: `~/.config/opencode/references/rules/<rule>.md`
 - user merge: `~/.config/opencode/opencode.json` `mcp.{synapse,grimoire}`
 - project: `.opencode/commands/*.md`
 - project: `.opencode/skills/<name>/SKILL.md`
 - project: `.opencode/agents/<name>.md`
-- project: `AGENTS.md` plus `.opencode/references/rules/<rule>.md`
+- project: `AGENTS.md`
 - project merge: `.opencode/opencode.json` `mcp.{synapse,grimoire}`
 
 First-party MCP wiring (Synapse and Grimoire) is generated and safely merged. External or secret-bearing MCPs remain opt-in. Reviewed external skill packs use the same native skill roots as canonical skills.
@@ -26,5 +25,3 @@ Native plugin packaging remains future generated-surface work:
 - `opencode plugin`
 
 Each command carries its source description as frontmatter, which OpenCode lists beside it. On macOS arm64 with a `--category development` project install, OpenCode 1.19.3's `debug config` and OpenCode 2.0.32's `GET /api/command` list the five descriptions, where they listed none before. No model call was made.
-
-Generated instruction files bundle only always-on rules. Scoped language policies are reference files for project-aware commands.

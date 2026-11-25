@@ -63,27 +63,26 @@ function snapshot(dir, entries = {}, base = dir) {
 }
 
 try {
-  // Cascade's global rules file holds 6,000 characters and the user-scope rules render more, so only a
-  // selection without rules installs there.
+  // Cascade's global rules file holds 6,000 characters: the general user-scope rules fit, and the
+  // development rules push the file past it, so only a user-scope selection without them installs.
   const user = path.join(scratch, "user");
   const skills = install(["--scope", "user", "--dest", user, "--category", "skills"]);
   assert.equal(skills.code, 0, skills.out);
   assert.doesNotMatch(skills.out, /OUTPUT_LIMIT_EXCEEDED: /, "unselected oversized rules do not block");
   const before = snapshot(scratch);
-  for (const selection of [["--category", "rules"], []]) {
-    const refused = install(["--scope", "user", "--dest", user, ...selection]);
-    assert.notEqual(refused.code, 0, refused.out);
-    assert.match(refused.out, /OUTPUT_LIMIT_EXCEEDED: \.codeium\/windsurf\/memories\/global_rules\.md is \d+ code points .* at most 6000 characters/);
-    assert.deepEqual(snapshot(scratch), before, "a refused plan writes nothing, in the install root or under HOME");
-  }
-
-  // A workspace rule file holds 12,000: the general project rules fit, development rules do not.
-  const project = path.join(scratch, "project");
-  const general = install(["--scope", "project", "--dest", project, "--category", "rules"]);
+  const refused = install(["--scope", "user", "--dest", user, "--category", "development"]);
+  assert.notEqual(refused.code, 0, refused.out);
+  assert.match(refused.out, /OUTPUT_LIMIT_EXCEEDED: \.codeium\/windsurf\/memories\/global_rules\.md is \d+ code points .* at most 6000 characters/);
+  assert.deepEqual(snapshot(scratch), before, "a refused plan writes nothing, in the install root or under HOME");
+  const general = install(["--scope", "user", "--dest", user, "--category", "rules"]);
   assert.equal(general.code, 0, general.out);
-  const development = install(["--scope", "project", "--dest", project, "--category", "development"]);
-  assert.notEqual(development.code, 0, development.out);
-  assert.match(development.out, /OUTPUT_LIMIT_EXCEEDED: \.devin\/rules\/agent-surface\.md is \d+ code points .* at most 12000 characters/);
+  assert.doesNotMatch(general.out, /OUTPUT_LIMIT_EXCEEDED: /);
+
+  // A workspace rule file holds 12,000, which the development rules fit too.
+  const project = path.join(scratch, "project");
+  const development = install(["--scope", "project", "--dest", project, "--category", "development", "--dry-run"]);
+  assert.equal(development.code, 0, development.out);
+  assert.doesNotMatch(development.out, /OUTPUT_LIMIT_EXCEEDED: /);
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }

@@ -26,7 +26,7 @@ rg -n -e 'TODO|FIXME|HACK|XXX|STUB|NotImplementedError|todo!\(|unimplemented!\('
 
 Type escape hatches are language-specific: add one more `rg -n` only for the languages of the changed files, with `\bany\b|@ts-ignore|@ts-expect-error` for TypeScript, `\bAny\b|# *type: *ignore|^\s*pass\s*$` for Python, and `\.unwrap\(\)|\.expect\(` for Rust.
 
-Then run the repo's type checker or compiler (`npm run typecheck`, `pyright`, `cargo check`, `go vet`) for unresolved imports and type errors, and its formatter and linter in check mode on the changed files (`05-tooling`); format-on-save can leave drift the gate rejects.
+Then run the repo's type checker or compiler (`npm run typecheck`, `pyright`, `cargo check`, `go vet`) for unresolved imports and type errors, and its formatter and linter in check mode on the changed files (`rules/code.md`); format-on-save can leave drift the gate rejects.
 
 Read each hit before acting on it. A hit is real unless the code shows otherwise (an identifier like `bypass`, a documented exception); never dismiss one unread.
 
@@ -38,7 +38,7 @@ Take one domain at a time across the changed files.
 - **Logic**: trace the main input through null, empty, and malformed cases; error handling around network, file, and database I/O; loop and range bounds; unreachable or uncovered branches.
 - **Types**: replace `any`/`Any` used for convenience with a concrete type, protocol, or bounded generic; fix the cause behind an unexplained ignore (an ignore with a stated reason may stay); return types match signatures.
 - **Architecture**: prompts, schemas, or long instructions embedded in code move to a file; duplicated type definitions collapse to one; secrets and per-deployment values come from the environment.
-- **Tests**: every substitute needs a complete `SUBSTITUTE_JUSTIFICATION` (`06-test-policy`); remove one the real component could serve; a substitute-backed run is not evidence for the boundary it replaced. Assert outputs and state, not call counts. Fix production types instead of ignoring them in tests.
+- **Tests**: mocks, fakes, and stubs require user approval (`rules/test.md`) and a complete `SUBSTITUTE_JUSTIFICATION` when kept; remove one the real component could serve; a substitute-backed run is not evidence for the boundary it replaced. Assert outputs and state, not call counts. Fix production types instead of ignoring them in tests.
 - **Kernel C** (only for kernel code): read each `goto`/`out_*` cleanup helper end to end and list its side effects; enumerate (input × concurrent operation) cases for each selector; mirror an existing cleanup ladder in the same file; keep paired charge/uncharge domains in separate locals; change shared counters under their owning lock.
 
 Add no guard, check, configuration, or test that a found defect does not call for.

@@ -70,18 +70,22 @@ for (const target of [
     if (target === "kilo") {
       const kiloConfig = JSON.parse(readFileSync(path.join(targetDest, "kilo.jsonc"), "utf8"));
       assert.deepEqual(kiloConfig.instructions, [
-        ".kilo/rules/00-precedence-and-safety.md",
-        ".kilo/rules/01-response-style.md",
+        ".kilo/rules/core.md",
+        ".kilo/rules/git.md",
+        ".kilo/rules/hitl.md",
+        ".kilo/rules/tool.md",
       ]);
       run([...installArgs, "--category", "development"]);
       const developmentConfig = JSON.parse(readFileSync(path.join(targetDest, "kilo.jsonc"), "utf8"));
       assert.deepEqual(developmentConfig.instructions, [
-        ".kilo/rules/00-precedence-and-safety.md",
-        ".kilo/rules/01-response-style.md",
-        ".kilo/rules/02-agent-workflow.md",
-        ".kilo/rules/03-project-defaults.md",
-        ".kilo/rules/05-tooling.md",
-        ".kilo/rules/06-test-policy.md",
+        ".kilo/rules/core.md",
+        ".kilo/rules/git.md",
+        ".kilo/rules/hitl.md",
+        ".kilo/rules/tool.md",
+        ".kilo/rules/code.md",
+        ".kilo/rules/repository.md",
+        ".kilo/rules/task.md",
+        ".kilo/rules/test.md",
       ]);
       assert.deepEqual(developmentConfig.permission, { "*": "allow" });
       assert.equal(developmentConfig.share, "disabled");
@@ -90,29 +94,31 @@ for (const target of [
       run(installArgs);
       const restoredConfig = JSON.parse(readFileSync(path.join(targetDest, "kilo.jsonc"), "utf8"));
       assert.deepEqual(restoredConfig.instructions, [
-        ".kilo/rules/00-precedence-and-safety.md",
-        ".kilo/rules/01-response-style.md",
+        ".kilo/rules/core.md",
+        ".kilo/rules/git.md",
+        ".kilo/rules/hitl.md",
+        ".kilo/rules/tool.md",
       ]);
     }
     if (target === "codex") {
       // A project install writes the root AGENTS.md Codex reads, not the .codex/AGENTS.md it never does.
       const instructionPath = path.join(targetDest, "AGENTS.md");
-      assert.match(readFileSync(instructionPath, "utf8"), /^## 00-precedence-and-safety\.mdc$/m);
+      assert.match(readFileSync(instructionPath, "utf8"), /^## core\.md$/m);
       assert.equal(existsSync(path.join(targetDest, ".codex", "AGENTS.md")), false);
       run([...installArgs, "--category", "development"]);
       const developmentInstructions = readFileSync(instructionPath, "utf8");
-      assert.match(developmentInstructions, /^## 00-precedence-and-safety\.mdc$/m);
-      assert.match(developmentInstructions, /^## 02-agent-workflow\.mdc$/m);
+      assert.match(developmentInstructions, /^## core\.md$/m);
+      assert.match(developmentInstructions, /^## code\.md$/m);
       run([...installArgs, "--category", "cybersecurity"]);
       const cybersecurityInstructions = readFileSync(instructionPath, "utf8");
-      assert.match(cybersecurityInstructions, /^## 00-precedence-and-safety\.mdc$/m);
-      assert.match(cybersecurityInstructions, /^## 02-agent-workflow\.mdc$/m);
+      assert.match(cybersecurityInstructions, /^## core\.md$/m);
+      assert.match(cybersecurityInstructions, /^## code\.md$/m);
       // A combined asset-category install must still emit the always-on instruction document
       // (not just the category's skills), carrying baseline + development always-on rules.
       run([...installArgs, "--category", "development,cybersecurity"]);
       const combinedInstructions = readFileSync(instructionPath, "utf8");
-      assert.match(combinedInstructions, /^## 00-precedence-and-safety\.mdc$/m);
-      assert.match(combinedInstructions, /^## 02-agent-workflow\.mdc$/m);
+      assert.match(combinedInstructions, /^## core\.md$/m);
+      assert.match(combinedInstructions, /^## code\.md$/m);
 
       // An output-only rules refresh must not quietly rewrite this document back to the general
       // baseline: it is a single file carrying development's always-on rules, and dropping them
@@ -126,13 +132,13 @@ for (const target of [
       assert.equal(readFileSync(instructionPath, "utf8"), combinedInstructions, "codex: the refused refresh left the document byte-identical");
       // And the refusal is not a dead end: the owning category still refreshes it.
       run([...installArgs, "--category", "development"]);
-      assert.match(readFileSync(instructionPath, "utf8"), /^## 02-agent-workflow\.mdc$/m, "codex: re-running the owning category restores the document");
+      assert.match(readFileSync(instructionPath, "utf8"), /^## code\.md$/m, "codex: re-running the owning category restores the document");
 
       run(installArgs);
       run([...installArgs, "--category", "development,cybersecurity,private", "--service", "synapse,grimoire"]);
       const primaryMcpConfig = TOML.parse(readFileSync(path.join(targetDest, ".codex", "config.toml"), "utf8"));
       assert.deepEqual(Object.keys(primaryMcpConfig.mcp_servers).sort(), ["grimoire", "synapse"]);
-      assert.match(readFileSync(instructionPath, "utf8"), /^## 02-agent-workflow\.mdc$/m);
+      assert.match(readFileSync(instructionPath, "utf8"), /^## code\.md$/m);
       for (const skill of ["dev-feature", "solve-challenge"]) {
         assert.ok(existsSync(path.join(targetDest, ".agents", "skills", skill, "SKILL.md")), skill);
       }
@@ -144,11 +150,11 @@ for (const target of [
       // refusal — the contract differs because the host's rule surface does.
       const ruleDir = path.join(targetDest, ".cursor", "rules");
       run([...installArgs, "--category", "development"]);
-      assert.ok(existsSync(path.join(ruleDir, "02-agent-workflow.mdc")), "cursor: development contributes its own rule file");
+      assert.ok(existsSync(path.join(ruleDir, "code.mdc")), "cursor: development contributes its own rule file");
       const refresh = status([...installArgs, "--category", "rules"]);
       assert.equal(refresh.status, 0, `cursor: a per-file rule host refreshes without refusal: ${refresh.stdout}${refresh.stderr}`);
-      assert.ok(existsSync(path.join(ruleDir, "02-agent-workflow.mdc")), "cursor: and development's rule file survives the refresh");
-      assert.ok(existsSync(path.join(ruleDir, "00-precedence-and-safety.mdc")), "cursor: alongside the baseline rules");
+      assert.ok(existsSync(path.join(ruleDir, "code.mdc")), "cursor: and development's rule file survives the refresh");
+      assert.ok(existsSync(path.join(ruleDir, "core.mdc")), "cursor: alongside the baseline rules");
     }
     if (target === "opencode") {
       const openCodeConfig = JSON.parse(readFileSync(path.join(targetDest, ".opencode", "opencode.json"), "utf8"));
@@ -157,7 +163,7 @@ for (const target of [
     }
     if (target === "kimi-code") {
       assert.equal(existsSync(path.join(targetDest, ".kimi-code", "config.toml")), false, "Kimi reads config.toml only from KIMI_CODE_HOME");
-      assert.match(readFileSync(path.join(targetDest, "AGENTS.md"), "utf8"), /^## 00-precedence-and-safety\.mdc$/m);
+      assert.match(readFileSync(path.join(targetDest, "AGENTS.md"), "utf8"), /^## core\.md$/m);
       assert.equal(existsSync(path.join(targetDest, ".kimi-code", "AGENTS.md")), false, "the rules load once, from the shared root AGENTS.md");
       const kimiMcp = JSON.parse(readFileSync(path.join(targetDest, ".kimi-code", "mcp.json"), "utf8"));
       assert.equal(Object.hasOwn(kimiMcp.mcpServers.synapse, "type"), false);
@@ -171,7 +177,7 @@ for (const target of [
     if (target === "qwen-code") {
       const settings = JSON.parse(readFileSync(path.join(targetDest, ".qwen", "settings.json"), "utf8"));
       assert.equal(settings.tools.approvalMode, "yolo");
-      assert.match(readFileSync(path.join(targetDest, "AGENTS.md"), "utf8"), /^## 00-precedence-and-safety\.mdc$/m);
+      assert.match(readFileSync(path.join(targetDest, "AGENTS.md"), "utf8"), /^## core\.md$/m);
       assert.equal(existsSync(path.join(targetDest, "QWEN.md")), false, "the rules load once, from the shared root AGENTS.md");
       assert.equal(Object.hasOwn(settings.mcpServers.synapse, "type"), false);
     }

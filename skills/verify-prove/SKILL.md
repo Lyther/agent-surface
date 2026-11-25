@@ -12,7 +12,7 @@ HTTP 200 or exit 0 on a happy path is smoke, never "E2E" or "production-level pr
 - frozen identity of the shipped artifact (digest or checksum), not a mutable tag;
 - clean-room boot from that artifact, with no source-tree or hidden dev-cache dependency;
 - real user or host entry points for every journey claimed in scope;
-- real implementation, dependencies, data paths, and external effects throughout every evidence-bearing journey, with no substitute under any label or test name (`06-test-policy`);
+- real implementation, dependencies, data paths, and external effects throughout every evidence-bearing journey, with no substitute under any label or test name (`rules/test.md`);
 - verified environment outcomes (database, file, config, process state), not agent or UI narration;
 - robustness and adversary checks relevant to the claim; they are in scope by default, and excluding them narrows the claim;
 - multi-trial evidence when the path is nondeterministic.

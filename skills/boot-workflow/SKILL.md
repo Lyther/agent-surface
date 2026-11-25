@@ -54,8 +54,8 @@ done-check -> narrow read -> smallest change -> cheapest check that can see the 
 2. Read only the target files, their callers, and the tests that cover them.
 3. Make the smallest change that meets the outcome.
 4. Run the cheapest check that can observe the likely failure. For a behavior change with no such check, reproduce the problem first and use that as the check.
-5. Repair from the check's output. When the same check keeps failing, stop at the repeated-failure limit already set in `02-agent-workflow` and the `dev-*` commands, and ask instead of patching again.
-6. Before reporting, run the broader checks the change needs under `05-tooling`, then review your own diff against the done-check. Report exact results, anything that did not run, and what remains, with the status words defined in `02-agent-workflow`.
+5. Repair from the check's output. When the same check fails three times (initial run plus two focused fixes, as in the `dev-*` skills), stop and ask (`rules/hitl.md`) instead of patching again.
+6. Before reporting, run the broader checks the change needs (`rules/test.md`, `rules/code.md`), then review your own diff against the done-check (`rules/core.md`). Report exact results, anything that did not run, and what remains (`COMPLETE`, `IMPLEMENTED BUT UNVERIFIED`, or `BLOCKED`).
 7. Leave the default only for a signal in Optional Modes, and say which signal fired.
 
 ## Optional Modes

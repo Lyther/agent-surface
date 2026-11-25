@@ -57,7 +57,7 @@ Planned and out-of-scope hosts are listed at the end of [docs/reference/targets.
 ```text
 skills/      - Vanilla Agent Skills, model-invocable by default; a skill is a directory and may carry the reference material its SKILL.md points at
 commands/    - High-impact workflows that require explicit user invocation
-rules/       - Always-on or scoped behavior policy
+rules/       - Always-on behavior policy
 subagents/   - Normalized subagent definitions
 mcps/        - First-party MCP services (synapse, grimoire)
 ignores/     - Project ignore templates

@@ -298,12 +298,6 @@ export function kiloRuleRoot(context) {
   return context.scope === "user" ? path.join(".config", "kilo", "rules") : path.join(".kilo", "rules");
 }
 
-export function kiloRuleReferenceRoot(context) {
-  return context.scope === "user"
-    ? path.join(".config", "kilo", "references", "rules")
-    : path.join(".kilo", "references", "rules");
-}
-
 export function kiloAgentRoot(context) {
   return context.scope === "user" ? path.join(".config", "kilo", "agents") : path.join(".kilo", "agents");
 }

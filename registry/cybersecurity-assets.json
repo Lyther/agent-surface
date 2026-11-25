@@ -4,9 +4,7 @@
     "ops-pentest-report"
   ],
   "commands": [],
-  "rules": [
-    "04-cybersecurity"
-  ],
+  "rules": [],
   "subagents": [],
   "services": [
     "anthropic-cybersecurity-skills",

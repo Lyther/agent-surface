@@ -108,7 +108,7 @@ agent-surface/
     registry.mjs                       - JSON loading/cache; add capability reader here, not duplicate raw reads.
     targets.mjs                        - Adapter identities/producers and selected service projection; no I/O mutation.
     roots.mjs                          - Pure scope/platform/native-root helpers; no implicit account migration.
-    render.mjs                         - Native serializers, manual-only metadata and scoped rule syntax.
+    render.mjs                         - Native serializers, manual-only metadata and rule frontmatter.
     install.mjs                        - Plans/notices/ownership/conflicts, writes and manifests; preserve selection semantics.
     notices.mjs                        - Stored and planner-derived notices and their wording; never blocks, never written into native files.
     check.mjs                          - Structural/semantic metadata and output contracts; no live client gate.

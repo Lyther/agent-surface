@@ -1,5 +1,5 @@
-// Rule sources: load rules/*.mdc and parse their frontmatter (description, alwaysApply,
-// globs). Parsing only — reference validation + rendering live in the check/render layers.
+// Rule sources: every rules/*.md file is plain Markdown that applies to every request, named by its
+// file name. Parsing only — reference validation + rendering live in the check/render layers.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { files } from "./fs-tree.mjs";
@@ -12,74 +12,29 @@ import {
 } from "./registry.mjs";
 
 export async function readRules() {
-  const ruleFiles = await files("rules", [".mdc"]);
+  const ruleFiles = await files("rules", [".md"]);
   const rules = [];
 
   for (const file of ruleFiles) {
     const text = await readFile(file, "utf8");
-    rules.push(parseRule(file, text));
+    rules.push({ file: relative(file), name: path.basename(file, ".md"), text });
   }
 
   return rules;
 }
 
+// The general rules come first and each category's rules follow in registry order. Kilo keeps
+// instruction entries in the order installs add them, so a single `--category everything` install
+// and the general-then-category sequence list the rules the same way only in this order.
 export async function readRulesForContext(context = {}, { includeBaseline = false } = {}) {
   const categories = await readAssetCategories();
+  const categoryOrder = Object.keys(categories);
+  const rank = (category) => (category === null ? -1 : categoryOrder.indexOf(category));
   const selectedCategories = selectedAssetCategories(context.categoryFilter);
-  return (await readRules()).map((rule) => {
-    const name = path.basename(rule.file, ".mdc");
-    return { ...rule, assetCategory: assetCategoryFor(categories, "rules", name) };
-  }).filter((rule) => assetCategoryAllowed(context, rule.assetCategory)
-    || (includeBaseline && selectedCategories.size > 0 && rule.assetCategory === null));
-}
-
-export function parseRule(file, text) {
-  const out = {
-    file: relative(file),
-    text,
-    description: null,
-    alwaysApply: null,
-    globs: [],
-    frontmatterErrors: [],
-  };
-
-  if (!text.startsWith("---\n")) {
-    out.frontmatterErrors.push("frontmatter missing");
-    return out;
-  }
-
-  const end = text.indexOf("\n---\n", 4);
-  if (end === -1) {
-    out.frontmatterErrors.push("frontmatter not closed");
-    return out;
-  }
-
-  const lines = text.slice(4, end).split(/\r?\n/);
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    const description = line.match(/^description:\s*"?(.*?)"?\s*$/);
-    if (description) {
-      out.description = description[1];
-      continue;
-    }
-
-    const alwaysApply = line.match(/^alwaysApply:\s*(true|false)\s*$/);
-    if (alwaysApply) {
-      out.alwaysApply = alwaysApply[1] === "true";
-      continue;
-    }
-
-    if (line.match(/^globs:\s*$/)) {
-      for (let globIndex = index + 1; globIndex < lines.length; globIndex += 1) {
-        const glob = lines[globIndex].match(/^\s+-\s*"?(.*?)"?\s*$/);
-        if (!glob) break;
-        out.globs.push(glob[1]);
-        index = globIndex;
-      }
-    }
-  }
-
-  if (!out.description) out.frontmatterErrors.push("frontmatter description missing");
-  if (out.alwaysApply === null) out.frontmatterErrors.push("frontmatter alwaysApply missing");
-  return out;
+  return (await readRules()).map((rule) => ({
+    ...rule,
+    assetCategory: assetCategoryFor(categories, "rules", rule.name),
+  })).filter((rule) => assetCategoryAllowed(context, rule.assetCategory)
+    || (includeBaseline && selectedCategories.size > 0 && rule.assetCategory === null))
+    .sort((left, right) => rank(left.assetCategory) - rank(right.assetCategory));
 }

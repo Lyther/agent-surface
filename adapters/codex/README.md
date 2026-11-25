@@ -10,13 +10,10 @@ Implemented target paths:
 - explicit-only policy: `~/.agents/skills/<name>/agents/openai.yaml`
 - user (project via `--dest`): `.codex/agents/<name>.toml`
 - user: `~/.codex/AGENTS.md` for always-on rules; a `--dest` project install writes the project's root `AGENTS.md` instead, which Codex reads from the repository root down, under the target-neutral header the other hosts sharing it use; that project file must stay under the 32 KiB Codex reads (`project_doc_max_bytes`), or the install blocks
-- user: `~/.codex/references/rules/<rule>.md` for scoped language references
 - user (project via `--dest`) merge: `.codex/config.toml` `[mcp_servers.{synapse,grimoire}]`, plus `approval_policy = "never"` and `sandbox_mode = "danger-full-access"`
 
 Canonical skills and explicit-only high-impact workflows share the Agent Skills root. Their `agents/openai.yaml` sets `allow_implicit_invocation` to `true` or `false`; explicit-only workflows remain available through `$<name>` but Codex does not invoke them automatically. Custom agents render as standalone TOML files with `name`, `description` and `developer_instructions`; an agent file cannot set `sandbox_mode` or `approval_policy`, so each subagent runs with the parent turn's.
 
 External skill packs render only when the optional-service entry declares `skill_roots`. `anthropic-cybersecurity-skills` is kept as a pinned source asset but is not emitted into Codex skill roots by default.
-
-Generated `AGENTS.md` intentionally bundles only `alwaysApply: true` rules. The cybersecurity and language policies are scoped by globs, so they ship as references for project-aware commands to attach when the current repository files match their globs.
 
 First-party MCP wiring (Synapse and Grimoire) is generated and safely merged into `config.toml`. Codex reads a project's config only in trusted projects. External or secret-bearing MCPs remain opt-in.

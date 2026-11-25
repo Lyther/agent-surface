@@ -75,7 +75,7 @@
             "~/.claude/agent-surface/rules.md",
             ".claude/agent-surface/rules.md"
           ],
-          "notes": "One always-on document plus scoped rules as references. Claude Code loads it through `@agent-surface/rules.md` in .claude/CLAUDE.md, which stays user-owned; the plan names a missing import (code.claude.com/docs/en/memory, 2026-11-03). Not written to .claude/rules, which VS Code also applies to every request."
+          "notes": "One always-on document. Claude Code loads it through `@agent-surface/rules.md` in .claude/CLAUDE.md, which stays user-owned; the plan names a missing import (code.claude.com/docs/en/memory, 2026-11-03). Not written to .claude/rules, which VS Code also applies to every request."
         },
         "external": {
           "support": "native",
@@ -407,10 +407,9 @@
           ],
           "paths": [
             "~/.grok/AGENTS.md",
-            "AGENTS.md",
-            ".grok/references/rules/<rule>.md"
+            "AGENTS.md"
           ],
-          "notes": "User installs write ~/.grok/AGENTS.md, which Grok loads as global instructions outside folder trust; project installs use the shared root AGENTS.md, loaded once the folder is trusted. Scoped policies remain separate references."
+          "notes": "User installs write ~/.grok/AGENTS.md, which Grok loads as global instructions outside folder trust; project installs use the shared root AGENTS.md, loaded once the folder is trusted."
         },
         "subagents": {
           "support": "native",
@@ -776,7 +775,7 @@
             "~/Documents/Cline/Rules/agent-surface.md",
             ".clinerules/agent-surface.md"
           ],
-          "notes": "Always-on rules are bundled into one file under the CLI/extension global rules directory. The pre-SDK extension reads it under the OS Documents folder, so a moved folder gets a copy too, or the only copy when it is a OneDrive Documents folder the SDK bundle also scans. Scoped rules remain reference-only because Cline's rules loader does not recursively discover the references directory."
+          "notes": "Always-on rules are bundled into one file under the CLI/extension global rules directory. The pre-SDK extension reads it under the OS Documents folder, so a moved folder gets a copy too, or the only copy when it is a OneDrive Documents folder the SDK bundle also scans."
         },
         "subagents": {
           "support": "native",
@@ -973,12 +972,10 @@
           ],
           "paths": [
             "~/.config/kilo/rules/*.md",
-            "~/.config/kilo/references/rules/*.md",
             ".kilo/rules/*.md",
-            ".kilo/references/rules/*.md",
             "kilo.jsonc"
           ],
-          "notes": "Always-on rules are emitted as files and registered through the instructions array; scoped language rules are emitted as references."
+          "notes": "Rules are emitted as files and registered through the instructions array."
         },
         "subagents": {
           "support": "native",
@@ -1099,11 +1096,9 @@
           ],
           "paths": [
             "$KIMI_CODE_HOME/AGENTS.md",
-            "$KIMI_CODE_HOME/references/rules/<rule>.md",
-            "AGENTS.md",
-            ".kimi-code/references/rules/<rule>.md"
+            "AGENTS.md"
           ],
-          "notes": "Always-on rules render into Kimi's instruction file; scoped language rules remain reference files until a matching workflow attaches them. Kimi reads both .kimi-code/AGENTS.md and AGENTS.md in each project directory, so project installs share the root AGENTS.md with the other AGENTS.md hosts rather than load the rules twice."
+          "notes": "Always-on rules render into Kimi's instruction file. Kimi reads both .kimi-code/AGENTS.md and AGENTS.md in each project directory, so project installs share the root AGENTS.md with the other AGENTS.md hosts rather than load the rules twice."
         },
         "subagents": {
           "support": "native",
@@ -1267,7 +1262,7 @@
             "~/.qoder/AGENTS.md",
             "AGENTS.md"
           ],
-          "notes": "Always-on rules use Qoder's user and project instruction files; scoped rules remain references."
+          "notes": "Always-on rules use Qoder's user and project instruction files."
         },
         "subagents": {
           "support": "native",
@@ -1372,7 +1367,7 @@
             "~/.qwen/QWEN.md",
             "AGENTS.md"
           ],
-          "notes": "Always-on rules use Qwen Code's native context files; scoped rules remain references. Qwen reads both QWEN.md and AGENTS.md, so project installs share the root AGENTS.md with the other AGENTS.md hosts rather than add a QWEN.md that loads the rules twice."
+          "notes": "Always-on rules use Qwen Code's native context files. Qwen reads both QWEN.md and AGENTS.md, so project installs share the root AGENTS.md with the other AGENTS.md hosts rather than add a QWEN.md that loads the rules twice."
         },
         "subagents": {
           "support": "native",
@@ -1618,7 +1613,7 @@
       ]
     },
     "antigravity-cli": {
-      "summary": "The Antigravity CLI target packages agent-surface as an agy plugin with skills, agents, always-on rules, scoped references, and external skills.",
+      "summary": "The Antigravity CLI target packages agent-surface as an agy plugin with skills, agents, always-on rules, and external skills.",
       "generated_render_tokens": [
         "plugins",
         "skills",
@@ -1678,10 +1673,9 @@
             "user"
           ],
           "paths": [
-            "~/.gemini/antigravity-cli/plugins/agent-surface/rules/<always-on-rule>.md",
-            "~/.gemini/antigravity-cli/plugins/agent-surface/references/rules/<scoped-rule>.md"
+            "~/.gemini/antigravity-cli/plugins/agent-surface/rules/<rule>.md"
           ],
-          "notes": "Always-on rules render as plugin rules; scoped language/security policies render as references selected by project-aware commands."
+          "notes": "Always-on rules render as plugin rules."
         },
         "mcp": {
           "support": "native",
@@ -1984,10 +1978,9 @@
             "user"
           ],
           "paths": [
-            "prompts/agent-surface.instructions.md",
-            "prompts/agent-surface-<scoped-rule>.instructions.md"
+            "prompts/agent-surface.instructions.md"
           ],
-          "notes": "Local agent only; relative to stable VS Code's default-profile Code/User directory. The instruction folder read there is `prompts` (the profile's promptsHome, appended next to the `chat.instructionsFilesLocations` defaults `.github/instructions`, `.claude/rules`, `~/.claude/rules` and `~/.copilot/instructions`); `Code/User/instructions`, written until 1.116 was read, is not a discovery location. Scoped language rules are instruction files of their own, attached when one of their `applyTo` globs matches a file in the request. Agent Host sessions read their harness folders (~/.copilot/instructions, ~/.copilot/copilot-instructions.md, ~/.claude/rules) instead, and a co-installed copilot target writes the same shared documents."
+          "notes": "Local agent only; relative to stable VS Code's default-profile Code/User directory. The instruction folder read there is `prompts` (the profile's promptsHome, appended next to the `chat.instructionsFilesLocations` defaults `.github/instructions`, `.claude/rules`, `~/.claude/rules` and `~/.copilot/instructions`); `Code/User/instructions`, written until 1.116 was read, is not a discovery location. Agent Host sessions read their harness folders (~/.copilot/instructions, ~/.copilot/copilot-instructions.md, ~/.claude/rules) instead, and a co-installed copilot target writes the same shared documents."
         },
         "mcp": {
           "support": "native",
@@ -2267,10 +2260,9 @@
           "paths": [
             "~/.copilot/copilot-instructions.md",
             ".github/copilot-instructions.md",
-            "prompts/agent-surface.instructions.md",
-            "prompts/agent-surface-<scoped-rule>.instructions.md"
+            "prompts/agent-surface.instructions.md"
           ],
-          "notes": "CLI-native instructions are generated at user/project scope; user installs also write the VS Code profile documents, shared with the vscode target, that only VS Code's Local agent reads. Those land in `Code/User/prompts`, the folder VS Code discovers, and the scoped rules there are instruction files VS Code attaches by their `applyTo` globs. The Copilot Agent Host reads ~/.copilot/copilot-instructions.md, which is not qualified here."
+          "notes": "CLI-native instructions are generated at user/project scope; user installs also write the VS Code profile documents, shared with the vscode target, that only VS Code's Local agent reads. Those land in `Code/User/prompts`, the folder VS Code discovers. The Copilot Agent Host reads ~/.copilot/copilot-instructions.md, which is not qualified here."
         },
         "mcp": {
           "support": "native",
@@ -2327,7 +2319,7 @@
       }
     },
     "trae": {
-      "summary": "Trae international IDE (TraeCode), which reads ~/.trae, the documented ~/.trae-cn/agents and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, the user_rules.md rules file, subagents and MCP. The CN IDE (trae-cn) and Trae CLI 2.0 (trae-cli) read other roots and are separate targets; ~/.trae/skills and ~/.trae/references/rules are co-owned with trae-cli and ~/.trae-cn/agents with trae-cn.",
+      "summary": "Trae international IDE (TraeCode), which reads ~/.trae, the documented ~/.trae-cn/agents and the project .trae directory: agent-surface generates skills, explicit-only compatibility skills, the user_rules.md rules file, subagents and MCP. The CN IDE (trae-cn) and Trae CLI 2.0 (trae-cli) read other roots and are separate targets; ~/.trae/skills is co-owned with trae-cli and ~/.trae-cn/agents with trae-cn.",
       "generated_render_tokens": [
         "skills",
         "rules",
@@ -2713,8 +2705,8 @@
           "code": "WINDSURF_RULE_SIZE_LIMITS",
           "kind": "compatibility",
           "surface": "rules",
-          "message": "Cascade documents a 6,000-character limit for the global rules file and 12,000 characters per workspace rule file. agent-surface's user-scope rules and any development rules exceed them, so the installer refuses a selection that includes them (OUTPUT_LIMIT_EXCEEDED) and writes nothing.",
-          "action": "For complete rules in Cascade, use a project-scope general install, whose rules file fits one workspace file; at user scope leave rules out, for example with --category skills,commands-as-workflows,external,mcps.",
+          "message": "Cascade documents a 6,000-character limit for the global rules file and 12,000 characters per workspace rule file. agent-surface's development rules push the user-scope rules file past 6,000 characters, so the installer refuses a user-scope selection that includes them (OUTPUT_LIMIT_EXCEEDED) and writes nothing.",
+          "action": "For complete rules in Cascade, use a project-scope install, whose rules file fits one workspace file; at user scope leave the development category out.",
           "source_url": "https://docs.devin.ai/desktop/cascade/memories",
           "checked_at": "2026-09-28"
         }

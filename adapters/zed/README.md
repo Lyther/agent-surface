@@ -6,9 +6,9 @@ Generates Zed-compatible Agent Skills and instruction files.
 
 - `.agents/skills/<name>/SKILL.md`
 - `.agents/skills/<external-skill>/...`
-- User: `<zed config>/AGENTS.md`, `<zed config>/references/rules/<rule>.md`
+- User: `<zed config>/AGENTS.md`
 - User merge: `<zed config>/settings.json` `context_servers.{synapse,grimoire}`
-- Project: `AGENTS.md`, `.zed/references/rules/<rule>.md`
+- Project: `AGENTS.md`
 - Project merge: `.zed/settings.json` `context_servers.{synapse,grimoire}`
 
 ## Notes
@@ -20,6 +20,5 @@ Generates Zed-compatible Agent Skills and instruction files.
 - A personal `%APPDATA%\Zed\AGENTS.md` you wrote yourself blocks the install as `UNOWNED_DESTINATION`; move or remove it, then rerun.
 - External skill packs render only when the optional-service entry declares `skill_roots`. `anthropic-cybersecurity-skills` is kept as a pinned source asset but is not emitted into Zed skill roots by default.
 - First-party MCP wiring (Synapse and Grimoire) is generated and safely merged. External or secret-bearing MCPs remain opt-in.
-- Generated instructions bundle only always-on rules. Scoped language policies are reference files for project-aware commands.
 - Available high-impact commands use explicit-invocation compatibility skills with `disable-model-invocation: true`, which Zed honors for model-driven loading: it leaves them out of the skill catalog the model sees and its skill tool refuses them, while typing the slash command still runs them. Its file tools can still read the `SKILL.md`, so the flag is not a hard barrier.
 - These notes were read from Zed's v1.24.2 source (macOS, Linux and Windows code paths), not from a live session: the config directory, `context_servers` entry shape, worktree trust, rules-file order and skill loading match what agent-surface writes in a default install. A Flatpak build, `XDG_CONFIG_HOME` on Linux and `--user-data-dir` move Zed's config directory elsewhere.

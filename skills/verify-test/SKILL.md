@@ -5,7 +5,7 @@ description: "Use when a test run has just come back green, or is about to run, 
 
 ## Objective
 
-Run the relevant tests, interpret the evidence honestly, and expose how a green result can lie: weakened assertions, skipped failing tests, mocked-away real paths, or assertions on buggy output. Green is a claim, not a verdict. No substitute-backed proof of a replaced boundary: labels do not matter, and each necessary substitute needs a justification (`06-test-policy`).
+Run the relevant tests, interpret the evidence honestly, and expose how a green result can lie: weakened assertions, skipped failing tests, mocked-away real paths, or assertions on buggy output. Green is a claim, not a verdict. No substitute-backed proof of a replaced boundary: labels do not matter, and each approved or necessary substitute needs a justification (`rules/test.md`).
 
 PASS requires all of:
 

@@ -18,7 +18,7 @@ import { readRules } from "./rules.mjs";
 import { readSkills } from "./skills.mjs";
 import { readSubagents, subagentValidationErrors } from "./source-primitives.mjs";
 import { CODEX_PLUGIN_NAME, CODEX_PLUGIN_SCHEMA, generatedOutputMinimums, producerEmitsFor, sourceKindPolicy, targetOutputs, targetProducers, targets } from "./targets.mjs";
-import { argValue, exists, fail, globMatches, isSafeTargetName } from "./util.mjs";
+import { argValue, exists, fail, isSafeTargetName } from "./util.mjs";
 
 export const commandMetadataFields = new Set(["name", "aliases", "phase", "description"]);
 export const skillMetadataFields = new Set(["name", "description", "license", "compatibility", "metadata", "allowed-tools"]);
@@ -107,60 +107,15 @@ export const workflowRuntimeNames = new Set([
   "unspecified",
 ]);
 
-export const ruleScenarios = {
-  "generic-chat": {
-    paths: [],
-    targetTokens: 10000,
-    hardTokens: 12000,
-  },
-  "python-source": {
-    paths: ["src/example.py"],
-    targetTokens: 10000,
-    hardTokens: 12000,
-  },
-  "python-tooling": {
-    paths: ["pyproject.toml"],
-    targetTokens: 10000,
-    hardTokens: 12000,
-  },
-  "rust-source": {
-    paths: ["src/lib.rs"],
-    targetTokens: 10000,
-    hardTokens: 12000,
-  },
-  "go-ci": {
-    paths: [".golangci.yml"],
-    targetTokens: 10000,
-    hardTokens: 12000,
-  },
-  "typescript-eslint": {
-    paths: ["eslint.config.mjs"],
-    targetTokens: 10000,
-    hardTokens: 12000,
-  },
-  "shell-script": {
-    paths: ["scripts/deploy.sh"],
-    targetTokens: 10000,
-    hardTokens: 12000,
-  },
-  "security-exploit": {
-    paths: ["exploit.py", "ctf/chall/pwn.c", "findings/pentest.md", ".garak.toml"],
-    targetTokens: 10000,
-    hardTokens: 12000,
-  },
-  "ordinary-patch": {
-    paths: ["patches/fix-build-regression.patch"],
-    targetTokens: 10000,
-    hardTokens: 12000,
-  },
-};
+// Every rule attaches to every request, so one budget covers all of them together.
+export const ruleBudget = { targetTokens: 10000, hardTokens: 12000 };
 
 export async function check() {
   const errors = [];
   const commands = await readCommands();
   const skills = await readSkills();
   const commandFiles = commands.map((command) => command.file);
-  const ruleFiles = await files("rules", [".md", ".mdc"]);
+  const ruleFiles = await files("rules", [".md"]);
   const targetsConfig = JSON.parse(await readFile(path.join(root, "registry", "targets.json"), "utf8"));
   const artifactsConfig = JSON.parse(await readFile(path.join(root, "registry", "artifacts.json"), "utf8"));
   const sourceKindsConfig = await readSourceKinds();
@@ -254,7 +209,7 @@ async function checkAssetCategories(commands, skills, errors) {
   const services = await readOptionalServices();
   const commandNames = new Set(commands.map((command) => command.name));
   const skillNames = new Set(skills.map((skill) => skill.name));
-  const ruleNames = new Set((await readRules()).map((rule) => path.basename(rule.file, ".mdc")));
+  const ruleNames = new Set((await readRules()).map((rule) => rule.name));
   const subagentNames = new Set((await readSubagents()).map((subagent) => subagent.metadata.name));
   const owners = new Map();
 
@@ -481,7 +436,6 @@ export async function checkGenerated(args) {
   const selected = target === "all" ? Object.keys(targets) : [target];
   const catalog = await exportableCatalog();
   const sourceKindsConfig = await readSourceKinds();
-  const rules = await readRules();
   const errors = [];
 
   for (const item of selected) {
@@ -498,17 +452,12 @@ export async function checkGenerated(args) {
     const countErrors = validateGeneratedOutputCount(item, outputs);
     const sourceKindErrors = validateGeneratedSourceKinds(item, outputs, sourceKindsConfig);
     const fidelityErrors = await validateSkillResourceFidelity(outputs);
-    const referenceErrors = validateScopedRuleReferences(outputs, rules);
-    const scopedInstructionErrors = validateScopedRuleInstructions(outputs, rules);
-    const failed = targetErrors.length + countErrors.length + sourceKindErrors.length + fidelityErrors.length
-      + referenceErrors.length + scopedInstructionErrors.length > 0;
+    const failed = targetErrors.length + countErrors.length + sourceKindErrors.length + fidelityErrors.length > 0;
     console.log(`${item}: generated outputs ${outputs.length} ${failed ? "failed" : "ok"}`);
     errors.push(...targetErrors.map((error) => `${item}: ${error}`));
     errors.push(...countErrors.map((error) => `${item}: ${error}`));
     errors.push(...sourceKindErrors);
     errors.push(...fidelityErrors.map((error) => `${item}: ${error}`));
-    errors.push(...referenceErrors.map((error) => `${item}: ${error}`));
-    errors.push(...scopedInstructionErrors.map((error) => `${item}: ${error}`));
   }
   errors.push(...validateSharedSkillRootAgreement(outputsByTarget));
 
@@ -550,9 +499,7 @@ export async function checkRegistrySchemas(errors) {
   }
 }
 
-export async function checkRules(args) {
-  const scenario = argValue(args, "--scenario");
-  const selectedScenarios = scenario ? [scenario] : Object.keys(ruleScenarios);
+export async function checkRules() {
   const rules = await readRules();
   const commandNames = new Set([
     ...(await readCommands()).map((command) => command.name),
@@ -561,43 +508,23 @@ export async function checkRules(args) {
   const errors = [];
   const warnings = [];
 
-  for (const name of selectedScenarios) {
-    if (!Object.hasOwn(ruleScenarios, name)) {
-      fail(`unknown rules scenario: ${name}`);
-    }
-  }
+  for (const rule of rules) collectRuleReferenceFindings(rule, commandNames, errors, warnings);
 
-  for (const rule of rules) {
-    for (const error of rule.frontmatterErrors) errors.push(`${rule.file}: ${error}`);
-    if (rule.alwaysApply === false && rule.globs.length === 0) {
-      errors.push(`${rule.file}: non-always rule must declare globs`);
-    }
-    collectRuleReferenceFindings(rule, commandNames, errors, warnings);
+  const tokens = rules.reduce((sum, rule) => sum + approximateTokens(rule.text), 0);
+  const status = tokens > ruleBudget.hardTokens ? "fail" : tokens > ruleBudget.targetTokens ? "warn" : "ok";
+  if (tokens > ruleBudget.hardTokens) {
+    errors.push(`attached rule budget ${tokens} exceeds hard cap ${ruleBudget.hardTokens}`);
+  } else if (tokens > ruleBudget.targetTokens) {
+    warnings.push(`attached rule budget ${tokens} exceeds target ${ruleBudget.targetTokens}`);
   }
 
   console.log("rules:");
   console.log(`  files: ${rules.length}`);
-  console.log(`  frontmatter: ${errors.some((error) => error.includes("frontmatter")) ? "failed" : "ok"}`);
-
-  for (const name of selectedScenarios) {
-    const config = ruleScenarios[name];
-    const attached = rules.filter((rule) => rule.alwaysApply || config.paths.some((item) => rule.globs.some((glob) => globMatches(glob, item))));
-    const tokens = attached.reduce((sum, rule) => sum + approximateTokens(rule.text), 0);
-    const status = tokens > config.hardTokens ? "fail" : tokens > config.targetTokens ? "warn" : "ok";
-
-    if (tokens > config.hardTokens) {
-      errors.push(`${name}: attached rule budget ${tokens} exceeds hard cap ${config.hardTokens}`);
-    } else if (tokens > config.targetTokens) {
-      warnings.push(`${name}: attached rule budget ${tokens} exceeds target ${config.targetTokens}`);
-    }
-
-    console.log(`${name}:`);
-    console.log(`  attached: ${attached.map((rule) => rule.file).join(", ")}`);
-    console.log(`  approx_tokens: ${tokens}`);
-    console.log(`  target_tokens: ${config.targetTokens}`);
-    console.log(`  hard_tokens: ${config.hardTokens}`);
-    console.log(`  status: ${status}`);
-  }
+  console.log(`  attached: ${rules.map((rule) => rule.file).join(", ")}`);
+  console.log(`  approx_tokens: ${tokens}`);
+  console.log(`  target_tokens: ${ruleBudget.targetTokens}`);
+  console.log(`  hard_tokens: ${ruleBudget.hardTokens}`);
+  console.log(`  status: ${status}`);
 
   if (warnings.length > 0) {
     console.log("warnings:");
@@ -833,60 +760,6 @@ export async function validateSkillResourceFidelity(outputs) {
   return errors;
 }
 
-// A scoped rule is delivered as a reference the reader decides to apply, so the reference has to
-// carry the scope that decision needs — the rule's OWN description and globs, whatever they say —
-// and must not re-emit frontmatter a host could mistake for its own directives.
-export function validateScopedRuleReferences(outputs, rules) {
-  const errors = [];
-  const scoped = new Map(rules.filter((rule) => rule.alwaysApply === false).map((rule) => [rule.file, rule]));
-  for (const output of outputs) {
-    const rule = scoped.get(output.source);
-    if (!rule || !/references[\\/]rules[\\/]/.test(output.relativeOutput)) continue;
-    if (rule.description && !output.content.includes(rule.description)) {
-      errors.push(`scoped reference ${output.relativeOutput} drops the rule's description`);
-    }
-    for (const glob of rule.globs) {
-      if (!output.content.includes(glob)) errors.push(`scoped reference ${output.relativeOutput} drops the applicability glob ${glob}`);
-    }
-    // Frontmatter is a LEADING construct: a host reads `---` as metadata only when the document opens
-    // with it. A `---` further down is an ordinary horizontal rule and rendering one is not a defect,
-    // so only the opening delimiter is rejected.
-    if (/^---\r?\n/.test(output.content)) {
-      errors.push(`scoped reference ${output.relativeOutput} opens with frontmatter a host could read as directives`);
-    }
-  }
-  return errors;
-}
-
-// Where a host attaches a scoped rule by glob itself, the globs are the mechanism rather than advice:
-// a dropped one silently stops applying the rule, and a catch-all makes the host attach it to every
-// request, which is the opposite of a scoped rule.
-export function validateScopedRuleInstructions(outputs, rules) {
-  const errors = [];
-  const catchAll = ["*", "**", "**/*"];
-  const scoped = new Map(rules.filter((rule) => rule.alwaysApply === false).map((rule) => [rule.file, rule]));
-  for (const output of outputs) {
-    const rule = scoped.get(output.source);
-    if (!rule || !output.relativeOutput.endsWith(".instructions.md")) continue;
-    const declared = /^applyTo: "(.*)"$/m.exec(output.content);
-    if (!declared) {
-      errors.push(`scoped instruction ${output.relativeOutput} declares no applyTo globs`);
-      continue;
-    }
-    const globs = declared[1].split(",").map((glob) => glob.trim());
-    for (const glob of rule.globs) {
-      if (!globs.includes(glob)) errors.push(`scoped instruction ${output.relativeOutput} drops the applicability glob ${glob}`);
-    }
-    for (const glob of globs.filter((glob) => catchAll.includes(glob))) {
-      errors.push(`scoped instruction ${output.relativeOutput} declares the catch-all glob ${glob}, which attaches it to every request`);
-    }
-    if (rule.description && !output.content.includes(rule.description)) {
-      errors.push(`scoped instruction ${output.relativeOutput} drops the rule's description`);
-    }
-  }
-  return errors;
-}
-
 // `.agents/skills/` is one directory on disk that several targets install into, and identical
 // content is what lets them coexist there — a divergence is a real install conflict, not a style
 // difference.
@@ -967,6 +840,9 @@ export function validateGeneratedTarget(target, outputs) {
     if (output && pattern.test(output.content)) errors.push(`${relativeOutput} unexpectedly contains ${pattern}`);
   };
   const skillFrontmatter = /^(?:\uFEFF)?---\r?\n/;
+  // An uncategorized rule and a development rule, by source file name.
+  const baselineRule = "core";
+  const developmentRule = "code";
 
   if (outputs.length === 0) errors.push("no outputs generated");
   // Full-catalog targets must not silently drop the optional external packs. An export format is not
@@ -1045,9 +921,8 @@ export function validateGeneratedTarget(target, outputs) {
     requirePath(path.join(".kilo", "skills", "ops-flow", "SKILL.md"));
     requirePath(path.join(".config", "kilo", "commands", "ops-nuke.md"));
     requireContains(path.join(".config", "kilo", "agents", "explorer.md"), /^---\ndescription: "/);
-    requireContains(path.join(".config", "kilo", "kilo.jsonc"), /"~\/\.config\/kilo\/rules\/00-precedence-and-safety\.md"/);
-    requireContains(path.join(".config", "kilo", "rules", "00-precedence-and-safety.md"), /Precedence and Safety/);
-    requireContains(path.join(".config", "kilo", "references", "rules", "10-python.md"), /Scoped agent-surface reference/);
+    requireContains(path.join(".config", "kilo", "kilo.jsonc"), new RegExp(`"~/\\.config/kilo/rules/${baselineRule}\\.md"`));
+    requireContains(path.join(".config", "kilo", "rules", `${baselineRule}.md`), /Kilo custom rule/);
     if (byPath.has(path.join(".config", "kilo", "AGENTS.md"))) {
       errors.push("Kilo must not emit AGENTS.md when kilo.jsonc instruction rules are generated");
     }
@@ -1094,7 +969,7 @@ export function validateGeneratedTarget(target, outputs) {
   } else if (target === "kiro") {
     requireContains(path.join(".kiro", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".kiro", "steering", "command-ops-nuke.md"), /^---\ninclusion: manual\n---/);
-    requireContains(path.join(".kiro", "steering", "00-precedence-and-safety.md"), /^---\ninclusion: always\n---/);
+    requireContains(path.join(".kiro", "steering", `${baselineRule}.md`), /^---\ninclusion: always\n---/);
     requireContains(path.join(".kiro", "agents", "explorer.md"), /^---\nname: explorer\n/);
     // Skills only: a file:// steering resource would load every steering file, manual workflows included.
     requireContains(path.join(".kiro", "agents", "explorer.md"), /^resources:\n  - "skill:\/\/\.kiro\/skills\/\*\*\/SKILL\.md"\n  - "skill:\/\/~\/\.kiro\/skills\/\*\*\/SKILL\.md"\n---$/m);
@@ -1111,15 +986,14 @@ export function validateGeneratedTarget(target, outputs) {
     if (plugin && plugin.name !== "agent-surface") errors.push("Antigravity CLI plugin name must be agent-surface");
     requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "agents", "explorer.md"), /^---\nname: explorer\n/);
-    requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "rules", "00-precedence-and-safety.md"), /Antigravity CLI plugin rule/);
+    requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "rules", `${baselineRule}.md`), /Antigravity CLI plugin rule/);
     // Antigravity CLI documents slash invocation; the generic renderer's `$name` default is Codex's.
     requireContains(path.join("antigravity-cli", "plugins", "agent-surface", "skills", "ops-nuke", "SKILL.md"), /Use explicit invocation: `\/ops-nuke`\./);
-    requirePath(path.join("antigravity-cli", "plugins", "agent-surface", "references", "rules", "10-python.md"));
   } else if (target === "cursor") {
     requirePath(path.join(".cursor", "skills", "ops-flow", "SKILL.md"));
     requirePath(path.join(".cursor", "commands", "ops-nuke.md"));
     requireContains(path.join(".cursor", "agents", "explorer.md"), /^---\nname: explorer\n/);
-    requirePath(path.join(".cursor", "rules", "00-precedence-and-safety.mdc"));
+    requireContains(path.join(".cursor", "rules", `${baselineRule}.mdc`), /^alwaysApply: true$/m);
     requireContains(".cursorignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "droid") {
     requirePath(path.join(".agents", "skills", "ops-flow", "SKILL.md"));
@@ -1150,13 +1024,11 @@ export function validateGeneratedTarget(target, outputs) {
       errors.push("Copilot CLI stdio MCP entries must use the standard stdio type");
     }
     requireContains(path.join(userRoot, "prompts", "agent-surface.instructions.md"), /^---\ndescription: "agent-surface VS Code instructions"\napplyTo: "\*\*"/);
-    requireContains(path.join(userRoot, "prompts", "agent-surface-10-python.instructions.md"), /^---\ndescription: "Python-specific correctness rules"\napplyTo: "\*\*\/\*\.py, pyproject\.toml/);
     requireAbsent(path.join(userRoot, "instructions", "agent-surface-copilot.instructions.md"));
   } else if (target === "vscode") {
     const userRoot = vsCodeUserRoot("Code", { scope: "user" });
     requirePath(path.join(".agents", "skills", "ops-flow", "SKILL.md"));
     requireContains(path.join(userRoot, "prompts", "agent-surface.instructions.md"), /^---\ndescription: "agent-surface VS Code instructions"\napplyTo: "\*\*"/);
-    requireContains(path.join(userRoot, "prompts", "agent-surface-14-shell.instructions.md"), /^---\ndescription: "Shell-specific correctness rules"\napplyTo: "\*\*\/\*\.sh, /);
     requireAbsent(path.join(userRoot, "instructions", "agent-surface.instructions.md"));
     // Manual workflows reach VS Code as explicit-only Agent Skills, not prompt files: 1.116 does not
     // load prompt files in Agent Host sessions, and `disable-model-invocation` is how it is told to
@@ -1176,14 +1048,13 @@ export function validateGeneratedTarget(target, outputs) {
     requirePath(path.join(".trae", "skills", "ops-flow", "SKILL.md"));
     requireContains(path.join(".trae-cn", "agents", "explorer.md"), /^---\nname: explorer\n/);
   } else if (target === "trae-cn") {
-    requirePath(path.join(".trae-cn", "user_rules", "00-precedence-and-safety.md"));
+    requireContains(path.join(".trae-cn", "user_rules", `${baselineRule}.md`), /^alwaysApply: true$/m);
     requirePath(path.join(".trae-cn", "skills", "ops-flow", "SKILL.md"));
     requireContains(path.join(".trae-cn", "agents", "explorer.md"), /^---\nname: explorer\n/);
   } else if (target === "trae-cli") {
     requirePath(path.join(".trae", "skills", "ops-flow", "SKILL.md"));
-    requireContains(path.join(".trae", "rules", "00-precedence-and-safety.md"), /^alwaysApply: true$/m);
-    requirePath(path.join(".trae", "rules", "10-python.md"));
-    requirePath(path.join(".trae", "references", "rules", "10-python.md"));
+    requireContains(path.join(".trae", "rules", `${baselineRule}.md`), /^alwaysApply: true$/m);
+    requirePath(path.join(".trae", "rules", `${developmentRule}.md`));
     requireContains(path.join(".trae", "agents", "explorer.md"), /^---\nname: explorer\n/);
     requireContains(path.join(".trae", "traecli.toml"), /^approval_policy = "never"$/m);
     requireContains(path.join(".trae", "traecli.toml"), /^default_permissions = ":danger-full-access"$/m);
