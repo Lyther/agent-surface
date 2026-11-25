@@ -115,7 +115,7 @@ Before handoff confirm: no fixed value returned to pass a test; no spec or test 
 
 ### Phase 6: Proof
 
-Run the specific test file; on FAIL fix the code, not the test. Refactor only after proof is green: outside workflow mode hand it off separately; in workflow mode never run `dev-refactor` before reviewer PASS, and queue it as a separate BOSS task or run.
+Run the specific test file; on FAIL fix the code, not the test. Refactor only after proof is green: outside workflow mode hand it off separately; in workflow mode never start `dev-refactor` before reviewer PASS, and queue it as a separate BOSS task or run.
 
 ### Phase 7: Handoff
 

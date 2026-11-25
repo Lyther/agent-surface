@@ -96,7 +96,7 @@ arch-roadmap [family A] -> dev-spec [fresh family B] -> dev-core [family A, xhig
 
 The first spec covers the runnable core slice; repeat `dev-spec` for later slices when independence is worth the handoff cost.
 
-Invoke `ops-flow` for the evidence-backed routing object. High risk normally upgrades `standard` to `reviewed`; it does not automatically create several writers. Orchestration is for real parallel width or durable long-running/release state.
+Use the `ops-flow` skill for the evidence-backed routing object. High risk normally upgrades `standard` to `reviewed`; it does not automatically create several writers. Orchestration is for real parallel width or durable long-running/release state.
 
 ## Formal Ledger
 
@@ -135,7 +135,7 @@ Artifact shapes live with their owning commands; load the owner instead of dupli
 
 ## Runtime Control
 
-Invoke `workflow-runtime` only when the selected profile delegates to a runtime that has not already passed a current task-shaped probe. That command owns CLI/version/help checks, resolved model identity, repository read/command/write/artifact probes, permission and output-shape evidence, provider-family independence, and liveness and cancellation behavior. Keep no volatile model catalog in this map; re-probe model and provider availability.
+Use the `workflow-runtime` skill only when the selected profile delegates to a runtime that has not already passed a current task-shaped probe. That skill owns CLI/version/help checks, resolved model identity, repository read/command/write/artifact probes, permission and output-shape evidence, provider-family independence, and liveness and cancellation behavior. Keep no volatile model catalog in this map; re-probe model and provider availability.
 
 ## Command Protocol
 

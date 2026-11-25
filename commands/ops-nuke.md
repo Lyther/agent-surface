@@ -103,7 +103,7 @@ git worktree add -b respawn/<name> <separate-path> <first-commit>
 
 4. Verify the new worktree's branch, HEAD, path, and clean status.
 5. Remove tracked project files only inside the respawn worktree. Never run reset, clean, checkout-overwrite, or deletion in the original worktree.
-6. Run `boot-new` against the approved design and maturity, then build the first end-to-end slice.
+6. Use the `boot-new` skill with the approved design and maturity, then build the first end-to-end slice.
 
 The original worktree keeps all staged, unstaged, ignored, and untracked state. Nothing is copied into the respawn merely because it was dirty or recent.
 

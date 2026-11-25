@@ -54,7 +54,7 @@ Batch invariants:
 - Malformed JSON, a missing `workflow.next_command`, or missing per-task evidence refs is REJECT.
 - With `stop_reason=queue_empty`, every task appears in `tasks_processed` or has a recorded upstream blocker; otherwise REJECT.
 - Completed tasks do not contradict each other (e.g. T1 adds an API that T3 removes without a `depends_on` chain).
-- Ledger buckets (`active_task_ids`, `accepted_task_ids`, `rework_task_ids`, `deferred_task_ids`, `closed_task_ids`) are mutually exclusive, every current BOSS task is in one, prior-round accepted/closed IDs may remain, and transitions match reviewer/judger handoffs. Run `workflow-doctor`; schema-valid contradictory buckets are a blocker.
+- Ledger buckets (`active_task_ids`, `accepted_task_ids`, `rework_task_ids`, `deferred_task_ids`, `closed_task_ids`) are mutually exclusive, every current BOSS task is in one, prior-round accepted/closed IDs may remain, and transitions match reviewer/judger handoffs. Check them with the `workflow-doctor` skill; schema-valid contradictory buckets are a blocker.
 - Reject uncommitted changes that cannot be attributed to the current tasks or to tasks already accepted.
 - Reject evidence containing obvious secrets, unredacted `.env` data, production credentials, or irrelevant customer data.
 - A current `BLOCKED` task should carry `blocker.resolution_class`, `blocker.attempts`, and `blocker.recommended_decision`; legacy v3 blockers with only `type`, `detail`, and `needs` are schema-compatible but lower-confidence evidence.

@@ -12,7 +12,7 @@ A `dev-chore` PASS means the inspected increment meets these gates; it is not in
 ## Modes
 
 - Routed worker: BOSS selected route `chore` for an explicit, bounded quality-maintenance task. `dev-chore` owns the worker artifact and may change files inside the assigned AC and FILESCOPE.
-- Embedded checkpoint: `dev-feature`, `dev-fix`, or `dev-refactor` calls `dev-chore` during its own task. Inspect the current delta and return findings and decisions; the caller keeps code, patch, evidence, and worker-artifact ownership, so never create or apply a `dev-chore` worker artifact or advance the ledger.
+- Embedded checkpoint: `dev-feature`, `dev-fix`, or `dev-refactor` uses `dev-chore` during its own task. Inspect the current delta and return findings and decisions; the caller keeps code, patch, evidence, and worker-artifact ownership, so never create or apply a `dev-chore` worker artifact or advance the ledger.
 - Direct: invoked without an active workflow. Inspect the named task or current delta, make only bounded corrections that preserve the accepted product contract, report changed files and checks, and do not auto-commit.
 
 ## Triggers

@@ -9,7 +9,7 @@ Control the execution shape without becoming the implementer, reviewer, or relea
 
 ## 1. Admission Control (required)
 
-Run `ops-flow` against the request and repository evidence, and record its routing object before spawning anything. The default route and the signals for leaving it live in the `boot-workflow` map; do not restate them here. Follow exactly one profile:
+Use the `ops-flow` skill on the request and repository evidence, and record its routing object before spawning anything. The default route and the signals for leaving it live in the `boot-workflow` map; do not restate them here. Follow exactly one profile:
 
 ```text
 direct      -> return to the current session for the bounded edit
@@ -39,7 +39,7 @@ Filescope:
 Acceptance checks:
 ```
 
-For an orchestrated or release run, invoke `workflow-boss` (at most five tasks per batch, normally three or fewer). BOSS must prove that at least two writable tasks are independent and isolated, or that the run needs durable long-running/release state a lightweight loop cannot preserve safely; otherwise downgrade to `reviewed` or `standard`.
+For an orchestrated or release run, use the `workflow-boss` skill (at most five tasks per batch, normally three or fewer). BOSS must prove that at least two writable tasks are independent and isolated, or that the run needs durable long-running/release state a lightweight loop cannot preserve safely; otherwise downgrade to `reviewed` or `standard`.
 
 ## 3. Runtime
 

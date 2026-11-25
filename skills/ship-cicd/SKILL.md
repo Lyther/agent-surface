@@ -38,7 +38,7 @@ Check out with deterministic setup, then run lint, import verification (phantom 
 
 ## 5. Deployment Gate
 
-Deploy the exact tested digest or checksum to preview or staging; verify the live running digest, version or build SHA, and bundle or manifest checksum; run `verify-prove` against the deployed revision; then run a short concurrency and SLO smoke. Promote nothing until live identity is proven.
+Deploy the exact tested digest or checksum to preview or staging; verify the live running digest, version or build SHA, and bundle or manifest checksum; use the `verify-prove` skill on the deployed revision; then run a short concurrency and SLO smoke. Promote nothing until live identity is proven.
 
 ## 6. Reporting and Policy
 

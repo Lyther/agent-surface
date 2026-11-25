@@ -46,7 +46,7 @@ Parallel width comes from independent workstreams, not checklist length; a seque
 - Choose `orchestrated` only when isolation or durable long-run state creates measurable leverage; never use BOSS merely because a task has several steps, and never give overlapping files or sequential tasks to multiple writers.
 - Choose `release` only once the candidate is stable enough to freeze; never generate release-grade provenance for an unstable intermediate patch.
 - Use `parallel` freely for read-only discovery, but keep one writer unless filescope isolation is proven.
-- If a formal run is already active, run `workflow-doctor` before starting another route.
+- If a formal run is already active, use the `workflow-doctor` skill before starting another route.
 
 ## 3. Select the Next Workflow
 

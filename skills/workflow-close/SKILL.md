@@ -18,7 +18,7 @@ Close an accepted or intentionally aborted workflow run without deleting its can
 .agent-surface/workflows/<run_id>/judger.json when present
 ```
 
-Run `workflow-doctor` first as the required structural check, and do not close a run with blocking doctor findings unless the user explicitly asks to abort or quarantine it. Use `ops-report` or `ops-learn` only as helper analysis for summaries or lesson candidates, with output in this skill's close format; unless the user explicitly asks, edit no global memory, run no shipping commands, and change no workflow state outside the close artifacts.
+Use the `workflow-doctor` skill first as the required structural check, and do not close a run with blocking doctor findings unless the user explicitly asks to abort or quarantine it. Use `ops-report` or `ops-learn` only as helper analysis for summaries or lesson candidates, with output in this skill's close format; unless the user explicitly asks, edit no global memory, run no shipping commands, and change no workflow state outside the close artifacts.
 
 ## Procedure
 

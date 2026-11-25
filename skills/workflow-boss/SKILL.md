@@ -9,7 +9,7 @@ Decompose an admitted orchestrated or release run into a spec that any agent (hu
 
 ## Input
 
-A task description, possibly bundling related sub-tasks, plus constraints. Require an `ops-flow` routing object or an explicit user request for formal decomposition; for a `direct`, `standard`, or `reviewed` profile, stop and return the route-specific development command instead of creating a ledger. Run `boot-context` first when essential repo context is missing or FILESCOPE cannot be set from evidence.
+A task description, possibly bundling related sub-tasks, plus constraints. Require an `ops-flow` routing object or an explicit user request for formal decomposition; for a `direct`, `standard`, or `reviewed` profile, stop and return the route-specific development command instead of creating a ledger. Use the `boot-context` skill first when essential repo context is missing or FILESCOPE cannot be set from evidence.
 
 Helpers; their output is evidence for `context_capsule`, AC, risk notes, and verify gates, and never changes the workflow graph, the `boss.json` format, or the normal `workflow.next_command`:
 

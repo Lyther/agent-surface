@@ -41,7 +41,7 @@ Classify task by task, or per batch when the failure is structural:
 ## Decisions
 
 - RESPEC: set `respec` to a full replacement BOSS JSON (`scope: batch`) or a partial patch listing only the affected `tasks[]` entries (`scope: task`). Always set `target_task_ids`.
-- CONTEXT: set `context_request` to `{ "task_ids": [...], "task": "short investigation prompt", "filescope_hint": [...] }` and route to `workflow-boss`, which runs `boot-context` before respeccing.
+- CONTEXT: set `context_request` to `{ "task_ids": [...], "task": "short investigation prompt", "filescope_hint": [...] }` and route to `workflow-boss`, which uses `boot-context` before respeccing.
 - PATCH: set `patch` to `{ "task_ids": [...], "mode": "proposed_only|apply_authorized", "diff": "<unified diff>", "verify": ["..."], "applies_to_tree_hash": "..." }`. The diff must apply cleanly to the current worktree/tree hash. Use `apply_authorized` when GENUINE_DIFFICULTY requires rescue takeover.
 - HUMAN: explain the blocker in `diagnosis.evidence`, set `next.command = null` and `requires_human = true`, and invent no diffs or specs.
 - `workflow.next_command` mirrors `next.command` exactly; `null` stops automation, and downstream commands follow `workflow.next_command`. `next.command` must be a `workflow_next_command` value in `workflow.run.schema.json`, or apply aborts: `boot-context` and `verify-test` are helpers, so send CONTEXT to `workflow-boss` and a missing test to the route-specific worker.
