@@ -45,7 +45,7 @@ Expected target families: native command/workflow targets `claude-code`, `cline`
 
 ## 4. Rule Budget
 
-Run `npm run check:rules` and report hard failures, soft budget warnings, and scenarios over target but under the hard limit. Report soft warnings as warnings, not failures, unless `--ci` policy says otherwise.
+Run `npm run check:rules` and report hard failures and soft budget warnings. Report soft warnings as warnings, not failures, unless `--ci` policy says otherwise.
 
 ## 5. Install Dry-Runs
 
