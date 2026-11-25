@@ -209,7 +209,6 @@ async function checkAssetCategories(commands, skills, errors) {
   const services = await readOptionalServices();
   const commandNames = new Set(commands.map((command) => command.name));
   const skillNames = new Set(skills.map((skill) => skill.name));
-  const ruleNames = new Set((await readRules()).map((rule) => rule.name));
   const subagentNames = new Set((await readSubagents()).map((subagent) => subagent.metadata.name));
   const owners = new Map();
 
@@ -217,7 +216,6 @@ async function checkAssetCategories(commands, skills, errors) {
     for (const [kind, known] of [
       ["commands", commandNames],
       ["skills", skillNames],
-      ["rules", ruleNames],
       ["subagents", subagentNames],
       ["services", new Set(Object.keys(services.services))],
     ]) {

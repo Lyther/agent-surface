@@ -2,7 +2,7 @@
 // Pure text transforms (+ small format helpers); no fs, no producers.
 import path from "node:path";
 import { quotedScalar, tomlMultilineString } from "./format.mjs";
-import { readRulesForContext } from "./rules.mjs";
+import { readRules } from "./rules.mjs";
 
 export async function renderClineWorkflow(source) {
   return source.body;
@@ -280,8 +280,8 @@ export function renderAntigravityCliRuleDocument(rule) {
   ].join("\n");
 }
 
-export async function renderInstructionDocument(title, subtitle, context = {}) {
-  const rules = await readRulesForContext(context, { includeBaseline: true });
+export async function renderInstructionDocument(title, subtitle) {
+  const rules = await readRules();
   return [
     `# ${title}`,
     "",
@@ -336,14 +336,14 @@ export function renderAlwaysApplyRuleDocument(rule) {
 // This host attaches an instruction file to a request when one of its `applyTo` globs matches a file
 // in that request's context, and reads `**` as "attach to every request", which the rules document
 // declares.
-export async function renderVsCodeInstructionDocument(title, context = {}) {
+export async function renderVsCodeInstructionDocument(title) {
   return [
     "---",
     `description: "${quotedScalar(title)}"`,
     'applyTo: "**"',
     "---",
     "",
-    await renderInstructionDocument(title, "VS Code profile instruction file", context),
+    await renderInstructionDocument(title, "VS Code profile instruction file"),
   ].join("\n");
 }
 

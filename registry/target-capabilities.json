@@ -2705,8 +2705,8 @@
           "code": "WINDSURF_RULE_SIZE_LIMITS",
           "kind": "compatibility",
           "surface": "rules",
-          "message": "Cascade documents a 6,000-character limit for the global rules file and 12,000 characters per workspace rule file. agent-surface's development rules push the user-scope rules file past 6,000 characters, so the installer refuses a user-scope selection that includes them (OUTPUT_LIMIT_EXCEEDED) and writes nothing.",
-          "action": "For complete rules in Cascade, use a project-scope install, whose rules file fits one workspace file; at user scope leave the development category out.",
+          "message": "Cascade documents a 6,000-character limit for the global rules file and 12,000 characters per workspace rule file. agent-surface's rules need more than 6,000 characters, so the installer refuses a user-scope selection that includes them (OUTPUT_LIMIT_EXCEEDED) and writes nothing.",
+          "action": "For rules in Cascade, use a project-scope install, whose rules file fits one workspace file; at user scope select outputs without rules, such as --category skills.",
           "source_url": "https://docs.devin.ai/desktop/cascade/memories",
           "checked_at": "2026-09-28"
         }

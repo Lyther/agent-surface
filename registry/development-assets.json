@@ -54,12 +54,6 @@
     "ship-deploy",
     "ship-release"
   ],
-  "rules": [
-    "code",
-    "repository",
-    "task",
-    "test"
-  ],
   "subagents": [
     "explorer",
     "researcher",

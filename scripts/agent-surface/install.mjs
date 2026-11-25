@@ -26,7 +26,6 @@ import { planSynapseHook } from "./synapse-hook.mjs";
 import { formatNotice, localDate, planNotices } from "./notices.mjs";
 import { assetCategoryFor, assetCategoryNames, packageVersion, readAssetCategories, readOptionalServices, readSourceKinds, profileAssetCategories, readTargetRegistry, relative, root, selectedAssetCategories } from "./registry.mjs";
 import { antigravityCliStagedPlugin } from "./roots.mjs";
-import { readRules } from "./rules.mjs";
 import { adapterMcpConfigs, kiloRuleInstructionPaths, kiloRuleInstructionRoot, mcpConfigRootProperties, mcpConfigScopeAllows, outputAppliesToCategory, outputAppliesToScope, outputRootFor, retiredInstallTargets, selectedMcpServiceEntries, targetOutputs, targets, withMcpServerOverrides } from "./targets.mjs";
 import { argValue, fail, isPathInside, isSafeRelativePath, isSafeTargetName, splitArgValues, uniqueStrings } from "./util.mjs";
 
@@ -1051,12 +1050,11 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       .map((route) => ({ from: claimKey(route.from), to: claimKey(route.to) })),
   ];
 
-  // An aggregate instruction document (Codex's AGENTS.md and its kin) holds several categories'
-  // always-on rules in ONE file. Regenerating it under a narrower selection therefore erases what
-  // the others contributed: `--category rules` after `--category development` rewrote the shared
-  // document back to the general baseline while development's skills stayed installed, leaving a
-  // profile no single command describes. Per-file rule hosts never had this problem — each rule is
-  // its own managed output, and a category-filtered install prunes only the selected category.
+  // An output recorded under an asset category holds that category's contribution, and regenerating
+  // it under a selection without the category erases it while the category's other assets stay
+  // installed, leaving a profile no single command describes. Rule documents were the case: before
+  // every selection wrote all the rules, an aggregate instruction document (Codex's AGENTS.md and its
+  // kin) held the selected category's rules, and manifests from then still record that category.
   //
   // The manifest records ONE asset_category per output. That is enough to DETECT the loss, and not
   // enough to reconstruct a document assembled from several categories, so the operation is
@@ -1150,13 +1148,12 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
       (id) => selectedCategories.has(configEntryAssetCategory(entry, id, categoryRegistry)),
     ))
   );
-  const categorySelectsRules = [...selectedCategories].some(
-    (category) => categoryRegistry[category].rules.length > 0,
-  );
-  if (target === "kilo" && (!categoryFilter || categoryFilter.has("rules") || categoryFilter.has("mcps") || categorySelectsMcp || categorySelectsRules)) {
+  // Every asset-category selection writes the rules, so it lists them in kilo.jsonc too.
+  const selectsRules = !categoryFilter || categoryFilter.has("rules") || selectedCategories.size > 0;
+  if (target === "kilo" && (selectsRules || categoryFilter.has("mcps") || categorySelectsMcp)) {
     const merge = await kiloConfigMerge(installRoot, scope, {
       ...configRouteContext,
-      includeInstructions: !categoryFilter || categoryFilter.has("rules") || categorySelectsRules,
+      includeInstructions: selectsRules,
       includeMcp: !categoryFilter || categoryFilter.has("mcps") || categorySelectsMcp,
       includeRootProperties: !categoryFilter,
     });
@@ -2269,15 +2266,8 @@ async function kiloConfigMerge(installRoot, scope, options = {}) {
   const includeInstructions = options.includeInstructions !== false;
   const includeMcp = options.includeMcp === true;
   const includeRootProperties = options.includeRootProperties === true;
-  const instructions = includeInstructions
-    ? await kiloRuleInstructionPaths(scope, {
-      mode: "install",
-      categoryFilter: options.categoryFilter ?? null,
-      fullProfile: options.fullProfile === true,
-    })
-    : [];
+  const instructions = includeInstructions ? await kiloRuleInstructionPaths(scope) : [];
   const ruleRoot = kiloRuleInstructionRoot(scope);
-  const rules = await readRules();
   // The always-on rules the plain-Markdown rules replaced. Installs wrote each of them in the
   // current form, so an entry naming one in that form is this installer's.
   const replacedAlwaysOnRules = [
@@ -2314,12 +2304,6 @@ async function kiloConfigMerge(installRoot, scope, options = {}) {
       ...replacedAlwaysOnRules.map((name) => `${ruleRoot}/${name}.md`),
     ]
     : retiredRuleNames.map((name) => `${ruleRoot}/${name}.md`);
-  // Every rule path this installer can manage, across all categories. A full general install (no
-  // category/service filter) prunes the category rule FILES, so it must also drop their now-dangling
-  // instruction entries instead of only appending — otherwise kilo.jsonc keeps pointing at removed
-  // `.kilo/rules/*.md` files after `general -> development -> general`.
-  const managedRuleInstructions = rules.map((rule) => `${ruleRoot}/${rule.name}.md`);
-  const pruneStaleInstructions = includeInstructions && !options.categoryFilter && !options.optionalServices;
   const mcpEntries = includeMcp
     ? await selectedMcpServiceEntries(true, {
       mode: "install",
@@ -2338,8 +2322,6 @@ async function kiloConfigMerge(installRoot, scope, options = {}) {
     format: "local-command-map",
     instructions,
     legacyInstructions: includeInstructions ? legacyInstructions : [],
-    managedRuleInstructions,
-    pruneStaleInstructions,
     rootProperties: includeRootProperties
       ? { permission: { "*": "allow" }, share: "disabled" }
       : {},
@@ -2427,11 +2409,6 @@ async function prepareKiloConfigMerge(merge, previousConfigEntries, pruneCategor
     }
     missing = merge.instructions.filter((item) => !instructions.includes(item));
     remove = merge.legacyInstructions.filter((item) => instructions.includes(item));
-    if (merge.pruneStaleInstructions) {
-      const keep = new Set(merge.instructions);
-      const stale = merge.managedRuleInstructions.filter((item) => instructions.includes(item) && !keep.has(item));
-      if (stale.length > 0) remove = [...new Set([...remove, ...stale])];
-    }
     if (missing.length > 0 || remove.length > 0) {
       content = mergeKiloInstructionJsonc(content, missing, remove);
     }

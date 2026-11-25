@@ -139,15 +139,30 @@ try {
   }
 
   // Step 2, differing bytes with another owner's claim: regenerated, with a warning naming the
-  // contribution the selection drops. Another target's manifest is not a veto.
+  // contribution the selection drops. Another target's manifest is not a veto. Every selection now
+  // renders the same rules document, so the differing claim is one an earlier release's development
+  // install recorded.
+  // SUBSTITUTE_JUSTIFICATION
+  // - substitute: a hand-written droid manifest and AGENTS.md in the shape earlier releases wrote
+  // - replaces: a project root an earlier release's development install wrote
+  // - necessity: this checkout records no category on a rules document
+  // - real-option: the real CLI, planner and apply run against a real root
+  // - proof-limit: proves the warning and the regeneration, not how the earlier record arose
+  // - real-proof: after e347cba's installer ran `--target droid --category development` in a scratch
+  //   root, this checkout's `--target openhands --category rules` printed the same warning
   {
     const dest = path.join(scratch, "droid-then-openhands");
-    const droid = project(dest, "droid", ["--category", "development"]);
-    assert.equal(droid.code, 0, droid.out);
+    mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
+    writeFileSync(path.join(dest, "AGENTS.md"), "rules from an earlier development install\n");
+    writeFileSync(path.join(dest, ".agent-surface", "droid-manifest.json"), `${JSON.stringify({
+      target: "droid",
+      scope: "project",
+      managed: [{ target: "droid", source: "rules/*.mdc", output: "AGENTS.md", asset_category: "development" }],
+    })}\n`);
     const live = project(dest, "openhands", ["--category", "rules"]);
     assert.equal(live.code, 0, live.out);
     assert.match(live.out, /^ {2}SHARED_CONTRIBUTION_REPLACED: AGENTS\.md drops droid's development; install --target droid --category development into this root to restore it$/m);
-    assert.equal(read(dest, "AGENTS.md"), read(rulesReference, "AGENTS.md"), "the shared file now holds the rules-only render");
+    assert.equal(read(dest, "AGENTS.md"), read(rulesReference, "AGENTS.md"), "the shared file now holds the rules render");
     assert.ok(claims(dest, "droid", "AGENTS.md") && claims(dest, "openhands", "AGENTS.md"), "both owners keep their claim");
   }
 
@@ -563,6 +578,13 @@ try {
   // install: the relocated rules document keeps the old route's category, so a rules-only refresh is
   // refused, and a development refresh rewrites it and retires the old route. Linux only, through the
   // real xdg-user-dir, which reads this home's user-dirs.dirs.
+  // SUBSTITUTE_JUSTIFICATION
+  // - substitute: the development category written into the old rules document's manifest record
+  // - replaces: the record an earlier release's development install wrote for that document
+  // - necessity: this checkout records no category on a rules document
+  // - real-option: the real CLI, planner, apply and xdg-user-dir run against a real root
+  // - proof-limit: proves that the relocated route keeps the record's category, not how the record arose
+  // - real-proof: none for an earlier release's manifest
   if (spawnSync("xdg-user-dir", ["DOCUMENTS"]).status === 0) {
     const dest = path.join(scratch, "cline-relocated");
     const userDirs = path.join(home, ".config", "user-dirs.dirs");
@@ -575,6 +597,10 @@ try {
       const first = cline("development");
       assert.equal(first.code, 0, first.out);
       const developmentRules = read(dest, oldRules);
+      const manifestFile = path.join(dest, ".agent-surface", "cline-manifest.json");
+      const recorded = JSON.parse(readFileSync(manifestFile, "utf8"));
+      for (const entry of recorded.managed) if (entry.output === oldRules) entry.asset_category = "development";
+      writeFileSync(manifestFile, `${JSON.stringify(recorded, null, 2)}\n`);
       // No DOCUMENTS entry: the extension reads ~/Cline, and rules go there alone.
       writeFileSync(userDirs, "");
       const before = snapshot(dest);
@@ -719,29 +745,29 @@ try {
   }
 
   // A stale managed output the planner cannot read blocks the same way: a development install leaves
-  // rules a later general install no longer plans, and one of them has lost its read permission.
+  // a command a later general install no longer plans, and it has lost its read permission.
   {
     const dest = path.join(scratch, "unreadable-stale");
-    const staleRule = path.join(".cursor", "rules", "code.mdc");
+    const staleCommand = path.join(".cursor", "commands", "ship-deploy.md");
     const developed = project(dest, "cursor", ["--category", "development"]);
     assert.equal(developed.code, 0, developed.out);
-    const content = read(dest, staleRule);
+    const content = read(dest, staleCommand);
     const recorded = manifest(dest, "cursor");
-    const file = path.join(dest, staleRule);
+    const file = path.join(dest, staleCommand);
     chmodSync(file, 0o000);
     try {
       if (!canOpen(file)) {
         const refused = project(dest, "cursor");
         assert.equal(refused.code, 1, refused.out);
-        assert.match(refused.out, /^ {2}stale managed output \.cursor\/rules\/code\.mdc cannot be read \(EACCES\)$/m);
+        assert.match(refused.out, /^ {2}stale managed output \.cursor\/commands\/ship-deploy\.md cannot be read \(EACCES\)$/m);
         assert.doesNotMatch(refused.out, /EACCES: permission denied/, "no bare filesystem error");
       }
     } finally {
       chmodSync(file, 0o644);
     }
-    assert.equal(read(dest, staleRule), content, "the stale rule is untouched");
+    assert.equal(read(dest, staleCommand), content, "the stale command is untouched");
     assert.deepEqual(manifest(dest, "cursor"), recorded, "the refused run kept the manifest");
-    assert.ok(!existsSync(path.join(dest, ".cursor", "rules", "core.mdc")), "the refused run wrote no general rule");
+    assert.ok(!existsSync(path.join(dest, ".cursor", "skills", "ops-ask")), "the refused run wrote no general skill");
   }
 
   // A manifest directory that cannot be listed or searched, or a legacy nested manifest whose

@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { ownTempRoot, run, status, useDisposableHome } from "../lib/helpers.mjs";
 
 const ownTmp = ownTempRoot("install-live");
+const RULES = ["code", "core", "git", "hitl", "repository", "task", "test", "tool"];
 
 // Live installs here wire credentialed MCP servers, which write the shared env launcher into HOME.
 const disposableHome = useDisposableHome();
@@ -68,93 +69,42 @@ for (const target of [
       }
     }
     if (target === "kilo") {
+      // Every selection that writes rules lists all of them.
+      const allRules = RULES.map((rule) => `.kilo/rules/${rule}.md`);
       const kiloConfig = JSON.parse(readFileSync(path.join(targetDest, "kilo.jsonc"), "utf8"));
-      assert.deepEqual(kiloConfig.instructions, [
-        ".kilo/rules/core.md",
-        ".kilo/rules/git.md",
-        ".kilo/rules/hitl.md",
-        ".kilo/rules/tool.md",
-      ]);
+      assert.deepEqual(kiloConfig.instructions, allRules);
       run([...installArgs, "--category", "development"]);
       const developmentConfig = JSON.parse(readFileSync(path.join(targetDest, "kilo.jsonc"), "utf8"));
-      assert.deepEqual(developmentConfig.instructions, [
-        ".kilo/rules/core.md",
-        ".kilo/rules/git.md",
-        ".kilo/rules/hitl.md",
-        ".kilo/rules/tool.md",
-        ".kilo/rules/code.md",
-        ".kilo/rules/repository.md",
-        ".kilo/rules/task.md",
-        ".kilo/rules/test.md",
-      ]);
+      assert.deepEqual(developmentConfig.instructions, allRules);
       assert.deepEqual(developmentConfig.permission, { "*": "allow" });
       assert.equal(developmentConfig.share, "disabled");
-      // A later full general install reconciles the instruction list back to the baseline —
-      // the development rule paths must not linger after their .kilo/rules files are pruned.
-      run(installArgs);
-      const restoredConfig = JSON.parse(readFileSync(path.join(targetDest, "kilo.jsonc"), "utf8"));
-      assert.deepEqual(restoredConfig.instructions, [
-        ".kilo/rules/core.md",
-        ".kilo/rules/git.md",
-        ".kilo/rules/hitl.md",
-        ".kilo/rules/tool.md",
-      ]);
     }
     if (target === "codex") {
       // A project install writes the root AGENTS.md Codex reads, not the .codex/AGENTS.md it never does.
       const instructionPath = path.join(targetDest, "AGENTS.md");
-      assert.match(readFileSync(instructionPath, "utf8"), /^## core\.md$/m);
+      const instructions = readFileSync(instructionPath, "utf8");
+      for (const rule of RULES) assert.match(instructions, new RegExp(`^## ${rule}\\.md$`, "m"));
       assert.equal(existsSync(path.join(targetDest, ".codex", "AGENTS.md")), false);
-      run([...installArgs, "--category", "development"]);
-      const developmentInstructions = readFileSync(instructionPath, "utf8");
-      assert.match(developmentInstructions, /^## core\.md$/m);
-      assert.match(developmentInstructions, /^## code\.md$/m);
-      run([...installArgs, "--category", "cybersecurity"]);
-      const cybersecurityInstructions = readFileSync(instructionPath, "utf8");
-      assert.match(cybersecurityInstructions, /^## core\.md$/m);
-      assert.match(cybersecurityInstructions, /^## code\.md$/m);
-      // A combined asset-category install must still emit the always-on instruction document
-      // (not just the category's skills), carrying baseline + development always-on rules.
-      run([...installArgs, "--category", "development,cybersecurity"]);
-      const combinedInstructions = readFileSync(instructionPath, "utf8");
-      assert.match(combinedInstructions, /^## core\.md$/m);
-      assert.match(combinedInstructions, /^## code\.md$/m);
-
-      // An output-only rules refresh must not quietly rewrite this document back to the general
-      // baseline: it is a single file carrying development's always-on rules, and dropping them
-      // here would leave development's skills installed beside rules that no longer mention them.
-      // The manifest knows the document is development-owned, so the operation is refused BEFORE
-      // writing — the alternative, reassembling the contribution, is not something one recorded
-      // category can do faithfully.
-      const refresh = status([...installArgs, "--category", "rules"]);
-      assert.notEqual(refresh.status, 0, `codex: an output-only rules refresh over a category-owned document is refused: ${refresh.stdout}`);
-      assert.match(refresh.stdout, /AGENTS\.md carries the development category's contribution/, `codex: the refusal names the document and its owner: ${refresh.stdout}${refresh.stderr}`);
-      assert.equal(readFileSync(instructionPath, "utf8"), combinedInstructions, "codex: the refused refresh left the document byte-identical");
-      // And the refusal is not a dead end: the owning category still refreshes it.
-      run([...installArgs, "--category", "development"]);
-      assert.match(readFileSync(instructionPath, "utf8"), /^## code\.md$/m, "codex: re-running the owning category restores the document");
+      // Every selection that writes rules writes this same document, so none rewrites it.
+      for (const category of ["development", "cybersecurity", "development,cybersecurity", "rules"]) {
+        run([...installArgs, "--category", category]);
+        assert.equal(readFileSync(instructionPath, "utf8"), instructions, `codex --category ${category}`);
+      }
 
       run(installArgs);
       run([...installArgs, "--category", "development,cybersecurity,private", "--service", "synapse,grimoire"]);
       const primaryMcpConfig = TOML.parse(readFileSync(path.join(targetDest, ".codex", "config.toml"), "utf8"));
       assert.deepEqual(Object.keys(primaryMcpConfig.mcp_servers).sort(), ["grimoire", "synapse"]);
-      assert.match(readFileSync(instructionPath, "utf8"), /^## code\.md$/m);
+      assert.equal(readFileSync(instructionPath, "utf8"), instructions);
       for (const skill of ["dev-feature", "solve-challenge"]) {
         assert.ok(existsSync(path.join(targetDest, ".agents", "skills", skill, "SKILL.md")), skill);
       }
     }
     if (target === "cursor") {
-      // The per-file counterpart to the codex case above, and the reason that one is refused rather
-      // than rewritten: here each rule is its own managed output, so an output-only refresh has
-      // nothing to overwrite and development's rules simply stay. Same command, same sequence, no
-      // refusal — the contract differs because the host's rule surface does.
-      const ruleDir = path.join(targetDest, ".cursor", "rules");
+      const ruleFiles = () => readdirSync(path.join(targetDest, ".cursor", "rules")).sort();
+      assert.deepEqual(ruleFiles(), RULES.map((rule) => `${rule}.mdc`));
       run([...installArgs, "--category", "development"]);
-      assert.ok(existsSync(path.join(ruleDir, "code.mdc")), "cursor: development contributes its own rule file");
-      const refresh = status([...installArgs, "--category", "rules"]);
-      assert.equal(refresh.status, 0, `cursor: a per-file rule host refreshes without refusal: ${refresh.stdout}${refresh.stderr}`);
-      assert.ok(existsSync(path.join(ruleDir, "code.mdc")), "cursor: and development's rule file survives the refresh");
-      assert.ok(existsSync(path.join(ruleDir, "core.mdc")), "cursor: alongside the baseline rules");
+      assert.deepEqual(ruleFiles(), RULES.map((rule) => `${rule}.mdc`), "cursor: a development install writes the same rule files");
     }
     if (target === "opencode") {
       const openCodeConfig = JSON.parse(readFileSync(path.join(targetDest, ".opencode", "opencode.json"), "utf8"));

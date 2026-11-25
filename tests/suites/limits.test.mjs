@@ -63,26 +63,26 @@ function snapshot(dir, entries = {}, base = dir) {
 }
 
 try {
-  // Cascade's global rules file holds 6,000 characters: the general user-scope rules fit, and the
-  // development rules push the file past it, so only a user-scope selection without them installs.
+  // Cascade's global rules file holds 6,000 characters and the rules need more, so every user-scope
+  // selection that includes them is refused; one without rules installs.
   const user = path.join(scratch, "user");
   const skills = install(["--scope", "user", "--dest", user, "--category", "skills"]);
   assert.equal(skills.code, 0, skills.out);
   assert.doesNotMatch(skills.out, /OUTPUT_LIMIT_EXCEEDED: /, "unselected oversized rules do not block");
   const before = snapshot(scratch);
-  const refused = install(["--scope", "user", "--dest", user, "--category", "development"]);
-  assert.notEqual(refused.code, 0, refused.out);
-  assert.match(refused.out, /OUTPUT_LIMIT_EXCEEDED: \.codeium\/windsurf\/memories\/global_rules\.md is \d+ code points .* at most 6000 characters/);
-  assert.deepEqual(snapshot(scratch), before, "a refused plan writes nothing, in the install root or under HOME");
-  const general = install(["--scope", "user", "--dest", user, "--category", "rules"]);
-  assert.equal(general.code, 0, general.out);
-  assert.doesNotMatch(general.out, /OUTPUT_LIMIT_EXCEEDED: /);
+  for (const selection of [["--no-mcps"], ["--category", "rules"]]) {
+    const refused = install(["--scope", "user", "--dest", user, ...selection]);
+    assert.notEqual(refused.code, 0, refused.out);
+    assert.match(refused.out, /OUTPUT_LIMIT_EXCEEDED: \.codeium\/windsurf\/memories\/global_rules\.md is \d+ code points .* at most 6000 characters/);
+    assert.deepEqual(snapshot(scratch), before, `a refused ${selection.join(" ")} plan writes nothing, in the install root or under HOME`);
+  }
 
-  // A workspace rule file holds 12,000, which the development rules fit too.
+  // A workspace rule file holds 12,000, which the rules fit.
   const project = path.join(scratch, "project");
-  const development = install(["--scope", "project", "--dest", project, "--category", "development", "--dry-run"]);
-  assert.equal(development.code, 0, development.out);
-  assert.doesNotMatch(development.out, /OUTPUT_LIMIT_EXCEEDED: /);
+  const projectRules = install(["--scope", "project", "--dest", project, "--category", "rules", "--dry-run"]);
+  assert.equal(projectRules.code, 0, projectRules.out);
+  assert.match(projectRules.out, /^  \.devin\/rules\/agent-surface\.md <- rules\/\*\.md$/m);
+  assert.doesNotMatch(projectRules.out, /OUTPUT_LIMIT_EXCEEDED: /);
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }
