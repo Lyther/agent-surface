@@ -9,15 +9,15 @@ Build a repository that a newcomer can navigate and run from its README alone: t
 
 ## Input
 
-`boot-new [run|check] [--kind auto|software|pentest|ctf|repro|research|other] [--maturity auto|prototype|mvp|core|usable|production|business]`
+Two modes:
 
 - `run` (default): plan, build, commit, and verify.
 - `check`: inspect and print the plan without writing or installing anything.
 
 Resolve from the request and target directory:
 
-- All kinds: kind, project name (kebab-case), parent directory, and visibility (public, private, or client-confidential; pentest defaults to client-confidential, others to private).
-- Software: language, shape (CLI, service, library, web UI, desktop), and maturity (`auto` reads the request and defaults to `mvp`). The blueprint's package manager and runtime version apply unless the request or repository names others.
+- All kinds: kind (software, pentest, CTF, repro, research, or other), project name (kebab-case), parent directory, and visibility (public, private, or client-confidential; pentest defaults to client-confidential, others to private).
+- Software: language, shape (CLI, service, library, web UI, desktop), and maturity (`prototype`, `mvp`, `core`, `usable`, `production`, or `business`; read it from the request, default `mvp`). The blueprint's package manager and runtime version apply unless the request or repository names others.
 - Pentest: the engagement card fields in `references/security.md`.
 - CTF: event, format, flag format, start and end time.
 - Repro: target, affected version, fixed version (when known), and reference (CVE, advisory, or issue).

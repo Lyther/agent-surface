@@ -9,10 +9,9 @@ Check your own recent changes before commit and fix what is wrong. A wrong fix i
 
 ## Input
 
-`qa-self-critique <target> [--fix | --dry-run] [--focus <domains>]`
-
-- `<target>`: the files or directories you just changed. `--fix` (default) fixes; `--dry-run` only lists.
-- `--focus`: `completeness`, `logic`, `types`, `arch`, `tests` (default all).
+- Target: the files or directories you just changed.
+- Mode: fix (default) fixes; dry run only lists.
+- Focus: completeness, logic, types, architecture, tests, or all (default).
 
 ## Pass 1: Tool Scan
 
@@ -45,8 +44,8 @@ Add no guard, check, configuration, or test that a found defect does not call fo
 
 ## Pass 3: Output
 
-- `--fix`: apply each fix with a one-line label, then print `[AUDIT_COMPLETE]: {N} issues fixed across {M} files.`
-- `--dry-run`: list `{file}:{line}: {description} [{domain}]`, then `{N} issues found. Run qa-self-critique <target> --fix to apply.`
+- Fix mode: apply each fix with a one-line label, then print `[AUDIT_COMPLETE]: {N} issues fixed across {M} files.`
+- Dry run: list `{file}:{line}: {description} [{domain}]`, then `{N} issues found.`
 - Clean: `[AUDIT_PASS]: Clean. Ready to commit.`
 
 No apologies or narrative. Skip checks that need tools you lack, and say so.

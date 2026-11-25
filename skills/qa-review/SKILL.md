@@ -9,11 +9,10 @@ Review like the maintainer who will inherit the code: stop wrong, unproven, unre
 
 ## Input
 
-`qa-review <target> [--round N] [--max-rounds N] [--focus <domains>] [--state <path>]`
-
-- `<target>`: file, directory, or diff. `--round` defaults to 1; `--max-rounds` to 3.
-- `--focus`: `security`, `logic`, `config`, `quality`, `perf`, `tests`, `docs`, `deps`, or `all`.
-- `--state`: the previous round's output; required from round 2.
+- Target: file, directory, or diff.
+- Round: the current round (default 1) and the most rounds to run (default 3).
+- Focus: `security`, `logic`, `config`, `quality`, `perf`, `tests`, `docs`, `deps`, or `all`.
+- State: the previous round's state block; required from round 2.
 
 ## Scope
 
@@ -34,7 +33,7 @@ find <existing of build/ dist/ out/> \( -name '*.py' -o -name '*.rs' -o -name '*
 
 ## Passes
 
-Review one domain at a time across all in-scope files. Without `--focus`, always run `logic` and `tests`; add `security` when the change touches input parsing, auth, secrets, paths, permissions, or network; add other domains only when the change touches their surface. Order: patch (diffs, PRs, patches, fixes) → security → logic → config → quality → perf → tests → docs → deps.
+Review one domain at a time across all in-scope files. Without a focus, always run `logic` and `tests`; add `security` when the change touches input parsing, auth, secrets, paths, permissions, or network; add other domains only when the change touches their surface. Order: patch (diffs, PRs, patches, fixes) → security → logic → config → quality → perf → tests → docs → deps.
 
 ### Patch
 
@@ -107,7 +106,7 @@ Review one domain at a time across all in-scope files. Without `--focus`, always
 
 ## Rounds
 
-End every round with a state block that `--state` can load:
+End every round with a state block the next round can load:
 
 ```text
 <!-- STATE_START
@@ -118,7 +117,7 @@ findings:
 STATE_END -->
 ```
 
-From round 2, `--state` is required; without it, stop with an error instead of guessing prior findings. Mark each prior finding fixed, not fixed, or regressed; scan new and changed files; name the systemic cause when a category recurs. After `--max-rounds` rejected rounds, start no new round: list the open 🔴 findings with their failing inputs and ask the user to accept, rework once more, or re-scope.
+From round 2, the previous state block is required; without it, stop with an error instead of guessing prior findings. Mark each prior finding fixed, not fixed, or regressed; scan new and changed files; name the systemic cause when a category recurs. After the most rounds allowed are rejected, start no new round: list the open 🔴 findings with their failing inputs and ask the user to accept, rework once more, or re-scope.
 
 ## Output
 

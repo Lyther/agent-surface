@@ -10,7 +10,7 @@ Make documentation true, usable, and proportionate to its audience. Choose the m
 - Repository mode maintains the canonical doc set: align claims, remove drift and duplication, restructure files, and write missing docs.
 - Standalone mode produces one self-contained handoff, technical report, whitepaper, or project dossier that reads outside the repository.
 
-A request to create, write, produce, hand off, or publish a document authorizes drafting it now; return only a plan or outline when asked for one. For an ambiguous repository-wide cleanup, propose the concrete plan first; `--write` or `--apply` executes it. Never silently turn a repository cleanup into a handoff or publication.
+A request to create, write, produce, hand off, or publish a document authorizes drafting it now; return only a plan or outline when asked for one. For an ambiguous repository-wide cleanup, propose the concrete plan first and execute it when the user asks. Never silently turn a repository cleanup into a handoff or publication.
 
 ## Rules
 

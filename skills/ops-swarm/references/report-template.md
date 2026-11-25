@@ -1,8 +1,8 @@
 # ops-swarm report template
 
-Companion reference for `ops-swarm`. The required sections and their order, then the `--state` artifact's shape; the rules about what must appear in them — dissent preserved, evidence separated from corroboration — are in `SKILL.md`.
+Companion reference for `ops-swarm`. The required sections and their order, then the state artifact's shape; the rules about what must appear in them — dissent preserved, evidence separated from corroboration — are in `SKILL.md`.
 
-Return a Markdown report unless `--state` only is requested:
+Return a Markdown report unless only the state artifact is requested:
 
 ```markdown
 # Swarm Report
@@ -37,11 +37,11 @@ Return a Markdown report unless `--state` only is requested:
 ## Next Actions
 ```
 
-If `--write` is provided, write the report to the requested path and also return the key decision in chat.
+If a report path is given, write the report there and also return the key decision in chat.
 
 ## State artifact
 
-With `--state`, write this resumable artifact. The rule that it never holds raw secrets is in `SKILL.md`.
+With a state path, write this resumable artifact there. The rule that it never holds raw secrets is in `SKILL.md`.
 
 ```json
 {

@@ -9,9 +9,10 @@ Perform an evidence-backed audit at the depth the project's maturity, exposed ri
 
 ## Input
 
-`qa-audit [target] [--domain architecture|code|security|dependencies|tests|operations|repository|all] [--depth quick|standard|deep] [--maturity prototype|mvp|core|usable|production|business|auto]`
-
-Defaults: `--domain all --depth standard --maturity auto`.
+- Target: default the repository.
+- Domains: architecture, code, security, dependencies, tests, operations, repository, or all (default); see Domains.
+- Depth: quick, standard (default), or deep.
+- Maturity: prototype, mvp, core, usable, production, or business; read it from the project when not given.
 
 ## Scope Gate
 

@@ -5,16 +5,14 @@ description: "Run a health check on the agent-surface repository and local gener
 
 ## Objective
 
-Diagnose whether `agent-surface` is internally consistent and whether the local generated surfaces match the current compiler model. Report drift; never fix issues, edit files, install surfaces, delete files, prune branches, or repair docs. The check is read-only except for the build and test effects of `--depth full` listed in §7. Prefer repo scripts over ad hoc validators, and record failed probes separately from missing evidence.
+Diagnose whether `agent-surface` is internally consistent and whether the local generated surfaces match the current compiler model. Report drift; never fix issues, edit files, install surfaces, delete files, prune branches, or repair docs. The check is read-only except for the build and test effects of full depth listed in §7. Prefer repo scripts over ad hoc validators, and record failed probes separately from missing evidence.
 
 ## Input
 
-`ops-doctor [target] [--scope repo|local|all] [--depth quick|standard|full] [--ci]`
-
-- `target`: repository root or subdirectory; default `.`.
-- `--scope` (default `all`): `repo` checks source, registry, and compiler state; `local` checks installed user surfaces; `all` runs both.
-- `--depth` (default `standard`): `quick` runs cheap probes; `standard` adds generated checks and install dry-runs; `full` also runs tests and the full build.
-- `--ci` (default off): machine-readable mode; exit non-zero only for errors, not for ordinary local-install warnings.
+- Target: repository root or subdirectory; default `.`.
+- Scope (default all): repo checks source, registry, and compiler state; local checks installed user surfaces; all runs both.
+- Depth (default standard): quick runs cheap probes; standard adds generated checks and install dry-runs; full also runs tests and the full build.
+- CI mode (default off): machine-readable output that fails only on errors, not on ordinary local-install warnings.
 
 ## 1. Repository Baseline
 
@@ -45,11 +43,11 @@ Expected target families: native command/workflow targets `claude-code`, `cline`
 
 ## 4. Rule Budget
 
-Run `npm run check:rules` and report hard failures and soft budget warnings. Report soft warnings as warnings, not failures, unless `--ci` policy says otherwise.
+Run `npm run check:rules` and report hard failures and soft budget warnings. Report soft warnings as warnings, not failures, unless CI mode says otherwise.
 
 ## 5. Install Dry-Runs
 
-For `--depth standard|full`, dry-run representative user installs:
+At standard or full depth, dry-run representative user installs:
 
 ```bash
 node scripts/agent-surface.mjs install --target claude-code --scope user --dry-run
@@ -71,7 +69,7 @@ Report blocked writes, stale managed removals, missing manifests, and project-on
 
 ## 6. Local Distribution Drift
 
-For `--scope local|all`, inspect installed manifests without editing them:
+For local or all scope, inspect installed manifests without editing them:
 
 | Target | User manifest |
 |---|---|
@@ -87,7 +85,7 @@ For each manifest, verify that the JSON parses, that `target` matches the manife
 
 ## 7. Full Verification
 
-For `--depth full`, run these sequentially, never in parallel, because `npm test` and `build` both rewrite `dist/`. Nothing tracked changes, but this depth writes:
+At full depth, run these sequentially, never in parallel, because `npm test` and `build` both rewrite `dist/`. Nothing tracked changes, but this depth writes:
 
 - the build output, in the gitignored `dist/`;
 - temporary git worktrees that the tests add under the system temp directory and register in this repository, then remove;

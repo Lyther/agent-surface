@@ -11,9 +11,9 @@ Capture the concept, the evidence, and the decision. Write no source code, detai
 
 ## Modes
 
-- `boot-concept check`: read-only inventory of existing context, evidence gaps, contradictions, and whether a credible concept HLD can be written.
-- `boot-concept run`: write or update `docs/context/concept-zero.md`; add `docs/context/concept-zero-research.md` only when the evidence ledger would dominate the main document.
-- Bare `boot-concept`: check first, then run when the inputs are coherent enough. When product intent is ambiguous, state a working assumption and continue unless the next step would lock in the wrong product.
+- `check`: read-only inventory of existing context, evidence gaps, contradictions, and whether a credible concept HLD can be written.
+- `run`: write or update `docs/context/concept-zero.md`; add `docs/context/concept-zero-research.md` only when the evidence ledger would dominate the main document.
+- No mode named: check first, then run when the inputs are coherent enough. When product intent is ambiguous, state a working assumption and continue unless the next step would lock in the wrong product.
 
 ## Authority
 

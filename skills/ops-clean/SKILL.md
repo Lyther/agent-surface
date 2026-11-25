@@ -9,9 +9,10 @@ Reduce accumulated complexity and maintenance cost while preserving the accepted
 
 ## Input
 
-`ops-clean [target] [--domain design|code|tests|dependencies|scripts|docs|assets|structure|generated|all] [--mode inspect|plan|apply] [--depth quick|standard|deep]`
-
-Defaults: `--domain all --mode apply --depth standard` when the user requests cleanup; otherwise inspect only.
+- Target: default the repository.
+- Domains: design, code, tests, dependencies, scripts, docs, assets, structure, generated, or all (default); see Domains.
+- Mode: `inspect`, `plan`, or `apply`; `apply` when the user requests cleanup, otherwise `inspect`.
+- Depth: quick, standard (default), or deep.
 
 ## Contract Gate
 

@@ -9,9 +9,10 @@ Choose the lightest execution path that preserves correctness and the required p
 
 ## Input
 
-`ops-flow [goal] [--risk low|medium|high|critical|auto] [--mode direct|standard|reviewed|orchestrated|release|audit|parallel|ship|auto] [--autonomy low|normal|high]`
-
-Defaults: `--risk auto --mode auto --autonomy normal`. For an edit, `--mode auto` starts from the default route in `boot-workflow` (`direct` when trivial, otherwise `standard`) and leaves it only on one of its Optional Modes signals.
+- Goal: the request to route.
+- Risk: low, medium, high, critical, or auto (default).
+- Mode: direct, standard, reviewed, orchestrated, release, audit, parallel, ship, or auto (default). For an edit, auto starts from the default route in `boot-workflow` (`direct` when trivial, otherwise `standard`) and leaves it only on one of its Optional Modes signals.
+- Autonomy: low, normal (default), or high; see Autonomy.
 
 ## 1. Locate the Task Shape
 

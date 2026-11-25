@@ -51,7 +51,7 @@ Use the same severity language as `qa-trace`:
 
 Before any PASS:
 
-1. Run or ingest a hostile design/security pass on the scoped surface (`qa-trace` preferred; `qa-review --focus security,logic` acceptable if equivalent evidence exists).
+1. Run or ingest a hostile design/security pass on the scoped surface (`qa-trace` preferred; `qa-review` focused on security and logic acceptable if equivalent evidence exists).
 2. Any open Critical or High finding in scope → FAIL (or BLOCKED only if proof literally cannot run and the claim is not asserted).
 3. Medium findings must be fixed, explicitly deferred with owner/date, or must force claim narrowing.
 4. Low/Info never decide PASS alone and must not dominate the report over kill findings.
