@@ -320,6 +320,7 @@ async def attempt(cell: tuple, attempt_no: int, args, images: dict, arms: dict, 
     task = write_task(template, image, args.out / "tasks" / name, {"skill_file": skill_file, **unit.subs}, own_image, caps["agent_timeout_sec"])
     env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG", "USER") if k in os.environ}
     env.update(HARBOR_TELEMETRY="0", PYTHONPATH=str(EVALS_DIR.parent), SQ_ARM_TARBALL=arm["tarball"], SQ_ARM_SHA256=arm["arm_sha256"],
+               SQ_ARM_INSTALLED="1" if arm["installed"] else "0",
                SQ_AGENT_TIMEOUT_SEC=str(int(caps["agent_timeout_sec"])))
     if host in GATEWAY_HOSTS:  # the agent reads the gateway address at run time
         env.update({URL_ENV: gateway_url(), NO_PROXY_ENV: no_proxy()})

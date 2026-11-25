@@ -62,15 +62,19 @@ DROID_REMOVE_TOOLS = (
 
 
 async def _install_arm(agent, environment, target: str) -> None:
-    """Extract the attempt's arm into HOME and keep its manifest and skill list beside the other logs."""
+    """Extract the attempt's arm into HOME and keep its manifest and skill list beside the other logs.
+
+    An arm that installs nothing (SQ_ARM_INSTALLED=0) is an empty tarball with no manifest to keep.
+    """
     sha = os.environ["SQ_ARM_SHA256"]
     await environment.upload_file(os.environ["SQ_ARM_TARBALL"], "/tmp/arm.tgz")
     roots = " ".join(SKILL_DIRS[target])
+    manifest = f'"$HOME/.agent-surface/{target}-manifest.json"'
+    keep_manifest = f"test -s {manifest} && cp {manifest} {LOGS}/arm-manifest.json && " if os.environ["SQ_ARM_INSTALLED"] == "1" else ""
     await agent.exec_as_agent(
         environment,
         command=f'echo "{sha}  /tmp/arm.tgz" | sha256sum -c - >/dev/null && tar -xzf /tmp/arm.tgz -C "$HOME" && rm /tmp/arm.tgz && '
-        f'test -s "$HOME/.agent-surface/{target}-manifest.json" && mkdir -p {LOGS} && '
-        f'cp "$HOME/.agent-surface/{target}-manifest.json" {LOGS}/arm-manifest.json && '
+        f'mkdir -p {LOGS} && {keep_manifest}'
         f'(cd "$HOME" && find {roots} -name SKILL.md 2>/dev/null | sort || true) > {LOGS}/arm-skills.txt',
     )
 

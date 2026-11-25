@@ -94,14 +94,16 @@ class PackTest(unittest.TestCase):
 
 class ProfilesTest(unittest.TestCase):
     def test_profiles_are_the_named_arms(self):
-        self.assertEqual(list(PROFILES), ["dev-minus-dev-fix", "dev", "full", "full-minus-dev-fix", "full-descB", "full-descC"])
+        self.assertEqual(list(PROFILES), ["none", "dev-minus-dev-fix", "dev", "full", "full-minus-dev-fix", "full-descB", "full-descC"])
+        self.assertEqual([n for n, p in PROFILES.items() if not p.installed], ["none"])
         self.assertEqual([PROFILES[n].desc_arm for n in ("full", "full-descB", "full-descC")], ["A", "B", "C"])
         self.assertEqual(PROFILES["full-descB"].installs, PROFILES["full"].installs)
         self.assertEqual(PROFILES["full"].installs, ("external", "development,cybersecurity,private"))
         self.assertNotIn("modding", ",".join(PROFILES["full"].installs))
 
     def arm(self, host, profile, skills):
-        return {"host": host, "profile": profile, "dropped_skills": list(PROFILES[profile].drop_skills), "skills": skills}
+        return {"host": host, "profile": profile, "dropped_skills": list(PROFILES[profile].drop_skills), "skills": skills,
+                "installed": PROFILES[profile].installed}
 
     def test_check_accepts_consistent_arms_and_flags_a_wrong_drop(self):
         good = {
@@ -118,6 +120,28 @@ class ProfilesTest(unittest.TestCase):
         self.assertTrue(any("h-full-minus-dev-fix" in p and "no skills" in p for p in problems), problems)
         short = dict(arms, **{"h-full-minus-dev-fix": self.arm("h", "full-minus-dev-fix", ["a"])})
         self.assertTrue(any("expected 2" in p for p in check_arms(short)), check_arms(short))
+
+    def test_check_accepts_an_empty_none_arm_and_flags_one_with_skills(self):
+        arms = {"h-none": self.arm("h", "none", []), "h-full": self.arm("h", "full", ["dev-fix", "a"])}
+        self.assertEqual(check_arms(arms), [])
+        problems = check_arms(dict(arms, **{"h-none": self.arm("h", "none", ["dev-fix"])}))
+        self.assertTrue(any("h-none" in p and "installs nothing" in p for p in problems), problems)
+
+
+class NoneArmTest(unittest.TestCase):
+    def test_none_runs_no_installer_and_packs_an_empty_home(self):
+        # The source has no installer script, so any installer run would fail the render.
+        with tempfile.TemporaryDirectory() as tmp:
+            src = make_source(Path(tmp) / "src")
+            out = Path(tmp) / "arms"
+            arms = prepare_all(src, ["claude-code", "codex"], ["none"], out)
+            for host in ("claude-code", "codex"):
+                arm = arms[f"{host}-none"]
+                self.assertEqual((arm["skills"], arm["installed"], arm["dropped_skills"]), ([], False, []))
+                self.assertEqual(list((out / "none" / host / "home").iterdir()), [])
+                with tarfile.open(out / arm["tarball"]) as tar:
+                    self.assertEqual(tar.getnames(), [])
+            self.assertEqual(arms["claude-code-none"]["arm_sha256"], arms["codex-none"]["arm_sha256"])
 
 
 TEXTS = {arm: {skill: f"Use {arm} for {skill}, when it fits." for skill in DESC_SKILLS} for arm in ("B", "C")}

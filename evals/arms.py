@@ -1,7 +1,8 @@
 """Arms: the profile an attempt starts from, rendered by agent-surface's own installer into a directory.
 
 A profile is the installer run for one host (general first, then each category) with `--no-mcps`, which renders
-every non-MCP output into `--dest` and builds, wires and writes nothing else. The rendered directory holds no
+every non-MCP output into `--dest` and builds, wires and writes nothing else. The `none` profile runs no installer:
+its directory stays empty, the arm without agent-surface. The rendered directory holds no
 absolute path (`render` is run at two paths and the results compared in `evals/tests`), so it is packed once into
 a tarball and extracted into the attempt container's HOME before the agent starts. The sources checkout is never
 edited: a profile without a skill renders from a hard-linked copy with that skill and its registry entries removed.
@@ -51,15 +52,18 @@ DESC_MAX_CHARS = 200
 @dataclass(frozen=True)
 class Profile:
     name: str
-    # One installer run per entry, each a --category value; the general sync always runs first.
+    # One installer run per entry, each a --category value; the general sync runs first.
     installs: tuple[str, ...]
     drop_skills: tuple[str, ...] = ()
     # "A" is the descriptions as committed; "B" and "C" replace the description line of DESC_SKILLS with texts from an input file.
     desc_arm: str = "A"
+    # False runs no installer at all, not even the general sync, and adds no operator file.
+    installed: bool = True
 
 
 FULL_INSTALLS = ("external", "development,cybersecurity,private")
 PROFILES = {
+    "none": Profile("none", (), installed=False),
     "dev-minus-dev-fix": Profile("dev-minus-dev-fix", ("development",), ("dev-fix",)),
     "dev": Profile("dev", ("development",)),
     "full": Profile("full", FULL_INSTALLS),
@@ -154,6 +158,8 @@ def render(src: Path, host: str, profile: Profile, home: Path, node: str = "node
     # The installer runs with cwd=src, so a relative `src` or `home` would point somewhere else there.
     src, home = src.resolve(), home.resolve()
     home.mkdir(parents=True, exist_ok=True)
+    if not profile.installed:
+        return
     # Resolve the real binary first: a version-manager shim would look for its own state under the new HOME.
     node = subprocess.run([node, "-p", "process.execPath"], capture_output=True, text=True, check=True).stdout.strip()
     env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(home), "LANG": "C.UTF-8"}
@@ -233,6 +239,7 @@ def prepare_all(src: Path, hosts: list[str], profiles: list[str], out: Path, des
             arms[f"{host}-{name}"] = {
                 "profile": name, "host": host, "tarball": str(tarball.relative_to(out)), "arm_sha256": digest, "source_commit": commit,
                 "dropped_skills": list(profile.drop_skills), "skills": installed_skills(home, host), "desc_arm": profile.desc_arm,
+                "installed": profile.installed,
                 "desc_sha256": {k: hashlib.sha256(v.encode()).hexdigest() for k, v in (descriptions or {}).items()},
             }
     shutil.rmtree(work, ignore_errors=True)
@@ -240,9 +247,13 @@ def prepare_all(src: Path, hosts: list[str], profiles: list[str], out: Path, des
 
 
 def check_arms(arms: dict) -> list[str]:
-    """Problems with the rendered arms: `dev-fix` present or absent as the profile says, and `full` containing `dev`."""
+    """Problems with the rendered arms: `dev-fix` present or absent as the profile says, `full` containing `dev`, and no skill in `none`."""
     problems = []
     for key, arm in arms.items():
+        if not arm["installed"]:
+            if arm["skills"]:
+                problems.append(f"{key}: installs nothing but has {len(arm['skills'])} skills")
+            continue
         if not arm["skills"]:
             problems.append(f"{key}: rendered with no skills")
         parent = arms.get(f"{arm['host']}-{arm['profile'].removesuffix('-minus-dev-fix')}") if arm["dropped_skills"] else None
