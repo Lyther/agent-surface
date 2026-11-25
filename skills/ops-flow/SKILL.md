@@ -99,7 +99,7 @@ dev-spec / verify-test
 
 ## Autonomy
 
-`low` and `normal` opt in to more asking. `high` is the distribution's standing policy: it must not re-add stops that policy removed, so destructive, secret-using, deploying, publishing, and other outward-facing steps within the requested scope proceed.
+`low` and `normal` opt in to more asking. Only the user selects `high`: it proceeds through destructive, secret-using, deploying, publishing, and other outward-facing steps within the requested scope.
 
 ```text
 low:    ask before assumptions, dependencies, risky commands, or protected files

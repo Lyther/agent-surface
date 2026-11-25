@@ -38,8 +38,8 @@ workflow-runtime
 
 ## Execution Posture
 
-- Full execution consent applies: select the host's full-access, bypass, YOLO, auto-approve, or equivalent mode explicitly, record the observed mode, and do not stop for routine per-operation approval.
-- Consent is not role capability. A worker gets the host's unrestricted edit and shell capability; a reviewer, researcher, analyzer, adversary, or boss stays read-only because that is its role. The rendered agent/tool profile and filescope enforce the boundary, not approval dialogs; never give a read-only role write tools because consent is full.
+- Select the host's full-access, bypass, YOLO, auto-approve, or equivalent mode explicitly, record the observed mode, and do not stop for routine per-operation approval.
+- Full access is not role capability. A worker gets the host's unrestricted edit and shell capability; a reviewer, researcher, analyzer, adversary, or boss stays read-only because that is its role. The rendered agent/tool profile and filescope enforce the boundary, not approval dialogs; never give a read-only role write tools because the host runs with full access.
 - For an authorized provider-backed probe, use only the selected provider's credential: import that one named variable from a git-ignored `.env` without printing it, and never run `cat`, `head`, `tail`, `sed`, `rg`, or another content-display command on the whole file. Never persist, log, or echo secret values.
 - Remove inherited `NODE_TLS_REJECT_UNAUTHORIZED` from networked Node launches so the probe tests the runtime's normal TLS path.
 - Do not mistake a proxy, wrapper, stale symlink, IDE login, or cached daemon for the binary and account the headless command actually uses.

@@ -11,7 +11,7 @@ Make the target environment match the verified artifact from `ship-artifact` exa
 ## Rules
 
 1. Resolve the exact staging, preview, production, customer, or store target from the task and live deployment config before touching anything live; if no unique target resolves, report the missing selector instead of guessing.
-2. Record the deployment plan (target, artifact digest, strategy, health gate, rollback path), then execute it under durable full-execution consent.
+2. Record the deployment plan (target, artifact digest, strategy, health gate, rollback path), then execute it.
 3. Deploy by digest or signed checksum only; never use mutable tags or "latest installer" labels, and never silently promote `latest`.
 4. Promote only the exact artifact that passed proof and staging checks.
 5. Roll back when the live identity does not match the frozen record, even if healthchecks are green.

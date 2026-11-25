@@ -82,7 +82,7 @@ Extract requirements from exact user quotes and invent none. Requirements and ta
 ### Phase 5: Verify Gates
 
 - Give each task a minimal ordered list of deterministic commands, scoped tests first and broader gates after; a task without a `verify` array is invalid.
-- Classify each command as `read_only`, `build_test`, `network`, `filesystem_destructive`, `deployment`, or `database_mutation`. Every class runs under durable full-execution consent when the task names its target and boundary; keep the class in evidence so destructive, deployment, and mutation effects stay auditable.
+- Classify each command as `read_only`, `build_test`, `network`, `filesystem_destructive`, `deployment`, or `database_mutation`, and keep the class in evidence so destructive, deployment, and mutation effects stay auditable.
 - Give every command a timeout budget; a command without timeout/resource expectations is invalid.
 
 ### Phase 6: Risk and Sandbox

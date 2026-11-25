@@ -34,7 +34,7 @@ Prepend the new entry to `CHANGELOG.md`, grouped by intent (Features, Fixes, Per
 3. Build the artifact from that exact commit with `ship-artifact`: verified artifact, SBOM, provenance, signatures, and release manifest, with every required proof and staging check passed for its digest or checksum. An artifact built before the bump carries the previous version files and is not this release.
 4. Create a signed annotated tag (`v1.2.3`) on that commit.
 5. Create the release record for the tagged commit: Git SHA, version, artifact digest or checksum, bundle checksum, SBOM location, provenance location, and changelog entry.
-6. Resolve and verify the target remote and branch, then push the version commit and tag together under durable full-execution consent. Respect protected-branch policy by using the repository's release branch or PR workflow.
+6. Resolve and verify the target remote and branch, then push the version commit and tag together. Respect protected-branch policy by using the repository's release branch or PR workflow.
 
 ## 4. Publish
 
