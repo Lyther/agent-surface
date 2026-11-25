@@ -77,7 +77,7 @@ Attempt the safe discovery or repair available to you before emitting a blocker.
 - Not blockers; resolve them: repo discovery, choosing verify commands from manifests/Makefiles/CI, scoped format/lint/test failures in owned files, and documentation alignment for public behavior in FILESCOPE.
 - Refresh generated artifacts only when BOSS assigned generated outputs or the repo's generator/check requires it; record the generator command and keep the generated-file gate green.
 - Human-required: a literal human-only login/device action, a product decision not inferable from BOSS/user evidence, or required work outside FILESCOPE that cannot be split safely.
-- Repeated failure: after two correction attempts fail (three failed attempts total; `rules/hitl.md`) on one task, stop with `blocker.type="repeated_failure"` and `resolution_class="human_required"` unless the next safe action is purely mechanical; include the failed attempts.
+- Repeated failure: after two correction attempts fail (three failed attempts total) on one task, stop with `blocker.type="repeated_failure"` and `resolution_class="human_required"` unless the next safe action is purely mechanical; include the failed attempts.
 - Every blocker should include `type`, `detail`, `needs`, `resolution_class` (`auto_resolvable` or `human_required`), `attempts`, and `recommended_decision`. Legacy v3 artifacts may omit the last three, but new worker output includes them.
 
 ## Safety

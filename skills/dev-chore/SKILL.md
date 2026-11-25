@@ -154,7 +154,7 @@ Attempt the safe discovery or repair available to the worker before emitting a b
 - Refresh generated output only when assigned or required by the repository generator/check; record the command and keep the generated-file gate green.
 - When a premise is disproven and evidence identifies a bounded alternative, pivot inside the accepted contract instead of spending two more attempts repairing the premise.
 - Human-required: a missing product or architecture decision, a literal human-only login/device action, or required files outside FILESCOPE that cannot be split safely.
-- After two focused correction attempts on the same valid approach fail (three failed attempts total; `rules/hitl.md`), stop with `blocker.type = "repeated_failure"` unless the next safe action is mechanical; include the failed attempts and the recommended pivot or decision.
+- After two focused correction attempts on the same valid approach fail (three failed attempts total), stop with `blocker.type = "repeated_failure"` unless the next safe action is mechanical; include the failed attempts and the recommended pivot or decision.
 - Every new blocker has `type`, `detail`, `needs`, `resolution_class`, `attempts`, and `recommended_decision`.
 
 ## Safety

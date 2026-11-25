@@ -105,7 +105,7 @@ dev-spec / verify-test
 low:    ask before assumptions, dependencies, risky commands, or protected files
 normal: proceed with reversible assumptions; ask only when a choice changes behavior or authority
 high:   proceed through the requested scope, including destructive, credential-using, and outward-facing
-        steps; stop only for a P0 violation, an action only a human can perform (subscription login,
+        steps; stop only for a rule violation, an action only a human can perform (subscription login,
         device confirmation, CAPTCHA, hardware touch), a target that cannot be resolved from the task or
         live evidence, or work that is outside the scope actually requested
 ```

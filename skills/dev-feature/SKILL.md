@@ -49,7 +49,7 @@ Workflow mode is ON when `.agent-surface/workflows/<run_id>/run.json` is active,
    2. Run each `verify` command and record its `cmd`, class, and exit code in `verify_results`, with `cwd`, timeout, start time, and duration where known. Save the output the reviewer needs under `.agent-surface/workflows/<run_id>/rounds/round-<round_id>/evidence/<task_id>/` and list it in `evidence_refs`.
    3. Run the Phase 5 self-audit on that task.
    4. Green: mark it completed, append it to `tasks_processed`, and continue. Red: apply Phase 3a; if still blocked, mark it blocked with a structured blocker and stop the round. Never skip past a failing task; that makes partial merge ambiguous.
-   5. After two correction attempts on one task fail (three failed attempts total; `rules/hitl.md`), stop with `blocker.type="repeated_failure"` and route through reviewer and judger with fresh context. A task rejected twice (two review rounds) goes to `workflow-judger` or the user; a third review round happens only if the judger orders REWORK.
+   5. After two correction attempts on one task fail (three failed attempts total), stop with `blocker.type="repeated_failure"` and route through reviewer and judger with fresh context. A task rejected twice (two review rounds) goes to `workflow-judger` or the user; a third review round happens only if the judger orders REWORK.
 3. Stop conditions, in priority order:
    1. `blocker`: the current task's verify fails or its ambiguity is unresolvable; hand off immediately.
    2. `context_pressure`: self-assessed context budget at or above `batch_policy.context_pressure_threshold_pct` when set; otherwise judge from context degradation (conversation length, file reads, repeated context refreshes). Stop even without a blocker when context degrades. When in doubt, stop sooner; the reviewer picks up the rest.
@@ -87,7 +87,7 @@ Attempt the safe discovery or repair available to you before emitting a blocker.
 - Not blockers; resolve them: repo discovery, choosing verify commands from manifests/Makefiles/CI, scoped format/lint/test failures in owned files, and documentation alignment for public behavior in FILESCOPE.
 - Refresh generated artifacts only when BOSS assigned generated outputs or the repo's generator/check requires it; record the generator command and keep the generated-file gate green.
 - Human-required: a literal human-only login/device action, a product decision not inferable from BOSS/user evidence, or required work outside FILESCOPE that cannot be split safely.
-- Repeated failure: after two correction attempts fail (three failed attempts total; `rules/hitl.md`) on one task, stop with `blocker.type="repeated_failure"` and `resolution_class="human_required"` unless the next safe action is purely mechanical; include the failed attempts.
+- Repeated failure: after two correction attempts fail (three failed attempts total) on one task, stop with `blocker.type="repeated_failure"` and `resolution_class="human_required"` unless the next safe action is purely mechanical; include the failed attempts.
 - Every blocker has `type`, `detail`, `needs`, `resolution_class` (`auto_resolvable` or `human_required`), `attempts`, and `recommended_decision`.
 
 ### Phase 3b: UI

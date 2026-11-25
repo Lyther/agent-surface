@@ -25,7 +25,7 @@ Resolve one material uncertainty without turning normal engineering judgment int
 5. Ask one focused question whose answer unblocks the next action, never a broad one such as "What do you want?"
 6. Pause only the affected mutation: continue independent read-only investigation and unaffected branches of work, and neither implement both alternatives nor guess through an irreversible choice.
 
-If the user confirms the original route, proceed unless it violates P0 or cannot achieve the stated outcome; a user naming an implementation is not a reason to continue a known-wrong design without asking.
+If the user confirms the original route, proceed unless it breaks a rule or cannot achieve the stated outcome; a user naming an implementation is not a reason to continue a known-wrong design without asking.
 
 ## Output
 
