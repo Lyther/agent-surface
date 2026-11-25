@@ -245,8 +245,8 @@ for (const [target, adapter] of Object.entries(targets)) {
 const roleNames = async (target) => (await subagentOutputs(targets[target])).map((output) => path.basename(output.source, ".md")).sort();
 // Droid's built-in explorer and worker run on its light and medium subagent models, and a custom droid of
 // the same name replaces the built-in and runs on the parent's model (droid 1.12.1), so neither is generated.
-assert.deepEqual(await roleNames("droid"), ["researcher", "reviewer", "verifier"]);
-assert.deepEqual(await roleNames("deepagents"), ["explorer", "researcher", "reviewer", "verifier", "worker"]);
+assert.deepEqual(await roleNames("droid"), ["researcher", "reviewer", "specifier", "verifier"]);
+assert.deepEqual(await roleNames("deepagents"), ["explorer", "researcher", "reviewer", "specifier", "verifier", "worker"]);
 
 // First-party MCP auto-wire across host config families (sample of each shape).
 const mcpAbs = {
