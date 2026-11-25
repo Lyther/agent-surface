@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as TOML from "@decimalturn/toml-patch";
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { ownTempRoot, run, status, useDisposableHome } from "../lib/helpers.mjs";
 
@@ -70,7 +70,7 @@ for (const target of [
     }
     if (target === "kilo") {
       // Every selection that writes rules lists all of them.
-      const allRules = RULES.map((rule) => `.kilo/rules/${rule}.md`);
+      const allRules = RULES.map((rule) => `.kilo/rules/agent-surface-${rule}.md`);
       const kiloConfig = JSON.parse(readFileSync(path.join(targetDest, "kilo.jsonc"), "utf8"));
       assert.deepEqual(kiloConfig.instructions, allRules);
       run([...installArgs, "--category", "development"]);
@@ -101,10 +101,15 @@ for (const target of [
       }
     }
     if (target === "cursor") {
-      const ruleFiles = () => readdirSync(path.join(targetDest, ".cursor", "rules")).sort();
-      assert.deepEqual(ruleFiles(), RULES.map((rule) => `${rule}.mdc`));
+      const ruleDir = path.join(targetDest, ".cursor", "rules");
+      const ruleFiles = () => readdirSync(ruleDir).sort();
+      const ownRules = RULES.map((rule) => `agent-surface-${rule}.mdc`);
+      assert.deepEqual(ruleFiles(), ownRules);
+      // The operator's own rule named like one of agent-surface's stays as written.
+      writeFileSync(path.join(ruleDir, "core.mdc"), "the operator's core rule\n");
       run([...installArgs, "--category", "development"]);
-      assert.deepEqual(ruleFiles(), RULES.map((rule) => `${rule}.mdc`), "cursor: a development install writes the same rule files");
+      assert.deepEqual(ruleFiles(), ["core.mdc", ...ownRules].sort(), "cursor: a development install writes the same rule files");
+      assert.equal(readFileSync(path.join(ruleDir, "core.mdc"), "utf8"), "the operator's core rule\n");
     }
     if (target === "opencode") {
       const openCodeConfig = JSON.parse(readFileSync(path.join(targetDest, ".opencode", "opencode.json"), "utf8"));

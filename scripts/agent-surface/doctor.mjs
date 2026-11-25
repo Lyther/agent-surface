@@ -12,10 +12,9 @@ import { readJsonIfExists, readJsoncIfExists } from "./io.mjs";
 import { allStoredNotices, localDate, noticeHeading } from "./notices.mjs";
 import { commandVersion } from "./proc.mjs";
 import { root } from "./registry.mjs";
-import { readRules } from "./rules.mjs";
 import { SYNAPSE_HOOK_TARGETS, synapseHookStatus } from "./synapse-hook.mjs";
 import { antigravityCliImportedPlugin, antigravityCliStagedPlugin } from "./roots.mjs";
-import { kiloRuleInstructionRoot } from "./targets.mjs";
+import { kiloRuleInstructionPaths } from "./targets.mjs";
 import { exists } from "./util.mjs";
 
 export async function doctor() {
@@ -75,7 +74,7 @@ async function kiloConfigStatus() {
   if (pluginVersion) markers.push(`plugin ${pluginVersion}`);
   if (await exists(path.join(configDir, "AGENTS.md"))) markers.push("AGENTS.md");
   if (await exists(path.join(configDir, "commands"))) markers.push("commands");
-  const ruleEntries = (await readRules()).map((rule) => `${kiloRuleInstructionRoot("user")}/${rule.name}.md`);
+  const ruleEntries = await kiloRuleInstructionPaths("user");
   if (ruleEntries.some((entry) => instructions.includes(entry))) markers.push("rules configured");
   // Earlier installs wrote this form, which Kilo resolves against the project directory.
   else if (instructions.includes("./rules/00-precedence-and-safety.md")) markers.push("rule entries never load; rerun a general user install");

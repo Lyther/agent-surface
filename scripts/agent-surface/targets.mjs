@@ -1448,7 +1448,13 @@ export function kiloRuleInstructionRoot(scope) {
 
 export async function kiloRuleInstructionPaths(scope) {
   const prefix = kiloRuleInstructionRoot(scope);
-  return (await readRules()).map((rule) => `${prefix}/${rule.name}.md`);
+  return (await readRules()).map((rule) => `${prefix}/${ruleFileName(rule.name)}`);
+}
+
+// The folders that take one file per rule also hold the operator's own rules, so each file's name
+// says it is agent-surface's and never takes the name of a rule the operator wrote.
+export function ruleFileName(name, extension = ".md") {
+  return `agent-surface-${name}${extension}`;
 }
 
 export function commandRelativeOutput(adapter, command, context) {
@@ -1741,7 +1747,7 @@ export async function cursorStaticOutputs(_commands, _context) {
   const rules = await readRules();
   return rules.map((rule) => ({
     source: rule.file,
-    relativeOutput: path.join(".cursor", "rules", `${rule.name}.mdc`),
+    relativeOutput: path.join(".cursor", "rules", ruleFileName(rule.name, ".mdc")),
     content: renderAlwaysApplyRuleDocument(rule),
   }));
 }
@@ -1779,7 +1785,7 @@ export async function kiloStaticOutputs(_commands, context) {
   const outputs = [
     ...rules.map((rule) => ({
       source: rule.file,
-      relativeOutput: path.join(kiloRuleRoot(context), `${rule.name}.md`),
+      relativeOutput: path.join(kiloRuleRoot(context), ruleFileName(rule.name)),
       content: renderKiloRuleDocument(rule),
     })),
   ];
@@ -1831,7 +1837,7 @@ export async function kiroStaticOutputs(_commands, context) {
   return rules.map((rule) => ({
     source: rule.file,
     renderKind: "rules",
-    relativeOutput: path.join(kiroSteeringRoot(context), `${rule.name}.md`),
+    relativeOutput: path.join(kiroSteeringRoot(context), ruleFileName(rule.name)),
     content: renderKiroRuleDocument(rule),
   }));
 }
@@ -1898,7 +1904,7 @@ async function traeRuleFileOutputs(context, ruleRoot = traeRuleRoot(context)) {
     sourceKind: "rules",
     renderKind: "rules",
     source: rule.file,
-    relativeOutput: path.join(ruleRoot, `${rule.name}.md`),
+    relativeOutput: path.join(ruleRoot, ruleFileName(rule.name)),
     content: renderAlwaysApplyRuleDocument(rule),
   }));
 }

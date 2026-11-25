@@ -157,13 +157,14 @@ planLacks(clineUserMcpPlan, [
 ], "cline user mcps without Cline in Cursor or Windsurf");
 rmSync(clineUserMcpDest, { recursive: true, force: true });
 
+const kiloRuleNames = ["code", "core", "git", "hitl", "repository", "task", "test", "tool"];
 const kiloPlan = dryRun("kilo", ["--category", "development"]);
 planHas(kiloPlan, [
   /\.kilo\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/,
   /\.kilo\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/,
-  /\.kilo\/rules\/repository\.md <- rules\/repository\.md/,
+  /\.kilo\/rules\/agent-surface-repository\.md <- rules\/repository\.md/,
   /\.kilo\/agents\/explorer\.md <- subagents\/explorer\.md/,
-  /kilo\.jsonc instructions \+= \.kilo\/rules\/code\.md, \.kilo\/rules\/core\.md, \.kilo\/rules\/git\.md, \.kilo\/rules\/hitl\.md, \.kilo\/rules\/repository\.md, \.kilo\/rules\/task\.md, \.kilo\/rules\/test\.md, \.kilo\/rules\/tool\.md$/m,
+  new RegExp(`kilo\\.jsonc instructions \\+= ${kiloRuleNames.map((name) => `\\.kilo/rules/agent-surface-${name}\\.md`).join(", ")}$`, "m"),
 ], "kilo");
 planLacks(kiloPlan, [/^  AGENTS\.md <- rules\/\*\.md$/m], "kilo");
 
@@ -1252,12 +1253,11 @@ const kiloUserScope = status(["install", "--target", "kilo", "--scope", "user", 
 assert.equal(kiloUserScope.status, 0, `${kiloUserScope.stdout}${kiloUserScope.stderr}`);
 assert.match(kiloUserScope.stdout, /\.kilo\/skills\/ops-ask\/SKILL\.md <- skills\/ops-ask\/SKILL\.md/);
 assert.doesNotMatch(kiloUserScope.stdout, /\.config\/kilo\/AGENTS\.md <- rules\/\*\.md/);
-const kiloRuleNames = ["code", "core", "git", "hitl", "repository", "task", "test", "tool"];
 for (const name of kiloRuleNames) {
-  assert.match(kiloUserScope.stdout, new RegExp(`\\.config/kilo/rules/${name}\\.md <- rules/${name}\\.md`));
+  assert.match(kiloUserScope.stdout, new RegExp(`\\.config/kilo/rules/agent-surface-${name}\\.md <- rules/${name}\\.md`));
 }
 assert.doesNotMatch(kiloUserScope.stdout, /workflow-boss|ops-nuke|agents\/explorer\.md/);
-assert.match(kiloUserScope.stdout, new RegExp(`\\.config/kilo/kilo\\.jsonc instructions \\+= ${kiloRuleNames.map((name) => `~/\\.config/kilo/rules/${name}\\.md`).join(", ")}$`, "m"));
+assert.match(kiloUserScope.stdout, new RegExp(`\\.config/kilo/kilo\\.jsonc instructions \\+= ${kiloRuleNames.map((name) => `~/\\.config/kilo/rules/agent-surface-${name}\\.md`).join(", ")}$`, "m"));
 assert.doesNotMatch(kiloUserScope.stdout, /skills\.paths/);
 assert.doesNotMatch(kiloUserScope.stdout, /permission\.skill/);
 assert.match(kiloUserScope.stdout, /kilo\.jsonc permission := \{"\*":"allow"\}/);
@@ -1271,9 +1271,9 @@ const kiloDevelopmentUserScope = status(
 assert.equal(kiloDevelopmentUserScope.status, 0, `${kiloDevelopmentUserScope.stdout}${kiloDevelopmentUserScope.stderr}`);
 assert.match(kiloDevelopmentUserScope.stdout, /\.kilo\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/);
 assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/commands\/ops-nuke\.md <- commands\/ops-nuke\.md/);
-assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/rules\/test\.md <- rules\/test\.md/);
+assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/rules\/agent-surface-test\.md <- rules\/test\.md/);
 assert.match(kiloDevelopmentUserScope.stdout, /\.config\/kilo\/agents\/explorer\.md <- subagents\/explorer\.md/);
-assert.match(kiloDevelopmentUserScope.stdout, /kilo\.jsonc instructions \+= ~\/\.config\/kilo\/rules\/code\.md, .*~\/\.config\/kilo\/rules\/test\.md/);
+assert.match(kiloDevelopmentUserScope.stdout, /kilo\.jsonc instructions \+= ~\/\.config\/kilo\/rules\/agent-surface-code\.md, .*~\/\.config\/kilo\/rules\/agent-surface-test\.md/);
 
 const kimiCodeHome = path.join(userScopeHome, "custom-kimi-home");
 const kimiCodeUserScope = status(["install", "--target", "kimi-code", "--scope", "user", "--dry-run"], {
@@ -1325,7 +1325,9 @@ rmSync(invalidKiloDest, { recursive: true, force: true });
 
 const existingKiloDest = ownTmp("kilo-existing");
 rmSync(existingKiloDest, { recursive: true, force: true });
-mkdirSync(existingKiloDest, { recursive: true });
+mkdirSync(path.join(existingKiloDest, ".kilo", "rules"), { recursive: true });
+// The operator's own rule named like one of agent-surface's stays as written, and so does its entry.
+writeFileSync(path.join(existingKiloDest, ".kilo", "rules", "core.md"), "the operator's core rule\n");
 writeFileSync(
   path.join(existingKiloDest, "kilo.jsonc"),
   [
@@ -1333,6 +1335,7 @@ writeFileSync(
     "  // keep this comment",
     "  \"instructions\": [",
     "    \"./existing-rule.md\",",
+    "    \".kilo/rules/core.md\",",
     "    \".kilo/rules/agent-surface.md\",",
     "    \".kilo/rules/00-core.md\",",
     "    \".kilo/rules/10-python.md\",",
@@ -1365,9 +1368,11 @@ assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/10-python\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/10-lang-python\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/00-precedence-and-safety\.md"/, "a replaced rule's entry goes");
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/06-test-policy\.md"/);
-assert.match(mergedKiloConfig, /"\.kilo\/rules\/core\.md"/);
-assert.match(mergedKiloConfig, /"\.kilo\/rules\/tool\.md"/);
-assert.match(mergedKiloConfig, /"\.kilo\/rules\/code\.md"/, "a general install registers every rule");
+assert.match(mergedKiloConfig, /"\.kilo\/rules\/agent-surface-core\.md"/);
+assert.match(mergedKiloConfig, /"\.kilo\/rules\/agent-surface-tool\.md"/);
+assert.match(mergedKiloConfig, /"\.kilo\/rules\/agent-surface-code\.md"/, "a general install registers every rule");
+assert.match(mergedKiloConfig, /"\.kilo\/rules\/core\.md"/, "the operator's entry stays");
+assert.equal(readFileSync(path.join(existingKiloDest, ".kilo", "rules", "core.md"), "utf8"), "the operator's core rule\n");
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/14-shell\.md"/);
 assert.doesNotMatch(mergedKiloConfig, /"\.kilo\/rules\/14-lang-shell\.md"/);
 rmSync(existingKiloDest, { recursive: true, force: true });
@@ -1382,7 +1387,7 @@ const inlineKiloConfig = JSON.parse(readFileSync(path.join(inlineKiloDest, "kilo
 assert.deepEqual(inlineKiloConfig.instructions, [
   "./existing-rule.md",
   "./rules/00-precedence-and-safety.md",
-  ...kiloRuleNames.map((name) => `.kilo/rules/${name}.md`),
+  ...kiloRuleNames.map((name) => `.kilo/rules/agent-surface-${name}.md`),
 ]);
 assert.equal(Object.hasOwn(inlineKiloConfig, "skills"), false);
 assert.deepEqual(inlineKiloConfig.permission, { "*": "allow" });
@@ -1418,7 +1423,7 @@ const kiloUserRules = [
   "./my-rule.md",
   "~/.config/kilo/rules/10-python.md",
   "./rules/core.md",
-  ...kiloRuleNames.map((name) => `~/.config/kilo/rules/${name}.md`),
+  ...kiloRuleNames.map((name) => `~/.config/kilo/rules/agent-surface-${name}.md`),
 ];
 assert.deepEqual(kiloUserMigrationConfig(), kiloUserRules);
 assert.match(kiloDoctor(), /^kilo-config: present \(rules configured\)$/m);
@@ -2183,7 +2188,7 @@ for (const fx of [
   try {
     run(["install", "--target", "trae", "--scope", "project", "--dest", dest]);
     assert.equal(existsSync(path.join(dest, ".trae", "agents", "explorer.md")), false);
-    const nativeRule = readFileSync(path.join(dest, ".trae", "rules", "core.md"), "utf8");
+    const nativeRule = readFileSync(path.join(dest, ".trae", "rules", "agent-surface-core.md"), "utf8");
     assert.match(nativeRule, /^alwaysApply: true$/m);
     assert.equal(existsSync(path.join(dest, ".trae", "user_rules.md")), false, "no Trae edition reads a project user_rules.md");
     run(["install", "--target", "trae", "--scope", "project", "--dest", dest, "--category", "development"]);
@@ -2209,13 +2214,13 @@ for (const fx of [
     assert.equal(parsed.default_permissions, ":danger-full-access");
     assert.equal(parsed.profile.default.model, "keep-me");
     assert.equal(parsed.mcp_servers.synapse.command, path.join(os.homedir(), ".local", "bin", "synapse-bridge"));
-    assert.match(readFileSync(path.join(dest, ".trae", "rules", "core.md"), "utf8"), /^alwaysApply: true$/m,
+    assert.match(readFileSync(path.join(dest, ".trae", "rules", "agent-surface-core.md"), "utf8"), /^alwaysApply: true$/m,
       "Trae CLI user rules go to the ~/.trae/rules folder it loads");
     assert.equal(existsSync(path.join(dest, ".trae", "user_rules.md")), false, "the CLI does not read the IDE's user_rules.md");
     run(args);
     assert.equal(readFileSync(configPath, "utf8"), config, "Trae user config re-merge is idempotent");
     run([...args, "--category", "development"]);
-    assert.match(readFileSync(path.join(dest, ".trae", "rules", "code.md"), "utf8"), /^alwaysApply: true$/m, "a development install writes every rule too");
+    assert.match(readFileSync(path.join(dest, ".trae", "rules", "agent-surface-code.md"), "utf8"), /^alwaysApply: true$/m, "a development install writes every rule too");
     assert.equal(existsSync(path.join(dest, ".trae", "references")), false, "no rule is written as a reference");
   } finally {
     rmSync(dest, { recursive: true, force: true });

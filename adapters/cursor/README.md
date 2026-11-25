@@ -9,7 +9,7 @@ Native surfaces:
 - global commands: `~/.cursor/commands/*.md`
 - global canonical and reviewed external skills: `~/.cursor/skills/`
 - global subagents: `~/.cursor/agents/*.md`
-- global rules: `~/.cursor/rules/*.mdc` (Cursor documents `.cursor/rules` as project rules and User Rules as a settings entry; loading from the home directory is undocumented and unverified, and existing files are retained)
+- global rules: `~/.cursor/rules/agent-surface-<rule>.mdc` (Cursor documents `.cursor/rules` as project rules and User Rules as a settings entry; loading from the home directory is undocumented and unverified, and existing files are retained)
 - MCP: `~/.cursor/mcp.json` / `.cursor/mcp.json` `mcpServers.{synapse,grimoire}`
 - project ignore: `.cursorignore` (rendered from `ignores/default.ignore`; emitted in `build` and by project-scope `--dest` installs. User-scope installs skip it as non-applicable. It uses `.gitignore` syntax and blocks indexing/Agent/Tab/@-mentions but not terminal or MCP tool access.)
 

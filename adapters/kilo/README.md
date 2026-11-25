@@ -7,13 +7,13 @@ Implemented target paths:
 - user: `~/.config/kilo/commands/*.md`
 - user: `~/.kilo/skills/<name>/SKILL.md`
 - user: `~/.config/kilo/agents/*.md`
-- user: `~/.config/kilo/rules/<rule>.md` for each selected rule
-- user merge: `~/.config/kilo/kilo.jsonc` `instructions += "~/.config/kilo/rules/<rule>.md"` for always-on rules and `mcp.{synapse,grimoire}` for first-party MCP
+- user: `~/.config/kilo/rules/agent-surface-<rule>.md` for each rule
+- user merge: `~/.config/kilo/kilo.jsonc` `instructions += "~/.config/kilo/rules/agent-surface-<rule>.md"` for each rule and `mcp.{synapse,grimoire}` for first-party MCP
 - project: `.kilo/commands/*.md`
 - project: `.kilo/skills/<name>/SKILL.md`
 - project: `.kilo/agents/*.md`
-- project: `.kilo/rules/<rule>.md` for each selected rule
-- project merge: `kilo.jsonc` `instructions += ".kilo/rules/<rule>.md"` for always-on rules and `mcp.{synapse,grimoire}` for first-party MCP
+- project: `.kilo/rules/agent-surface-<rule>.md` for each rule
+- project merge: `kilo.jsonc` `instructions += ".kilo/rules/agent-surface-<rule>.md"` for each rule and `mcp.{synapse,grimoire}` for first-party MCP
 - project: `.kilocodeignore` (rendered from `ignores/default.ignore`; user-scope installs skip it as non-applicable)
 - custom: any reviewed `--dest` path
 

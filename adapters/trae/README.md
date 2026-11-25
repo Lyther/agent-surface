@@ -9,7 +9,7 @@ User scope:
 - subagents: `~/.trae-cn/agents/<name>.md`
 - MCP: `mcp.json` beside the IDE's per-OS `User` settings (`~/Library/Application Support/Trae/User/mcp.json` on macOS, `%APPDATA%\Trae\User\mcp.json` on Windows), written only once the IDE has created that `User` directory
 
-Project scope (`--dest`): `.trae/skills`, `.trae/agents`, `.trae/rules/<rule>.md` and `.trae/mcp.json`. Both IDE editions read these project paths, so `trae` and `trae-cn` co-own them; `trae-cli` writes the project rules, skills and agents but no project MCP file.
+Project scope (`--dest`): `.trae/skills`, `.trae/agents`, `.trae/rules/agent-surface-<rule>.md` and `.trae/mcp.json`. Both IDE editions read these project paths, so `trae` and `trae-cn` co-own them; `trae-cli` writes the project rules, skills and agents but no project MCP file.
 
 Notes:
 

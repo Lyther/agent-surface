@@ -77,7 +77,7 @@ assert.deepEqual(targetCapabilities.targets["grok-build"].surfaces.rules.paths, 
   "AGENTS.md",
 ]);
 assert.deepEqual(targetCapabilities.targets["grok-build"].surfaces.rules.scope, ["user", "project"]);
-assert.deepEqual(targetCapabilities.targets["trae-cli"].surfaces.rules.paths, ["~/.trae/rules/<name>.md", ".trae/rules/<name>.md"]);
+assert.deepEqual(targetCapabilities.targets["trae-cli"].surfaces.rules.paths, ["~/.trae/rules/agent-surface-<name>.md", ".trae/rules/agent-surface-<name>.md"]);
 assert.deepEqual(targetCapabilities.targets["trae-cli"].surfaces.rules.scope, ["user", "project"]);
 assert.deepEqual(targetCapabilities.targets.vscode.surfaces.instructions.paths, [
   "prompts/agent-surface.instructions.md",

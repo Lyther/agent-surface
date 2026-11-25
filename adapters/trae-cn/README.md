@@ -5,7 +5,7 @@ The `trae-cn` target covers the Trae CN IDE, which reads `~/.trae-cn` and the pr
 User scope:
 
 - skills and explicit-only compatibility skills: `~/.trae-cn/skills/<name>/SKILL.md`
-- rules: `~/.trae-cn/user_rules/<rule>.md`
+- rules: `~/.trae-cn/user_rules/agent-surface-<rule>.md`
 - subagents: `~/.trae-cn/agents/<name>.md`, co-owned with `trae`
 - MCP: `mcp.json` beside the IDE's per-OS `User` settings (`~/Library/Application Support/Trae CN/User/mcp.json` on macOS, `%APPDATA%\Trae CN\User\mcp.json` on Windows), written only once the IDE has created that `User` directory
 

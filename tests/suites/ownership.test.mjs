@@ -332,7 +332,7 @@ try {
   // - proof-limit: proves the handover rule, not what either Trae edition loads
   // - real-proof: a read-only dry-run of the new keys against the operator's pre-split profile
   {
-    const cnRule = path.join(".trae-cn", "user_rules", "core.md");
+    const cnRule = path.join(".trae-cn", "user_rules", "agent-surface-core.md");
     const cli1Skill = path.join(".traecli", "skills", "ops-flow", "SKILL.md");
     const cliConfig = path.join(".trae", "traecli.toml");
     const unreadMcp = path.join(".trae", "mcp.json");
@@ -712,18 +712,18 @@ try {
   // instead of ending the run with a bare filesystem error; nothing is written.
   {
     const dest = path.join(scratch, "unreadable");
-    const rule = path.join(".cursor", "rules", "core.mdc");
+    const rule = path.join(".cursor", "rules", "agent-surface-core.mdc");
     // A directory where a file belongs fails the same read for any user.
     mkdirSync(path.join(dest, rule), { recursive: true });
     const directory = project(dest, "cursor", ["--category", "rules"]);
     assert.equal(directory.code, 1, directory.out);
-    assert.match(directory.out, /^ {2}managed output \.cursor\/rules\/core\.mdc cannot be read \(EISDIR\)$/m);
+    assert.match(directory.out, /^ {2}managed output \.cursor\/rules\/agent-surface-core\.mdc cannot be read \(EISDIR\)$/m);
     assert.equal(manifest(dest, "cursor"), null, "the refused run wrote no manifest");
     rmSync(path.join(dest, rule), { recursive: true });
 
     const unreadable = [
       ["cursor", path.join(".cursor", "mcp.json"), "mcps", "{\"mcpServers\":{}}\n", /^ {2}MCP config \.cursor\/mcp\.json cannot be read \(EACCES\)$/m],
-      ["cursor", rule, "rules", "the operator's text\n", /^ {2}managed output \.cursor\/rules\/core\.mdc cannot be read \(EACCES\)$/m],
+      ["cursor", rule, "rules", "the operator's text\n", /^ {2}managed output \.cursor\/rules\/agent-surface-core\.mdc cannot be read \(EACCES\)$/m],
       ["kilo", "kilo.jsonc", "rules", "{}\n", /^ {2}Kilo config kilo\.jsonc cannot be read \(EACCES\)$/m],
     ];
     for (const [target, relative, category, content, line] of unreadable) {

@@ -17,7 +17,7 @@ import { vsCodeUserRoot, zedInstructionPath } from "./roots.mjs";
 import { readRules } from "./rules.mjs";
 import { readSkills } from "./skills.mjs";
 import { readSubagents, subagentValidationErrors } from "./source-primitives.mjs";
-import { CODEX_PLUGIN_NAME, CODEX_PLUGIN_SCHEMA, generatedOutputMinimums, producerEmitsFor, sourceKindPolicy, targetOutputs, targetProducers, targets } from "./targets.mjs";
+import { CODEX_PLUGIN_NAME, CODEX_PLUGIN_SCHEMA, generatedOutputMinimums, producerEmitsFor, ruleFileName, sourceKindPolicy, targetOutputs, targetProducers, targets } from "./targets.mjs";
 import { argValue, exists, fail, isSafeTargetName } from "./util.mjs";
 
 export const commandMetadataFields = new Set(["name", "aliases", "phase", "description"]);
@@ -919,8 +919,8 @@ export function validateGeneratedTarget(target, outputs) {
     requirePath(path.join(".kilo", "skills", "ops-flow", "SKILL.md"));
     requirePath(path.join(".config", "kilo", "commands", "ops-nuke.md"));
     requireContains(path.join(".config", "kilo", "agents", "explorer.md"), /^---\ndescription: "/);
-    requireContains(path.join(".config", "kilo", "kilo.jsonc"), new RegExp(`"~/\\.config/kilo/rules/${baselineRule}\\.md"`));
-    requireContains(path.join(".config", "kilo", "rules", `${baselineRule}.md`), /Kilo custom rule/);
+    requireContains(path.join(".config", "kilo", "kilo.jsonc"), new RegExp(`"~/\\.config/kilo/rules/agent-surface-${baselineRule}\\.md"`));
+    requireContains(path.join(".config", "kilo", "rules", ruleFileName(baselineRule)), /Kilo custom rule/);
     if (byPath.has(path.join(".config", "kilo", "AGENTS.md"))) {
       errors.push("Kilo must not emit AGENTS.md when kilo.jsonc instruction rules are generated");
     }
@@ -967,7 +967,7 @@ export function validateGeneratedTarget(target, outputs) {
   } else if (target === "kiro") {
     requireContains(path.join(".kiro", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(path.join(".kiro", "steering", "command-ops-nuke.md"), /^---\ninclusion: manual\n---/);
-    requireContains(path.join(".kiro", "steering", `${baselineRule}.md`), /^---\ninclusion: always\n---/);
+    requireContains(path.join(".kiro", "steering", ruleFileName(baselineRule)), /^---\ninclusion: always\n---/);
     requireContains(path.join(".kiro", "agents", "explorer.md"), /^---\nname: explorer\n/);
     // Skills only: a file:// steering resource would load every steering file, manual workflows included.
     requireContains(path.join(".kiro", "agents", "explorer.md"), /^resources:\n  - "skill:\/\/\.kiro\/skills\/\*\*\/SKILL\.md"\n  - "skill:\/\/~\/\.kiro\/skills\/\*\*\/SKILL\.md"\n---$/m);
@@ -991,7 +991,7 @@ export function validateGeneratedTarget(target, outputs) {
     requirePath(path.join(".cursor", "skills", "ops-flow", "SKILL.md"));
     requirePath(path.join(".cursor", "commands", "ops-nuke.md"));
     requireContains(path.join(".cursor", "agents", "explorer.md"), /^---\nname: explorer\n/);
-    requireContains(path.join(".cursor", "rules", `${baselineRule}.mdc`), /^alwaysApply: true$/m);
+    requireContains(path.join(".cursor", "rules", ruleFileName(baselineRule, ".mdc")), /^alwaysApply: true$/m);
     requireContains(".cursorignore", /agent-surface canonical AI-tool ignore baseline/);
   } else if (target === "droid") {
     requirePath(path.join(".agents", "skills", "ops-flow", "SKILL.md"));
@@ -1046,13 +1046,13 @@ export function validateGeneratedTarget(target, outputs) {
     requirePath(path.join(".trae", "skills", "ops-flow", "SKILL.md"));
     requireContains(path.join(".trae-cn", "agents", "explorer.md"), /^---\nname: explorer\n/);
   } else if (target === "trae-cn") {
-    requireContains(path.join(".trae-cn", "user_rules", `${baselineRule}.md`), /^alwaysApply: true$/m);
+    requireContains(path.join(".trae-cn", "user_rules", ruleFileName(baselineRule)), /^alwaysApply: true$/m);
     requirePath(path.join(".trae-cn", "skills", "ops-flow", "SKILL.md"));
     requireContains(path.join(".trae-cn", "agents", "explorer.md"), /^---\nname: explorer\n/);
   } else if (target === "trae-cli") {
     requirePath(path.join(".trae", "skills", "ops-flow", "SKILL.md"));
-    requireContains(path.join(".trae", "rules", `${baselineRule}.md`), /^alwaysApply: true$/m);
-    requirePath(path.join(".trae", "rules", `${developmentRule}.md`));
+    requireContains(path.join(".trae", "rules", ruleFileName(baselineRule)), /^alwaysApply: true$/m);
+    requirePath(path.join(".trae", "rules", ruleFileName(developmentRule)));
     requireContains(path.join(".trae", "agents", "explorer.md"), /^---\nname: explorer\n/);
     requireContains(path.join(".trae", "traecli.toml"), /^approval_policy = "never"$/m);
     requireContains(path.join(".trae", "traecli.toml"), /^default_permissions = ":danger-full-access"$/m);

@@ -6,10 +6,10 @@ User scope:
 
 - skills and explicit-only compatibility skills: `~/.trae/skills/<name>/SKILL.md`, co-owned with `trae`
 - subagents: `~/.trae/agents/<name>.md`
-- rules: `~/.trae/rules/<rule>.md`, the files a project install writes
+- rules: `~/.trae/rules/agent-surface-<rule>.md`, the files a project install writes
 - config merge: `~/.trae/traecli.toml` with `approval_policy = "never"`, `default_permissions = ":danger-full-access"` and first-party `mcp_servers`, preserving unrelated settings
 
-Project scope (`--dest`): `.trae/skills`, `.trae/agents` (read only in trusted projects) and `.trae/rules/<rule>.md`, co-owned with the IDE targets.
+Project scope (`--dest`): `.trae/skills`, `.trae/agents` (read only in trusted projects) and `.trae/rules/agent-surface-<rule>.md`, co-owned with the IDE targets.
 
 Notes:
 

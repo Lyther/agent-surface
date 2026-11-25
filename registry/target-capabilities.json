@@ -971,8 +971,8 @@
             "project"
           ],
           "paths": [
-            "~/.config/kilo/rules/*.md",
-            ".kilo/rules/*.md",
+            "~/.config/kilo/rules/agent-surface-*.md",
+            ".kilo/rules/agent-surface-*.md",
             "kilo.jsonc"
           ],
           "notes": "Rules are emitted as files and registered through the instructions array."
@@ -1485,8 +1485,8 @@
             "project"
           ],
           "paths": [
-            "~/.kiro/steering/<rule>.md",
-            ".kiro/steering/<rule>.md"
+            "~/.kiro/steering/agent-surface-<rule>.md",
+            ".kiro/steering/agent-surface-<rule>.md"
           ],
           "notes": "Always and fileMatch inclusion modes preserve the source rule scope where Kiro applies steering itself, which Kiro documents for the IDE and Kiro CLI V3, generated agents included (see subagents)."
         },
@@ -2063,7 +2063,7 @@
             "user"
           ],
           "paths": [
-            "~/.cursor/rules/*.mdc"
+            "~/.cursor/rules/agent-surface-*.mdc"
           ],
           "notes": "MDC files under the home-only root. Cursor documents .cursor/rules as project rules and User Rules as a settings entry; loading from ~/.cursor/rules is undocumented and unverified. Existing files are retained."
         },
@@ -2355,7 +2355,7 @@
           ],
           "paths": [
             "~/.trae/user_rules.md",
-            ".trae/rules/<name>.md"
+            ".trae/rules/agent-surface-<name>.md"
           ],
           "notes": "User installs write the single user_rules.md, which the locally installed 3.5.25 build loads beside the documented ~/.trae/user_rules/ folder (read from its app bundle); current documentation describes only the folder, and newer builds are unverified. Loading both would duplicate the rules. Projects get per-rule files every edition reads."
         },
@@ -2445,8 +2445,8 @@
             "project"
           ],
           "paths": [
-            "~/.trae-cn/user_rules/<name>.md",
-            ".trae/rules/<name>.md"
+            "~/.trae-cn/user_rules/agent-surface-<name>.md",
+            ".trae/rules/agent-surface-<name>.md"
           ],
           "notes": "Per-rule files in the documented user_rules folder; projects share .trae/rules with the other Trae targets."
         },
@@ -2532,8 +2532,8 @@
             "project"
           ],
           "paths": [
-            "~/.trae/rules/<name>.md",
-            ".trae/rules/<name>.md"
+            "~/.trae/rules/agent-surface-<name>.md",
+            ".trae/rules/agent-surface-<name>.md"
           ],
           "notes": "traecli 0.207.1 and 0.209.1 load ~/.trae/rules as they load a project's .trae/rules, inlining always-apply rules and listing glob-scoped ones on demand (offline prompt render, 2026-10-19). They also read ~/.trae/AGENTS.md, which agent-surface leaves to the user, and neither IDE's user_rules route."
         },
