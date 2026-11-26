@@ -138,30 +138,15 @@ try {
     assert.deepEqual(snapshot(dest), before, "an identical unowned file is not adopted");
   }
 
-  // Step 2, differing bytes with another owner's claim: regenerated, with a warning naming the
-  // contribution the selection drops. Another target's manifest is not a veto. Every selection now
-  // renders the same rules document, so the differing claim is one an earlier release's development
-  // install recorded.
-  // SUBSTITUTE_JUSTIFICATION
-  // - substitute: a hand-written droid manifest and AGENTS.md in the shape earlier releases wrote
-  // - replaces: a project root an earlier release's development install wrote
-  // - necessity: this checkout records no category on a rules document
-  // - real-option: the real CLI, planner and apply run against a real root
-  // - proof-limit: proves the warning and the regeneration, not how the earlier record arose
-  // - real-proof: after e347cba's installer ran `--target droid --category development` in a scratch
-  //   root, this checkout's `--target openhands --category rules` printed the same warning
+  // Step 2, differing bytes with another owner's claim: regenerated, because another target's
+  // manifest is not a veto, and both owners keep their claim.
   {
     const dest = path.join(scratch, "droid-then-openhands");
-    mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
-    writeFileSync(path.join(dest, "AGENTS.md"), "rules from an earlier development install\n");
-    writeFileSync(path.join(dest, ".agent-surface", "droid-manifest.json"), `${JSON.stringify({
-      target: "droid",
-      scope: "project",
-      managed: [{ target: "droid", source: "rules/*.mdc", output: "AGENTS.md", asset_category: "development" }],
-    })}\n`);
+    const droid = project(dest, "droid", ["--category", "rules"]);
+    assert.equal(droid.code, 0, droid.out);
+    writeFileSync(path.join(dest, "AGENTS.md"), "rules edited after the droid install\n");
     const live = project(dest, "openhands", ["--category", "rules"]);
     assert.equal(live.code, 0, live.out);
-    assert.match(live.out, /^ {2}SHARED_CONTRIBUTION_REPLACED: AGENTS\.md drops droid's development; install --target droid --category development into this root to restore it$/m);
     assert.equal(read(dest, "AGENTS.md"), read(rulesReference, "AGENTS.md"), "the shared file now holds the rules render");
     assert.ok(claims(dest, "droid", "AGENTS.md") && claims(dest, "openhands", "AGENTS.md"), "both owners keep their claim");
   }
@@ -395,45 +380,31 @@ try {
     assert.match(all.out, new RegExp(`^  ${cnRule.replaceAll("/", "\\/").replaceAll(".", "\\.")} \\(claimed by trae-cn\\)$`, "m"), "the plan reports the path as kept for trae-cn");
   }
 
-  // Step 4, moved route: Poolside's personal instructions moved from .poolside to AGENTS.md. The new
-  // route inherits the old one's recorded category for the category guard, and a selection that plans
-  // the new route retires the owned old one, so a client that reads both never gets two copies.
+  // Step 4, moved route: Poolside's personal instructions moved from .poolside to AGENTS.md, and a
+  // selection that plans the new route retires the owned old one, so a client that reads both never
+  // gets two copies.
   // SUBSTITUTE_JUSTIFICATION
   // - substitute: a hand-written pool manifest and .poolside in the shape earlier releases wrote
   // - replaces: a user profile installed before the move
   // - necessity: this checkout no longer renders the old route
   // - real-option: the real CLI, planner and apply run against a real root
   // - proof-limit: proves the transition, not what Poolside loads
-  // - real-proof: the operator's profile holds a development-recorded .poolside, and a peer review
-  //   reproduced both cases with the earlier and current installers
+  // - real-proof: a peer review reproduced the retirement with the earlier and current installers
   {
     const legacy = path.join(".config", "poolside", ".poolside");
-    const oldPool = (name, category) => {
-      const dest = path.join(scratch, name);
-      mkdirSync(path.join(dest, ".config", "poolside"), { recursive: true });
-      mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
-      writeFileSync(path.join(dest, legacy), "rules from an earlier install\n");
-      writeFileSync(path.join(dest, ".agent-surface", "pool-manifest.json"), `${JSON.stringify({
-        target: "pool",
-        scope: "user",
-        managed: [{ target: "pool", source: "rules/*.mdc", output: legacy, ...(category ? { asset_category: category } : {}) }],
-      })}\n`);
-      return dest;
-    };
-    const rulesOnly = (dest) => install(["--target", "pool", "--scope", "user", "--dest", dest, "--category", "rules"]);
-
-    const development = oldPool("pool-development", "development");
-    const before = snapshot(development);
-    const narrower = rulesOnly(development);
-    assert.equal(narrower.code, 1, narrower.out);
-    assert.match(narrower.out, /AGENTS\.md replaces .*\.poolside, which carries the development category's contribution/);
-    assert.deepEqual(snapshot(development), before, "a narrower selection does not drop the old document's contribution");
-
-    const general = oldPool("pool-general");
-    const replaced = rulesOnly(general);
+    const dest = path.join(scratch, "pool-moved");
+    mkdirSync(path.join(dest, ".config", "poolside"), { recursive: true });
+    mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
+    writeFileSync(path.join(dest, legacy), "rules from an earlier install\n");
+    writeFileSync(path.join(dest, ".agent-surface", "pool-manifest.json"), `${JSON.stringify({
+      target: "pool",
+      scope: "user",
+      managed: [{ target: "pool", source: "rules/*.mdc", output: legacy }],
+    })}\n`);
+    const replaced = install(["--target", "pool", "--scope", "user", "--dest", dest, "--category", "rules"]);
     assert.equal(replaced.code, 0, replaced.out);
-    assert.ok(existsSync(path.join(general, ".config", "poolside", "AGENTS.md")), replaced.out);
-    assert.ok(!existsSync(path.join(general, legacy)), "the old route is retired with its replacement");
+    assert.ok(existsSync(path.join(dest, ".config", "poolside", "AGENTS.md")), replaced.out);
+    assert.ok(!existsSync(path.join(dest, legacy)), "the old route is retired with its replacement");
   }
 
   // The same move for a Codex project: earlier installs wrote .codex/AGENTS.md, which Codex never
@@ -447,42 +418,19 @@ try {
   // - real-proof: Codex 0.163.0's debug prompt-input loads the new root AGENTS.md and no .codex/AGENTS.md
   {
     const legacy = path.join(".codex", "AGENTS.md");
-    const oldCodex = (name, category) => {
-      const dest = path.join(scratch, name);
-      mkdirSync(path.join(dest, ".codex"), { recursive: true });
-      mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
-      writeFileSync(path.join(dest, legacy), "rules from an earlier install\n");
-      writeFileSync(path.join(dest, ".agent-surface", "codex-manifest.json"), `${JSON.stringify({
-        target: "codex",
-        scope: "project",
-        managed: [{ target: "codex", source: "rules/*.mdc", output: legacy, ...(category ? { asset_category: category } : {}) }],
-      })}\n`);
-      return dest;
-    };
-
-    const development = oldCodex("codex-development", "development");
-    const before = snapshot(development);
-    const narrower = project(development, "codex", ["--category", "rules"]);
-    assert.equal(narrower.code, 1, narrower.out);
-    assert.match(narrower.out, /AGENTS\.md replaces \.codex\/AGENTS\.md, which carries the development category's contribution/);
-    assert.deepEqual(snapshot(development), before, "a narrower selection does not drop the old document's contribution");
-
-    const general = oldCodex("codex-general");
-    const replaced = project(general, "codex", ["--category", "rules"]);
+    const dest = path.join(scratch, "codex-moved");
+    mkdirSync(path.join(dest, ".codex"), { recursive: true });
+    mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
+    writeFileSync(path.join(dest, legacy), "rules from an earlier install\n");
+    writeFileSync(path.join(dest, ".agent-surface", "codex-manifest.json"), `${JSON.stringify({
+      target: "codex",
+      scope: "project",
+      managed: [{ target: "codex", source: "rules/*.mdc", output: legacy }],
+    })}\n`);
+    const replaced = project(dest, "codex", ["--category", "rules"]);
     assert.equal(replaced.code, 0, replaced.out);
-    assert.match(read(general, "AGENTS.md"), /^# AGENTS\.md - agent-surface rules$/m);
-    assert.ok(!existsSync(path.join(general, legacy)) && !claims(general, "codex", legacy), "the old route is retired with its replacement");
-
-    // When another host already owns an identical root AGENTS.md, the new route is a skip, but
-    // retiring the old one would still drop its development contribution, so the selection stops.
-    const shared = oldCodex("codex-shared-development", "development");
-    const droid = project(shared, "droid", ["--category", "rules"]);
-    assert.equal(droid.code, 0, droid.out);
-    const sharedBefore = snapshot(shared);
-    const sharedNarrower = project(shared, "codex", ["--category", "rules"]);
-    assert.equal(sharedNarrower.code, 1, sharedNarrower.out);
-    assert.match(sharedNarrower.out, /AGENTS\.md replaces \.codex\/AGENTS\.md, which carries the development category's contribution/);
-    assert.deepEqual(snapshot(shared), sharedBefore, "a matching shared document does not retire the old one's contribution");
+    assert.match(read(dest, "AGENTS.md"), /^# AGENTS\.md - agent-surface rules$/m);
+    assert.ok(!existsSync(path.join(dest, legacy)) && !claims(dest, "codex", legacy), "the old route is retired with its replacement");
   }
 
   // The same move for the VS Code profile: earlier installs wrote Code/User/instructions, which VS
@@ -497,35 +445,19 @@ try {
   {
     const userRoot = vsCodeUserRoot("Code", { scope: "user" });
     const legacy = path.join(userRoot, "instructions", "agent-surface.instructions.md");
-    const oldVsCode = (name, category) => {
-      const dest = path.join(scratch, name);
-      mkdirSync(path.join(dest, userRoot, "instructions"), { recursive: true });
-      mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
-      writeFileSync(path.join(dest, legacy), "instructions from an earlier install\n");
-      writeFileSync(path.join(dest, ".agent-surface", "vscode-manifest.json"), `${JSON.stringify({
-        target: "vscode",
-        scope: "user",
-        managed: [{ target: "vscode", source: "rules/*.mdc", output: legacy, ...(category ? { asset_category: category } : {}) }],
-      })}\n`);
-      return dest;
-    };
-    const rulesOnly = (dest) => install(["--target", "vscode", "--scope", "user", "--dest", dest, "--category", "rules"]);
-
-    const development = oldVsCode("vscode-development", "development");
-    const before = snapshot(development);
-    const narrower = rulesOnly(development);
-    assert.equal(narrower.code, 1, narrower.out);
-    assert.match(
-      narrower.out,
-      /prompts.agent-surface\.instructions\.md replaces .*instructions.agent-surface\.instructions\.md, which carries the development category's contribution/,
-    );
-    assert.deepEqual(snapshot(development), before, "a narrower selection does not drop the old document's contribution");
-
-    const general = oldVsCode("vscode-general");
-    const replaced = rulesOnly(general);
+    const dest = path.join(scratch, "vscode-moved");
+    mkdirSync(path.join(dest, userRoot, "instructions"), { recursive: true });
+    mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
+    writeFileSync(path.join(dest, legacy), "instructions from an earlier install\n");
+    writeFileSync(path.join(dest, ".agent-surface", "vscode-manifest.json"), `${JSON.stringify({
+      target: "vscode",
+      scope: "user",
+      managed: [{ target: "vscode", source: "rules/*.mdc", output: legacy }],
+    })}\n`);
+    const replaced = install(["--target", "vscode", "--scope", "user", "--dest", dest, "--category", "rules"]);
     assert.equal(replaced.code, 0, replaced.out);
-    assert.ok(existsSync(path.join(general, userRoot, "prompts", "agent-surface.instructions.md")), replaced.out);
-    assert.ok(!existsSync(path.join(general, legacy)), "the old route is retired with its replacement");
+    assert.ok(existsSync(path.join(dest, userRoot, "prompts", "agent-surface.instructions.md")), replaced.out);
+    assert.ok(!existsSync(path.join(dest, legacy)), "the old route is retired with its replacement");
   }
 
   // Qwen Code and Kimi Code read a project's root AGENTS.md beside their own QWEN.md or
@@ -540,31 +472,19 @@ try {
   // - proof-limit: proves the transition, not what either host loads
   // - real-proof: on the first TUI screen, Kimi Code 2.2.0's 60.3 KB AGENTS.md warning and Qwen Code 0.25.2's
   //   19,720-token count drop to no warning and 12,000 tokens (adapter READMEs)
-  for (const [target, legacy, pattern] of [
-    ["qwen-code", "QWEN.md", "QWEN\\.md"],
-    ["kimi-code", path.join(".kimi-code", "AGENTS.md"), "\\.kimi-code\\/AGENTS\\.md"],
+  for (const [target, legacy] of [
+    ["qwen-code", "QWEN.md"],
+    ["kimi-code", path.join(".kimi-code", "AGENTS.md")],
   ]) {
-    const oldInstall = (name, category) => {
-      const dest = path.join(scratch, name);
-      mkdirSync(path.join(dest, path.dirname(legacy)), { recursive: true });
-      mkdirSync(path.join(dest, ".agent-surface"), { recursive: true });
-      writeFileSync(path.join(dest, legacy), "rules from an earlier install\n");
-      writeFileSync(path.join(dest, ".agent-surface", `${target}-manifest.json`), `${JSON.stringify({
-        target,
-        scope: "project",
-        managed: [{ target, source: "rules/*.mdc", output: legacy, ...(category ? { asset_category: category } : {}) }],
-      })}\n`);
-      return dest;
-    };
-
-    const development = oldInstall(`${target}-development`, "development");
-    const before = snapshot(development);
-    const narrower = project(development, target, ["--category", "rules"]);
-    assert.equal(narrower.code, 1, narrower.out);
-    assert.match(narrower.out, new RegExp(`AGENTS\\.md replaces ${pattern}, which carries the development category's contribution`));
-    assert.deepEqual(snapshot(development), before, `${target}: a narrower selection does not drop the old document's contribution`);
-
-    const shared = oldInstall(`${target}-shared`);
+    const shared = path.join(scratch, `${target}-shared`);
+    mkdirSync(path.join(shared, path.dirname(legacy)), { recursive: true });
+    mkdirSync(path.join(shared, ".agent-surface"), { recursive: true });
+    writeFileSync(path.join(shared, legacy), "rules from an earlier install\n");
+    writeFileSync(path.join(shared, ".agent-surface", `${target}-manifest.json`), `${JSON.stringify({
+      target,
+      scope: "project",
+      managed: [{ target, source: "rules/*.mdc", output: legacy }],
+    })}\n`);
     const codex = project(shared, "codex", ["--category", "rules"]);
     assert.equal(codex.code, 0, codex.out);
     const replaced = project(shared, target, ["--category", "rules"]);
@@ -575,42 +495,25 @@ try {
   }
 
   // The same identity for a document Cline's OS Documents folder relocates after a real development
-  // install: the relocated rules document keeps the old route's category, so a rules-only refresh is
-  // refused, and a development refresh rewrites it and retires the old route. Linux only, through the
+  // install: a refresh writes it at the new route and retires the old route. Linux only, through the
   // real xdg-user-dir, which reads this home's user-dirs.dirs.
-  // SUBSTITUTE_JUSTIFICATION
-  // - substitute: the development category written into the old rules document's manifest record
-  // - replaces: the record an earlier release's development install wrote for that document
-  // - necessity: this checkout records no category on a rules document
-  // - real-option: the real CLI, planner, apply and xdg-user-dir run against a real root
-  // - proof-limit: proves that the relocated route keeps the record's category, not how the record arose
-  // - real-proof: none for an earlier release's manifest
   if (spawnSync("xdg-user-dir", ["DOCUMENTS"]).status === 0) {
     const dest = path.join(scratch, "cline-relocated");
     const userDirs = path.join(home, ".config", "user-dirs.dirs");
-    const cline = (category) => install(["--target", "cline", "--scope", "user", "--dest", dest, "--category", category]);
+    const cline = () => install(["--target", "cline", "--scope", "user", "--dest", dest, "--category", "development"]);
     const oldRules = path.join("Documents", "Cline", "Rules", "agent-surface.md");
     const newRules = path.join("Cline", "Rules", "agent-surface.md");
     mkdirSync(path.dirname(userDirs), { recursive: true });
     writeFileSync(userDirs, "XDG_DOCUMENTS_DIR=\"$HOME/Documents\"\n");
     try {
-      const first = cline("development");
+      const first = cline();
       assert.equal(first.code, 0, first.out);
-      const developmentRules = read(dest, oldRules);
-      const manifestFile = path.join(dest, ".agent-surface", "cline-manifest.json");
-      const recorded = JSON.parse(readFileSync(manifestFile, "utf8"));
-      for (const entry of recorded.managed) if (entry.output === oldRules) entry.asset_category = "development";
-      writeFileSync(manifestFile, `${JSON.stringify(recorded, null, 2)}\n`);
+      const rules = read(dest, oldRules);
       // No DOCUMENTS entry: the extension reads ~/Cline, and rules go there alone.
       writeFileSync(userDirs, "");
-      const before = snapshot(dest);
-      const narrower = cline("rules");
-      assert.equal(narrower.code, 1, narrower.out);
-      assert.match(narrower.out, new RegExp(`${escapeRegExp(newRules)} replaces ${escapeRegExp(oldRules)}, which carries the development category's contribution`));
-      assert.deepEqual(snapshot(dest), before, "a refused relocation writes nothing");
-      const refreshed = cline("development");
+      const refreshed = cline();
       assert.equal(refreshed.code, 0, refreshed.out);
-      assert.equal(read(dest, newRules), developmentRules, "the relocated document keeps the development contribution");
+      assert.equal(read(dest, newRules), rules, "the relocated document holds the same rules");
       assert.ok(!existsSync(path.join(dest, oldRules)) && !claims(dest, "cline", oldRules), "the old route is retired with its replacement");
       for (const root of ["Documents", ""]) assert.ok(existsSync(path.join(dest, root, "Cline", "Workflows", "ops-nuke.md")), `workflows land under ${root || "the home"}`);
     } finally {

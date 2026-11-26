@@ -413,41 +413,20 @@ function protectCrossPlanLiveOutputs(plans) {
 }
 
 // A manifest records who manages a path, not a policy inside the file, so another owner's claim is
-// not a veto: a co-owned file is regenerated for this selection, with a warning when that drops a
-// category another owner recorded, and a stale path is removed only once no other owner claims it
-// (contract Migration steps 2 and 3). Owners taking part in this run are judged by their next
-// manifests, every other owner by what is on disk.
+// not a veto: a co-owned file is regenerated for this selection, and a stale path is removed only
+// once no other owner claims it (contract Migration steps 2 and 3). Owners taking part in this run
+// are judged by their next manifests, every other owner by what is on disk.
 function resolveSharedOwnership(plans) {
   const participants = new Map(plans.map((plan) => [participantKey(plan.installRoot, plan.target), plan]));
-  const warnedPaths = new Set();
   for (const plan of plans) {
-    for (const item of plan.writes) {
-      const pathKey = `${plan.installRoot}\0${claimKey(item.relativeOutput)}`;
-      if (item.action !== "write" || !item.existed || warnedPaths.has(pathKey)) continue;
-      const dropped = uniqueStrings(otherClaims(plan, item.relativeOutput, participants)
-        .filter((holder) => holder.category && !plan.selectedCategories.has(holder.category))
-        .map((holder) => `${holder.owner}\0${holder.category}`))
-        .sort()
-        .map((key) => key.split("\0"));
-      if (dropped.length === 0) continue;
-      warnedPaths.add(pathKey);
-      plan.warnings.push(sharedContributionWarning(item.relativeOutput, dropped));
-    }
     for (const item of plan.staleRemovalActions) {
       if (item.action !== "remove") continue;
-      const holders = uniqueStrings(otherClaims(plan, item.relativeOutput, participants).map((holder) => holder.owner));
+      const holders = uniqueStrings(otherClaims(plan, item.relativeOutput, participants));
       if (holders.length === 0) continue;
       item.action = "retain";
       item.retainedFor = holders;
     }
   }
-}
-
-// One warning per path, naming every owner whose recorded category this selection drops.
-function sharedContributionWarning(relativeOutput, dropped) {
-  const contributions = dropped.map(([owner, category]) => `${owner}'s ${category}`).join(" and ");
-  const restore = dropped.map(([owner, category]) => `--target ${owner} --category ${category}`).join(" or ");
-  return `SHARED_CONTRIBUTION_REPLACED: ${relativeOutput} drops ${contributions}; install ${restore} into this root to restore it`;
 }
 
 // Blocks that belong to an install root rather than one plan, listed once however many plans share it.
@@ -497,18 +476,17 @@ function splitHeldConfigIds(held, relativeOutput, format, ids) {
 // takes part in the run.
 function otherClaims(plan, relativeOutput, participants) {
   const key = claimKey(relativeOutput);
-  const holders = [];
+  const owners = [];
   for (const other of participants.values()) {
     if (other.installRoot !== plan.installRoot || other.target === plan.target) continue;
-    const entry = other.nextEntries.get(key);
-    if (entry) holders.push({ owner: other.target, category: entry.asset_category });
+    if (other.nextEntries.has(key)) owners.push(other.target);
   }
   for (const claim of plan.rootClaims.byPath.get(key) ?? []) {
     if (claim.owner === plan.target) continue;
     if (!claim.nested && participants.has(participantKey(plan.installRoot, claim.owner))) continue;
-    holders.push({ owner: claim.owner, category: claim.assetCategory });
+    owners.push(claim.owner);
   }
-  return holders;
+  return owners;
 }
 
 // `--target all` selects the WHOLE set, so pairing it with a sibling is ambiguous rather than
@@ -1036,9 +1014,8 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
   const liveOutputs = new Set(managed.map((item) => item.output));
   const previousFileEntries = manifestFileEntries(previousManifest, target);
   const selectedCategories = profileAssetCategories({ categoryFilter, fullProfile });
-  // A moved document keeps its identity (contract Migration step 4): until the new route records its
-  // own category, the guard below reads the old route's, and once a selection plans the new route the
-  // owned old route is retired with it, so a client that reads both never loads two copies.
+  // A moved document keeps its identity (contract Migration step 4): once a selection plans the new
+  // route, the owned old route is retired with it, so a client that reads both never loads two copies.
   // An output the adapter relocates between installs, such as Cline's when the OS Documents folder
   // moves, is a moved route too.
   const movedRoutes = [
@@ -1049,38 +1026,6 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     ...(adapter.relocatedRoutes?.(previousFileEntries.map((item) => item.output), [...liveOutputs]) ?? [])
       .map((route) => ({ from: claimKey(route.from), to: claimKey(route.to) })),
   ];
-
-  // An output recorded under an asset category holds that category's contribution, and regenerating
-  // it under a selection without the category erases it while the category's other assets stay
-  // installed, leaving a profile no single command describes. Rule documents were the case: before
-  // every selection wrote all the rules, an aggregate instruction document (Codex's AGENTS.md and its
-  // kin) held the selected category's rules, and manifests from then still record that category.
-  //
-  // The manifest records ONE asset_category per output. That is enough to DETECT the loss, and not
-  // enough to reconstruct a document assembled from several categories, so the operation is
-  // rejected before anything is written rather than reassembled from a reconstructed profile. The
-  // contribution is restored by re-running the category that owns it; the general full sync still
-  // resets it deliberately, which is its documented meaning.
-  if (partialInstall) {
-    const previousOwner = new Map(previousFileEntries.filter((item) => item.asset_category).map((item) => [claimKey(item.output), item.asset_category]));
-    const movedFrom = new Map();
-    for (const route of movedRoutes) {
-      if (previousOwner.has(route.to) || !previousOwner.has(route.from)) continue;
-      previousOwner.set(route.to, previousOwner.get(route.from));
-      movedFrom.set(route.to, route.from);
-    }
-    for (const item of writes) {
-      // Only a real content change can lose anything: an unchanged file is a skip either way. A moved
-      // route is the exception: its old document is retired even when the new one already matches,
-      // as it does when another host owns an identical shared AGENTS.md.
-      const key = claimKey(item.relativeOutput);
-      if (item.action !== "write" && !(item.action === "skip" && movedFrom.has(key))) continue;
-      const owner = previousOwner.get(key);
-      if (owner === undefined || selectedCategories.has(owner)) continue;
-      const document = movedFrom.has(key) ? `${item.relativeOutput} replaces ${movedFrom.get(key)}, which` : item.relativeOutput;
-      blocked.push(`${document} carries the ${owner} category's contribution and this selection would overwrite it; re-run --category ${owner} to refresh that document, or run the general install to reset it`);
-    }
-  }
   const staleExternalManaged = categoryFilter?.has("external")
     ? previousFileEntries.filter(
       (item) => item.asset_category === undefined
@@ -1288,7 +1233,6 @@ async function installPlan(target, adapter, installRoot, scope, rootSource, opti
     manifest,
     // Inputs to the cross-plan ownership decisions and to the pending manifest.
     rootClaims,
-    selectedCategories,
     previousFileEntries,
     previousConfigEntries,
     ownedConfigEntries,
@@ -1352,7 +1296,7 @@ async function readRootClaims(installRoot) {
     if (!manifest) continue;
     claims.manifests.set(owner, manifest);
     for (const item of manifest.managed) {
-      if (usableOutput(item)) addClaim(claims, item.output, { owner, assetCategory: item.asset_category, nested: false });
+      if (usableOutput(item)) addClaim(claims, item.output, { owner, nested: false });
     }
   }
   for (const legacy of await legacyNestedManifests()) {
@@ -1368,7 +1312,7 @@ async function readRootClaims(installRoot) {
     const manifest = await readClaimManifest(installRoot, file, info, claims.blocked);
     if (!manifest) continue;
     for (const item of manifest.managed) {
-      if (usableOutput(item)) addClaim(claims, path.join(legacy.root, item.output), { owner: legacy.target, assetCategory: item.asset_category, nested: true });
+      if (usableOutput(item)) addClaim(claims, path.join(legacy.root, item.output), { owner: legacy.target, nested: true });
     }
   }
   return claims;
