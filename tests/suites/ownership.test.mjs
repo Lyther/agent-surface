@@ -44,8 +44,8 @@ for (const name of ["grimoire-server", "synapse-bridge", "synapse-hook"]) {
 }
 const shipDeploy = path.join(".agents", "skills", "ship-deploy", "SKILL.md");
 
-function install(args) {
-  const result = status(["install", ...args], { env });
+function install(args, extraEnv = {}) {
+  const result = status(["install", ...args], { env: { ...env, ...extraEnv } });
   return { code: result.status, out: `${result.stdout}${result.stderr}` };
 }
 
@@ -214,10 +214,13 @@ try {
   }
 
   // Every path several targets share renders identical bytes for one selection, so a joint plan
-  // over all targets has no same-run conflict.
+  // over all targets has no same-run conflict. The plan also fits the 2 GB heap Node gives itself
+  // on a host with less than 16 GB of memory (2038 MB measured in a 4 GB container, 2096 MB in an
+  // 8 GB one), where the development plan once aborted out of memory.
+  const smallHostHeap = { NODE_OPTIONS: [process.env.NODE_OPTIONS, "--max-old-space-size=2048"].filter(Boolean).join(" ") };
   for (const selection of [[], ["--category", "development"], ["--category", "rules"], ["--category", "everything"]]) {
     const label = `project all ${selection.join(" ") || "general"}`;
-    const plan = install(["--target", "all", "--scope", "project", "--dest", path.join(scratch, "all-project"), ...selection, "--dry-run"]);
+    const plan = install(["--target", "all", "--scope", "project", "--dest", path.join(scratch, "all-project"), ...selection, "--dry-run"], smallHostHeap);
     assert.equal(plan.code, 0, `${label}: ${plan.out}`);
     assert.doesNotMatch(plan.out, /also planned by/, label);
   }

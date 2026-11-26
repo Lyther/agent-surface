@@ -1061,6 +1061,21 @@ export async function produceSkillOutputs(adapter, skills, context) {
   return outputs;
 }
 
+// Every target plans the same external skill files, so each one is read and normalized once per
+// process and the targets share the string: with a copy per target, a joint plan over all targets
+// ran Node's 2 GB default heap out of memory.
+const externalFileContents = new Map();
+
+function externalFileContent(file, relativeFile, skillName) {
+  const key = `${file}\0${relativeFile}\0${skillName}`;
+  let content = externalFileContents.get(key);
+  if (!content) {
+    content = readFile(file, "utf8").then((text) => normalizeExternalSkillFile(relativeFile, text, skillName));
+    externalFileContents.set(key, content);
+  }
+  return content;
+}
+
 export async function externalSkillOutputs(adapter, context) {
   const externalOutputRoot = adapter.externalSkillOutputRoot ?? adapter.skillOutputRoot;
   if (!externalOutputRoot) return [];
@@ -1126,7 +1141,7 @@ export async function externalSkillOutputs(adapter, context) {
         renderKind: "external",
         source: relative(file),
         relativeOutput: path.join(outputRoot, skillName, relativeFile),
-        content: normalizeExternalSkillFile(relativeFile, await readFile(file, "utf8"), skillName),
+        content: await externalFileContent(file, relativeFile, skillName),
         // Without the source's executable bit a pack's companion script lands 0644 and fails with EACCES; the
         // explicit 0644 lets an install reset a bit the upstream dropped instead of keeping the old 0755.
         mode: (info.mode & 0o111) !== 0 ? 0o755 : 0o644,
