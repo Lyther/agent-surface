@@ -14,7 +14,7 @@ from unittest import mock
 from pathlib import Path
 
 from evals.agents import HOST_TIMEOUT_MARGIN_SEC, host_timeout
-from evals.cohort import AGENT_ENDS_TO_STOP, RETRIES, SETUP_FAILURES_TO_STOP, HostStops, SpendGate, Unit, attempt_name, is_capacity_end, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, first_target_load_seconds, calls_before_first_target_load, injected_secrets, parse_models, parse_spend, plan, run_order, spend_reading
+from evals.cohort import AGENT_ENDS_TO_STOP, RETRIES, SETUP_FAILURES_TO_STOP, HostStops, SpendGate, Unit, attempt_name, is_capacity_end, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, first_target_load_seconds, calls_before_first_target_load, injected_secrets, parse_models, parse_spend, plan, row_extra, run_order, spend_reading
 
 FAKE_KEY = "fk-" + "FAKE-not-a-real-factory-key-0123456789"  # built at run time so a secret scanner does not flag the source
 IMAGE = {"image_id": "sha256:feed"}
@@ -31,11 +31,25 @@ def agent_end(exception=None, end_reason="exit"):
 
 
 class HostStopsTest(unittest.TestCase):
-    def feed(self, rows, host="codex"):
-        stops = HostStops()
+    def feed(self, rows, host="codex", **options):
+        stops = HostStops(**options)
         for row in rows:
             stops.observe(host, row)
         return stops
+
+    def test_with_timeouts_as_outcomes_ends_at_the_agent_cap_never_stop_the_host(self):
+        timeout = agent_end("AgentTimeoutError", "timeout")
+        rows = [timeout, agent_end("NonZeroAgentExitCodeError", "timeout"), timeout, timeout]
+        self.assertTrue(self.feed(rows).stopped("codex"))
+        self.assertFalse(self.feed(rows, timeouts_stop=False).stopped("codex"))
+
+    def test_with_timeouts_as_outcomes_an_end_at_the_cap_breaks_a_streak_and_the_other_rules_still_stop(self):
+        same = agent_end("NonZeroAgentExitCodeError", "error")
+        cap = agent_end("NonZeroAgentExitCodeError", "capacity")
+        self.assertFalse(self.feed([same, same, agent_end("AgentTimeoutError", "timeout"), same], timeouts_stop=False).stopped("codex"))
+        self.assertTrue(self.feed([same, same, same], timeouts_stop=False).stopped("codex"))
+        self.assertTrue(self.feed([cap, cap, cap], timeouts_stop=False).stopped("codex"))
+        self.assertTrue(self.feed([setup_failure(), setup_failure()], timeouts_stop=False).stopped("codex"))
 
     def test_two_consecutive_setup_failures_with_one_exception_stop_the_host(self):
         self.assertEqual(SETUP_FAILURES_TO_STOP, 2)
@@ -89,6 +103,16 @@ class HostStopsTest(unittest.TestCase):
         for host in ("codex", "droid", "codex"):
             stops.observe(host, setup_failure() if host == "codex" else agent_end())
         self.assertTrue(stops.stopped("codex"))  # another host's row does not break codex's streak
+
+
+class RowExtraTest(unittest.TestCase):
+    def args(self, **given):
+        return types.SimpleNamespace(**{"concurrency": 6, "arms_together": False, "timeouts_are_outcomes": False, "purpose": None, "prereg": None, **given})
+
+    def test_a_run_with_timeouts_as_outcomes_says_so_on_every_row(self):
+        self.assertEqual(row_extra(self.args(arms_together=True, timeouts_are_outcomes=True, prereg="ab01")),
+                         {"concurrency": 6, "arms_together": True, "timeouts_are_outcomes": True, "prereg": "ab01"})
+        self.assertNotIn("timeouts_are_outcomes", row_extra(self.args()))
 
 
 class FirstLoadTest(unittest.TestCase):

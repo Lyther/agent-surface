@@ -389,6 +389,8 @@ def row_extra(args) -> dict:
     extra = {"concurrency": args.concurrency}
     if args.arms_together:
         extra["arms_together"] = True
+    if args.timeouts_are_outcomes:
+        extra["timeouts_are_outcomes"] = True
     if args.purpose:
         extra["purpose"] = args.purpose
     if args.prereg:
@@ -477,7 +479,8 @@ class SpendGate:
 
 # Basis (preregistration section 8, rules 3 and 4): two setup failures with one exception on a host separated a deterministic arm-extraction fault
 # from a one-off (12 attempts failed identically in about 18 s each); three attempts in a row ending at the agent cap or in one agent-end exception
-# wasted ten minutes of a slot each (all three opencode attempts that reached the agent ended in the 600 s cap).
+# wasted ten minutes of a slot each (all three opencode attempts that reached the agent ended in the 600 s cap). A benchmark run exempts the agent
+# cap (`--timeouts-are-outcomes`): there each task declares its own limit, and an attempt that reaches it has failed the task, not found a fault.
 SETUP_FAILURES_TO_STOP = 2
 AGENT_ENDS_TO_STOP = 3
 
@@ -487,10 +490,12 @@ class HostStops:
 
     Setup: `SETUP_FAILURES_TO_STOP` rows in a row with an exception and no agent time, the same exception. Agent end: `AGENT_ENDS_TO_STOP` rows in a
     row that reached the agent and ended at the agent cap (`end_reason: timeout`), at the provider's capacity limit (`end_reason: capacity`) or in the same exception. Any other row of the host, a launch
-    failure aside, breaks both streaks. A stopped host stays stopped; `reasons` maps it to why.
+    failure aside, breaks both streaks. With `timeouts_stop` False an end at the agent cap is such an other row. A stopped host stays stopped; `reasons`
+    maps it to why.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, timeouts_stop: bool = True) -> None:
+        self.timeouts_stop = timeouts_stop
         self.setup: dict[str, tuple[str | None, int]] = {}
         self.agent: dict[str, tuple[str | None, int]] = {}
         self.reasons: dict[str, str] = {}
@@ -502,6 +507,8 @@ class HostStops:
         exception = row.get("exception")
         setup_key = exception if exception and not started else None
         agent_key = {"timeout": "agent cap", "capacity": "upstream capacity"}.get(row.get("end_reason") or "", exception) if started else None
+        if not self.timeouts_stop and row.get("end_reason") == "timeout":
+            agent_key = None
         self._count(self.setup, host, setup_key, SETUP_FAILURES_TO_STOP, "setup failures")
         self._count(self.agent, host, agent_key, AGENT_ENDS_TO_STOP, "attempts ending the same way")
 
@@ -587,7 +594,7 @@ async def main(args) -> None:
     first_attempt = {tuple(c): next_attempt(history.get(tuple(c), [])) for group in everything for c in group}
     order = [left for left in ([c for c in group if first_attempt[tuple(c)]] for group in everything) if left]
     gates = {host: SpendGate(*spend) for host, spend in args.spend.items() if spend}
-    stops = HostStops()
+    stops = HostStops(timeouts_stop=not args.timeouts_are_outcomes)
 
     def skip(cell, why: str, **more) -> None:
         scenario, host, profile, rep = cell
@@ -665,6 +672,8 @@ if __name__ == "__main__":
     ap.add_argument("--concurrency", type=int, default=4,
                     help="groups at once, so attempts at once unless --arms-together; the measured safe level per host is in the README's Capacity section")
     ap.add_argument("--arms-together", action="store_true", help="start the arms of a group at once instead of one after another")
+    ap.add_argument("--timeouts-are-outcomes", action="store_true",
+                    help="benchmark runs: an attempt that ends at its task's agent time limit has failed the task and never counts toward a host stop")
     ap.add_argument("--model", dest="model_items", action="append", default=[], metavar="HOST=MODEL", help="run a host on another model than its default (droid only)")
     ap.add_argument("--spend", dest="spend_items", action="append", default=[], metavar="HOST=CAP:RESERVE",
                     help="required for droid (Factory credits) and the gateway hosts (tokens, prompt plus output): the cohort's cap on the host's spend and the reserve charged per attempt, "
