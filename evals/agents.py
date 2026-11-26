@@ -210,7 +210,7 @@ class ArmDroid(_DockerExecAgent):
         workdir = await self._workdir(environment)
         inner = (
             f"cd {shlex.quote(workdir)} && "
-            f"timeout {host_timeout()} droid exec --skip-permissions-unsafe -m {DROID_MODEL} "
+            f"timeout {host_timeout()} droid exec --skip-permissions-unsafe -m {shlex.quote(self.model_name or DROID_MODEL)} "
             f"--remove-tools {DROID_REMOVE_TOOLS} -o stream-json {shlex.quote(instruction)} "
             f"> {LOGS}/droid.jsonl 2> {LOGS}/droid.stderr"
         )

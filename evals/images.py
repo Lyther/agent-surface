@@ -8,6 +8,7 @@ Usage:
   python -m evals.images build --out OUT [--hosts opencode,droid] [--proxy URL]
   python -m evals.images arms --src SRC --out OUT [--hosts ...] [--profiles dev,full,...] [--desc-texts desc.json]
   python -m evals.images scenarios --host-images hosts.json --scenario DIR [--scenario DIR ...] --hosts droid [--proxy URL]
+  python -m evals.images bench --host-images hosts.json --task DIR [--task DIR ...] [--proxy URL]
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -118,12 +120,29 @@ def scenario_tag(template: Path, host: str) -> str:
     return f"sq-scn/{template.name}:{host}"
 
 
+def classic_build(context: Path, tag: str, proxy: str | None, labels: dict[str, str]) -> float:
+    """Build `context` as `tag` and return the seconds it took.
+
+    The classic builder is used because only it applies `--memory` and `--cpu-quota` to the build's RUN containers (BuildKit ignores both).
+    Proxy variables go in as build arguments, never into the image's environment.
+    """
+    build_args = [arg for k, v in proxy_env(proxy).items() for arg in ("--build-arg", f"{k}={v}")]
+    label_args = [arg for k, v in labels.items() for arg in ("--label", f"{k}={v}")]
+    started = time.monotonic()
+    done = subprocess.run(
+        ["docker", "build", "--memory", BUILD_MEMORY, "--cpu-period", "100000", "--cpu-quota", str(int(BUILD_CPUS) * 100000),
+         *label_args, *build_args, "-t", tag, str(context)],
+        capture_output=True, text=True, env={**os.environ, "DOCKER_BUILDKIT": "0"},
+    )
+    if done.returncode != 0:
+        raise RuntimeError(f"{tag} build failed ({done.returncode}): {(done.stdout + done.stderr)[-1500:]}")
+    return round(time.monotonic() - started, 1)
+
+
 def build_scenario_image(template: Path, host: dict, proxy: str | None) -> dict:
     """Layer a scenario's `environment/Dockerfile` on the host image and tag it once, so an attempt starts from a ready image.
 
-    The Dockerfile must start from the shared base; its `FROM` is replaced by the host image. The classic builder is
-    used because only it applies `--memory` and `--cpu-quota` to the build's RUN containers (BuildKit ignores both).
-    Proxy variables go in as build arguments, never into the image's environment.
+    The Dockerfile must start from the shared base; its `FROM` is replaced by the host image.
     """
     dockerfile = template / "environment" / "Dockerfile"
     first, _, rest = dockerfile.read_text().partition("\n")
@@ -134,24 +153,75 @@ def build_scenario_image(template: Path, host: dict, proxy: str | None) -> dict:
         context = Path(tmp) / "ctx"
         shutil.copytree(template / "environment", context)
         (context / "Dockerfile").write_text(f"FROM {host['tag']}\n{rest}")
-        build_args = [arg for k, v in proxy_env(proxy).items() for arg in ("--build-arg", f"{k}={v}")]
-        started = time.monotonic()
-        done = subprocess.run(
-            ["docker", "build", "--memory", BUILD_MEMORY, "--cpu-period", "100000", "--cpu-quota", str(int(BUILD_CPUS) * 100000),
-             "--label", f"sq.host_image={host['image_id']}", *build_args, "-t", tag, str(context)],
-            capture_output=True, text=True, env={**os.environ, "DOCKER_BUILDKIT": "0"},
-        )
-        seconds = round(time.monotonic() - started, 1)
-    if done.returncode != 0:
-        raise RuntimeError(f"{tag} build failed ({done.returncode}): {(done.stdout + done.stderr)[-1500:]}")
+        seconds = classic_build(context, tag, proxy, {"sq.host_image": host["image_id"]})
     return {"scenario": template.name, "host": host["host"], "tag": tag, "image_id": image_id(tag), "host_image_id": host["image_id"], "build_seconds": seconds}
+
+
+def bench_base(template: Path, proxy: str | None) -> str:
+    """The image a benchmark task runs on as published: the `docker_image` its task.toml names (pulled when missing), else its own
+    `environment/Dockerfile` built as it is."""
+    environment = tomllib.loads((template / "task.toml").read_text()).get("environment", {})
+    if ref := environment.get("docker_image"):
+        if not docker("image", "inspect", "--format", "{{.Id}}", ref, check=False):
+            docker("pull", "-q", ref)
+        return ref
+    tag = f"sq-bench/{template.name}:base"
+    classic_build(template / "environment", tag, proxy, {})
+    return tag
+
+
+def bench_layer(base: str) -> str:
+    """The layer that puts droid and the skill-open watcher's tools on a benchmark task's own image.
+
+    Nothing else of the task's image changes: its user, workdir and entrypoint stay, apt lists are removed again when the image had none,
+    and python3 is not added. Without the task's own python3 the watcher (`stamp.py`) stops at its first event, so loads are read from
+    droid's own record alone.
+    """
+    return "\n".join([
+        f"FROM {base}",
+        "COPY droid /usr/local/bin/droid",
+        f"COPY stamp.py {STAMP}",
+        "RUN set -e; chmod 755 /usr/local/bin/droid; had=$(ls /var/lib/apt/lists 2>/dev/null | grep -v -x -e lock -e partial | head -1); "
+        f"apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends {APT_DEPS} >/dev/null; "
+        '[ -n "$had" ] || rm -rf /var/lib/apt/lists/*; for c in bash inotifywait pgrep droid; do command -v $c >/dev/null; done; droid --version',
+        "",
+    ])
+
+
+def host_cli_binary(host: dict, dest: Path) -> Path:
+    """Copy droid out of its host image: the binary whose checksum the host build verified."""
+    name = f"sq-bench-cli-{os.getpid()}"
+    docker("create", "--name", name, host["tag"])
+    try:
+        docker("cp", f"{name}:/usr/local/bin/droid", str(dest))
+    finally:
+        docker("rm", "-f", name, check=False)
+    return dest
+
+
+def build_bench_image(template: Path, host: dict, proxy: str | None, droid: Path) -> dict:
+    """Layer droid on a benchmark task's own image and tag it as the task's scenario image (`scenario_tag`), the image `write_task` names.
+
+    Droid only: it is one binary, while the npm hosts need a Node the task's image may not have.
+    """
+    base = bench_base(template, proxy)
+    tag = scenario_tag(template, host["host"])
+    with tempfile.TemporaryDirectory() as tmp:
+        context = Path(tmp)
+        shutil.copy2(droid, context / "droid")
+        shutil.copy(EVALS_DIR / "stamp.py", context / "stamp.py")
+        (context / "Dockerfile").write_text(bench_layer(base))
+        seconds = classic_build(context, tag, proxy, {"sq.host_image": host["image_id"], "sq.bench_base": base})
+    python3 = docker("run", "--rm", "--entrypoint", "sh", tag, "-c", "command -v python3 || true")
+    return {"scenario": template.name, "host": host["host"], "tag": tag, "image_id": image_id(tag), "base": base, "base_id": image_id(base),
+            "host_image_id": host["image_id"], "python3": bool(python3), "build_seconds": seconds}
 
 
 def write_task(template: Path, host: dict, dest: Path, subs: dict[str, str] | None = None, image: str | None = None, agent_timeout: float | None = None) -> Path:
     """Copy a Harbor task onto a prebuilt image, fill `{name}` slots in its instruction and, when given, set its agent time limit.
 
-    `image` is the scenario's own image layered on the host image (`build_scenario_image`); a task that has an
-    `environment/Dockerfile` needs it, and a task without one runs on the host image itself.
+    `image` is the task's own image with the host CLI in it (`build_scenario_image`, or `build_bench_image` for a benchmark task); a task
+    that has an `environment/Dockerfile` or names a `docker_image` needs it, and replaces that name with it. Any other task runs on the host image.
     """
     if dest.exists():
         shutil.rmtree(dest)
@@ -159,14 +229,16 @@ def write_task(template: Path, host: dict, dest: Path, subs: dict[str, str] | No
     dockerfile = dest / "environment" / "Dockerfile"
     config = dest / "task.toml"
     text = config.read_text()
-    if "docker_image" in text:
-        raise ValueError(f"{config} already names an image")
+    named = re.search(r"^docker_image\s*=.*$", text, flags=re.M)
+    if (dockerfile.exists() or named) and not image:
+        raise ValueError(f"{template} has its own environment; build it with the host CLI first (`images scenarios` or `images bench`)")
     if dockerfile.exists():
-        if not image:
-            raise ValueError(f"{template} has its own environment; build it on the host image first (`images scenarios`)")
         shutil.rmtree(dest / "environment")
-    target = image or host["tag"]
-    text = re.sub(r"^\[environment\]\n", f'[environment]\ndocker_image = "{target}"\n', text, count=1, flags=re.M)
+    line = f'docker_image = "{image or host["tag"]}"'
+    if named:
+        text = text[:named.start()] + line + text[named.end():]
+    else:
+        text = re.sub(r"^\[environment\]\n", f"[environment]\n{line}\n", text, count=1, flags=re.M)
     if agent_timeout is not None:
         text, changed = re.subn(r"(^\[agent\]\ntimeout_sec = )[0-9.]+", rf"\g<1>{float(agent_timeout)}", text, count=1, flags=re.M)
         if not changed:
@@ -219,6 +291,29 @@ def cmd_scenarios(args) -> None:
     sys.exit(1 if failed else 0)
 
 
+def cmd_bench(args) -> None:
+    """Layer droid on each benchmark task's own image; one JSON row per image."""
+    host = json.loads(args.host_images.read_text())["droid"]
+    failed = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        droid = host_cli_binary(host, Path(tmp) / "droid")
+
+        def one(template):
+            try:
+                return template, build_bench_image(template, host, args.proxy, droid)
+            except (RuntimeError, ValueError) as error:
+                return template, str(error)
+
+        with ThreadPoolExecutor(BUILD_CONCURRENCY) as pool:
+            for template, row in pool.map(one, args.task):
+                if isinstance(row, str):  # one image failing must not discard the others
+                    failed += 1
+                    print(template.name, "FAILED", row, flush=True)
+                else:
+                    print(json.dumps(row), flush=True)
+    sys.exit(1 if failed else 0)
+
+
 def cmd_arms(args) -> None:
     """Render and pack every host-and-profile arm, then check `dev-fix` presence and the profile relations."""
     texts = load_desc_texts(args.desc_texts) if args.desc_texts else None
@@ -248,6 +343,11 @@ if __name__ == "__main__":
     c.add_argument("--hosts", default="opencode,droid,claude-code,codex")
     c.add_argument("--proxy", default=os.environ.get("LAB_BUILD_PROXY"), help="HTTP(S) proxy URL for builds (not a secret)")
     c.set_defaults(fn=cmd_scenarios)
+    s = sub.add_parser("bench")
+    s.add_argument("--host-images", type=Path, required=True)
+    s.add_argument("--task", type=Path, action="append", required=True)
+    s.add_argument("--proxy", default=os.environ.get("LAB_BUILD_PROXY"), help="HTTP(S) proxy URL for builds (not a secret)")
+    s.set_defaults(fn=cmd_bench)
     r = sub.add_parser("arms")
     r.add_argument("--src", type=Path, required=True)
     r.add_argument("--out", type=Path, required=True)

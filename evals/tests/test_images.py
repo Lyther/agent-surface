@@ -47,6 +47,15 @@ class WriteTaskTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             write_task(template(self.root, "own", True), HOST, self.root / "out")
 
+    def test_a_task_that_names_its_published_image_runs_on_the_built_one_instead(self):
+        source = template(self.root, "bench", True)
+        (source / "task.toml").write_text(CONFIG.replace("[environment]\n", '[environment]\ndocker_image = "vendor/bench:1"\n'))
+        text = (write_task(source, HOST, self.root / "out", None, scenario_tag(source, "droid")) / "task.toml").read_text()
+        self.assertEqual(text.count("docker_image"), 1)
+        self.assertIn('docker_image = "sq-scn/bench:droid"', text)
+        with self.assertRaises(ValueError):  # the published image has no host CLI in it
+            write_task(source, HOST, self.root / "out2")
+
 
 if __name__ == "__main__":
     unittest.main()

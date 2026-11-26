@@ -14,7 +14,7 @@ from unittest import mock
 from pathlib import Path
 
 from evals.agents import HOST_TIMEOUT_MARGIN_SEC, host_timeout
-from evals.cohort import AGENT_ENDS_TO_STOP, RETRIES, SETUP_FAILURES_TO_STOP, HostStops, SpendGate, Unit, attempt_name, is_capacity_end, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, first_target_load_seconds, calls_before_first_target_load, injected_secrets, parse_spend, plan, run_order, spend_reading
+from evals.cohort import AGENT_ENDS_TO_STOP, RETRIES, SETUP_FAILURES_TO_STOP, HostStops, SpendGate, Unit, attempt_name, is_capacity_end, is_launch_failure, limits, next_attempt, run_with_retries, finish_attempt, first_load_fields, first_target_load_seconds, calls_before_first_target_load, injected_secrets, parse_models, parse_spend, plan, run_order, spend_reading
 
 FAKE_KEY = "fk-" + "FAKE-not-a-real-factory-key-0123456789"  # built at run time so a secret scanner does not flag the source
 IMAGE = {"image_id": "sha256:feed"}
@@ -232,6 +232,16 @@ class LimitsTest(unittest.TestCase):
         got = limits(self.args(cpus=3, agent_timeout_sec=1200), Unit(SCENARIOS / "dev-fix" / "qa-f10-launcher-exec-bit"))
         self.assertEqual(got, {"cpus": 3, "memory_mb": 4096, "agent_timeout_sec": 1200})
 
+    def test_a_size_declared_the_way_harbor_reads_it_gives_its_megabytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            task = Path(tmp)
+            (task / "task.toml").write_text('[agent]\ntimeout_sec = 900.0\n\n[environment]\ncpus = 1\nmemory = "2G"\n')
+            self.assertEqual(limits(self.args(), Unit(task)), {"cpus": 1, "memory_mb": 2048, "agent_timeout_sec": 900.0})
+            (task / "task.toml").write_text('[agent]\ntimeout_sec = 900.0\n\n[environment]\ncpus = 1\n')
+            with self.assertRaises(ValueError):  # nothing to pass Harbor as the memory cap
+                limits(self.args(), Unit(task))
+            self.assertEqual(limits(self.args(memory_mb=1024), Unit(task))["memory_mb"], 1024)
+
     def test_the_host_cli_stops_before_harbor_does(self):
         with mock.patch.dict(os.environ, {"SQ_AGENT_TIMEOUT_SEC": "1800"}):
             self.assertEqual(host_timeout(), 1800 - HOST_TIMEOUT_MARGIN_SEC)
@@ -372,6 +382,19 @@ class AdmissionTest(unittest.TestCase):
             with self.assertRaises(SystemExit, msg=str(items)):
                 parse_spend(items, hosts)
 
+    def test_an_uncapped_host_is_an_explicit_choice_per_metered_host(self):
+        self.assertEqual(parse_spend(["droid=uncapped", "codex=20000000:3000000"], ["droid", "codex"]), {"droid": None, "codex": (20_000_000, 3_000_000)})
+        for items in (["bogus=uncapped"], ["droid=Uncapped"], ["droid=uncapped:1"]):
+            with self.assertRaises(SystemExit, msg=str(items)):
+                parse_spend(items, ["droid"])
+
+    def test_only_droid_takes_another_model_and_the_id_is_plain(self):
+        self.assertEqual(parse_models(["droid=deepseek-v4.1-flash"]), {"droid": "deepseek-v4.1-flash"})
+        self.assertEqual(parse_models([]), {})
+        for items in (["opencode=gpt-5.5"], ["droid="], ["droid=x y"], ["droid=m;id"], ["droid=-m"]):
+            with self.assertRaises(SystemExit, msg=str(items)):
+                parse_models(items)
+
     def test_an_attempt_that_started_the_agent_but_has_no_reading_is_charged_the_reserve(self):
         gate = SpendGate(cap=1000, reserve=100)
         gate.admit(2)
@@ -465,6 +488,34 @@ class AdmissionTest(unittest.TestCase):
         groups = [[("s", "h", "a", r)] for r in range(1, 17)]
         asyncio.run(run_order(groups, run_cell, 8))
         self.assertEqual(peak, 8)
+
+    def test_together_starts_every_arm_of_a_group_at_once_and_counts_groups(self):
+        running, peak, order = 0, 0, []
+
+        async def run_cell(cell):
+            nonlocal running, peak
+            running += 1
+            peak = max(peak, running)
+            order.append(cell[3])
+            await asyncio.sleep(0.01)
+            running -= 1
+            return False
+
+        asyncio.run(run_order(self.groups(), run_cell, 2, together=True))
+        self.assertEqual(peak, 6)  # two groups of three arms
+        self.assertEqual(len(order), 12)
+
+    def test_together_a_quarantine_starts_no_further_group_and_abandons_nothing(self):
+        ran = []
+
+        async def run_cell(cell):
+            ran.append((cell[3], cell[2]))
+            await asyncio.sleep(0)
+            return cell[3] == 2 and cell[2] == "b"
+
+        stopped = asyncio.run(run_order(self.groups(), run_cell, 1, abandon=lambda cells: self.fail("no arm is left to abandon"), together=True))
+        self.assertTrue(stopped)
+        self.assertEqual(sorted(ran), [(1, "a"), (1, "b"), (1, "c"), (2, "a"), (2, "b"), (2, "c")])
 
     def test_a_refused_group_runs_none_of_its_arms(self):
         ran = []

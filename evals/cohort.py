@@ -1,8 +1,9 @@
 """Run a seeded cohort of Harbor attempts from host images and rendered arms, and append one JSONL ledger row per attempt.
 
 Usage: cohort.py --host-images hosts.json --arms arms.json (--scenario DIR [--scenario DIR ...] | --queries FILE) --out DIR
-                 [--hosts opencode,droid] [--profiles dev] [--reps 2] [--seed 1] [--concurrency 4]
-                 [--cpus N] [--memory-mb N] [--agent-timeout-sec N] [--purpose timing-probe] [--spend droid=CAP:RESERVE ...]
+                 [--hosts opencode,droid] [--profiles dev] [--reps 2] [--seed 1] [--concurrency 4] [--arms-together]
+                 [--cpus N] [--memory-mb N] [--agent-timeout-sec N] [--purpose timing-probe] [--spend droid=CAP:RESERVE|droid=uncapped ...]
+                 [--model droid=MODEL]
 Each attempt is one fresh container from the host image (`evals/images.py`) with the profile's arm tarball (`evals/arms.py`) extracted into HOME. Hosts: droid, and opencode, claude-code and codex through an OpenAI- and Anthropic-compatible gateway (`gateway.py`). Keys are read from stdin, one `NAME=value`
 per line (a bare first line is the Factory key), and exported only into the harbor child's environment. After each attempt `evals/scrub.py` scans its receipts; a hit
 quarantines the attempt, ledgers it as `quarantined` and stops the cohort.
@@ -16,6 +17,7 @@ import itertools
 import json
 import os
 import random
+import re
 import sys
 import time
 import tomllib
@@ -23,6 +25,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+
+from harbor.models.task.config import EnvironmentConfig
 
 from evals.arms import SKILL_DIRS, load_arms
 from evals.detect import verdict
@@ -65,13 +69,17 @@ class Unit:
 
 
 def limits(args, unit: Unit) -> dict:
-    """Container caps and the agent timeout of a unit: the run's override when given (the preregistration's value), else what the task declares."""
+    """Container caps and the agent timeout of a unit: the run's override when given (the preregistration's value), else what the task declares.
+
+    The environment is read by Harbor's own model, so a benchmark task's `memory = "2G"` means the megabytes Harbor would give it.
+    """
     declared = tomllib.loads((unit.template / "task.toml").read_text())
-    return {
-        "cpus": args.cpus if args.cpus is not None else declared["environment"]["cpus"],
-        "memory_mb": args.memory_mb if args.memory_mb is not None else declared["environment"]["memory_mb"],
-        "agent_timeout_sec": args.agent_timeout_sec if args.agent_timeout_sec is not None else declared["agent"]["timeout_sec"],
-    }
+    environment = EnvironmentConfig.model_validate(declared["environment"])
+    own = {"cpus": environment.cpus, "memory_mb": environment.memory_mb, "agent_timeout_sec": declared["agent"]["timeout_sec"]}
+    caps = {name: getattr(args, name) if getattr(args, name) is not None else value for name, value in own.items()}
+    if missing := [name for name, value in caps.items() if value is None]:
+        raise ValueError(f"{unit.template}: no {', '.join(missing)} declared in task.toml or given to the run")
+    return caps
 
 
 def now() -> str:
@@ -379,6 +387,8 @@ def write_cohort(args, metadata: dict) -> None:
 def row_extra(args) -> dict:
     """Run-level ledger fields: the parallelism, and a purpose label (`timing-probe` rows stay out of outcome analysis)."""
     extra = {"concurrency": args.concurrency}
+    if args.arms_together:
+        extra["arms_together"] = True
     if args.purpose:
         extra["purpose"] = args.purpose
     if args.prereg:
@@ -395,22 +405,46 @@ def spend_reading(host: str, row: dict) -> int | None:
     return row["tokens_in"] + (row.get("tokens_out") or 0)
 
 
-def parse_spend(items: list[str], hosts: list[str]) -> dict[str, tuple[int, int]]:
+UNCAPPED = "uncapped"
+
+
+def parse_spend(items: list[str], hosts: list[str]) -> dict[str, tuple[int, int] | None]:
     """`HOST=CAP:RESERVE` per metered host: the cohort's cap on that host's spend and the reserve charged per attempt.
 
-    Both come from the run's inputs (the preregistration), so a metered host without them does not start.
+    Both come from the run's inputs (the preregistration), so a metered host without them does not start. `HOST=uncapped` (None) is the operator's
+    explicit decision to watch that host's spend outside the cohort: no gate admits its groups.
     """
-    spend: dict[str, tuple[int, int]] = {}
+    spend: dict[str, tuple[int, int] | None] = {}
     for item in items:
         host, _, numbers = item.partition("=")
         cap, _, reserve = numbers.partition(":")
+        if host in METERED_HOSTS and numbers == UNCAPPED:
+            spend[host] = None
+            continue
         if host not in METERED_HOSTS or not cap.isdigit() or not reserve.isdigit() or int(cap) <= 0 or int(reserve) <= 0:
-            raise SystemExit(f"--spend {item!r}: expected HOST=CAP:RESERVE with HOST one of {', '.join(METERED_HOSTS)} and positive integers")
+            raise SystemExit(f"--spend {item!r}: expected HOST=CAP:RESERVE or HOST={UNCAPPED} with HOST one of {', '.join(METERED_HOSTS)} and positive integers")
         spend[host] = (int(cap), int(reserve))
     missing = [h for h in hosts if h in METERED_HOSTS and h not in spend]
     if missing:
         raise SystemExit(f"no --spend HOST=CAP:RESERVE for {', '.join(missing)}: droid counts Factory credits, the gateway hosts tokens (prompt plus output)")
     return spend
+
+
+# Hosts whose agent runs the model it is given (`-m`) and nothing else: Droid. The gateway agents also wire their default model into their
+# own configuration (OpenCode's provider list, Claude Code's tier variables), so an override would be half applied there.
+MODEL_HOSTS = ("droid",)
+MODEL_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]*")
+
+
+def parse_models(items: list[str]) -> dict[str, str]:
+    """`HOST=MODEL` replacing a host's default model for the run: the agent's `-m`, the served-model probe and the ledger's `model` all use it."""
+    models: dict[str, str] = {}
+    for item in items:
+        host, _, model = item.partition("=")
+        if host not in MODEL_HOSTS or not MODEL_ID.fullmatch(model):
+            raise SystemExit(f"--model {item!r}: expected HOST=MODEL with HOST one of {', '.join(MODEL_HOSTS)} and a model id of letters, digits and ._:-")
+        models[host] = model
+    return models
 
 
 class SpendGate:
@@ -485,7 +519,7 @@ class HostStops:
         return host in self.reasons
 
 
-async def run_order(groups: list[list], run_cell, concurrency: int, admit=None, abandon=None, halted=None) -> bool:
+async def run_order(groups: list[list], run_cell, concurrency: int, admit=None, abandon=None, halted=None, together: bool = False) -> bool:
     """Run groups with bounded concurrency, the arms of a group one after another; `run_cell(cell)` returns True to quarantine-stop the cohort.
 
     Two stops, two rules. A quarantine launches nothing further, not even the remaining arms of a group that has started: a leak may come
@@ -493,6 +527,9 @@ async def run_order(groups: list[list], run_cell, concurrency: int, admit=None, 
     incomplete. A spend stop is `admit(group)` refusing a group (it records the refusal itself); started groups are not affected and finish.
     A host stop (`halted(host)`, from `HostStops`) is the quarantine rule limited to that host: its started groups launch no further arm and are
     abandoned incomplete, other hosts go on; a new group of a stopped host is refused by `admit`.
+
+    `together` starts every arm of an admitted group at once, so the arms compared share the same minutes on the host and at the provider;
+    `concurrency` still counts groups. Both stops then reach only groups that have not started, since a started group has no arm left to hold back.
     """
     sem = asyncio.Semaphore(concurrency)
     stopped = False
@@ -501,6 +538,10 @@ async def run_order(groups: list[list], run_cell, concurrency: int, admit=None, 
         nonlocal stopped
         async with sem:
             if stopped or (admit and not admit(group)):
+                return
+            if together:
+                if any(await asyncio.gather(*(run_cell(cell) for cell in group))):
+                    stopped = True
                 return
             for index, cell in enumerate(group):
                 if stopped or (halted and halted(cell[1])):
@@ -523,6 +564,8 @@ async def main(args) -> None:
     images = json.loads(args.host_images.read_text())
     arms = load_arms(args.arms)
     args.spend = parse_spend(args.spend_items, args.hosts.split(","))
+    for host, model in parse_models(args.model_items).items():
+        HOSTS[host] = {**HOSTS[host], "model": model}
     args.units = make_units(args.scenario, load_queries(args.queries) if args.queries else [])
     ledger = args.out / "ledger.jsonl"
     hosts = args.hosts.split(",")
@@ -543,7 +586,7 @@ async def main(args) -> None:
     (args.out / "order.json").write_text(json.dumps(everything) + "\n")
     first_attempt = {tuple(c): next_attempt(history.get(tuple(c), [])) for group in everything for c in group}
     order = [left for left in ([c for c in group if first_attempt[tuple(c)]] for group in everything) if left]
-    gates = {host: SpendGate(cap, reserve) for host, (cap, reserve) in args.spend.items()}
+    gates = {host: SpendGate(*spend) for host, spend in args.spend.items() if spend}
     stops = HostStops()
 
     def skip(cell, why: str, **more) -> None:
@@ -596,7 +639,7 @@ async def main(args) -> None:
             if cell[1] in gates:
                 gates[cell[1]].settle(0, ran=False)
 
-    stopped = await run_order(order, run_cell, args.concurrency, admit, abandon, stops.stopped)
+    stopped = await run_order(order, run_cell, args.concurrency, admit, abandon, stops.stopped, args.arms_together)
     ended = await asyncio.to_thread(probe_hosts, hosts, images, keys)
     metadata = cohort_metadata(prior, args.prereg, hosts, args.served_start, ended)
     write_cohort(args, metadata)
@@ -619,9 +662,13 @@ if __name__ == "__main__":
     ap.add_argument("--profiles", default="dev")
     ap.add_argument("--reps", type=int, default=2)
     ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--concurrency", type=int, default=4, help="attempts at once; the measured safe level per host is in the README's Capacity section")
+    ap.add_argument("--concurrency", type=int, default=4,
+                    help="groups at once, so attempts at once unless --arms-together; the measured safe level per host is in the README's Capacity section")
+    ap.add_argument("--arms-together", action="store_true", help="start the arms of a group at once instead of one after another")
+    ap.add_argument("--model", dest="model_items", action="append", default=[], metavar="HOST=MODEL", help="run a host on another model than its default (droid only)")
     ap.add_argument("--spend", dest="spend_items", action="append", default=[], metavar="HOST=CAP:RESERVE",
-                    help="required for droid (Factory credits) and the gateway hosts (tokens, prompt plus output): the cohort's cap on the host's spend and the reserve charged per attempt")
+                    help="required for droid (Factory credits) and the gateway hosts (tokens, prompt plus output): the cohort's cap on the host's spend and the reserve charged per attempt, "
+                         "or HOST=uncapped when the operator watches that spend elsewhere")
     ap.add_argument("--cpus", type=int, help="CPU cap per attempt container; default: what each task declares")
     ap.add_argument("--memory-mb", type=int, help="memory cap per attempt container; default: what each task declares")
     ap.add_argument("--agent-timeout-sec", type=int, help="agent time limit; default: what each task declares")
