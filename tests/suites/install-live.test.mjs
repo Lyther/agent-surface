@@ -36,7 +36,6 @@ for (const target of [
   "openhands",
   "pi",
   "pool",
-  "windsurf",
   "zed",
 ]) {
   const targetDest = ownTmp(`${target}-live`);

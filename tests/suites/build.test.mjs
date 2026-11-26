@@ -18,16 +18,6 @@ import {
 const buildAll = run(["build", "--target", "all"]);
 const generated = files(path.join(root, "dist"));
 
-// A deprecated target leaves `all` visibly, and build refuses it by name instead of writing rules its
-// host cannot load (contract, Selection and Compatibility).
-assert.match(buildAll, /^windsurf: excluded from --target all \(deprecated; not buildable\)$/m);
-assert.equal(existsSync(path.join(root, "dist", "windsurf")), false, "an all-target build writes no deprecated target");
-const windsurfBuild = status(["build", "--target", "windsurf"]);
-assert.notEqual(windsurfBuild.status, 0);
-assert.match(windsurfBuild.stderr, /windsurf is not buildable/);
-assert.equal(existsSync(path.join(root, "dist", "windsurf")), false, "a refused build writes nothing");
-assert.ok(existsSync(path.join(root, "dist", "codex")), "a refused build leaves the existing dist in place");
-
 // Served anthropic packs must not leak into host skill catalogs.
 assert.equal(generated.some((file) => file.includes(`${path.sep}agent-surface-cybersecurity${path.sep}`)), false);
 assert.equal(generated.some((file) => file.includes(`${path.sep}conducting-cloud-penetration-testing${path.sep}`)), false);

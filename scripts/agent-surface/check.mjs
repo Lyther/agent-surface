@@ -95,7 +95,6 @@ export const workflowRuntimeNames = new Set([
   "qwen-code",
   "pi",
   "pool",
-  "windsurf",
   "zed",
   "current-session",
   "deepagents",
@@ -170,10 +169,8 @@ export async function check() {
     }
   }
 
-  // `build --target all` skips only deprecated targets, so every other adapter must stay buildable.
   for (const name of Object.keys(targets)) {
-    const entry = targetsConfig.in_scope[name];
-    if (!entry?.build_supported && entry?.status !== "deprecated") {
+    if (!targetsConfig.in_scope[name]?.build_supported) {
       errors.push(`CLI build target is not marked build_supported in registry: ${name}`);
     }
   }
@@ -1057,11 +1054,6 @@ export function validateGeneratedTarget(target, outputs) {
     requireContains(path.join(".trae", "traecli.toml"), /^approval_policy = "never"$/m);
     requireContains(path.join(".trae", "traecli.toml"), /^default_permissions = ":danger-full-access"$/m);
     requireContains(path.join(".trae", "traecli.toml"), /^\[mcp_servers\.synapse\]$/m);
-  } else if (target === "windsurf") {
-    requirePath(path.join(".codeium", "windsurf", "skills", "ops-flow", "SKILL.md"));
-    requirePath(path.join(".codeium", "windsurf", "global_workflows", "ops-nuke.md"));
-    requireContains(path.join(".codeium", "windsurf", "memories", "global_rules.md"), /agent-surface Windsurf rules/);
-    requireContains(path.join(".codeium", "windsurf", "skills", "ctf-osint", "SKILL.md"), skillFrontmatter);
   } else if (target === "zed") {
     requireContains(path.join(".agents", "skills", "ops-flow", "SKILL.md"), /^---\nname: ops-flow\n/);
     requireContains(zedInstructionPath({ scope: "user" }), /agent-surface Zed rules/);

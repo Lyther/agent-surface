@@ -383,30 +383,6 @@ export function openhandsMcpPath() {
   return path.join(".openhands", "mcp.json");
 }
 
-export function windsurfWorkflowRoot(context) {
-  return context.scope === "user" ? path.join(".codeium", "windsurf", "global_workflows") : path.join(".windsurf", "workflows");
-}
-
-export function windsurfConfigRoot(context) {
-  return context.scope === "user" ? path.join(".codeium", "windsurf") : ".windsurf";
-}
-
-export function windsurfMcpPath(context) {
-  return context.scope === "user"
-    ? path.join(".codeium", "windsurf", "mcp_config.json")
-    : path.join(".windsurf", "mcp_config.json");
-}
-
-export function windsurfRulePath(context) {
-  return context.scope === "user"
-    ? path.join(".codeium", "windsurf", "memories", "global_rules.md")
-    : path.join(".devin", "rules", "agent-surface.md");
-}
-
-export function windsurfSkillRoot(context) {
-  return context.scope === "user" ? path.join(".codeium", "windsurf", "skills") : path.join(".windsurf", "skills");
-}
-
 export const gooseSkillRoot = sharedAgentSkillRoot;
 
 export function antigravitySkillRoot(context) {

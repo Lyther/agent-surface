@@ -158,16 +158,10 @@ try {
   assert.doesNotMatch(opencodeProject, /OPENCODE_XDG_CONFIG_HOME_SET|OPENCODE_CONFIG_DIR_SET/, "a project install is outside both notices");
 
   // Build prints each target's notices before any write; doctor lists every stored notice.
-  const windsurfPlan = run(["install", "--target", "windsurf", "--scope", "project", "--dest", path.join(scratch, "windsurf"), "--dry-run"], {
-    env: { ...process.env, HOME: home },
-  });
-  assert.match(windsurfPlan, /^  WINDSURF_CASCADE_LEGACY \(retirement; target; /m);
-  assert.match(windsurfPlan, /^  WINDSURF_RULE_SIZE_LIMITS \(compatibility; rules\)/m);
   const poolBuild = run(["build", "--target", "pool", "--dry-run"]);
   assert.match(poolBuild, /^pool notice: POOL_AGENTS_MD_CLIENT_FLOOR \(/m);
   assert.ok(poolBuild.indexOf("pool notice:") < poolBuild.indexOf("[dry-run]"), "notices precede the planned writes");
   const doctor = run(["doctor"], { env: { ...process.env, HOME: home } });
-  assert.match(doctor, /^notice windsurf: WINDSURF_RULE_SIZE_LIMITS \(/m);
   assert.match(doctor, /^notice pool: POOL_AGENTS_MD_CLIENT_FLOOR \(/m);
 } finally {
   rmSync(scratch, { recursive: true, force: true });

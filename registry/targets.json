@@ -302,18 +302,6 @@
         "mcps"
       ]
     },
-    "windsurf": {
-      "status": "deprecated",
-      "build_supported": false,
-      "install_supported": true,
-      "renders": [
-        "skills",
-        "commands-as-workflows",
-        "rules",
-        "external",
-        "mcps"
-      ]
-    },
     "zed": {
       "status": "implemented",
       "build_supported": true,

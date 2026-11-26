@@ -30,12 +30,12 @@ The concept's `Q-RT-01` through `Q-RT-07` are the quality scenarios. Gates below
 
 ## Evidence and Source Reconciliation
 
-- `VERIFIED_EXISTING`: `registry/targets.json` has 27 implemented outputs, including one build-only export, plus the deprecated `windsurf`; the adapter table and capability registry provide the current source contract. The historical 25-target wording is not current inventory.
+- `VERIFIED_EXISTING`: `registry/targets.json` has 27 implemented outputs, including one build-only export; the adapter table and capability registry provide the current source contract. The historical 25-target wording is not current inventory.
 - `VERIFIED_EXISTING`: `support` and `generation` are already separate fields. Extend the existing capability record rather than creating parallel target catalogs.
 - `VERIFIED_EXISTING`: general installation resets previously managed opt-in content; category installs preserve unselected ownership, with an aggregate-document conflict guard. An explicit service filter does not reconcile an exact MCP allowlist.
 - `VERIFIED_EXISTING`: since `RT2.0`, ownership is read from every manifest in the install root plus the target's legacy entries and legacy nested manifests. An existing file nobody claims blocks as `UNOWNED_DESTINATION`, identical bytes included; a co-owned file is regenerated for the selection; stale cleanup retains a file another owner still claims; every participant's pending manifest is written before the run's first mutation. Before `RT2.0`, an unowned file was overwritten or adopted and a shared file could be deleted while another manifest claimed it. Preserving unknown config siblings is a different, key-level contract.
 - `VERIFIED_EXISTING`: `--dest` is an install-root override, not a universal native config-home adapter. `doctor` is a set of current probes, not a complete runtime inventory or security scanner.
-- `USER_DECISION`: retain OpenHands, warn and replace Antigravity workflows, separate Cascade/Devin, and prioritize security-fixed releases including preview/public channels when necessary.
+- `USER_DECISION`: retain OpenHands, warn and replace Antigravity workflows, retire Cascade without a Devin target, and prioritize security-fixed releases including preview/public channels when necessary.
 - `PROPOSED`: harness-separated producers; capability metadata and notices (`RT1.1`) and installer ownership protection (`RT2.0`) are implemented. Native unknowns remain bounded spikes, detailed in [research](context/concept-zero-research.md) and [contracts](contracts/runtime-refresh.md).
 
 ## System Context and Boundaries
@@ -93,7 +93,7 @@ agent-surface/
   docs/roadmap.md                       - Ordered implementation tasks and real acceptance gates.
   docs/contracts/runtime-refresh.md    - Domain/interface semantics and migration decisions.
   docs/reference/targets.md             - Human-facing projection of registry facts; no second catalog.
-  registry/targets.json                 - Selector and build availability and generated tokens; OpenHands remains implemented, Cascade deprecated.
+  registry/targets.json                 - Selector and build availability and generated tokens; OpenHands remains implemented.
   registry/target-capabilities.json     - Native support plus runtime, notice and qualification facts.
   registry/source-kinds.json            - Canonical source-kind and install-scope policy, unchanged.
   registry/*-assets.json                - Existing domain membership, unchanged by identity refresh.
@@ -195,7 +195,7 @@ Proposed changes:
 
 - Selected-target notices are shown by build/install previews and before live writes, with component, stable code, affected surface, date where supplied, source and next action. Informational/legacy warnings alone do not change exit status.
 - Invalid output size, an unowned destination, an unreadable manifest (`MANIFEST_UNREADABLE`), or an unsupported requested migration uses the existing blocking-plan/error path and exits nonzero before mutation. A condition that only dismantling another retained target's state, or no selection at all, can clear excludes the affected target from `all` visibly and blocks only an explicit selection of it. Replacing another owner's category contribution in a shared file is a nonblocking plan warning. Avoid introducing a second error or consent framework. The contract lists the stable labels.
-- Recommendation/lifecycle metadata never changes selection. `openhands` remains included in `all`. The separate explicit selector change excludes `targets.json` entries with `status: deprecated` from build/install `all`, while preserving explicit selection and reporting exclusions. Only Cascade is assigned that state in this batch, under the contract's cutover invariant; Devin CLI lists the other targets' output through its imports, so no `devin` target replaces it in `all`. Build availability is read from the registry's `build_supported` field. Build-only handling remains unchanged. Planned targets without adapters stay unavailable. No distribution is triggered by this design.
+- Recommendation/lifecycle metadata never changes selection. `openhands` remains included in `all`. A retired target is not selectable; a full user-scope install removes the files and MCP entries its manifest owns. Devin CLI lists the other targets' output through its imports, so no `devin` target replaces Cascade. Build-only handling remains unchanged. Planned targets without adapters stay unavailable. No distribution is triggered by this design.
 - A target's native files are the external DTOs. Metadata/notices and source records are not copied wholesale into those files. Source command identity remains intact when its native representation becomes a manual skill or manual rule. Antigravity changes from a workflow to a rule; the artifact and invocation are not mislabeled as a skill.
 - `support`, `generation` and qualifications are not collapsed into a boolean. Historical or missing native proof is displayed precisely; output counts are not readiness scores.
 
@@ -231,7 +231,7 @@ Status: ACCEPTED USER DIRECTION. A named stable channel is preferred only while 
 
 ### ADR-RT2: Separate consumers, reuse implementation
 
-Status: ACCEPTED, revised 2026-10-08 after `RT0.2`. Keep `windsurf` as deprecated Cascade compatibility. Exclude deprecated selectors from `all` visibly, retain explicit use, and never retire their files as a side effect. Add no `devin` target: Devin CLI already lists the rules, skills and MCP servers of the targets `all` keeps through its default imports, and a native target would only add another copy of each. OpenHands is legacy-recommended but not deprecated. Shared helpers or paths do not establish behavioral equivalence; no alias migrates accounts, services or manifests. Exact dispositions are in the contract.
+Status: ACCEPTED, revised 2026-11-26. Retire `windsurf`: Devin Desktop removed the Cascade harness and no Cascade client is in use, so the selector is gone and a full user-scope install removes the files and MCP entries its manifest owns, as for the earlier retired targets. Add no `devin` target: Devin CLI already lists the rules, skills and MCP servers of the targets `all` keeps through its default imports, and a native target would only add another copy of each. OpenHands is legacy-recommended and stays selectable. Shared helpers or paths do not establish behavioral equivalence; no alias migrates accounts, services or manifests. Exact dispositions are in the contract.
 
 ### ADR-RT3: Retain legacy, retire surfaces deliberately
 

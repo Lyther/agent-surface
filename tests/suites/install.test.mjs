@@ -363,9 +363,11 @@ planHas(kiroPlan, [
   /\.kiro\/settings\/mcp\.json MCP \+= grimoire, synapse/,
 ], "kiro");
 
-const geminiPlan = status(["install", "--target", "gemini-cli", "--dest", ownTmp("gemini"), "--dry-run"]);
-assert.notEqual(geminiPlan.status, 0);
-assert.match(`${geminiPlan.stdout}${geminiPlan.stderr}`, /unsupported install target: gemini-cli/);
+for (const retired of ["gemini-cli", "windsurf"]) {
+  const retiredPlan = status(["install", "--target", retired, "--dest", ownTmp(retired), "--dry-run"]);
+  assert.notEqual(retiredPlan.status, 0);
+  assert.match(`${retiredPlan.stdout}${retiredPlan.stderr}`, new RegExp(`unsupported install target: ${retired}`));
+}
 
 for (const [target, patterns] of [
   ["claude-code", [/\.claude\/skills\/workflow-boss\/SKILL\.md <- skills\/workflow-boss\/SKILL\.md/, /\.claude\/agents\/explorer\.md <- subagents\/explorer\.md/]],
@@ -728,8 +730,8 @@ SUBSTITUTE_JUSTIFICATION
 }
 
 // SUBSTITUTE_JUSTIFICATION
-// - substitute: retired Gemini/VSCodium manifests and config in a disposable user root
-// - replaces: real profiles previously managed by the removed Gemini and VSCodium targets, including a stale path now owned by Kilo
+// - substitute: retired Gemini, VSCodium and Windsurf manifests and config in a disposable user root
+// - replaces: real profiles previously managed by the removed Gemini, VSCodium and Windsurf targets, including a stale path now owned by Kilo
 // - necessity: retirement cleanup needs exact historical ownership without deleting the operator's editor profile
 // - real-option: the production all-target installer and filesystem are used; only the old profile state is seeded
 // - proof-limit: proves owned file/config cleanup, not VSCodium runtime behavior
@@ -796,13 +798,30 @@ writeFileSync(path.join(retiredVscodiumDest, ".agent-surface", "grok-build-manif
   managed: [],
   config_entries: [{ path: retiredGrokMcpRel, format: "mcpServers", ids: ["old-owned"] }],
 }, null, 2)}\n`);
+const retiredWindsurfRel = path.join(".codeium", "windsurf", "skills", "old-owned", "SKILL.md");
+const retiredWindsurfUnownedRel = path.join(".codeium", "windsurf", "skills", "keep-user", "SKILL.md");
+const retiredWindsurfMcpRel = path.join(".codeium", "windsurf", "mcp_config.json");
+for (const rel of [retiredWindsurfRel, retiredWindsurfUnownedRel]) mkdirSync(path.join(retiredVscodiumDest, path.dirname(rel)), { recursive: true });
+writeFileSync(path.join(retiredVscodiumDest, retiredWindsurfRel), "remove\n");
+writeFileSync(path.join(retiredVscodiumDest, retiredWindsurfUnownedRel), "keep\n");
+writeFileSync(path.join(retiredVscodiumDest, retiredWindsurfMcpRel), `${JSON.stringify({
+  mcpServers: { existing: { command: "keep" }, "old-owned": { command: "remove" } },
+}, null, 2)}\n`);
+writeFileSync(path.join(retiredVscodiumDest, ".agent-surface", "windsurf-manifest.json"), `${JSON.stringify({
+  target: "windsurf",
+  scope: "user",
+  managed: [{ target: "windsurf", output: retiredWindsurfRel, source: "retired" }],
+  config_entries: [{ path: retiredWindsurfMcpRel, format: "mcpServers", ids: ["old-owned"] }],
+}, null, 2)}\n`);
 const retiredVscodiumPlan = run(["install", "--target", "all", "--scope", "user", "--dest", retiredVscodiumDest, "--dry-run"]);
 assert.match(retiredVscodiumPlan, /planned stale managed paths retained for other owners:/);
 assert.match(retiredVscodiumPlan, new RegExp(liveKiloConfigRel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 run(["install", "--target", "all", "--scope", "user", "--dest", retiredVscodiumDest]);
 assert.equal(existsSync(path.join(retiredVscodiumDest, retiredOwnedRel)), false);
 assert.equal(existsSync(path.join(retiredVscodiumDest, retiredGeminiRel)), false);
+assert.equal(existsSync(path.join(retiredVscodiumDest, retiredWindsurfRel)), false);
 assert.equal(readFileSync(path.join(retiredVscodiumDest, retiredUnownedRel), "utf8"), "keep\n");
+assert.equal(readFileSync(path.join(retiredVscodiumDest, retiredWindsurfUnownedRel), "utf8"), "keep\n");
 assert.equal(
   readFileSync(sharedLiveSkillPath, "utf8"),
   sharedLiveSkill,
@@ -816,7 +835,7 @@ assert.equal(
 const retiredMcp = JSON.parse(readFileSync(path.join(retiredVscodiumDest, retiredMcpRel), "utf8"));
 assert.equal(retiredMcp.servers.existing.command, "keep");
 assert.equal(Object.hasOwn(retiredMcp.servers, "old-owned"), false);
-for (const route of [retiredGeminiMcpRel, retiredGrokMcpRel]) {
+for (const route of [retiredGeminiMcpRel, retiredGrokMcpRel, retiredWindsurfMcpRel]) {
   const config = JSON.parse(readFileSync(path.join(retiredVscodiumDest, route), "utf8"));
   assert.equal(config.mcpServers.existing.command, "keep");
   assert.equal(Object.hasOwn(config.mcpServers, "old-owned"), false);
@@ -2045,7 +2064,6 @@ const mergeFixtures = [
   { target: "kiro", rel: ".kiro/settings/mcp.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } } },
   { target: "copilot", scope: "user", rel: ".copilot/mcp-config.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } } },
   { target: "vscode", rel: path.join(clineIdeUserDataRoot("Code"), "User", "mcp.json"), root: "servers", pre: { servers: { existing: { type: "stdio", command: "local-existing", args: ["--keep"] } } } },
-  { target: "windsurf", rel: ".windsurf/mcp_config.json", root: "mcpServers", pre: { mcpServers: { existing: { command: "local-existing", args: ["--keep"] } } } },
   {
     target: "zed", rel: ".zed/settings.json", root: "context_servers", pre: { context_servers: { existing: { command: "local-existing", args: ["--keep"] } }, theme: "mono" },
     keep: (parsed) => assert.equal(parsed.theme, "mono", "zed non-mcp settings preserved")
@@ -2588,19 +2606,12 @@ try {
   const manifestRoot = path.join(allTargetsDest, ".agent-surface");
   // `--target all` covers every INSTALLABLE target. An export format has no install destination of
   // its own — its package is handed to the host's own plugin manager — so it is skipped rather than
-  // written somewhere invented. Asserted explicitly so the skip stays deliberate. A deprecated
-  // target stays out of `all` too, and the plan says so.
-  const deprecated = Object.entries(JSON.parse(readFileSync(path.join(root, "registry", "targets.json"), "utf8")).in_scope)
-    .filter(([, entry]) => entry.status === "deprecated")
-    .map(([target]) => target);
-  assert.ok(deprecated.length > 0, "the registry still holds a deprecated target to exercise");
+  // written somewhere invented. Asserted explicitly so the skip stays deliberate.
+  const planTargets = (output) => [...output.matchAll(/^target: (\S+)$/gm)].map((match) => match[1]);
   const runtimeAllPlan = run(["install", "--runtime", "all", "--scope", "user", "--dest", allTargetsDest, "--dry-run"]);
-  for (const target of deprecated) {
-    assert.match(allTargetsInstall, new RegExp(`^${target}: excluded from --target all \\(deprecated\\)`, "m"));
-    assert.match(runtimeAllPlan, new RegExp(`^${target}: excluded from --target all \\(deprecated\\)`, "m"), "the --runtime alias selects the same set");
-  }
+  assert.deepEqual(planTargets(runtimeAllPlan), planTargets(allTargetsInstall), "the --runtime alias selects the same set");
   for (const [target, adapter] of Object.entries(targets)) {
-    if (adapter.buildOnly || deprecated.includes(target)) {
+    if (adapter.buildOnly) {
       assert.ok(!existsSync(path.join(manifestRoot, `${target}-manifest.json`)), `${target}: not installed by --target all`);
       continue;
     }
@@ -2778,11 +2789,8 @@ try {
   assert.notEqual(unknownCategory.status, 0, "the removed category is no longer selectable");
   assert.match(unknownCategory.stderr, /unsupported install category: modding/);
   const installable = Object.entries(targets).filter(([, adapter]) => !adapter.buildOnly).map(([id]) => id);
-  const deprecatedTargets = Object.entries(JSON.parse(readFileSync(path.join(root, "registry", "targets.json"), "utf8")).in_scope)
-    .filter(([, entry]) => entry.status === "deprecated")
-    .map(([id]) => id);
   const checked = [];
-  for (const target of installable.filter((id) => !deprecatedTargets.includes(id))) {
+  for (const target of installable) {
     const dest = ownTmp(`modding-prune-${target}`);
     rmSync(dest, { recursive: true, force: true });
     const seed = status(["install", "--target", target, "--dest", dest, "--category", "development"]);

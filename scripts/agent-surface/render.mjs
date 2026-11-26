@@ -145,10 +145,6 @@ export async function renderKiroManualSteering(source) {
   ].join("\n");
 }
 
-export async function renderWindsurfWorkflow(source) {
-  return source.body;
-}
-
 export async function renderVanillaSkill(source) {
   return source.text;
 }

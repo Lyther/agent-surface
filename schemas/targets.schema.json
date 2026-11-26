@@ -23,8 +23,7 @@
             "type": "string",
             "enum": [
               "implemented",
-              "planned",
-              "deprecated"
+              "planned"
             ]
           },
           "build_supported": {

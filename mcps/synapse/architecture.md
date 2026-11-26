@@ -88,7 +88,7 @@ Non-goals:
     - Other non-zero exits are recorded and the session continues.
     - Default timeout: 60 s.
   - Not covered by this design:
-    - Windsurf and Goose: their hooks cannot add context.
+    - Goose: its hooks cannot add context.
     - Cursor and Copilot: documented, with open reports of dropped context.
     - Kiro: adds context only when a prompt is submitted.
     - Pi and OpenCode: native extension APIs; later adapters.

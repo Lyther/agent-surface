@@ -11,8 +11,8 @@ import { directDirectories, filesUnder } from "./fs-tree.mjs";
 import { MCP_ENV_LAUNCHER, mcpLauncherInvocation, optionalServiceMcpServers, renderMcpConfig } from "./merge.mjs";
 import { normalizeExternalSkillFile } from "./postprocess.mjs";
 import { assetCategoryAllowed, assetCategoryFor, packageVersion, readAssetCategories, readOptionalServices, relative, root, selectedAssetCategories } from "./registry.mjs";
-import { firstHeading, renderAlwaysApplyRuleDocument, renderAntigravityCliRuleDocument, renderAntigravityWorkflow, renderClineWorkflow, renderCodexSubagent, renderCursorCommand, renderCursorSubagent, renderDroidCommand, renderGooseRecipe, renderInstructionDocument, renderKiloRuleDocument, renderKiloWorkflow, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderMarkdownSubagent, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderVanillaSkill, renderVsCodeInstructionDocument, renderWindsurfWorkflow } from "./render.mjs";
-import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, claudeRulesDocument, clineAgentRoot, clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexInstructionPath, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildAgentRoot, grokBuildInstructionPath, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piMcpPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleFolder, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, windsurfConfigRoot, windsurfMcpPath, windsurfRulePath, windsurfSkillRoot, windsurfWorkflowRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
+import { firstHeading, renderAlwaysApplyRuleDocument, renderAntigravityCliRuleDocument, renderAntigravityWorkflow, renderClineWorkflow, renderCodexSubagent, renderCursorCommand, renderCursorSubagent, renderDroidCommand, renderGooseRecipe, renderInstructionDocument, renderKiloRuleDocument, renderKiloWorkflow, renderKiroManualSteering, renderKiroRuleDocument, renderKiroSubagent, renderManualClaudeSkill, renderManualKimiCodeSkill, renderManualPortableSkill, renderManualSlashSkill, renderMarkdownSubagent, renderNativeMarkdownCommand, renderOpenCodeCommand, renderOpenCodeSubagent, renderQwenCodeCommand, renderVanillaSkill, renderVsCodeInstructionDocument } from "./render.mjs";
+import { antigravitySkillRoot, antigravityWorkflowRoot, claudeMcpPath, claudeRulesDocument, clineAgentRoot, clineCursorExtensionMcpPath, clineDevinExtensionMcpPath, clineMcpPath, clineRuleRoot, clineSkillRoot, clineVsCodeExtensionMcpPath, clineWindsurfExtensionMcpPath, clineWorkflowRoot, codexInstructionPath, codexSkillOutputName, copilotAgentRoot, copilotInstructionPath, copilotMcpPath, copilotSkillRoot, cursorSkillRoot, deepagentsAgentRoot, deepagentsConfigRoot, deepagentsInstructionPath, deepagentsMcpPath, deepagentsSkillRoot, deepagentsSubagentOutputName, droidConfigRoot, droidInstructionPath, dshSkillRoot, flatMarkdownCommandOutputName, gooseMcpPath, gooseRecipeOutputName, gooseSkillRoot, grokBuildAgentRoot, grokBuildInstructionPath, grokBuildSkillRoot, installRootAntigravity, installRootAntigravityCli, installRootCodex, installRootHomeOnly, installRootKimiCode, installRootUserOrProject, installRootVsCode, kiloAgentRoot, kiloConfigPath, kiloRuleRoot, kiloSkillRoot, kiloWorkflowRoot, kimiCodeAgentRoot, kimiCodeConfigPath, kimiCodeConfigRoot, kimiCodeCursorSettingsPath, kimiCodeInstructionPath, kimiCodeMcpPath, kimiCodeSkillRoot, kimiCodeVsCodeSettingsPath, kiroAgentRoot, kiroMcpPath, kiroPermissionsPath, kiroSkillRoot, kiroSteeringRoot, opencodeAgentRoot, opencodeCommandRoot, opencodeConfigRoot, opencodeInstructionPath, opencodeMcpPath, opencodeSkillRoot, openhandsConfigRoot, openhandsInstructionPath, openhandsMcpPath, openhandsSkillRoot, piConfigRoot, piInstructionPath, piMcpPath, piSkillRoot, poolConfigRoot, poolInstructionPath, poolSkillRoot, qoderAgentRoot, qoderCommandRoot, qoderConfigRoot, qoderInstructionPath, qoderSettingsPath, qoderSkillRoot, qwenCodeAgentRoot, qwenCodeCommandRoot, qwenCodeConfigRoot, qwenCodeInstructionPath, qwenCodeSettingsPath, qwenCodeSkillRoot, sharedAgentSkillRoot, traeAgentRoot, traeCliConfigPath, traeCnAgentRoot, traeCnSkillRoot, traeMcpPath, traeRuleFolder, traeRuleRoot, traeSkillRoot, vsCodeUserRoot, zedConfigRoot, zedInstructionPath, zedMcpPath, zedSkillRoot } from "./roots.mjs";
 import { readRules } from "./rules.mjs";
 import { SKILL_RESOURCE_EXTENSIONS } from "./skills.mjs";
 import { ignoreOutputs, subagentOutputs } from "./source-primitives.mjs";
@@ -797,26 +797,6 @@ export const targets = {
       },
     }],
   },
-  windsurf: {
-    label: "Windsurf workflows, rules, and skills",
-    commandRenders: ["commands-as-workflows"],
-    staticRenders: ["rules"],
-    commandOutputRoot: windsurfWorkflowRoot,
-    commandOutputName: flatMarkdownCommandOutputName,
-    skillRenders: ["skills"],
-    skillOutputRoot: windsurfSkillRoot,
-    skillOutputName: codexSkillOutputName,
-    renderSkill: renderVanillaSkill,
-    externalSkillOutputRoot: windsurfSkillRoot,
-    renderCommand: renderWindsurfWorkflow,
-    installRoot: installRootUserOrProject,
-    staticOutputs: windsurfStaticOutputs,
-    mcpConfig: {
-      relativeOutput: windsurfMcpPath,
-      format: "mcpServers",
-      defaultEnabled: true,
-    },
-  },
   zed: {
     label: "Zed skills and instructions",
     commandRenders: ["skills"],
@@ -877,6 +857,14 @@ export const retiredInstallTargets = {
       scopes: [],
     },
   },
+  windsurf: {
+    label: "retired Windsurf cleanup",
+    installRoot: installRootHomeOnly,
+    cleanupConfigRoutes: [{
+      relativeOutput: () => path.join(".codeium", "windsurf", "mcp_config.json"),
+      format: "mcpServers",
+    }],
+  },
 };
 
 export const generatedOutputMinimums = new Map([
@@ -909,7 +897,6 @@ export const generatedOutputMinimums = new Map([
   ["trae", 1],
   ["trae-cn", 1],
   ["trae-cli", 1],
-  ["windsurf", 250],
   ["zed", 250],
 ]);
 
@@ -1947,16 +1934,6 @@ async function vsCodeProfileInstructionOutputs(context) {
 
 export async function vscodeStaticOutputs(_commands, context) {
   return vsCodeProfileInstructionOutputs(context);
-}
-
-export async function windsurfStaticOutputs(_commands, context) {
-  const [document] = await rulesDocumentOutputs(context, {
-    title: "agent-surface Windsurf rules",
-    label: "Windsurf instructions",
-    relativeOutput: windsurfRulePath(context),
-  });
-  // Cascade reads at most 6,000 characters of the global rules file and 12,000 of a workspace rule file.
-  return [{ ...document, characterLimit: context.scope === "user" ? 6000 : 12000 }];
 }
 
 export async function zedStaticOutputs(_commands, context) {

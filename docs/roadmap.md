@@ -30,7 +30,7 @@ First vertical: RT1.1 metadata/notices -> RT1.2 inventory corrections
 Ownership:      RT2.0 installer ownership protection (independent)
 Antigravity:    RT0.3 + RT1.1 + RT2.0 -> RT2.3, before October 19
 Path repair:    RT2.0 -> RT2.1 Poolside route
-Cutover:        RT1.1 -> RT2.2 Cascade cutover; RT0.2 -> RT3.1 Devin (dropped: Devin CLI lists the other targets' output)
+Cutover:        RT1.1 -> RT2.2 Cascade cutover (target retired); RT0.2 -> RT3.1 Devin (dropped: Devin CLI lists the other targets' output)
 Other paths:    RT1.2 + RT2.0 -> RT2.4
 Grok agents:    RT1.2 -> RT3.2
 Delivery:       each completed applicable slice -> RT4.1 -> RT4.2
@@ -39,7 +39,7 @@ Separate follow-ups: RT3.3 Bot pilot, RT5.1 admission, RT5.2 comparison.
 They do not block source corrections or deadline notices.
 ```
 
-Unknown native behavior blocks only the corresponding expansion or readiness claim. Do not wait for every GUI runtime before shipping a truthful warning or an independently verified repair. Antigravity's notice is immediate; its qualified successor is due **before October 19, 2026**. Cascade project partitioning is not scheduled in this batch: no retained-user need is established, and the size guard does not depend on it.
+Unknown native behavior blocks only the corresponding expansion or readiness claim. Do not wait for every GUI runtime before shipping a truthful warning or an independently verified repair. Antigravity's notice is immediate; its qualified successor is due **before October 19, 2026**.
 
 ## Phase 0: Bounded Evidence Gates
 
@@ -119,15 +119,9 @@ Files: `roots.mjs`, `targets.mjs`, `install.mjs`, Poolside metadata/docs, focuse
 
 Exit: real disposable default/XDG destinations show old/new behavior; an identical owned old route is replaced (reachable only when `rules/` is unchanged since that install); a differing old route blocks with zero mutation unless proven ignored; an unowned new destination blocks through `RT2.0`; unrelated files/config survive; a repeat install makes no change. Qualify native discovery of both routes on the chosen current client before claiming live support. Product tests prove files; they do not stand in for that loader.
 
-### RT2.2 Windsurf Cutover: Deprecation, Size Guard and Build Availability
+### RT2.2 Windsurf Cutover
 
-State: IMPLEMENTED without a Devin admission (`RT3.1` dropped): `windsurf` is `deprecated` and `build_supported: false`, build and install `all` list it as excluded, `build --target windsurf` refuses, and the planner refuses a selected Windsurf rules document over Cascade's limit (`OUTPUT_LIMIT_EXCEEDED`, before any write). No Cascade client was run; the limits are the documented ones. Depends on: `RT1.1`. Covers: `G-RT-02`, `G-RT-04`, `G-RT-05`, `Q-RT-02`, `Q-RT-05`, `Q-RT-06`.
-
-Implement the contract's cutover invariant and build-availability rule: mark `windsurf` deprecated compatibility, preserve explicit selection/manifest, visibly exclude deprecated targets from build/install `all`, make `windsurf` `build_supported: false` and enforce that registry field in the build selector together with the `check.mjs` change. Keep OpenHands implemented/included. Measure complete output, but apply blocking checks after effective category/scope filtering and before build deletes dist or install provisions/writes. Global full-policy remains blocked; install can still select skills only. No new build filters, truncation or compact policy. The size-guard code may land earlier, but it must not block `windsurf` inside `all` before the cutover.
-
-Files: targets registry/schema semantics, selectors in `install.mjs`, pure renderer/producer and root helpers, `check.mjs`, matrix/build/install cases; capability/adapter docs. No `retiredInstallTargets` entry or automatic old profile cleanup.
-
-Exit: exact/over boundaries, conservative Unicode counting, `all` exclusions, build availability and explicit compatibility selection tested; old dist/destination/manifests remain unchanged on invalid selected output; unselected oversized rules do not block skills-only installation; no default `all` writes Cascade output. No unsafe old client is installed for a demo. Global limitations remain visible, not a full-parity claim.
+State: RETIRED 2026-11-26. The cutover made `windsurf` a deprecated, unbuildable target outside `all`, with a guard for Cascade's rule-size limits. With no Cascade client in use the target is removed: a full user-scope install deletes the files and MCP entries its manifest owns, as for the earlier retired targets, and the deprecated state, the build-availability exception and the character-limit guard went with it. Depends on: `RT1.1`. Covers: `G-RT-02`, `G-RT-05`.
 
 ### RT2.3 Antigravity Successor Before October 19
 
@@ -199,7 +193,7 @@ Exit: each claimed surface has its own proof; deferred GUI/platform results rema
 
 State: DISTRIBUTED 2026-10-08 from `c39014d` at the operator's request (`--target all`, every category: a general sync, then `--category development,cybersecurity,modding,private`). Canary: a remote Linux x86_64 dev box whose home directory is a symbolic link, which refused every user-scope plan until `c39014d`; with the operator's user-local Node 22 on `PATH`, Claude Code 2.1.83 connected Synapse and Grimoire and listed the skills and agents, and pre-existing configs changed only in agent-surface's MCP entries and the documented Kilo and Grok keys. `chrome-devtools` (needs a system Chrome) and `openosint` (needs a `uv` tool install) stayed unwired there, and the Fenjing and IDA binaries are not installed there. Fleet: the operator's macOS home. Configs outside agent-surface's entries are unchanged, the international Trae IDE's unread `~/.trae/mcp.json` lost its agent-surface servers as the Trae split documents, Codex parses its config and keeps the operator's own servers, Claude Code connects every wired server except `ida-pro-mcp` (`idalib-mcp` is not installed), and grok 1.0.46 lists the six user agents, the skills and the servers. `trae-cn`'s development and cybersecurity plans were first refused because 12 of the 20 links in `~/.trae-cn/skills` sat on paths it writes. The links come from Vercel's `skills` CLI run in symlink mode with every agent selected (its `~/.agents/.skill-lock.json` lists `trae` and `trae-cn` among about 50 agents, and each link's birth time matches a lock `installedAt` from April and May 2026); the same 20 links sit in about 14 other agents' skill roots. agent-surface creates no links, Trae CN is not installed on this machine, and Trae Intl's code names no shared or CN skill root, so no Trae sync is involved. With the operator's approval the 12 colliding links were removed and the two categories installed; the other 8 links remain.
 
-Preview the established target/category/service set and current destination ownership. Show deprecated exclusions and ownership/migration conflicts; do not turn the new catalog into an unsolicited all-target or all-service expansion. Keep exact selected two-MCP profiles unless separately changed. Deploy one canary target/root, check real discovery and unchanged unrelated config, then only the requested fleet.
+Preview the established target/category/service set and current destination ownership. Show ownership/migration conflicts; do not turn the new catalog into an unsolicited all-target or all-service expansion. Keep exact selected two-MCP profiles unless separately changed. Deploy one canary target/root, check real discovery and unchanged unrelated config, then only the requested fleet.
 
 Exit: actual installed content/companions and chosen native behavior verified; old owned routes handled per transition contract, unowned content preserved, no runtime downgrade. Repo sync, asset deployment and client upgrade are separate claims.
 
@@ -700,7 +694,7 @@ Exit: parity within the contract's tolerance, plus a rollback rehearsal back to 
 
 State: NOT STARTED. Depends on: SQ5.1, SQ1.1. Covers: `G-SQ-06`.
 
-For hosts that read `.agents/skills` or `~/.agents/skills` (Codex, OpenCode, Kilo, Goose, Windsurf, and others confirmed in SQ5.1), write one owned copy there instead of a copy per host. Ownership stays in the installer manifest. Run a parity cohort per host.
+For hosts that read `.agents/skills` or `~/.agents/skills` (Codex, OpenCode, Kilo, Goose, and others confirmed in SQ5.1), write one owned copy there instead of a copy per host. Ownership stays in the installer manifest. Run a parity cohort per host.
 
 Files: the roots, targets and install modules; the installer tests.
 
