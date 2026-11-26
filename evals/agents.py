@@ -211,7 +211,7 @@ class ArmDroid(_DockerExecAgent):
         inner = (
             f"cd {shlex.quote(workdir)} && "
             f"timeout {host_timeout()} droid exec --skip-permissions-unsafe -m {shlex.quote(self.model_name or DROID_MODEL)} "
-            f"--remove-tools {DROID_REMOVE_TOOLS} -o stream-json {shlex.quote(instruction)} "
+            f"--remove-tools {DROID_REMOVE_TOOLS} -o stream-json -- {shlex.quote(instruction)} "
             f"> {LOGS}/droid.jsonl 2> {LOGS}/droid.stderr"
         )
         code = await self._docker_exec(environment, inner, ("FACTORY_DROID_AUTO_UPDATE_ENABLED=false",))
@@ -276,7 +276,7 @@ class ArmClaude(_DockerExecAgent):
             "DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1; "
             f"{claude_tier_exports()}"
             f"timeout {host_timeout()} claude -p --output-format stream-json --verbose --dangerously-skip-permissions "
-            f"--model {shlex.quote(self.model_name or CLAUDE_MODEL)} {shlex.quote(instruction)} </dev/null > {LOGS}/claude.jsonl 2> {LOGS}/claude.stderr; code=$?; "
+            f"--model {shlex.quote(self.model_name or CLAUDE_MODEL)} -- {shlex.quote(instruction)} </dev/null > {LOGS}/claude.jsonl 2> {LOGS}/claude.stderr; code=$?; "
             f"cp -r ~/.claude/projects {LOGS}/claude-projects 2>/dev/null; exit $code"
         )
         code = await self._docker_exec(environment, inner, (f"NO_PROXY={no_proxy()}", f"no_proxy={no_proxy()}"))
@@ -349,7 +349,7 @@ class ArmCodex(_DockerExecAgent):
         inner = (
             f"cd {shlex.quote(workdir)} && "
             f"timeout {host_timeout()} codex exec --json --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check "
-            f"-m {shlex.quote(self.model_name or CODEX_MODEL)} -c 'model_provider=\"gateway\"' -c {shlex.quote(provider)} {shlex.quote(instruction)} "
+            f"-m {shlex.quote(self.model_name or CODEX_MODEL)} -c 'model_provider=\"gateway\"' -c {shlex.quote(provider)} -- {shlex.quote(instruction)} "
             f"</dev/null > {LOGS}/codex.jsonl 2> {LOGS}/codex.stderr; code=$?; "
             f"cp -r ~/.codex/sessions {LOGS}/codex-sessions 2>/dev/null; exit $code"
         )
