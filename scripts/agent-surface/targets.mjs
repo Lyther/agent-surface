@@ -1682,9 +1682,8 @@ export function clineDocumentsOutputs(outputs, context) {
 const CLINE_DOCUMENTS_OUTPUT = /^(?:(.+?)[\\/])?Cline[\\/]((?:Workflows|Rules)[\\/].+)$/;
 
 // A workflow or rule an earlier install wrote under another Documents folder, and this plan writes
-// elsewhere, moved with that folder (contract Migration step 4): its new place, the relocated copy
-// when there is one, keeps the old route's category for the guard, and the old route is retired once
-// the new one is written.
+// elsewhere, moved with that folder (contract Migration step 4): its new place is the relocated copy
+// when there is one, and the old route is retired once the new one is written.
 export function clineRelocatedRoutes(previousOutputs, plannedOutputs) {
   const place = (output) => {
     const match = CLINE_DOCUMENTS_OUTPUT.exec(output);
@@ -1706,9 +1705,9 @@ export function clineRelocatedRoutes(previousOutputs, plannedOutputs) {
 }
 
 // A skill an earlier install wrote under `.factory/skills` moves to the same path under the shared
-// root: the old route keeps its category for the guard and is retired once its successor is
-// written, so Droid never loads both. Only manifest-owned outputs are considered, so a skill the
-// user placed under `.factory/skills` is left alone.
+// root: the old route is retired once its successor is written, so Droid never loads both. Only
+// manifest-owned outputs are considered, so a skill the user placed under `.factory/skills` is
+// left alone.
 export function droidRelocatedRoutes(previousOutputs, plannedOutputs) {
   const oldRoot = path.join(".factory", "skills") + path.sep;
   const planned = new Set(plannedOutputs.map((output) => path.normalize(output)));
