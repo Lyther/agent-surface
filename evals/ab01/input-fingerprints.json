@@ -1,0 +1,138 @@
+[
+  {
+    "pattern": "authorization-bearer",
+    "sha256": "00664deb5b25b3b368551a451c7d74a98e492ee434b5554d6b4110233861d25f"
+  },
+  {
+    "pattern": "authorization-bearer",
+    "sha256": "008f76e1b3685ff957c29554f1fc8f692157420b16febcb9e2144e0ebe13d84f"
+  },
+  {
+    "pattern": "authorization-bearer",
+    "sha256": "207536a2f3c73035bb4d4e5310a9c7b797af81eb3de60bd5996108f1519eaba2"
+  },
+  {
+    "pattern": "authorization-bearer",
+    "sha256": "3dbbc7cf350c424bd900e1ff2d859e31996942225ed42f5e05a04831ce4c0723"
+  },
+  {
+    "pattern": "authorization-bearer",
+    "sha256": "44deb6d72ab25b94c685911aa327d1c1a5edab8bf6e8c796e9b9f5f9ac407ed3"
+  },
+  {
+    "pattern": "authorization-bearer",
+    "sha256": "ea2598aa74df20c4cb43b76acfabf193da3474f275b4acb33fbeab269c315ec4"
+  },
+  {
+    "pattern": "authorization-bearer",
+    "sha256": "efa9cdbfd6089907f08b2c3074c0efaadff016ee0a3644804c9fbabf404d56d2"
+  },
+  {
+    "pattern": "aws-access-key-id",
+    "sha256": "13541832ebc115108cefba080503cbcb4ccddc496f851ca04a4f0bed77438066"
+  },
+  {
+    "pattern": "aws-access-key-id",
+    "sha256": "1a5d44a2dca19669d72edf4c4f1c27c4c1ca4b4408fbb17f6ce4ad452d78ddb3"
+  },
+  {
+    "pattern": "aws-access-key-id",
+    "sha256": "7e7edb3d9bcd1d0f20a40e6ea067a437b937a64514e5977a3e59dc71701613d3"
+  },
+  {
+    "pattern": "aws-access-key-id",
+    "sha256": "843e06a72dff62a6b86729f8f55cfcfdd2d102105f2fba88b7401be239827d3e"
+  },
+  {
+    "pattern": "aws-access-key-id",
+    "sha256": "86665ad81e7bf1104b15f5b008f0f414fe79a1c37d46ff47bec9fbeaa2fd1313"
+  },
+  {
+    "pattern": "aws-access-key-id",
+    "sha256": "a63ee6c8b753ebd4b19d92022df8ca641aa60e7dadc4382cf52ea9cedaf4445d"
+  },
+  {
+    "pattern": "aws-access-key-id",
+    "sha256": "a9792a142a82899acc92c05206f4d26e80fb39d037bbfdbd4b17bd58c87dd248"
+  },
+  {
+    "pattern": "aws-access-key-id",
+    "sha256": "c6ea27c534f993d31f0aef882e3d200e7b87470c379ae79c8f9b19d3bd363dc9"
+  },
+  {
+    "pattern": "aws-access-key-id",
+    "sha256": "d5bde4de080e64fc9b093e0d14e164c828c4b4195a6932fa7c53d25472f43000"
+  },
+  {
+    "pattern": "aws-access-key-id",
+    "sha256": "f02686d58bf437126450a58bbde1777902c37d553d1c412a1296969805ee1790"
+  },
+  {
+    "pattern": "github-token",
+    "sha256": "0e06bc19b5b6241be64d113f883486f7ade8b1a61222a782645c4efdb637d662"
+  },
+  {
+    "pattern": "github-token",
+    "sha256": "25ba5ecff1e53d417d5b4a3c3d1f8b63843045aadc3e4beebe497b8d1dcba65f"
+  },
+  {
+    "pattern": "github-token",
+    "sha256": "6d80b634a75fb80785f15c57499a56c2b9f24d3fb6fc2370e4c368128d304714"
+  },
+  {
+    "pattern": "github-token",
+    "sha256": "b32c64ba371b636fef6ba6eb96c4a5602e937c1d948168449111b4e88190c5ec"
+  },
+  {
+    "pattern": "github-token",
+    "sha256": "b8171061ef6fcb5e79fb82f8ecf7dc18cfaad846c205841fa11d46d7b7090a55"
+  },
+  {
+    "pattern": "github-token",
+    "sha256": "cfba07816b54a55152bc4bae1d943bb7f0bea83426665a4ef26a0f664d7064a3"
+  },
+  {
+    "pattern": "github-token",
+    "sha256": "de3ffa57526ffa0ab375ac324e8edb7b36d5d1f60d2206b637f001517a49ead1"
+  },
+  {
+    "pattern": "github-token",
+    "sha256": "de7269b316be989b192792c1210c27ab683597aa0a6319eadfc4ab228b12ac66"
+  },
+  {
+    "pattern": "google-api-key",
+    "sha256": "f7026ba153dc0b7d0823c3dfd000864ac47723672d2dee20b49f8690937150c9"
+  },
+  {
+    "pattern": "openai-key",
+    "sha256": "6e2a6b8e532fda898bd676991e382e1ddb1993224c64292959b5cd88be755d65"
+  },
+  {
+    "pattern": "pem-private-key",
+    "sha256": "03d104c669e3c7b6be7f989db8b12c8b910d3be8c1e2a73c9369d3cc0ba803b5"
+  },
+  {
+    "pattern": "pem-private-key",
+    "sha256": "07b213c05939fb7f3f763f3ff68e73ba65d602ab7c027b9a535cb60e845ffcbb"
+  },
+  {
+    "pattern": "pem-private-key",
+    "sha256": "3021d90eb9437b2d8f30e8363695c4418b5e5f1870801b5c317e9398ee0f572d"
+  },
+  {
+    "pattern": "pem-private-key",
+    "sha256": "33ea101ddbe7c33be8f143a2779736d0264a4f4c8f323331a4aa9a1f72d8ab2a"
+  },
+  {
+    "pattern": "pem-private-key",
+    "sha256": "8a1ddaa7dab83b9a5ffe092bc3aad1df30c2e0be6246aee0a0da616d628d1da7"
+  },
+  {
+    "pattern": "pem-private-key",
+    "sha256": "8bcac7908eb950419537b91e19adc83ce2c9cbfdacf4f81157fdadfec11f7017"
+  },
+  {
+    "pattern": "pem-private-key",
+    "sha256": "dec643eed02d96980d7003df682d77b28a23f90a6d2a0961886c8953c2e8cb4e"
+  }
+]

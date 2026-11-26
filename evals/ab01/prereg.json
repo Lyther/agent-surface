@@ -1,0 +1,252 @@
+{
+ "id": "ab01",
+ "written": "2026-11-26, before qualification and before any A/B outcome",
+ "question": "Does the agent-surface full install change Droid's pass rate on frontier benchmark tasks against no install, with the same model, harness, task images and limits?",
+ "design": "Paired: each (task, rep) runs the none arm and the full arm at the same time on the same host (cohort --arms-together); the install is the only variable.",
+ "host": {
+  "cli": "droid",
+  "version": "0.244.0",
+  "image": "sq-host/droid:0.244.0",
+  "image_id": "sha256:cd654bfba7eb71830fc882fe1f895807733a6e8ab4e2fe7229d0cb8a6bba9950"
+ },
+ "model": {
+  "requested": "deepseek-v4.1-flash",
+  "served": "recorded per row from droid exec's init event; a start/end probe mismatch makes the cohort not poolable"
+ },
+ "arms": {
+  "none": {
+   "arm_sha256": "272adeccafe73e7009d51f2ec2be9871db5e0eb14239f483ea429be26c3c6402",
+   "source_commit": "9a4a3962ce2d8b472da3a38e5187f200a2153193",
+   "installed": false,
+   "skills": 0
+  },
+  "full": {
+   "arm_sha256": "f0427717eb34d82c78b328760941078ee398145b98eadabbadd9cbd2bd1c9b50",
+   "source_commit": "9a4a3962ce2d8b472da3a38e5187f200a2153193",
+   "installed": true,
+   "skills": 75
+  }
+ },
+ "lab": {
+  "branch": "feat/droid-bench-ab",
+  "commit": "685a14e41d1e95fdda5091828996cb65851b9a64",
+  "harbor": "0.26.0"
+ },
+ "tasks": {
+  "terminal-bench": [
+   "polyglot-c-py",
+   "pypi-server",
+   "build-pmars",
+   "git-leak-recovery",
+   "vulnerable-secret",
+   "break-filter-js-from-html",
+   "nginx-request-logging",
+   "sqlite-with-gcov",
+   "dna-insert",
+   "modernize-scientific-stack",
+   "build-cython-ext",
+   "overfull-hbox",
+   "gcode-to-text",
+   "db-wal-recovery",
+   "log-summary-date-ranges",
+   "multi-source-data-merger",
+   "pytorch-model-recovery",
+   "query-optimize",
+   "largest-eigenval",
+   "chess-best-move"
+  ],
+  "swebenchpro": [
+   "instance_ansible__ansible-b748edea457a4576847a10275678127895d2f02f-v1055803c3a812189a1133297f7f5468579283f86",
+   "instance_internetarchive__openlibrary-910b08570210509f3bcfebf35c093a48243fe754-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+   "instance_flipt-io__flipt-15b76cada1ef29cfa56b0fba36754be36243dded",
+   "instance_qutebrowser__qutebrowser-21b426b6a20ec1cc5ecad770730641750699757b-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+   "instance_gravitational__teleport-6a14edcf1ff010172fdbac622d0a474ed6af46de",
+   "instance_future-architect__vuls-be7b9114cc9545e68fb0ee7bc63d7ec53d1a00ad",
+   "instance_navidrome__navidrome-3977ef6e0f287f598b6e4009876239d6f13b686d",
+   "instance_element-hq__element-web-ca58617cee8aa91c93553449bfdf9b3465a5119b-vnan",
+   "instance_nodebb__nodebb-f1a80d48cc45877fcbadf34c2345dd9709722c7f-v4fbcfae8b15e4ce5d132c408bca69ebb9cf146ed",
+   "instance_tutao__tutanota-b4934a0f3c34d9d7649e944b183137e8fad3e859-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf"
+  ],
+  "count": 30
+ },
+ "images": {
+  "file": "inputs/bench-images.json",
+  "sha256": "3c626e2a9cc0e6e10c9478b0b6bdd6f35a365c3101e00804551a7b69894a0ea9",
+  "without_python3": [
+   "dna-insert",
+   "git-leak-recovery",
+   "overfull-hbox",
+   "polyglot-c-py",
+   "query-optimize",
+   "sqlite-with-gcov"
+  ],
+  "note": "without python3 the in-container watcher is inactive; skill loads are read from droid.jsonl in every image"
+ },
+ "sampling": {
+  "terminal-bench": "Pool: Terminal-Bench 2 tasks with difficulty easy or medium, agent timeout <= 1800 s, <= 2 CPUs, <= 4 GB, glibc base (inputs/tb2-pool.json). Sample: random.Random(20261126), per-category counts software-engineering 4, security 2, system-administration 2, scientific-computing 2, debugging 2, file-operations 2, data-processing 2, model-training 1, data-science 1, plus 2 from the remaining categories (inputs/tb2-sample.json).",
+  "swebenchpro": "One task per repository for the 10 repositories with the most tasks in the 731-task pool, drawn with random.Random(20261126) (inputs/sample_swepro.py, inputs/swepro-sample.json).",
+  "replacement_rule": "A sampled task whose environment cannot host the harness (non-glibc or no apt, the TB2 pool's own rule) is replaced by the next repository in the same order, its task drawn by the same RNG's next draw. Decided before any outcome.",
+  "replaced": [
+   {
+    "task": "instance_protonmail__webclients-ae36cb23a1682dcfd69587c1b311ae0227e28f39",
+    "stage": "image build",
+    "reason": "Alpine 3.18 (musl) base without apt-get; the droid layer's apt step failed (exit 127)",
+    "replacement": "instance_tutao__tutanota-b4934a0f3c34d9d7649e944b183137e8fad3e859-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+    "replacement_repo": "tutao/tutanota (11th by task count, 20 tasks)"
+   }
+  ]
+ },
+ "qualification": {
+  "rule": "Harbor oracle reward 1, nop reward 0, and a droid smoke call that completes and whose init event names the requested model",
+  "action": "a task that fails qualification is excluded before the pilot and not replaced",
+  "script": "inputs/qualify.py",
+  "script_sha256": "dd085a578b54f407d510c38f2a92416326e1e9aeb0622e8bc9906e3453bdaaa4"
+ },
+ "pilot": {
+  "tasks": [
+   "log-summary-date-ranges",
+   "polyglot-c-py",
+   "multi-source-data-merger"
+  ],
+  "reps": 1,
+  "purpose": "pilot",
+  "use": "wiring check only (ledger rows, served model, scrub, skill detection); excluded from the analysis by purpose"
+ },
+ "run": {
+  "reps": 2,
+  "seed": 20261126,
+  "concurrency_groups": 6,
+  "peak_containers": 12,
+  "limits": "each task.toml's own cpus, memory and agent timeout; no overrides",
+  "spend": "uncapped (operator watches the Factory dashboard)",
+  "purpose": null,
+  "tasks": {
+   "terminal-bench": [
+    "polyglot-c-py",
+    "pypi-server",
+    "git-leak-recovery",
+    "vulnerable-secret",
+    "break-filter-js-from-html",
+    "nginx-request-logging",
+    "sqlite-with-gcov",
+    "dna-insert",
+    "modernize-scientific-stack",
+    "overfull-hbox",
+    "gcode-to-text",
+    "db-wal-recovery",
+    "log-summary-date-ranges",
+    "multi-source-data-merger",
+    "pytorch-model-recovery",
+    "query-optimize",
+    "largest-eigenval",
+    "chess-best-move"
+   ],
+   "swebenchpro": [
+    "instance_ansible__ansible-b748edea457a4576847a10275678127895d2f02f-v1055803c3a812189a1133297f7f5468579283f86",
+    "instance_internetarchive__openlibrary-910b08570210509f3bcfebf35c093a48243fe754-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+    "instance_flipt-io__flipt-15b76cada1ef29cfa56b0fba36754be36243dded",
+    "instance_qutebrowser__qutebrowser-21b426b6a20ec1cc5ecad770730641750699757b-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+    "instance_gravitational__teleport-6a14edcf1ff010172fdbac622d0a474ed6af46de",
+    "instance_future-architect__vuls-be7b9114cc9545e68fb0ee7bc63d7ec53d1a00ad",
+    "instance_navidrome__navidrome-3977ef6e0f287f598b6e4009876239d6f13b686d",
+    "instance_element-hq__element-web-ca58617cee8aa91c93553449bfdf9b3465a5119b-vnan",
+    "instance_nodebb__nodebb-f1a80d48cc45877fcbadf34c2345dd9709722c7f-v4fbcfae8b15e4ce5d132c408bca69ebb9cf146ed",
+    "instance_tutao__tutanota-b4934a0f3c34d9d7649e944b183137e8fad3e859-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf"
+   ]
+  }
+ },
+ "endpoints": {
+  "primary": "Pass@1: verifier reward == 1 per attempt. Effect = mean paired difference full - none over (task, rep) pairs with both outcomes; exact McNemar on discordant pairs; 95% percentile bootstrap resampling tasks (reps kept together), 10,000 resamples, seed 20261126. Also reported per benchmark.",
+  "secondary": [
+   "factory_credits",
+   "tokens_in",
+   "tokens_out",
+   "model_requests",
+   "seconds_agent",
+   "seconds_total",
+   "skill loads in each arm",
+   "end reasons",
+   "exceptions",
+   "served model"
+  ]
+ },
+ "analysis_rules": [
+  "A cell's outcome is its last attempt row; launch retries and capacity retries are tries, not outcomes.",
+  "A missing verifier reward is a failure and is also counted apart.",
+  "A pair counts only when both arms have an outcome.",
+  "No outcome-dependent exclusion after qualification; any deviation is appended to this file with its time and reason before the analysis runs."
+ ],
+ "analysis_script": {
+  "file": "inputs/ab_analyze.py",
+  "sha256": "20a94c3ad8e91d9059fb4ed48a17c3329b49f3ab0a06f685c65f15a9cb2aa86d"
+ },
+ "conditions_at_start": "The host also runs unrelated CPU-bound jobs (load about 30 on 16 CPUs); both arms of a pair share that contention.",
+ "inputs_sha256": {
+  "ab_analyze.py": "20a94c3ad8e91d9059fb4ed48a17c3329b49f3ab0a06f685c65f15a9cb2aa86d",
+  "arms.json": "074361d12fef85e2f58f0c73ca71d39929812737375be97f7a855b33c668e97b",
+  "bench-images.json": "3c626e2a9cc0e6e10c9478b0b6bdd6f35a365c3101e00804551a7b69894a0ea9",
+  "qualify.py": "dd085a578b54f407d510c38f2a92416326e1e9aeb0622e8bc9906e3453bdaaa4",
+  "sample_swepro.py": "f3b5d333504468311df44171526d049de9f099d74c478404025a8b9808d5ab06",
+  "swepro-sample.json": "7bd2c400f07e0dff22ea5a31b9ada7218a29c96422606e3d949b32347612109d",
+  "tb2-meta.json": "bb953caa8b733614b094bdc24d83c5579ab8f39381ca4b08045816d62b53e72d",
+  "tb2-pool.json": "836be8700d6c85df93070c1518c18115533e72bb90a7265717a2964ad7b8a85d",
+  "tb2-sample.json": "983b583b88222ade2a4f682cc1f7c511ffc6d30bea1f64d54a53004122698c56",
+  "fingerprint.py": "23f8bc3a4d292bea82dac3f4fd1c56f2235abf85e31775c0e1ede7fced0e28be",
+  "input-fingerprints.json": "370fd43bcd2efaac88d67c5f9abde895a3b96d336ef40977540f6a8bf98fe4f5",
+  "qual.sh": "0cd47357be74caa3521de9a14e21b12fd1fb8883e61a1da6f45953d903894a73"
+ },
+ "deviations": [
+  {
+   "at": "2026-11-26T10:40Z",
+   "before_any_ab_outcome": true,
+   "change": "Runs pass --input-fingerprints inputs/input-fingerprints.json",
+   "entries": 34,
+   "sha256": "370fd43bcd2efaac88d67c5f9abde895a3b96d336ef40977540f6a8bf98fe4f5",
+   "sources": "the two arm tarballs, the 30 task directories and the 30 task images' filesystems (docker export), by inputs/fingerprint.py",
+   "why": "The receipt scrub quarantines and stops the cohort on any credential-pattern match not on this list; the task images hold such strings (PEM headers, placeholder tokens), which an agent can echo. An exact Factory-key match still quarantines."
+  },
+  {
+   "at": "2026-11-26T10:42Z",
+   "before_any_ab_outcome": true,
+   "change": "A qualification stage (oracle or nop) that ends in AgentTimeoutError or VerifierTimeoutError is re-run once after the first pass; the re-run decides. Any other failure stands.",
+   "why": "The first pass ran beside an unrelated CPU-bound job (load about 30 on 16 CPUs) and the fingerprint build; the overfull-hbox and sqlite-with-gcov oracles, which are scripted reference solutions, timed out. A timeout there is a host condition, not a task property. Decided with 28 of 30 first-pass rows in, before the last two."
+  },
+  {
+   "at": "2026-11-26T10:53Z",
+   "before_any_ab_outcome": true,
+   "change": "Lab commit 9307649 -> 685a14e; runs pass --timeouts-are-outcomes",
+   "why": "The cohort stopped a host after three attempts in a row ending at the agent cap, a rule from the SQ program where the cap meant a broken setup. Each benchmark task declares its own limit and an attempt that reaches it has failed the task, so with one host that rule would end the run on ordinary failures. Setup, capacity and same-exception streaks still stop the host; a timeout remains a failed outcome in the analysis."
+  },
+  {
+   "at": "2026-11-26T13:29Z",
+   "before_any_ab_outcome": false,
+   "change": "Lab commit 685a14e -> 2cf2298 (the task instruction is passed after `--`). The four terminal-bench pytorch-model-recovery cells (2 reps x 2 arms) are re-run with it, arms together, into full-fix/. The analysis reads full/ledger.jsonl followed by full-fix/ledger.jsonl, so under the last-attempt-row rule the re-run rows are those cells' outcomes; the faulted rows stay in full/ledger.jsonl as the record.",
+   "why": "pytorch-model-recovery's instruction begins with '- You are given'. The lab passed it to droid exec as a bare operand; droid parsed it as an option and exited 1 ('unknown option') before its first event in all four attempts, 1-2 s in, and the verifier scored the untouched task 0. Neither arm received the task, so the cells hold no outcome of either arm. Qualification missed it because its droid smoke call used a fixed prompt. No other task's instruction starts with a dash and no other attempt logged 'unknown option'.",
+   "seen_before_this_entry": "Run completion (112 rows, none quarantined or skipped), end reasons per arm, and the rewards of the 11 rows without usage fields (7 agent timeouts and these 4 errors). No pass rate, pair table or difference had been computed.",
+   "unchanged": "terminal-bench-dna-insert none rep 1 lost its verifier to a Docker exec failure ('OCI runtime exec failed ... read init-p: connection reset by peer') after the agent had finished; by the existing rule a missing reward is a failure and is counted apart. It is not re-run. Reported in addition and labelled exploratory: the primary with that pair dropped."
+  }
+ ],
+ "qualification_result": {
+  "qualified": 28,
+  "of": 30,
+  "excluded": [
+   {
+    "task": "build-pmars",
+    "why": "oracle reward 0: the reference solution pins dpkg-dev 1.22.21, which the Debian archive no longer serves"
+   },
+   {
+    "task": "build-cython-ext",
+    "why": "oracle reward 0: the repository's own tests fail with the dependency versions an unpinned install resolves today"
+   }
+  ],
+  "rerun_after_timeout": {
+   "sqlite-with-gcov": true,
+   "overfull-hbox": true
+  },
+  "files": {
+   "qual-retry.jsonl": "9b29f10ecaac2e0c425ee4f89b4b45eface262ca6d4ea51423a373f189270578",
+   "qual-try.jsonl": "aee08ba3b1dc11bd58b3557e3ad6411680320df602f870da4632f6ce8b2a60c6",
+   "qual.jsonl": "b44878d595a1ac924032def26e853910ee1f2b17e3f0094ce7d6ea6f18f41007"
+  }
+ }
+}
