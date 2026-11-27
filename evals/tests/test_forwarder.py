@@ -1,4 +1,5 @@
-"""The gateway forwarder (`agents.FORWARDER_JS`) sets the key on every request, passes the rest through, and passes a cut stream on as a cut.
+"""The gateway forwarder (`agents.FORWARDER_JS`) sets the key on every request, passes the rest through, passes a cut stream on as a cut, and
+adds a wait to a 429 that names none.
 
 SUBSTITUTE_JUSTIFICATION
 - replaces: the lab gateway, the forwarder's upstream, with a local HTTP server
@@ -14,7 +15,7 @@ import subprocess
 import threading
 import unittest
 
-from evals.agents import FORWARDER_JS
+from evals.agents import FORWARDER_JS, FORWARDER_RETRY_AFTER
 
 KEY = "sk-forwarder-test-key"
 STREAM = [b"data: 0\n\n", b"data: 1\n\n", b"data: 2\n\n"]
@@ -27,6 +28,13 @@ class Upstream(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("content-length") or 0))
         Upstream.seen.append({"path": self.path, "authorization": self.headers.get("authorization"), "host": self.headers.get("host"), "body": body})
+        if self.path.endswith(("/limited", "/limited-wait")):
+            self.send_response(429)
+            if self.path.endswith("/limited-wait"):
+                self.send_header("retry-after", "7")
+            self.send_header("content-length", "0")
+            self.end_headers()
+            return
         self.send_response(200)
         self.send_header("content-type", "text/event-stream")
         self.send_header("transfer-encoding", "chunked")
@@ -55,7 +63,7 @@ class ForwarderTest(unittest.TestCase):
 
     def start(self, key: str) -> tuple[subprocess.Popen, queue.Queue]:
         target = f"http://127.0.0.1:{self.upstream.server_port}/gw/"
-        proc = subprocess.Popen(["node", "--input-type=module", "-e", FORWARDER_JS, "0", target],
+        proc = subprocess.Popen(["node", "--input-type=module", "-e", FORWARDER_JS, "0", target, str(FORWARDER_RETRY_AFTER)],
                                 stdin=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         lines: queue.Queue = queue.Queue()
         reader = threading.Thread(target=lambda: [lines.put(line) for line in proc.stderr], daemon=True)
@@ -96,6 +104,14 @@ class ForwarderTest(unittest.TestCase):
         self.assertEqual(response.status, 200)
         with self.assertRaises(http.client.IncompleteRead):
             response.read()
+
+    def test_a_429_that_names_no_wait_reaches_the_client_with_one_and_an_upstream_wait_is_kept(self):
+        _, lines = self.start(KEY)
+        port = self.listening_port(lines)
+        limited = self.post(port, "/v1/limited")
+        self.assertEqual((limited.status, limited.getheader("retry-after")), (429, str(FORWARDER_RETRY_AFTER)))
+        waited = self.post(port, "/v1/limited-wait")
+        self.assertEqual((waited.status, waited.getheader("retry-after")), (429, "7"))
 
     def test_no_key_on_stdin_stops_the_forwarder(self):
         proc, lines = self.start("")

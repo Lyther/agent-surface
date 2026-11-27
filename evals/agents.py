@@ -153,11 +153,15 @@ async def offline(container: str, log: Path):
 # No TB2 task of the subset uses this port (pypi-server serves on 8080).
 FORWARDER_PORT = 47613
 FORWARDER_TOKEN_ENV = "SQ_FORWARDER_TOKEN"  # the provider's env_key: Codex sends this placeholder and the forwarder replaces it
+# Codex 0.171.0 retries a 429 only when it names a wait: with `Retry-After` it made 6 requests, without one a single request and the turn
+# ended (probed 2026-11-27). The gateway's 429s name none, so one 429 ended a whole attempt (9 calibration attempts). The forwarder adds this
+# wait to such a 429. Basis: the gateway's limits are per minute, and Codex's 5 retries at 15 s span 75 s, more than one window.
+FORWARDER_RETRY_AFTER = 15
 FORWARDER_JS = r"""
 import http from "node:http";
 import https from "node:https";
 
-const [port, target] = process.argv.slice(1);
+const [port, target, retryAfter] = process.argv.slice(1);
 const upstream = new URL(target);
 const client = upstream.protocol === "https:" ? https : http;
 const prefix = upstream.pathname.replace(/\/+$/, "");
@@ -175,8 +179,9 @@ const server = http.createServer((req, res) => {
   const headers = { ...req.headers, host: upstream.host, authorization: `Bearer ${key}` };
   const options = { protocol: upstream.protocol, hostname: upstream.hostname, port: upstream.port, method: req.method, path: prefix + req.url, headers };
   const out = client.request(options, (up) => {
-    console.error(`${req.method} ${req.url} ${up.statusCode}`);
-    res.writeHead(up.statusCode ?? 502, up.headers);
+    const wait = up.statusCode === 429 && up.headers["retry-after"] === undefined;
+    console.error(`${req.method} ${req.url} ${up.statusCode}${wait ? ` retry-after ${retryAfter} added` : ""}`);
+    res.writeHead(up.statusCode ?? 502, wait ? { ...up.headers, "retry-after": retryAfter } : up.headers);
     up.pipe(res);
     // A cut upstream stream must reach Codex as a cut, not as a complete response.
     up.on("close", () => { if (!up.complete) res.destroy(); });
@@ -215,7 +220,7 @@ async def gateway_forwarder(container: str, log: Path):
     with log.open("ab") as out:
         proc = await asyncio.create_subprocess_exec(
             "docker", "run", "-i", "--name", name, "--network", f"container:{container}", "--entrypoint", "node",
-            OFFLINE_TAG, "--input-type=module", "-e", FORWARDER_JS, str(FORWARDER_PORT), gateway_url(),
+            OFFLINE_TAG, "--input-type=module", "-e", FORWARDER_JS, str(FORWARDER_PORT), gateway_url(), str(FORWARDER_RETRY_AFTER),
             stdin=asyncio.subprocess.PIPE, stdout=out, stderr=asyncio.subprocess.STDOUT,
         )
     try:
