@@ -1,6 +1,6 @@
 ---
 name: workflow-rescue
-description: "Resolve repeated workflow failures with a single decisive action."
+description: "Use when a formal workflow stalls or hits repeated failures to pick one decisive recovery action."
 ---
 
 ## Objective

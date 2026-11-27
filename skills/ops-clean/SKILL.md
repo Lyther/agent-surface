@@ -1,6 +1,6 @@
 ---
 name: ops-clean
-description: "Remove accumulated repository debt across design, code, tests, dependencies, scripts, docs, assets, structure, and generated residue."
+description: "Use when auditing and pruning accumulated debt across code, dead files, tests, dependencies, scripts, docs, and generated artifacts."
 ---
 
 ## Objective

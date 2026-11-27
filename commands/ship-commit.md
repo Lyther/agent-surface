@@ -31,9 +31,8 @@ Pick one mode, state it in one line, and ask when signals conflict.
 ## 3. Review Once
 
 1. Inspect the diff for commit hygiene: intended scope, accidental files, secrets, conflict markers, malformed generated output, coherent buckets.
-2. Reuse review evidence that covers the unchanged diff: explicit user acceptance after the last edit, a `qa-review` or `qa-trace` pass over it, a `workflow-reviewer` PASS, or a repository approval. Tests and self-audit are not review.
-3. Otherwise run one read-only `qa-review` pass, plus one `qa-trace` pass when the diff touches kernel concurrency or hot paths, auth, sessions, cryptography, payments, privacy, IPC, ABI, cross-trust serialization, or an unproven race. Do not patch findings or start a second round.
-4. Report findings in chat. Stop only for a commit-safety blocker (accidental secret, unintended destructive content, scope substitution) or when the user or repo requires a clean verdict. Hand wanted remediation to `dev-fix` as a separate task.
+2. Reuse prior review evidence when present; for high-risk or complex diffs (auth, concurrency, security boundaries, broad multi-file changes) run one read-only `qa-review` pass (plus `qa-trace` when security or races apply), while small low-risk local commits only need direct diff inspection plus passing checks unless the user requested review. Do not patch review findings inside `ship-commit`.
+3. Report findings in chat. Stop only for a commit-safety blocker (accidental secret, unintended destructive content, scope substitution) or when the user or repo requires a clean verdict. Hand wanted remediation to `dev-fix` as a separate task.
 
 ## 4. Commit
 
@@ -49,7 +48,7 @@ Pick one mode, state it in one line, and ask when signals conflict.
     | perf | `perf:` | `<subsystem>: speed up …` |
 
 2. Stage each bucket by path or hunk (`git add <files>` or `git add -p`); never `git add .`, `-A`, or `commit -a`.
-3. Write an imperative subject of at most 50 characters that stands alone; for a complex change add a body, wrapped at 72 columns, that explains why. Conventional form: `type(scope): subject` with optional `Fixes #123`. Kernel form: `subsystem: subject`, body with the failure mode, then trailers.
+3. Write an imperative subject aiming for ~50 characters (hard cap 72) that stands alone; for a complex change add a body, wrapped at 72 columns, that explains why. Conventional form: `type(scope): subject` with optional `Fixes #123`. Kernel form: `subsystem: subject`, body with the failure mode, then trailers.
 4. Kernel trailers: `Fixes: <12-hex> ("subject")` only with a known SHA; `Cc: stable@vger.kernel.org # 6.1.x` only when a backport is intended; `Reviewed-by`/`Tested-by` only when a human gave them; no `Assisted-by:`, and disclose tool help with the body line `lint-kernel` names. Report trailer problems instead of rewriting existing commits (`lint-kernel` → `references/submission-policy.md`).
 5. Commit: `git commit -m "type(scope): subject"`, adding `-S` when a signing key is configured. Kernel mode is preparation only: `Signed-off-by:` is the human author's DCO, so print the exact `git commit -s -m …` for the author instead of running it.
 6. Read back the committed message (`git log -1 --format=%B`). Remove AI attribution or vendor advertising (`Made-with:`, `Co-Authored-By:` an AI, `Generated with …`, a `Signed-off-by:` naming an AI or `noreply@anthropic.com`, `AI-Generated:`) before any push or handoff; the kernel disclosure line and the human DCO stay.
@@ -60,7 +59,7 @@ Pick one mode, state it in one line, and ask when signals conflict.
 - Branch: never commit feature work onto `main`, `master`, `trunk`, or `release/*`; create a feature branch unless the repo works direct-to-trunk. Rebase only your feature branch onto the verified upstream base.
 - Push: verify the remote URL, branch, base, and commit set, then `git push -u origin <branch>`. A rewritten feature branch needs `--force-with-lease` against the proven remote tip, never bare `--force`. Push tags only in a release workflow.
 - Kernel: `git format-patch -M --cover-letter -o outgoing/ <base>..`, then `scripts/get_maintainer.pl outgoing/*.patch`. Never send: print the `git send-email --to=… --cc=…` command for the author, and use `--subject-prefix="PATCH v2"` with a cover-letter changelog for revisions without overwriting an earlier `outgoing/`.
-- PR/MR: one concern, ideally under 400 changed lines, linked to its issue or spec. Claim stable, production-ready, release-ready, or E2E-passed only with a scoped `verify-readiness` PASS or equivalent real-run evidence; otherwise state the narrower check that passed. Read back the published title and body and remove inserted attribution.
+- PR/MR: one coherent concern, linked to its issue or spec. Claim stable, production-ready, release-ready, or E2E-passed only with a scoped `verify-readiness` PASS or equivalent real-run evidence; otherwise state the narrower check that passed. Read back the published title and body and remove inserted attribution.
 
 ## Output
 

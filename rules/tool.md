@@ -1,40 +1,35 @@
 # Tools In Agent-Surface
 
-## Memory Management
-
-Use Synapse MCP (if you have) along with your native memory tools.
-
-Memories are project-level by default; a general-level requires either:
-
-- Beneficial for most work
-- Common patterns across multiple projects
-- General-level work style of the user
-
-Avoid inserting duplicated memory.
-
 ## Skills
 
-Always pick the suitable skills that fit your current task.
+Before your first tool call on any task, check the skill list for skills whose description matches the task and load each match with the Skill tool (or your host's skill loader) before doing anything else. Do this even for small or simple tasks; skip it only when no skill matches.
+
+Grimoire is an MCP server (not a skill) serving extra specialist procedures (security, forensics, reverse engineering, CTF, architecture, testing, CI). When configured, load `grimoire_search` via tool search if deferred and call it before improvising in those domains.
+
+## Memory Management
+
+Use **Synapse MCP** when available alongside native memory tools: call `memory_recall` before re-deciding settled project choices, and `memory_remember` to store confirmed durable decisions or conventions.
+
+Memories are project-level by default; general-level requires either:
+
+- Beneficial for most work across repositories
+- Common patterns across multiple projects
+- User-wide workflow preferences
+
+Avoid duplicate memories, and never store secrets or credentials.
 
 ## Agents
 
 ### Parallel Task Execution
 
-Use parallel agent execution for independent operations:
+Run independent research or review agents in parallel when their work does not share state:
 
-**GOOD**: Parallel execution. Launch 3 agents in parallel:
-
-1. Agent 1: Security analysis of auth.ts
-2. Agent 2: Performance review of cache system
-3. Agent 3: Type checking of utils.ts
-
-**BAD**: Sequential when unnecessary. First agent 1, then agent 2, then agent 3
+- **Good**: Launch parallel subagents for independent bounded tasks (e.g., auth security analysis, cache performance trace, session-lifecycle call-path tracing).
+- **Bad**: Run independent read-only investigations sequentially when parallelism is supported.
 
 ### Agent Selection
 
-Obey the following rules unless explicitly prompted:
-
-- Don't launch a large number of agents without asking the user
-- The running agents must do useful work
-- Prompt agents with clear and concise wording
-- Pick the proper model and thinking effort
+- Do not launch a large number of agents without asking the user.
+- Do not launch redundant agents for trivial lookups you can do directly.
+- Give each agent clear, self-contained scope and an explicit output target.
+- Keep subagents inheriting session model/permission defaults unless the user asks otherwise.

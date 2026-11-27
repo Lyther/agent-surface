@@ -1,6 +1,6 @@
 ---
 name: boot-repro
-description: "Create a reproducible environment and command path for a project."
+description: "Use when reproducing a bug, crash, or environment failure with a clean, deterministic command path."
 ---
 
 ## Objective

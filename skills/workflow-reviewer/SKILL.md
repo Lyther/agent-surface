@@ -1,6 +1,6 @@
 ---
 name: workflow-reviewer
-description: "Review batched implementation output against the BOSS spec and evidence."
+description: "Use in formal workflows to review completed worker output against the BOSS spec and recorded evidence."
 ---
 
 ## Objective

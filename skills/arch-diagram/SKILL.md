@@ -1,6 +1,6 @@
 ---
 name: arch-diagram
-description: "Build an evidence-backed architecture atlas with presentation-grade views, dataflow, and source-linked runtime traces."
+description: "Use when building an evidence-backed architecture atlas with dataflow views and source-linked runtime traces."
 ---
 
 ## Objective

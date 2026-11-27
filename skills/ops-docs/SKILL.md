@@ -1,6 +1,6 @@
 ---
 name: ops-docs
-description: "Align, restructure, and rewrite repository docs, including moves, merges, deletions, and missing docs, or write one requested handoff, technical report, whitepaper, product SOP, or runbook. Security engagement reports go to ops-pentest-report."
+description: "Use when aligning repository docs (moves, merges, rewrites) or writing technical reports, SOPs, or runbooks. Security reports use ops-pentest-report."
 ---
 
 ## Objective

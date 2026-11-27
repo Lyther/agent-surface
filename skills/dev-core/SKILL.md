@@ -1,6 +1,6 @@
 ---
 name: dev-core
-description: "Implement the smallest runnable architectural spine after an independent RED spec, then stop before feature breadth."
+description: "Use after an initial RED spec to implement the smallest runnable architectural spine before expanding feature breadth."
 ---
 
 ## Objective

@@ -1,6 +1,6 @@
 ---
 name: ops-swarm
-description: "Coordinate a bounded multi-agent investigation when a question is broad or under-specified, spans several domains, splits into independent packets or competing hypotheses, or a single-agent pass gave weak or contradictory evidence. Not for single-agent work, serial steps, repeated test runs, shipping, or implementation."
+description: "Use when a broad, cross-domain, or ambiguous question benefits from bounded parallel investigation packets rather than serial exploration."
 ---
 
 ## Objective

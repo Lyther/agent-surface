@@ -1,6 +1,6 @@
 ---
 name: qa-self-critique
-description: "Find issues in recently modified files and fix them immediately."
+description: "Use right after editing files to scan your own changes for stubs, bugs, type escapes, or weak tests and fix them."
 ---
 
 ## Objective
@@ -19,7 +19,7 @@ With shell access, run one scan for the whole target and work from its output; w
 
 ```bash
 rg -n -e 'TODO|FIXME|HACK|XXX|STUB|NotImplementedError|todo!\(|unimplemented!\(' \
-  -e '(?i:mock|fake|stub|spy|emulat|in[-_ ]?memory|monkeypatch|recorded|sandbox|test[-_ ]?mode)|SUBSTITUTE_JUSTIFICATION' \
+  -e '(?i:mock|fake|stub|spy|emulat|in[-_ ]?memory|monkeypatch|recorded|sandbox|test[-_ ]?mode)' \
   -e '(?i:(password|passwd|secret|api[_-]?key|token))\s*[:=]\s*["'"'"'][^"'"'"']{8,}' {{target}}
 ```
 
@@ -37,7 +37,7 @@ Take one domain at a time across the changed files.
 - **Logic**: trace the main input through null, empty, and malformed cases; error handling around network, file, and database I/O; loop and range bounds; unreachable or uncovered branches.
 - **Types**: replace `any`/`Any` used for convenience with a concrete type, protocol, or bounded generic; fix the cause behind an unexplained ignore (an ignore with a stated reason may stay); return types match signatures.
 - **Architecture**: prompts, schemas, or long instructions embedded in code move to a file; duplicated type definitions collapse to one; secrets and per-deployment values come from the environment.
-- **Tests**: mocks, fakes, and stubs require user approval (`rules/test.md`) and a complete `SUBSTITUTE_JUSTIFICATION` when kept; remove one the real component could serve; a substitute-backed run is not evidence for the boundary it replaced. Assert outputs and state, not call counts. Fix production types instead of ignoring them in tests.
+- **Tests**: mocks, fakes, and stubs must be justified (`rules/test.md`); remove any substitute the real component could serve; a substitute-backed run is not evidence for the boundary it replaced. Assert outputs and state, not call counts. Fix production types instead of ignoring them in tests.
 - **Kernel C** (only for kernel code): read each `goto`/`out_*` cleanup helper end to end and list its side effects; enumerate (input × concurrent operation) cases for each selector; mirror an existing cleanup ladder in the same file; keep paired charge/uncharge domains in separate locals; change shared counters under their owning lock.
 
 Add no guard, check, configuration, or test that a found defect does not call for.

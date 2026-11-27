@@ -1,6 +1,6 @@
 ---
 name: verify-coverage
-description: "Judge whether tests discriminate real faults — not whether lines were touched."
+description: "Use when evaluating whether a test suite discriminates real faults and bug regressions rather than touching lines."
 ---
 
 ## Objective
@@ -39,7 +39,7 @@ Missing tooling is never a free PASS: report that discrimination method `BLOCKED
    | Mutation, planted fault, or stubbed success | diagnostic only: may expose a weak oracle | challenging recent tests |
    | Assertion-weakening probe | diagnostic only: may expose assertion fragility | recent AI-authored tests |
 
-   The suite must fail on the real faulty behavior; if it stays green, record `SURVIVING_FAULT` (FAIL). A planted fault or other substitute needs user approval and a `SUBSTITUTE_JUSTIFICATION` (`rules/test.md`), and diagnostics are asymmetric: surviving one can reject the quality claim, but killing one never contributes PASS evidence. With no real-fault method available, the verdict for the "tests are good enough" claim is `BLOCKED`.
+   The suite must fail on the real faulty behavior; if it stays green, record `SURVIVING_FAULT` (FAIL). Document any planted fault or other substitute (`rules/test.md`); diagnostics are asymmetric: surviving one can reject the quality claim, but killing one never contributes PASS evidence. With no real-fault method available, the verdict for the "tests are good enough" claim is `BLOCKED`.
 4. Audit oracles on tests that cover Critical/High paths: they assert observable behavior or environment outcomes, not only that a function was called; none relies on `expect(true)`, empty asserts, snapshot-of-nothing, or "does not throw" as the sole check on a trust boundary; on high-risk paths the oracle is independent of the implementation (human-locked spec expectations, standards-derived vectors, preexisting failing characterizations, or independent properties). A fixture that replaces real data is a substitute and cannot prove that data path. AI-authored tests written in the same session as the implementation stay suspect until a discrimination check passes.
 5. Classify each gap:
 

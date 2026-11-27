@@ -1,6 +1,6 @@
 ---
 name: boot-new
-description: "Use when creating a new project or reorganizing an existing project's folder structure. Builds the conventional layout for the project's kind (software, pentest or other security engagement, CTF, bug or CVE reproduction, research), initializes Git, writes the baseline repository files, and verifies the first run from a fresh clone."
+description: "Create a new repository or reorganize an existing layout with Git, conventions, and runnable baseline checks. Use when bootstrapping or restructuring a project."
 ---
 
 ## Objective
@@ -48,7 +48,7 @@ Each blueprint lists its required tools, layout, files, and README quickstart. F
 7. Write the first slice. Software executables: an entry point that performs the first behavior the request names (or a `--version` or health path when it names none) and a test that calls it; libraries: the first exported function or type and a test that calls it. Other kinds: the first artifacts the blueprint lists. Write no placeholder function, TODO stub, or task target that cannot run yet.
 8. Generate the lockfile where the ecosystem has one (`uv lock`, `cargo generate-lockfile`, `go mod tidy`, `npm install`) and run the checks needed to confirm the scaffold works. Fix every failure without loosening a check.
 9. Run `git add -A` and read `git status --short`. Keep secrets, credentials, data captured from targets, and build output out of the index by fixing `.gitignore`. When the scaffold has `.pre-commit-config.yaml`, run `pre-commit run --all-files` after staging so hooks check the tracked snapshot. Commit with the message `Create project scaffold`. If Git has no author identity, stop and report `BLOCKED`; never set one.
-10. Clone the repository into a temporary directory, run the README's quickstart commands there, and delete the clone. On failure, fix the scaffold, amend the scaffold commit, and repeat.
+10. Run the README's quickstart commands to verify the scaffold works. For `production` or reusable template deliverables, test from a fresh temporary clone and delete the temporary copy afterward. On failure, fix the scaffold, amend the scaffold commit, and repeat.
 11. Add a remote or push only when the user asks. Never add a remote to a pentest workspace unless the client's data-handling terms allow that host.
 
 ## Shared baseline
@@ -93,7 +93,7 @@ For an `ops-nuke` respawn, build the approved design's layout in the respawn wor
 ## Completion
 
 - `COMPLETE`:
-  - New repository: the `Create project scaffold` commit exists; the README's quickstart commands pass in a fresh clone; `git check-ignore` matches `.env` and any ignored kind directories; and `git ls-files -ci --exclude-standard` prints nothing.
+  - New repository: the `Create project scaffold` commit exists; the README's quickstart commands pass; `git check-ignore` matches `.env` and any ignored kind directories; and `git ls-files -ci --exclude-standard` prints nothing.
   - Existing project: the moved layout and baseline files are in place; each recorded baseline check matches or improves its baseline result and the README quickstart passes in the working tree; and no secret or ignored file is tracked or staged.
 - `IMPLEMENTED BUT UNVERIFIED`: the files exist, but the verification run did not happen.
 - `BLOCKED`: a missing toolchain, Git identity, credential, service, or required input stops the run; name it with the command that unblocks it.

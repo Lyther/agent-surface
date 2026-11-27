@@ -1,6 +1,6 @@
 ---
 name: verify-readiness
-description: "Certify scoped readiness claims with severity-first evidence — design kills block PASS."
+description: "Use before claiming a system is production-ready, release-ready, or 100% supported to certify the matrix with evidence."
 ---
 
 ## OBJECTIVE
@@ -76,7 +76,7 @@ Absolute language (`all`, `100%`, `complete`, `production-ready`) requires an ex
 - Record working tree; identify unrelated dirty files.
 - Generated files, lockfiles, schemas, registries, docs consistent with the claim.
 - No production placeholders, `todo!()`, hard-coded success, forced pass, disabled gate, or no-op required path.
-- Inventory every substitute for a boundary the claimed path calls (mock, fake, stub, spy, emulator, in-memory service, recorded service response, test mode, or a renamed equivalent), including those inside tests. Each needs a `SUBSTITUTE_JUSTIFICATION`, and its result is excluded from readiness evidence for the boundary it replaces. Constructed inputs that the real component reads are inputs, not substitutes.
+- Inventory every substitute for a boundary the claimed path calls (mock, fake, stub, spy, emulator, in-memory service, recorded service response, test mode, or equivalent), including those inside tests; document what each replaces and exclude its result from readiness evidence for the replaced boundary. Constructed inputs that the real component reads are inputs, not substitutes.
 - Any required real dependency, data path, or external effect replaced by a substitute keeps that matrix item `BLOCKED` until the real path runs. A suite called `e2e_test`, `integration`, `real`, or equivalent does not change the classification.
 - Dependency risk evidence when deps changed.
 - Repo checks appropriate to the surface — green tests are evidence for tested gates only.

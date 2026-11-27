@@ -1,6 +1,6 @@
 ---
 name: workflow-judger
-description: "Arbitrate repeated task failures and decide merge, rework, or escalation."
+description: "Use in formal workflows after repeated rework failures to arbitrate merge, rework, or user escalation."
 ---
 
 ## Objective

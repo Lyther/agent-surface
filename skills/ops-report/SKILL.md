@@ -1,6 +1,6 @@
 ---
 name: ops-report
-description: "Produce an evidence-backed project report for engineering, research, executive, or full-audience discussion."
+description: "Use when asked for an evidence-backed engineering, research, or status report rather than code changes."
 ---
 
 ## Objective

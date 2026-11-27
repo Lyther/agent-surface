@@ -1,6 +1,6 @@
 ---
 name: qa-audit
-description: "Audit a project or system across code, architecture, security, dependencies, tests, operations, and repository integrity."
+description: "Use when conducting a holistic repository audit across code quality, architecture, security, deps, tests, and operations."
 ---
 
 ## Objective

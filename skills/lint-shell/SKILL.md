@@ -1,6 +1,6 @@
 ---
 name: lint-shell
-description: "Apply strict Bash and POSIX sh quoting, strict-mode, path-safety, and ShellCheck/shfmt rules with examples. Use when writing, reviewing, or checking shell scripts or CI/Container shell snippets."
+description: "Use when writing or reviewing Bash or POSIX sh scripts. Applies strict quoting, set -euo pipefail/set -eu safety, rm guards, and ShellCheck/shfmt rules."
 ---
 
 ## Baseline

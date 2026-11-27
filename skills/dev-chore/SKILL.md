@@ -1,6 +1,6 @@
 ---
 name: dev-chore
-description: "Maintain development quality by correcting local design, reuse, complexity, risk, and UX drift before it compounds."
+description: "Use during development when design, reuse, complexity, or UX drifts to make bounded local cleanups before debt compounds."
 ---
 
 ## Objective

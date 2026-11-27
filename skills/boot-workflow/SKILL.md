@@ -1,6 +1,6 @@
 ---
 name: boot-workflow
-description: "Show the risk-adaptive agent-surface workflow map, execution profiles, formal-ledger boundary, and next-step rules without starting implementation."
+description: "Use when checking which workflow route, formal ledger rule, or next step applies before starting multi-step implementation."
 ---
 
 ## Objective

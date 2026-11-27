@@ -1,6 +1,6 @@
 ---
 name: verify-edge
-description: "Budgeted hostile I/O and edge harnesses that must catch real faults."
+description: "Use when testing parsers, boundaries, or I/O paths with budgeted adversarial, fuzz, or boundary inputs."
 ---
 
 ## Objective

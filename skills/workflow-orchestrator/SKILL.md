@@ -1,6 +1,6 @@
 ---
 name: workflow-orchestrator
-description: "Run risk-adaptive development, review, multi-agent, and release workflows with runtime preflight, bounded retries, liveness checks, isolated writers, and evidence-backed handoffs."
+description: "Use when coordinating multi-step, reviewed, or orchestrated workflows with runtime preflight, bounded retries, liveness checks, and clean handoffs."
 ---
 
 ## Objective
@@ -95,14 +95,14 @@ Do not freeze or prove every intermediate patch. A failed acceptance invalidates
 
 For formal `orchestrated` or `release` sessions, create `.agent-surface/workflows/<run_id>/agents.json` with `schema_version: workflow.monitor.v2`, holding run-level retry/review policy (`max_review_cycles` counts rework cycles, so its maximum of 2 means three review rounds) and per-agent liveness budgets. It is mutable monitor state, not product evidence, and never committed. A `reviewed` loop enforces the same budgets through the host's native session controls and concise progress updates, without opening a formal ledger for monitor state.
 
-Default budgets unless repository evidence justifies another value:
+Default liveness heuristics (scale `No-progress timeout` and `Role timeout` to the repo's actual build/test duration rather than terminating active builds early):
 
 | Role | First materialized output | No-progress timeout | Role timeout |
 | --- | ---: | ---: | ---: |
-| plan/BOSS | 2 min | 3 min | 10 min |
-| worker | 3 min | 5 min | 40 min |
-| reviewer/QA | 3 min | 5 min | 15 min |
-| judger/rescue | 2 min | 3 min | 10 min |
+| plan/BOSS | ~2 min | ~3 min | ~10 min |
+| worker | ~3 min | ~5 min | ~40 min |
+| reviewer/QA | ~3 min | ~5 min | ~15 min |
+| judger/rescue | ~2 min | ~3 min | ~10 min |
 
 A progress event references real activity: an inspected file, a materialized plan/diff/artifact, a command start or finish, a check result, or a blocker. Repeated prose such as "still working" is not progress.
 

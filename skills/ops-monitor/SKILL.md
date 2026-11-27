@@ -1,6 +1,6 @@
 ---
 name: ops-monitor
-description: "Stream, filter, and analyze live system behavior."
+description: "Use when streaming, filtering, and diagnosing live logs, metrics, or running system behavior."
 ---
 
 ## OBJECTIVE
