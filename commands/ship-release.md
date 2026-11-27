@@ -12,7 +12,7 @@ Translate commit history into a SemVer version, a changelog, and a release recor
 
 1. Never cut a release from uncommitted state.
 2. The version bump, release record, and tag belong together; a version number without artifact identity is not a release.
-3. Release tags are annotated and signed.
+3. Release tags are annotated and signed (`git tag -s`). Stop if tag signing fails unless the repository's release policy explicitly uses unsigned tags.
 4. If release notes, bundle names, or published assets do not match reality, stop and fix them before release.
 5. Pushing version commits and tags is irreversible distribution: verify the remote, branch, tag, and release identity, then complete the configured workflow without another confirmation prompt.
 6. Send release email, mailing-list, Slack/Discord, or webhook announcements only to channels named by the task or the established release workflow, never to unrelated recipients.
@@ -32,7 +32,7 @@ Prepend the new entry to `CHANGELOG.md`, grouped by intent (Features, Fixes, Per
 1. Bump the version files (`package.json`, `Cargo.toml`, `pyproject.toml`, or equivalent) and regenerate lockfiles or manifests if required.
 2. Commit the version files, lockfiles, and changelog entry together; this commit is the release state.
 3. Build the artifact from that exact commit with `ship-artifact`: verified artifact, SBOM, provenance, signatures, and release manifest, with every required proof and staging check passed for its digest or checksum. An artifact built before the bump carries the previous version files and is not this release.
-4. Create a signed annotated tag (`v1.2.3`) on that commit.
+4. Create an annotated, signed tag (`git tag -s v1.2.3`) on that commit; stop if signing fails rather than publishing an unsigned release tag.
 5. Create the release record for the tagged commit: Git SHA, version, artifact digest or checksum, bundle checksum, SBOM location, provenance location, and changelog entry.
 6. Resolve and verify the target remote and branch, then push the version commit and tag together. Respect protected-branch policy by using the repository's release branch or PR workflow.
 

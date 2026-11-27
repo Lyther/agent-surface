@@ -2,32 +2,25 @@
 
 ## File Organization
 
-MANY SMALL FILES > FEW LARGE FILES:
+Keep modules cohesive and decoupled, matching the repository's existing layout and conventions. Split files only when distinct responsibilities warrant it; avoid unrequested file-splitting churn.
 
-- High cohesion, low coupling
-- 200-400 lines typical, 800 max
-- Extract utilities from large components
+## Dependencies and Reuse
 
-## Skeleton Projects
+When implementing new features or components:
 
-When implementing new projects or features:
-
-- Search for existing projects & articles
-- Use parallel agents to speed up workflow
-- Clone/Reuse best match as a foundation
-- Think before increasing complexity
+- Check existing repository utilities and standard library capabilities before writing new abstractions or adding packages.
+- Before adding a dependency, vet maintenance, license, security advisories, and transitive footprint.
+- Choose the simplest design that meets the current requirement without speculative extension points.
 
 ## Documentation
 
-- Create a new doc only when the repository's layout calls for one. Reports, summaries, and plans go in chat.
-- Docs describe the current state and open decisions; history lives in git and CHANGELOG.md.
-- Keep each fact only in one place.
-- Every document should have a link path from README.md.
-- Use concise wording; keep documents just enough to hold the required information.
-- Name docs in kebab-case; common ones like `README.md` and `LICENSE` are exceptions.
+- Create a new doc only when asked or when the repository's layout calls for one. Reports, summaries, and plans go in chat.
+- Docs describe current state and open decisions; history lives in git and `CHANGELOG.md`.
+- Keep each contract in one canonical place and link rather than duplicating.
+- Follow existing repository conventions for doc naming and navigation links.
 
 ## Repository
 
-- Follow the existing layout and naming; put new files next to similar ones.
-- Replace instead of forking: No `_v2`, `_new` or `_old` style copies.
-- Keep scratch files, one-off scripts, and temporary files in /tmp.
+- Follow existing layout and naming; place new files next to similar ones.
+- Replace instead of forking: no `_v2`, `_new`, or `_old` copies.
+- Keep temporary files and one-off scripts in OS temp directories (`$TMPDIR` / `mktemp`), outside tracked project trees unless asked to preserve them as tooling.
