@@ -1,6 +1,6 @@
 ---
 name: workflow-boss
-description: "Decompose related tasks into an implementable spec without writing code."
+description: "Use in orchestrated mode to decompose related tasks into a bounded spec and task batch without writing code."
 ---
 
 ## Objective

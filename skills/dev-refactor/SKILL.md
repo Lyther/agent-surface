@@ -1,6 +1,6 @@
 ---
 name: dev-refactor
-description: "Reduce complexity while preserving behavior exactly."
+description: "Use when simplifying or restructuring existing code while keeping observable behavior and contracts unchanged."
 ---
 
 ## Objective

@@ -1,6 +1,6 @@
 ---
 name: qa-trace
-description: "Find high-impact logic, security, race, privacy, and design failures with evidence."
+description: "Use when auditing complex logic, security, race conditions, or trust-boundary dataflows with source-to-sink evidence."
 ---
 
 ## Objective
@@ -15,7 +15,7 @@ Audit like a hostile reviewer: trace dataflow, control flow, authorization conte
 - Focus: all (default), security, logic, race, design, smell, or privacy.
 - SAST: off, ingest, local, or auto (default).
 - Run mode: inspect (default), safe, tests, or dynamic; see below.
-- Budget: max depth 16, max frontier 12 per entry point, 1 pass.
+- Budget: soft default ~16 depth and ~12 frontier per entry point (adjust to target complexity), 1 pass.
 - Report and state paths: only when the user gives them.
 
 Do not ask pre-flight questions; record assumptions. Ask only when the target is unreadable or authorization is ambiguous.
@@ -35,7 +35,7 @@ Confidence: `C0` suspicion; `C1` plausible, key evidence missing; `C2` source �
 3. **Seed from SAST.** SAST is a lead, not proof. With SAST `ingest` or `auto`, ingest existing `*.sarif`, semgrep, CodeQL, bandit, gosec, eslint security, and audit reports with their tool, date, commit, target, finding count, staleness, and redaction notes; with `local` or `auto` and run mode `safe` or above, run installed tools only (`semgrep --config=auto --sarif -o /tmp/qa-trace-semgrep.sarif -- "${target:-.}"`), recording failures and their effect on confidence; `off` skips both.
 4. **Inventory.** Entry surfaces: HTTP, GraphQL, WebSocket, webhooks, queue consumers, cron, CLI, RPC, serverless, OAuth/SAML callbacks, uploads, admin endpoints, storage events. Sinks: authorization decisions, resource selectors, queries and writes, role or billing mutations, command execution, file paths, outbound requests, template or Markdown rendering, logs, notifications, storage ACLs, crypto, deserialization, dynamic dispatch, cache and queue writes. Rank entry points by reachability, mutation, privilege, user-controlled identifiers, tenancy, persistence, async or serialization boundaries, and weak defenses; with entry `auto`, pick the top ones for the budget and say why.
 5. **Invariants.** Before tracing, write the invariants the code must keep (tenant isolation, admin-only role changes, single-use expiring reset tokens, idempotent webhook retries, events carrying actor and tenant, no resurrection by stale events, non-negative balances), each with its entry points, sinks, and evidence.
-6. **Trace.** Go source-to-sink from risky entry points and sink-to-source from dangerous sinks, follow persisted taint, state transitions, and shared mutable resources. At each function read middleware, guards, validation, authorization, transaction scope, error handling, feature flags, and async boundaries. Keep a ledger row per step: `trace_id, location, boundary, source, sink proximity, authn (NONE|CLAIMED|VERIFIED|UNKNOWN), authz (NONE|PARTIAL|RESOURCE|TENANT|ROLE_ONLY|UNKNOWN), actor (PRESENT|ABSENT|DROPPED|FORGEABLE|UNKNOWN), tenant (PRESENT|ABSENT|VERIFIED|DROPPED|MIXED|UNKNOWN), validator (NONE|STATIC_ONLY|RUNTIME|PARTIAL|UNKNOWN), persistence (TRANSIENT|STORED|SECOND_ORDER_SOURCE|UNKNOWN), evidence_id`; taint stored anywhere is `STORED`. JWT verification is authentication, not authorization; type annotations are not runtime validation; validators, canonicalizers, sanitizers, encoders, and authorizers are different controls; escaping for one sink does not protect another. Detect cycles by file, function, and state; stop at saturation or the depth and frontier limits, and record the remaining frontier as a blind spot.
+6. **Trace.** Go source-to-sink from risky entry points and sink-to-source from dangerous sinks; follow persisted taint, state transitions, and shared mutable resources. At each boundary inspect middleware, guards, validation, authn/authz context (`actor`, `tenant`), transaction scope, error handling, feature flags, and async handoffs, recording exact `file:line` evidence for confirmed or candidate failures. JWT verification is authentication, not authorization; type annotations are not runtime validation; validators, canonicalizers, sanitizers, encoders, and authorizers are different controls; escaping for one sink does not protect another. Detect cycles by file, function, and state; record unexplored paths as blind spots.
 7. **Interrogate boundaries.** At each file, service, async, serialization, persistence, or trust boundary ask: actor and tenant preserved? ownership checked? does caller or callee assume the other authorizes? another route to the same sink without this defense? runtime schema validation? canonicalized before comparison? can arrays, objects, nulls, NaN, huge integers, Unicode variants, or path tricks bypass it? does taint cross queues? are events versioned and idempotent, and can stale ones win? is read-modify-write atomic, with a lock, idempotency key, retry dedupe, and ordering? can errors or logs leak payloads or existence? A missing check is a finding only when an input on the trace reaches it unchecked by every earlier boundary. Cover the relevant injection classes (SQL/NoSQL/LDAP/GraphQL, operator, prototype pollution, deserialization, XXE, template, command, path traversal, SSRF, open redirect, header, log, Markdown/HTML).
 8. **Resolve dispatch.** Find the concrete code behind emitters, DI, decorators, middleware, ORM hooks, resolvers, queues, jobs, serverless handlers, sockets, protobuf or OpenAPI bindings, triggers, and flags; read implementations, not names. Unresolved dynamic dispatch or absent downstream code is a blind spot (contract-only evidence).
 9. **Second-order taint.** For taint stored in a database, cache, queue, file, object store, log, search index, or analytics stream, trace the readers that reach output, authorization, privileged writes, queries, deserialization, templates, command, file, or network sinks, logs, or notifications; cluster readers beyond budget and list the rest as blind spots.
@@ -45,18 +45,9 @@ Confidence: `C0` suspicion; `C1` plausible, key evidence missing; `C2` source �
 
 ## Output
 
-```markdown
-# QA Trace Report
-## Summary — target, mode, focus, run mode, git state, result, confirmed/probable counts, top root cause, confidence, scope warning
-## Evidence Ledger — E1 `path:10-30` what it shows
-## Attack Surface — HTTP / GraphQL / Queue / Cron / RPC / CLI / admin / unresolved
-## Invariants — I1 …
-## Trace Summary — T1 `[d=1] path:45` source | authn | authz | actor | tenant | validator
-## Findings — per finding: severity, confidence, priority, corroboration, surfaces, trigger, location, invariant violated, source → sink, defense status, preconditions, reproduction, impact, evidence, fix, regression test, residual risk
-## Downgraded Candidates · Design and Smell Findings · Failed Probes (probe, failure, effect)
-## Blind Spots — dynamic dispatch, unavailable services, untraced surfaces and readers, tests not run, stale SAST, skipped generated code
-## Remediation — P0 / P1 / P2, and the failing input a regression test should use for each High or Critical finding
-## Scope — exactly what was and was not verified
-```
+Report concisely with:
+- **Summary**: target, mode, run mode, confirmed/probable counts, scope caveat
+- **Findings**: severity, confidence (`C0`–`C4`), location (`path:line`), source -> sink path, defense gap, preconditions, reproduction, fix, and regression test case
+- **Blind Spots & Failed Probes**: unresolved dynamic dispatch, unavailable dependencies, skipped paths
 
-A clean result reads "No confirmed findings in traced scope", never a global security verdict. Redact secrets and payloads throughout, and record failed probes and blind spots.
+A clean result reads "No confirmed findings in traced scope", never a global security verdict. Redact secrets and payloads throughout.

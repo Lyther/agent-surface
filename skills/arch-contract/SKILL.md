@@ -1,6 +1,6 @@
 ---
 name: arch-contract
-description: "Define aligned domain, data, API, and interface contracts without exposing internal storage as the public boundary."
+description: "Use when designing or changing domain, API, schema, or service interfaces so public boundaries stay clean and decoupled from internal storage."
 ---
 
 ## Objective

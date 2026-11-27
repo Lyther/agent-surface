@@ -1,6 +1,6 @@
 ---
 name: ship-artifact
-description: "Package immutable release artifacts with provenance evidence."
+description: "Use when packaging immutable release artifacts, container images, checksums, SBOMs, or provenance manifests."
 ---
 
 ## Objective
@@ -26,8 +26,7 @@ Turn code into a portable artifact that records its exact repo, full Git commit,
 ## 2. Build
 
 - Build through one checked-in entrypoint (`scripts/build_artifact.sh` or `make artifact`) on `docker buildx` for OCI artifacts or an isolated builder otherwise, never an ad-hoc host with hidden state.
-- Target `linux/amd64` and `linux/arm64`.
-- Build multi-stage onto distroless or another minimal base pinned by digest; the final image holds no compiler, package manager, or source tree.
+- For OCI container releases: target `linux/amd64` and `linux/arm64` unless the target runtime specifies otherwise, build multi-stage onto distroless or another minimal pinned base, and sign/verify via OIDC (`cosign`) + SBOM (`syft`/`grype`) where the pipeline distributes containers or signed public artifacts. For non-container libraries, local bundles, or OS packages, use the ecosystem's native immutable build with `SHA256SUMS` and available signing/SBOM tooling without requiring container registries.
 - In every language, copy dependency manifests before application source so the cache survives rebuilds.
 - Prefer self-contained binaries for public CLI releases: Go with `CGO_ENABLED=0` and `-trimpath`, checked with `file`/`ldd`; Rust with a `*-unknown-linux-musl` target when Linux portability matters and dependencies allow. Verify libc, TLS, CGO, and target-runtime behavior before claiming portability. `upx` is optional; it can trigger AV heuristics and hinders debugging.
 - Set `SOURCE_DATE_EPOCH` from the commit timestamp and strip non-deterministic metadata and absolute paths where the toolchain supports it. To claim reproducibility, build twice and compare digests or artifact hashes.

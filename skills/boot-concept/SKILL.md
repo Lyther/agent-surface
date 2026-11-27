@@ -1,6 +1,6 @@
 ---
 name: boot-concept
-description: "Research and write the concept-zero high-level design for a project."
+description: "Use at greenfield project kickoff to research constraints and write a focused high-level design before architecture or code."
 ---
 
 ## Objective

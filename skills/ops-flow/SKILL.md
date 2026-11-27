@@ -1,6 +1,6 @@
 ---
 name: ops-flow
-description: "Route work to direct, standard, reviewed, orchestrated, release, audit, parallel, or shipping paths using risk, ambiguity, proof, and parallelism."
+description: "Use when routing non-trivial tasks to direct, standard, reviewed, orchestrated, release, audit, parallel, or shipping execution paths."
 ---
 
 ## Objective

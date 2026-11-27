@@ -1,6 +1,6 @@
 ---
 name: ops-ask
-description: "Clarify a material requirement, evidence conflict, architectural choice, or risky assumption before implementation proceeds."
+description: "Use when material requirements, conflicting evidence, architectural trade-offs, or risky assumptions must be clarified before coding."
 ---
 
 ## Objective

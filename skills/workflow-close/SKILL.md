@@ -1,6 +1,6 @@
 ---
 name: workflow-close
-description: "Close an accepted or aborted workflow run while preserving history."
+description: "Use when closing an accepted or aborted formal workflow run cleanly while preserving its ledger history."
 ---
 
 ## Objective

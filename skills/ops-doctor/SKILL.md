@@ -1,6 +1,6 @@
 ---
 name: ops-doctor
-description: "Run a health check on the agent-surface repository and local generated surfaces."
+description: "Use when diagnosing agent-surface toolchain, registry, MCP launcher, or generated host integration health."
 ---
 
 ## Objective

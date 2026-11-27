@@ -1,6 +1,6 @@
 ---
 name: verify-performance
-description: "Prove latency, capacity, and concurrency against an explicit baseline — not a vanity P99."
+description: "Use when verifying latency, capacity, and concurrency SLOs against an explicit performance baseline."
 ---
 
 ## Objective

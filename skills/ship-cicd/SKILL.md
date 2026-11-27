@@ -1,6 +1,6 @@
 ---
 name: ship-cicd
-description: "Repair and harden CI/CD pipelines with evidence gates."
+description: "Use when creating, fixing, or hardening CI/CD workflows, caching, secrets handling, and release gates."
 ---
 
 ## Objective

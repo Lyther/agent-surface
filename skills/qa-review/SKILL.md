@@ -42,7 +42,7 @@ Review one domain at a time across all in-scope files. Without a focus, always r
 - Touched contracts stay compatible (API/ABI/UAPI, wire format, schema, storage, CLI, config, permissions, observable output) or the migration is scoped and documented.
 - One logical change per patch; refactors, formatting, dependency churn, and adjacent fixes are split out unless the fix needs them. Each patch in a series builds and passes on its own.
 - The design is the smallest one that preserves the invariants; flag clever, global, stateful, or speculative fixes.
-- Review test diffs adversarially: relaxed assertions, deleted negative cases, skips, "test mode" switches, or substitutes can hide a regression. Reject a test whose substitute lacks a complete `SUBSTITUTE_JUSTIFICATION`; its run proves the real code it exercised and nothing about the replaced boundary.
+- Review test diffs adversarially: relaxed assertions, deleted negative cases, skips, "test mode" switches, or substitutes can hide a regression. Reject any test whose boundary substitute lacks a stated justification; its run proves only the real code it exercised and nothing about the replaced boundary.
 - Tool-generated code, tests, or text must be understood and defended by the submitter.
 
 ### Kernel (in addition, for kernel trees and patches)

@@ -1,6 +1,6 @@
 ---
 name: ops-deps
-description: "Audit and refresh dependency health and supply-chain state."
+description: "Use when adding, updating, or auditing dependencies for maintenance, license, security advisories, and footprint."
 ---
 
 ## Objective

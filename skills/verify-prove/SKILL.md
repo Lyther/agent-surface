@@ -1,6 +1,6 @@
 ---
 name: verify-prove
-description: "Prove shipped bits under real user journeys, robustness, and adversary pressure."
+description: "Use when verifying shipped bits or installers under real user journeys, robustness, and adversary pressure."
 ---
 
 ## Objective
@@ -43,56 +43,23 @@ FAIL when identity is ambiguous, the flow needs the checkout, a required path is
    Give every supported mode, engine, version, or exporter in the claimed scope at least one journey. A product-like claim needs at least the primary happy path, one failure path with honest feedback, and one recovery, retry, or restart path when lifecycle is claimed.
 4. Outcomes: verify real backing state (rows, blobs, queues, manifests, merged config keys); logs, traces, and metrics for this version only, with secrets redacted; required bundle files present and forbidden ones absent (source tree, fixtures as production, prompt leakage, debug secrets). Grade the environment; agent self-reports and marketing copy are untrusted.
 5. Live identity: confirm the running system matches the frozen record (digest, version, checksum, config family); a green journey on the wrong bits is FAIL.
-6. Robustness, using readiness probes and explicit deadlines rather than fixed sleeps:
+6. Robustness (apply the checks relevant to the target's surface, using readiness probes rather than fixed sleeps):
 
    | Check | Requirement |
    |---|---|
-   | Concurrency | 2-5 parallel critical-path operations; zero correctness failures |
+   | Concurrency | when stateful/concurrent paths exist, run parallel operations and verify zero correctness failures |
    | Dependency fault | timeout, down, or denied dependency yields controlled failure, not corruption or false success |
    | Restart / upgrade | when install or service lifecycle is claimed, restart or upgrade works or is `BLOCKED` with reason |
    | Idempotency / replay | where claimed, replay does not double-apply destructive effects |
-   | Resource pressure | short bounded stress relevant to the claim; optional only when the claim excludes it |
+   | Resource pressure | bounded load relevant to the claim; optional when excluded |
 
-7. Adversary: assume a hostile user or compromised tool path, on the exact task-authorized target (local, staging, or production) with bounded effects and rollback where applicable. When the surface accepts untrusted input, tools, or configs, cover at least: an authorization negative (a disallowed action is denied); injection, path, or merge abuse relevant to the product (config clobber, path escape, prompt or tool exfiltration); secrets absent from logs, errors, MCP memory, and generated user configs; and one domain-specific abuse case that would look healthy if only exit codes were checked. If the legal or engagement scope excludes adversary testing, mark these `BLOCKED` and claim no security or production readiness for them.
-8. Trials: for models, races, or other nondeterminism run N trials (default at least 3; 1 may suffice for a fully deterministic path) and report passes out of N. A flaky journey is FAIL until stabilized or excluded from the claim.
+7. Adversary (when the target handles untrusted inputs, configs, privileges, or external boundaries): test authorization negatives, injection/path/merge abuse, secret absence from logs/configs/memory, and a domain abuse case. If engagement scope excludes adversary testing, state that scope exclusion clearly.
+8. Trials: for races, models, or nondeterministic paths run N trials (at least 3) and report passes out of N; 1 trial suffices for deterministic flows. A flaky journey fails until stabilized or excluded from the claim.
 
 ## Output
 
-```markdown
-# PROOF COMPLETE
-
-## Identity
-- git_sha: `...`
-- artifact: `...@sha256:...` or checksum
-- version: `...`
-- live_identity_match: yes|no
-
-## Clean room
-- install path: <cmd>
-- source-tree dependency: no|yes (yes → FAIL)
-
-## Journeys
-- <journey>: PASS|FAIL — UX rubric notes — evidence
-- failure-path: ...
-- recovery-path: ...
-- substitutes: none | <replacement> (any entry = FAIL for E2E/prove)
-
-## Outcomes
-- persistence: ...
-- bundle required/forbidden: ...
-- logs/traces: clean|issues
-
-## Robustness
-- concurrency: ...
-- dependency fault: ...
-- restart/upgrade: ...
-
-## Adversary
-- <case>: PASS|FAIL|BLOCKED
-
-## Trials
-- deterministic|N=<n> pass=<k>
-
-## Verdict
-PASS|FAIL|BLOCKED
-```
+Report:
+- **Identity & Clean Room**: SHA/checksum/version verified; clean-room boot without checkout overrides
+- **Journeys & Outcomes**: pass/fail per journey, real state verified, any substitutes (none allowed on PASS E2E journeys)
+- **Robustness / Adversary / Trials**: checks run or `n/a` (deterministic/single-user)
+- **Verdict**: `PASS | FAIL | BLOCKED` with blockers if any

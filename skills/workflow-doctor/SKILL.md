@@ -1,6 +1,6 @@
 ---
 name: workflow-doctor
-description: "Validate active workflow state before any role acts on it."
+description: "Use before advancing or resuming a formal workflow to validate ledger, round, and artifact integrity."
 ---
 
 ## Objective

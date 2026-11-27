@@ -1,6 +1,6 @@
 ---
 name: verify-test
-description: "Use when a test run has just come back green, or is about to run, and the result will be relied on as proof that a change works."
+description: "Use when reviewing whether a green test run actually proves a change works, checking for weakened assertions, skipped cases, or mocked real paths."
 ---
 
 ## Objective
@@ -13,7 +13,7 @@ PASS requires all of:
 - the suite was not weakened for this change: no newly skipped, `xfail`, `only`, or deleted tests, loosened assertions, diluted thresholds, or disabled gates;
 - for fix or regression work, a test that fails on the pre-fix tree and passes after;
 - nondeterministic paths ran enough times to show stability, with seeds captured;
-- every substitute for a called boundary is inventoried with a `SUBSTITUTE_JUSTIFICATION`, and its results are excluded from PASS evidence for the boundary it replaces.
+- every substitute for a called boundary is documented with why the real dependency cannot safely or deterministically run, and its results are excluded from PASS evidence for the boundary it replaces.
 
 FAIL when green came from removing a gate, diluting an assertion, substituting a required path, an unjustified substitute, calling a substitute-backed suite E2E, integration, or real, or a "regression" test that also passes on the unpatched code.
 
@@ -39,7 +39,7 @@ Missing integration tooling, credentials, services, or environments make that la
    - Skips: new `skip`, `xfail`, `.only`, `it.skip`, `t.Skip`, or deleted or renamed tests since baseline. One that hides the change's behavior is a REJECT-level finding; a skip without a tracked reason is unacceptable.
    - Assertions: none loosened; no `assert True`, `expect(true).toBe(true)`, or "does not throw" as the sole check on a trust boundary; no mock-was-called as the only assertion on a critical path.
    - Oracles: expected values trace to the spec, not pasted from current, possibly buggy output; snapshots are reviewed, not regenerated blindly in the change that altered behavior.
-   - Substitutes: search code, config, helpers, and service setup for every non-real replacement regardless of label, including test modes and local servers that imitate a dependency. Each needs a complete `SUBSTITUTE_JUSTIFICATION`; "fast", "easy", "hermetic", "offline", "CI", "flaky service", or "missing credentials" is not necessity, and a missing record invalidates the affected test. A substitute-backed result counts only for the real code it exercised, never for the replaced code, service, data path, or external effect; a constructed input the real component reads is an input, not a substitute.
+   - Substitutes: search code, config, helpers, and service setup for every non-real replacement regardless of label, including test modes and local servers that imitate a dependency. Each must document what boundary it replaces and why a real or disposable dependency could not serve that assertion ("fast", "easy", "hermetic", "offline", "CI", "flaky service", or "missing credentials" is not necessity). A substitute-backed result counts only for the real code it exercised, never for the replaced code, service, data path, or external effect; a constructed input the real component reads is an input, not a substitute.
    - Gates: no disabled lint, type, or coverage gate, no `continue-on-error` slipped into CI, no weakened threshold.
    - Regression bite, for a fix: revert the fix, confirm the regression test FAILS, restore the fix, confirm it PASSES. A regression test green on the unpatched code is a false negative: REJECT.
 4. Flake and determinism: retry a failure up to 3 times; passing on retry is FLAKY (report it; a 1%-flaky test is broken, not passing), still failing is BROKEN. Never average away a nondeterministic failure. Print and pin RNG seeds and time-sensitive inputs, rerun with the same seed when supported, and reject assertions on `now()` or `random()` without a seeded or injected clock.

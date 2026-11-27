@@ -1,6 +1,6 @@
 ---
 name: dev-spec
-description: "Define a development change with discriminating RED tests that fail for the intended behavioral reason before implementation."
+description: "Use before implementation to define a change with discriminating RED tests that fail for the intended behavioral reason."
 ---
 
 ## Objective
@@ -26,7 +26,7 @@ Accept the spec only when:
 - success behavior is covered, plus failure, boundary, and invariant behavior wherever the requirement or an observed failure names it;
 - expectations come from the requirement, a standard, a human-locked example, or an independent property, never copied implementation output, and no case adds a requirement the request does not state;
 - a constant-returning stub, weakened assertion, skipped path, or transcript-only result cannot satisfy it;
-- tests use the real implementation and data path (`rules/test.md`); any approved substitute needs a `SUBSTITUTE_JUSTIFICATION`, stays diagnostic, and never proves the replaced boundary, and unavailable real prerequisites make that proof `BLOCKED`;
+- tests use the real implementation and data path (`rules/test.md`); any necessary boundary substitute must be documented, stays diagnostic, and never proves the replaced boundary, and unavailable real prerequisites make that proof `BLOCKED`;
 - the planned implementation can stay proportionate to the requested maturity.
 
 ## Procedure

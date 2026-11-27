@@ -1,6 +1,6 @@
 ---
 name: dev-converge
-description: "Compare competing implementations and keep the strongest verifiable result."
+description: "Use when multiple candidate patches or designs exist to compare them against tests and keep the strongest verifiable result."
 ---
 
 ## Objective

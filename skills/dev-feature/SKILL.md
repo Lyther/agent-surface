@@ -1,6 +1,6 @@
 ---
 name: dev-feature
-description: "Implement real behavior and prove it with relevant checks."
+description: "Use when implementing a planned feature or behavior change with tests and real verification."
 ---
 
 ## Objective
@@ -8,7 +8,7 @@ description: "Implement real behavior and prove it with relevant checks."
 Implement real behavior and prove it with evidence.
 
 - Never hardcode return values or substitute production behavior.
-- Test substitutes follow `rules/test.md`: no mocks, fakes, or stubs without explicit user approval, and any approved substitute needs a `SUBSTITUTE_JUSTIFICATION` and proves nothing about the boundary it replaces. Constructed inputs that the real code reads are not substitutes.
+- Test substitutes follow `rules/test.md`: never mock the unit under test or claim integration/E2E proof from a substitute; when an external boundary substitute is unavoidable, document what it replaces and why. Constructed inputs that the real code reads are not substitutes.
 - Never modify, delete, or comment out an existing test to make it pass; fix the code. `expect(true).toBe(true)` is sabotage.
 - If blocker discipline (Phase 3a) cannot unblock a task, report a structured blocker; never fake a solution.
 
@@ -94,14 +94,14 @@ Attempt the safe discovery or repair available to you before emitting a blocker.
 
 For UI, components, or async user-facing state:
 
-- Intent: preserve an existing frontend stack; read `package.json`, routes, component directories, theme config, and test setup before adding patterns or libraries. New product UI defaults to Leptos or Reflex unless the user or project policy says otherwise. Internal admin/ops consoles reuse the repo's React stack, or React with Arco or Semi when greenfield (Modern.js/Rsbuild/Rspack only if the repo uses it or the user asks), as list, detail, and action pages with explicit action states; use VisActor only for chart-heavy dashboards, dense analytical tables, or visualization beyond the component library's primitives, and build no marketing pages, decorative heroes, custom design systems, or animation-heavy screens. Synthetic enterprise fixtures and game/mod UI belong to their domain commands.
+- Intent: preserve the repository's existing stack and conventions; read `package.json`, routes, component directories, theme config, and test setup before adding patterns or libraries. Only when starting greenfield UI with no stack specified, choose an idiomatic minimal stack aligned with the project language or the user's stated preference; build no decorative heroes, custom design systems, or unnecessary animation chrome unless requested.
 - Boundaries: fetch through API/resource boundaries, never DB drivers or backend-only logic in the view; reuse shared shapes from `arch-contract` or its equivalent. Derive columns, filters, detail fields, and action payloads from typed contracts, or from the smallest local type matching observed backend data with unknown fields marked; invent no column or action the backend cannot provide.
 - State: URL for shareable view state (filters, pagination, sort, tabs, selected IDs); local for transients (drafts, drawers, focused row); server data through the repo's data-fetching, loader/action, or server-state cache, never copied into global state; global only for genuinely app-wide context, not Redux/Zustand/MobX to move filters. Follow an existing TanStack Table/Query or loader pattern instead of adding a parallel stack.
 - Quality: handle the loading, error, empty, and success states the journey reaches; keep touch targets, keyboard/focus, accessibility, and responsiveness intact; add `data-component`/`data-testid` selectors when they materially help debugging or tests; prefer small components over giant files or prop explosions.
 
 ### Phase 4: Implement
 
-Loop in atomic chunks of 10–30 lines (never over 50): write, save, run the relevant test, and fix any failure before the next chunk; never implement everything at once.
+Implement cohesive, reviewable behavior slices and run relevant checks as you complete each slice instead of deferring all verification to the end.
 
 - Compute real results (no `return "token123"`).
 - Handle the failures the change can produce and the sad paths the spec names; never crash on or swallow them.

@@ -1,6 +1,6 @@
 ---
 name: qa-measure
-description: "Collect hard performance and resource measurements."
+description: "Use when benchmarking or profiling latency, throughput, memory, or resource consumption with reproducible runs."
 ---
 
 ## Objective

@@ -1,6 +1,6 @@
 ---
 name: arch-roadmap
-description: "Convert a concept-zero HLD into a comprehensive architecture and executable roadmap."
+description: "Use after design exploration to turn a high-level design into concrete module architecture and an executable build roadmap."
 ---
 
 ## Objective
