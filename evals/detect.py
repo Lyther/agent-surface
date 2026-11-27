@@ -5,7 +5,8 @@ file, Droid three times), so a file-open audit alone cannot tell a load from tha
 therefore taken from the host's own execution record, and the audit only confirms it:
 
 - A load is a tool call that names an installed skill (OpenCode `skill`, Droid `Skill`), or a read-class tool
-  call or shell command whose target resolves to an installed `<skill>/SKILL.md`. Installed means listed in
+  call or shell command whose target resolves to an installed `<skill>/SKILL.md`. A Droid `Script` call counts as
+  the `tools.<Name>({...})` calls its JavaScript makes, labelled `Script: <Name>`. Installed means listed in
   the attempt's `arm-skills.txt`; `~`, `$HOME` and relative paths are resolved first (a relative path against
   the call's working directory when the host records one, or a single leading `cd DIR &&`). A path that cannot
   be resolved counts only when the audit shows the installed file opened after the scan.
@@ -35,6 +36,11 @@ SKILL_TOOLS = {"opencode": {"skill": "name"}, "droid": {"Skill": "skill"}, "clau
 READ_TOOLS = {"opencode": {"read": "filePath"}, "droid": {"Read": "file_path"}, "claude-code": {"Read": "file_path"}, "codex": {}}
 # A command-line token ending in SKILL.md (quotes, redirects and separators end a token).
 SKILL_TOKEN = re.compile(r"[^\s'\"=;|&<>()]*SKILL\.md\b")
+# Droid's Script tool runs model-written JavaScript that calls other tools as `tools.<Name>({...})` (GPT models route
+# most calls through it), and its recorded result is not the calls' output, so the script text is the evidence. Only
+# string-literal arguments are read: a name or path held in a variable stays unresolved.
+SCRIPT_CALL = re.compile(r"\btools\.([A-Za-z_]\w*)\s*\(")
+SCRIPT_FIELD = re.compile(r"""["']?([A-Za-z_]\w*)["']?\s*:\s*("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|\$(?!\{)|[^`\\$])*`)""")
 
 
 def _json_lines(path: Path):
@@ -63,8 +69,56 @@ def _codex_params(arguments) -> dict:
     return params
 
 
+def _js_string(literal: str) -> str | None:
+    """The value of a JavaScript string literal without interpolation, or None when an escape has no JSON equivalent."""
+    quote, body = literal[0], literal[1:-1]
+    if quote != '"':
+        body = body.replace("\\" + quote, quote).replace('"', '\\"')
+    try:
+        return json.loads('"' + body.replace("\\'", "'").replace("\n", "\\n").replace("\t", "\\t") + '"')
+    except ValueError:
+        return None
+
+
+def _argument(script: str, start: int) -> str:
+    """The text from `start` to the parenthesis that closes the call opened just before it, skipping string literals."""
+    depth, quote, i = 1, "", start
+    while i < len(script):
+        ch = script[i]
+        if quote:
+            if ch == "\\":
+                i += 1
+            elif ch == quote:
+                quote = ""
+        elif ch in "'\"`":
+            quote = ch
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+            if depth == 0:
+                return script[start:i]
+        i += 1
+    return script[start:]
+
+
+def _script_calls(script) -> list[dict]:
+    """The `tools.<Name>(...)` calls in a Droid Script's JavaScript, each with its string-literal arguments."""
+    if not isinstance(script, str):
+        return []
+    calls = []
+    for match in SCRIPT_CALL.finditer(script):
+        fields = SCRIPT_FIELD.findall(_argument(script, match.end()))
+        calls.append({"tool": match.group(1), "params": {key: value for key, literal in fields if (value := _js_string(literal)) is not None}})
+    return calls
+
+
 def tool_calls(attempt: Path, host: str) -> list[dict]:
-    """Normalised tool calls from the host's record: {ts (epoch seconds), tool, params}."""
+    """Normalised tool calls from the host's record: {ts (epoch seconds), tool, params}.
+
+    A Droid Script call is replaced by the calls its script makes, each marked `via: "Script"`; a script that calls
+    no tool stays one Script call.
+    """
     calls = []
     if host == "opencode":
         for log in attempt.rglob("opencode.txt"):
@@ -76,7 +130,9 @@ def tool_calls(attempt: Path, host: str) -> list[dict]:
         for log in attempt.rglob("droid.jsonl"):
             for event in _json_lines(log):
                 if event.get("type") == "tool_call":
-                    calls.append({"ts": event["timestamp"] / 1000, "tool": event.get("toolName"), "params": event.get("parameters") or {}})
+                    ts, tool, params = event["timestamp"] / 1000, event.get("toolName"), event.get("parameters") or {}
+                    nested = _script_calls(params.get("script")) if tool == "Script" else []
+                    calls += [{"ts": ts, **call, "via": "Script"} for call in nested] or [{"ts": ts, "tool": tool, "params": params}]
     elif host == "claude-code":
         for log in attempt.rglob("claude.jsonl"):
             for event in _json_lines(log):
@@ -180,15 +236,16 @@ def record_loads(attempt: Path, host: str, audit_files: set[str] | None = None) 
 
     for index, call in enumerate(tool_calls(attempt, host)):
         tool, params = call["tool"], call["params"]
+        label = f"{call['via']}: {tool}" if call.get("via") else tool
         named = SKILL_TOOLS[host].get(tool)
         if named and params.get(named):
             name = str(params[named])
             if name in names:
-                note_load(name, f"{tool} tool call", index, call["ts"])
+                note_load(name, f"{label} tool call", index, call["ts"])
             else:
-                failed.append({"tool": tool, "name": name})
+                failed.append({"tool": label, "name": name})
             continue
-        how = f"{tool.lower() if host == 'opencode' else tool} of SKILL.md"
+        how = f"{label.lower() if host == 'opencode' else label} of SKILL.md"
         param = READ_TOOLS[host].get(tool)
         command = params.get("command") if isinstance(params.get("command"), str) else ""
         tokens = [str(params[param])] if param and params.get(param) else SKILL_TOKEN.findall(command)
@@ -201,7 +258,7 @@ def record_loads(attempt: Path, host: str, audit_files: set[str] | None = None) 
             if resolved in installed or (resolved is None and name in audit_files):
                 note_load(name, how, index, call["ts"])
             else:
-                workspace.append({"tool": tool, "path": resolved or token})
+                workspace.append({"tool": label, "path": resolved or token})
     return {"loads": loads, "workspace": workspace, "failed": failed, "first_load": first, "first_loads": first_loads}
 
 

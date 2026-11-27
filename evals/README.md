@@ -50,7 +50,7 @@ Both hosts open every installed `SKILL.md` at startup to build their catalogue (
 | Host | A skill is loaded when the trajectory shows |
 |---|---|
 | OpenCode | a `skill` tool call (`name` input) for an installed skill, or a `read` or `bash` call whose target resolves to an installed `<skill>/SKILL.md` |
-| Droid | a `Skill` tool call (`skill` input) for an installed skill, or a `Read` or `Execute` call whose target resolves to an installed `<skill>/SKILL.md` |
+| Droid | a `Skill` tool call (`skill` input) for an installed skill, or a `Read` or `Execute` call whose target resolves to an installed `<skill>/SKILL.md`; a `Script` call counts as the `tools.<Name>({...})` calls in its JavaScript (string-literal arguments only), labelled `Script: <Name>` |
 | Claude Code | a `Skill` tool call (`skill` input) for an installed skill, or a `Read` or `Bash` call whose target resolves to an installed `<skill>/SKILL.md`; from the stream-json `assistant` events |
 | Codex | no skill tool: the model reads the file, so a shell call (`exec_command`, `cmd` and `workdir` inputs) whose target resolves to an installed `<skill>/SKILL.md`; from the rollout files, which carry timestamps |
 

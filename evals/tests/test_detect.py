@@ -46,6 +46,14 @@ class RealControls(unittest.TestCase):
     def test_droid_no_skill(self):
         self.check("droid", "no-skill", [])
 
+    def test_droid_use_inside_script(self):
+        # gpt-6-sol in the ab01 skill probe: every call goes through Droid's Script tool, two of them `tools.Skill(...)`.
+        got = verdict(fixture("droid", "use-in-script"), "droid")
+        self.assertEqual(got["evidence"], {"dev-fix": "Script: Skill tool call", "lint-python": "Script: Skill tool call"})
+        self.assertEqual(got["first_load"]["calls_before"], 0)
+        self.assertEqual(got["failed_lookups"], [])
+        self.assertEqual(got["workspace_skill_reads"], [])
+
     def test_claude_code_use_by_name_is_invisible_to_the_audit(self):
         got = verdict(fixture("claude-code", "use-by-name"), "claude-code")
         self.assertEqual(got["evidence"], {"dev-fix": "Skill tool call"})
@@ -165,6 +173,12 @@ class Constructed(unittest.TestCase):
         self.assertEqual(got["loaded"], [])
         self.assertEqual(len(got["disagreements"]), 1)
         self.assertIn("catalogue rescan", got["disagreements"][0]["cause"])
+
+    def test_droid_read_inside_script_is_a_load(self):
+        script = "const r = await tools.Read( { file_path: '/root/.agents/skills/qa-review/SKILL.md' } ); text(r);"
+        got = verdict(self.attempt("droid", [("Script", {"script": script})], opens=[(1002.0, "qa-review")]), "droid")
+        self.assertEqual(got["evidence"], {"qa-review": "Script: Read of SKILL.md"})
+        self.assertEqual(got["disagreements"], [])
 
     def test_leading_cd_resolves_a_relative_installed_path(self):
         command = f"cd /root/{SKILL_DIRS['droid']}/qa-review && cat SKILL.md"
