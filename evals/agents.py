@@ -2,19 +2,22 @@
 
 The host CLI is in the image. `install` uploads the attempt's arm tarball (SQ_ARM_TARBALL, checked against
 SQ_ARM_SHA256) and extracts it into HOME before the agent starts; the harbor setup time is that step.
-Keys come from the harbor process environment (FACTORY_API_KEY for Droid, LAB_GATEWAY_KEY for Claude Code and
-Codex through the gateway), never from argv: the agents start the host CLI with `docker exec -e NAME`, so the value
-is inherited from this process and stays out of every command line.
+Keys come from the harbor process environment (FACTORY_API_KEY for Droid, LAB_GATEWAY_KEY for the gateway hosts), never
+from argv: Droid, Claude Code and OpenCode get theirs with `docker exec -e NAME`, so the value is inherited from this process
+and stays out of every command line. Codex's never enters its container (`gateway_forwarder`).
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import ipaddress
 import json
 import os
 import shlex
 from pathlib import Path
 from typing import override
+from urllib.parse import urlsplit
 
 from harbor.agents.installed.base import BaseInstalledAgent, NonZeroAgentExitCodeError, with_prompt_template
 from harbor.environments.base import BaseEnvironment
@@ -22,7 +25,8 @@ from harbor.environments.docker.docker import _sanitize_docker_compose_project_n
 from harbor.models.agent.context import AgentContext
 
 from evals.arms import HOST_CLI, LOGS, SKILL_DIRS, detector_start
-from evals.gateway import CLAUDE_MODEL, KEY_ENV, claude_tier_exports, gateway_url, no_proxy
+from evals.gateway import CLAUDE_MODEL, KEY_ENV, URL_ENV, claude_tier_exports, gateway_url, no_proxy
+from evals.images import OFFLINE_TAG
 
 CODEX_MODEL = "gpt-5.4"
 # OpenCode stays on gpt-5.5 (candidate host, not scored); it no longer shares Codex's model.
@@ -62,6 +66,176 @@ DROID_REMOVE_TOOLS = (
 )
 
 
+# Codex's agent phase runs offline (operator, 2026-11-27): its container reaches the gateway and nothing else, so the web, package indexes and a
+# task's upstream fix are out of reach. Codex's own sandbox cannot do this here: its bubblewrap may not create namespaces in the lab's containers,
+# so every sandboxed command exits 1. The rules go into the container's network namespace from a second container that shares it and holds
+# NET_ADMIN, which the attempt container never gets, and come out before the verifier, which downloads its tools (TB2's test.sh fetches uv).
+# Docker's DNS stub (127.0.0.11) resolves through the daemon, outside the namespace, so it is refused too; the gateway is named by address.
+OFFLINE_CHAIN = "SQ_OFFLINE"
+OFFLINE_ON = f"""set -eu
+iptables -N {OFFLINE_CHAIN}
+iptables -A {OFFLINE_CHAIN} -d 127.0.0.11 -j REJECT
+iptables -A {OFFLINE_CHAIN} -o lo -j ACCEPT
+iptables -A {OFFLINE_CHAIN} -p tcp -d "$1" --dport "$2" -j ACCEPT
+iptables -A {OFFLINE_CHAIN} -p tcp -j REJECT --reject-with tcp-reset
+iptables -A {OFFLINE_CHAIN} -j REJECT
+iptables -I OUTPUT 1 -j {OFFLINE_CHAIN}
+ip6tables -N {OFFLINE_CHAIN}
+ip6tables -A {OFFLINE_CHAIN} -o lo -j ACCEPT
+ip6tables -A {OFFLINE_CHAIN} -p tcp -j REJECT --reject-with tcp-reset
+ip6tables -A {OFFLINE_CHAIN} -j REJECT
+ip6tables -I OUTPUT 1 -j {OFFLINE_CHAIN}
+iptables -S {OFFLINE_CHAIN} | sed "s#$1#GATEWAY#"
+ip6tables -S {OFFLINE_CHAIN}
+gateway=$(curl -sS -m 10 -o /dev/null -w '%{{http_code}}' "$3/health/liveliness" 2>&1) || true
+echo "gateway: $gateway"
+[ "$gateway" = 200 ]
+for url in https://pypi.org/simple/ http://1.1.1.1/; do
+  if out=$(curl -sS -m 10 -o /dev/null "$url" 2>&1); then echo "$url: reachable"; exit 3; fi
+  echo "$url: blocked ($out)"
+done
+"""
+OFFLINE_OFF = f"""set -eu
+for t in iptables ip6tables; do
+  while $t -C OUTPUT -j {OFFLINE_CHAIN} 2>/dev/null; do $t -D OUTPUT -j {OFFLINE_CHAIN}; done
+  if $t -S {OFFLINE_CHAIN} >/dev/null 2>&1; then $t -F {OFFLINE_CHAIN}; $t -X {OFFLINE_CHAIN}; fi
+  if $t -S | grep -q {OFFLINE_CHAIN}; then echo "$t: rules still present"; exit 4; fi
+done
+echo "rules removed"
+"""
+
+
+async def _in_netns(container: str, script: str, *args: str) -> tuple[int, str]:
+    """Run `script` with `args` in a container that shares `container`'s network namespace and holds NET_ADMIN; its exit code and output."""
+    proc = await asyncio.create_subprocess_exec(
+        "docker", "run", "--rm", "--network", f"container:{container}", "--cap-add", "NET_ADMIN", "--entrypoint", "sh",
+        OFFLINE_TAG, "-c", script, "offline", *args,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+    )
+    out, _ = await proc.communicate()
+    return proc.returncode or 0, out.decode(errors="replace")
+
+
+def _gateway_address() -> tuple[str, int]:
+    """The gateway's IPv4 address and port, the one destination the offline rules allow; a host name would need the DNS they refuse."""
+    url = urlsplit(gateway_url())
+    try:
+        address = ipaddress.IPv4Address(url.hostname or "")
+    except ValueError as error:
+        raise RuntimeError(f"offline attempts need {URL_ENV} to name the gateway by IPv4 address") from error
+    return str(address), url.port or (443 if url.scheme == "https" else 80)
+
+
+@contextlib.asynccontextmanager
+async def offline(container: str, log: Path):
+    """Hold `container`'s egress to the gateway for the block. The rules, their proof and their removal are appended to `log`; the removal runs
+    however the block ends, and a failure of either raises, so an attempt never runs online or reaches its verifier offline unrecorded."""
+    address, port = _gateway_address()
+    try:
+        code, out = await _in_netns(container, OFFLINE_ON, address, str(port), gateway_url())
+        with log.open("a") as f:
+            f.write(f"== offline: exit {code}\n{out}")
+        if code != 0:
+            raise RuntimeError(f"offline rules or their proof failed (exit {code}); see {log.name}")
+        yield
+    finally:
+        code, out = await _in_netns(container, OFFLINE_OFF)
+        with log.open("a") as f:
+            f.write(f"== online: exit {code}\n{out}")
+        if code != 0:
+            raise RuntimeError(f"offline rules were not removed (exit {code}); see {log.name}")
+
+
+# Codex hands its whole environment to every command it runs, so a key in its container reaches the transcript and the model: in the first
+# offline smoke (2026-11-27) an agent's `env` printed LAB_GATEWAY_KEY. Codex therefore talks to this forwarder, which holds the key, sets it on
+# every request and passes the rest through to the gateway. It runs in a second container that shares only the attempt's network namespace, so
+# the agent reaches it on 127.0.0.1 but cannot read its memory or environment; the key arrives on its stdin, so `docker inspect` does not show it.
+# No TB2 task of the subset uses this port (pypi-server serves on 8080).
+FORWARDER_PORT = 47613
+FORWARDER_TOKEN_ENV = "SQ_FORWARDER_TOKEN"  # the provider's env_key: Codex sends this placeholder and the forwarder replaces it
+FORWARDER_JS = r"""
+import http from "node:http";
+import https from "node:https";
+
+const [port, target] = process.argv.slice(1);
+const upstream = new URL(target);
+const client = upstream.protocol === "https:" ? https : http;
+const prefix = upstream.pathname.replace(/\/+$/, "");
+let input = "";
+for await (const chunk of process.stdin) {
+  input += chunk;
+  if (input.includes("\n")) break;
+}
+const key = input.split("\n")[0].trim();
+if (!key) {
+  console.error("forwarder: no key on stdin");
+  process.exit(2);
+}
+const server = http.createServer((req, res) => {
+  const headers = { ...req.headers, host: upstream.host, authorization: `Bearer ${key}` };
+  const options = { protocol: upstream.protocol, hostname: upstream.hostname, port: upstream.port, method: req.method, path: prefix + req.url, headers };
+  const out = client.request(options, (up) => {
+    console.error(`${req.method} ${req.url} ${up.statusCode}`);
+    res.writeHead(up.statusCode ?? 502, up.headers);
+    up.pipe(res);
+    // A cut upstream stream must reach Codex as a cut, not as a complete response.
+    up.on("close", () => { if (!up.complete) res.destroy(); });
+  });
+  out.on("error", (error) => {
+    console.error(`${req.method} ${req.url} upstream error ${error.code ?? error.message}`);
+    if (res.headersSent) res.destroy();
+    else res.writeHead(502).end();
+  });
+  res.on("close", () => { if (!res.writableFinished) out.destroy(); });
+  req.pipe(out);
+});
+server.listen(Number(port), "127.0.0.1", () => console.error(`listening on 127.0.0.1:${server.address().port}`));
+"""
+# The proof asks the forwarder for the model list, which the gateway answers only with a valid key, so 200 shows it listens, sets the key and
+# reaches the gateway through the offline rules.
+FORWARDER_PROOF = """set -eu
+for i in $(seq 1 40); do
+  code=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$1/v1/models" 2>/dev/null) || code=000
+  if [ "$code" = 200 ]; then echo "forwarder: $code"; exit 0; fi
+  sleep 0.25
+done
+echo "forwarder: $code"
+exit 5
+"""
+
+
+@contextlib.asynccontextmanager
+async def gateway_forwarder(container: str, log: Path):
+    """Serve the gateway on 127.0.0.1:FORWARDER_PORT in `container`'s network namespace for the block, with the key added to every request.
+    The forwarder's request lines and the proof go to `log`; the forwarder is removed however the block ends, and a failure of either raises."""
+    key = os.environ.get(KEY_ENV)
+    if not key:
+        raise RuntimeError(f"{KEY_ENV} is not set in the harbor process environment")
+    name = f"sq-forwarder-{container[:12]}"
+    with log.open("ab") as out:
+        proc = await asyncio.create_subprocess_exec(
+            "docker", "run", "-i", "--name", name, "--network", f"container:{container}", "--entrypoint", "node",
+            OFFLINE_TAG, "--input-type=module", "-e", FORWARDER_JS, str(FORWARDER_PORT), gateway_url(),
+            stdin=asyncio.subprocess.PIPE, stdout=out, stderr=asyncio.subprocess.STDOUT,
+        )
+    try:
+        proc.stdin.write(f"{key}\n".encode())
+        await proc.stdin.drain()
+        proc.stdin.close()
+        code, text = await _in_netns(container, FORWARDER_PROOF, str(FORWARDER_PORT))
+        with log.open("a") as f:
+            f.write(f"== proof: exit {code}\n{text}")
+        if code != 0:
+            raise RuntimeError(f"the gateway forwarder or its proof failed (exit {code}); see {log.name}")
+        yield
+    finally:
+        remove = await asyncio.create_subprocess_exec("docker", "rm", "-f", name, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+        _, err = await remove.communicate()
+        await proc.wait()
+        if remove.returncode != 0:
+            raise RuntimeError(f"the gateway forwarder {name} was not removed: {err.decode(errors='replace').strip()}")
+
+
 async def _install_arm(agent, environment, target: str) -> None:
     """Extract the attempt's arm into HOME and keep its manifest and skill list beside the other logs.
 
@@ -81,9 +255,9 @@ async def _install_arm(agent, environment, target: str) -> None:
 
 
 class _DockerExecAgent(BaseInstalledAgent):
-    """Runs the host CLI with `docker exec -e SECRET_NAME` so the secret is never in argv."""
+    """Runs the host CLI with `docker exec`; a host whose key goes into its container gets it as `-e SECRET_NAME`, so it is never in argv."""
 
-    SECRET = ""  # name of the environment variable that carries the host's key
+    SECRET = ""  # name of the environment variable that carries the host's key into the container; empty when the key stays out
 
     async def _container(self, environment: BaseEnvironment) -> str:
         project = _sanitize_docker_compose_project_name(environment.session_id)
@@ -100,10 +274,12 @@ class _DockerExecAgent(BaseInstalledAgent):
         return ids[0]
 
     async def _docker_exec(self, environment: BaseEnvironment, inner: str, env: tuple[str, ...] = ()) -> int:
-        if not os.environ.get(self.SECRET):
-            raise RuntimeError(f"{self.SECRET} is not set in the harbor process environment")
+        secrets = (self.SECRET,) if self.SECRET else ()
+        for name in secrets:
+            if not os.environ.get(name):
+                raise RuntimeError(f"{name} is not set in the harbor process environment")
         container = await self._container(environment)
-        flags = [arg for item in (self.SECRET, *env) for arg in ("-e", item)]
+        flags = [arg for item in (*secrets, *env) for arg in ("-e", item)]
         proc = await asyncio.create_subprocess_exec(
             "docker", "exec", *flags, container, "bash", "-c", inner,
             stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
@@ -319,9 +495,11 @@ class ArmClaude(_DockerExecAgent):
 
 
 class ArmCodex(_DockerExecAgent):
-    """Codex through the gateway's Responses endpoint. Its rollout files (`~/.codex/sessions`) are kept beside the JSON stream."""
+    """Codex through the gateway's Responses endpoint by way of the key-holding forwarder (`gateway_forwarder`), offline (`offline`) and with its
+    web search tool off. Its rollout files (`~/.codex/sessions`) are kept beside the JSON stream, the offline proof as `offline.txt` and the
+    forwarder's request lines as `forwarder.txt`."""
 
-    SECRET = KEY_ENV
+    SECRET = ""  # the key stays in the forwarder
 
     @staticmethod
     @override
@@ -346,15 +524,19 @@ class ArmCodex(_DockerExecAgent):
     async def run(self, instruction: str, environment: BaseEnvironment, context: AgentContext) -> None:
         await self.exec_as_agent(environment, command=detector_start("codex"))
         workdir = await self._workdir(environment)
-        provider = f'model_providers.gateway={{name="Gateway",base_url="{gateway_url()}/v1",env_key="{KEY_ENV}",wire_api="responses"}}'
+        provider = (f'model_providers.gateway={{name="Gateway",base_url="http://127.0.0.1:{FORWARDER_PORT}/v1",env_key="{FORWARDER_TOKEN_ENV}",'
+                    'wire_api="responses"}')
         inner = (
             f"cd {shlex.quote(workdir)} && "
             f"timeout {host_timeout()} codex exec --json --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check "
-            f"-m {shlex.quote(self.model_name or CODEX_MODEL)} -c 'model_provider=\"gateway\"' -c {shlex.quote(provider)} -- {shlex.quote(instruction)} "
-            f"</dev/null > {LOGS}/codex.jsonl 2> {LOGS}/codex.stderr; code=$?; "
+            f"-m {shlex.quote(self.model_name or CODEX_MODEL)} -c 'model_provider=\"gateway\"' -c {shlex.quote(provider)} -c 'web_search=\"disabled\"' "
+            f"-- {shlex.quote(instruction)} </dev/null > {LOGS}/codex.jsonl 2> {LOGS}/codex.stderr; code=$?; "
             f"cp -r ~/.codex/sessions {LOGS}/codex-sessions 2>/dev/null; exit $code"
         )
-        code = await self._docker_exec(environment, inner, (f"NO_PROXY={no_proxy()}", f"no_proxy={no_proxy()}"))
+        container, logs = await self._container(environment), Path(self.logs_dir)
+        local = "127.0.0.1,localhost"
+        async with offline(container, logs / "offline.txt"), gateway_forwarder(container, logs / "forwarder.txt"):
+            code = await self._docker_exec(environment, inner, (f"{FORWARDER_TOKEN_ENV}=placeholder", f"NO_PROXY={local}", f"no_proxy={local}"))
         if code != 0:
             raise NonZeroAgentExitCodeError(f"codex exec exited {code}")
 

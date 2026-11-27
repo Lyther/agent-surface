@@ -8,7 +8,8 @@ Usage:
   python -m evals.images build --out OUT [--hosts opencode,droid] [--proxy URL]
   python -m evals.images arms --src SRC --out OUT [--hosts ...] [--profiles dev,full,...] [--desc-texts desc.json]
   python -m evals.images scenarios --host-images hosts.json --scenario DIR [--scenario DIR ...] --hosts droid [--proxy URL]
-  python -m evals.images bench --host-images hosts.json --task DIR [--task DIR ...] [--proxy URL]
+  python -m evals.images bench --host-images hosts.json [--host droid|codex] --task DIR [--task DIR ...] [--proxy URL]
+  python -m evals.images offline [--proxy URL]
 """
 
 from __future__ import annotations
@@ -40,6 +41,15 @@ APT_DEPS = "inotify-tools procps"
 DROID_URL = "https://downloads.factory.ai/factory-cli/releases/{v}/linux/x64"
 # Hosts installed with npm, and the command each provides.
 NPM_CLIS = {"opencode": "opencode", "claude-code": "claude", "codex": "codex"}
+# Codex's npm package holds a Node launcher (`bin/codex.js`) and the native binary with its resources. The launcher sets these two
+# variables and execs the binary, so a benchmark image gets the package and a shell wrapper that does the same, without needing Node.
+CODEX_PACKAGE = "/usr/local/lib/node_modules/@openai/codex"
+CODEX_BINARY = f"{CODEX_PACKAGE}/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex"
+CODEX_WRAPPER = f'#!/bin/sh\nexport CODEX_MANAGED_PACKAGE_ROOT={CODEX_PACKAGE} CODEX_MANAGED_BY_NPM=1\nexec {CODEX_BINARY} "$@"\n'
+# Hosts whose CLI can be layered on a benchmark task's own image.
+BENCH_HOSTS = ("droid", "codex")
+# The image whose iptables sets an attempt container's egress rules from a second container sharing its network namespace (`evals/agents.py`).
+OFFLINE_TAG = f"{TAG_PREFIX}/offline:1"
 
 
 def docker(*args: str, check: bool = True) -> str:
@@ -170,26 +180,36 @@ def bench_base(template: Path, proxy: str | None) -> str:
     return tag
 
 
-def bench_layer(base: str) -> str:
-    """The layer that puts droid and the skill-open watcher's tools on a benchmark task's own image.
+def bench_layer(base: str, host: dict) -> str:
+    """The layer that puts the host CLI and the skill-open watcher's tools on a benchmark task's own image.
 
+    Droid is one binary. Codex is its npm package copied from the host image, started by `CODEX_WRAPPER` instead of the package's Node launcher.
     Nothing else of the task's image changes: its user, workdir and entrypoint stay, apt lists are removed again when the image had none,
     and python3 is not added. Without the task's own python3 the watcher (`stamp.py`) stops at its first event, so loads are read from
-    droid's own record alone.
+    the host's own record alone.
     """
+    name = host["host"]
+    if name not in BENCH_HOSTS:
+        raise ValueError(f"{name} cannot be layered on a benchmark image; one of {', '.join(BENCH_HOSTS)}")
+    package = [f"COPY --from={host['tag']} {CODEX_PACKAGE} {CODEX_PACKAGE}"] if name == "codex" else []
     return "\n".join([
         f"FROM {base}",
-        "COPY droid /usr/local/bin/droid",
+        *package,
+        f"COPY {name} /usr/local/bin/{name}",
         f"COPY stamp.py {STAMP}",
-        "RUN set -e; chmod 755 /usr/local/bin/droid; had=$(ls /var/lib/apt/lists 2>/dev/null | grep -v -x -e lock -e partial | head -1); "
+        f"RUN set -e; chmod 755 /usr/local/bin/{name}; had=$(ls /var/lib/apt/lists 2>/dev/null | grep -v -x -e lock -e partial | head -1); "
         f"apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends {APT_DEPS} >/dev/null; "
-        '[ -n "$had" ] || rm -rf /var/lib/apt/lists/*; for c in bash inotifywait pgrep droid; do command -v $c >/dev/null; done; droid --version',
+        f'[ -n "$had" ] || rm -rf /var/lib/apt/lists/*; for c in bash inotifywait pgrep {name}; do command -v $c >/dev/null; done; {name} --version',
         "",
     ])
 
 
-def host_cli_binary(host: dict, dest: Path) -> Path:
-    """Copy droid out of its host image: the binary whose checksum the host build verified."""
+def host_cli_file(host: dict, dest: Path) -> Path:
+    """The file a benchmark image gets as /usr/local/bin/<host>: droid copied out of its host image (the binary whose checksum the host build
+    verified), or Codex's wrapper."""
+    if host["host"] == "codex":
+        dest.write_text(CODEX_WRAPPER)
+        return dest
     name = f"sq-bench-cli-{os.getpid()}"
     docker("create", "--name", name, host["tag"])
     try:
@@ -199,18 +219,15 @@ def host_cli_binary(host: dict, dest: Path) -> Path:
     return dest
 
 
-def build_bench_image(template: Path, host: dict, proxy: str | None, droid: Path) -> dict:
-    """Layer droid on a benchmark task's own image and tag it as the task's scenario image (`scenario_tag`), the image `write_task` names.
-
-    Droid only: it is one binary, while the npm hosts need a Node the task's image may not have.
-    """
+def build_bench_image(template: Path, host: dict, proxy: str | None, cli: Path) -> dict:
+    """Layer the host CLI on a benchmark task's own image and tag it as the task's scenario image (`scenario_tag`), the image `write_task` names."""
     base = bench_base(template, proxy)
     tag = scenario_tag(template, host["host"])
     with tempfile.TemporaryDirectory() as tmp:
         context = Path(tmp)
-        shutil.copy2(droid, context / "droid")
+        shutil.copy2(cli, context / host["host"])
         shutil.copy(EVALS_DIR / "stamp.py", context / "stamp.py")
-        (context / "Dockerfile").write_text(bench_layer(base))
+        (context / "Dockerfile").write_text(bench_layer(base, host))
         seconds = classic_build(context, tag, proxy, {"sq.host_image": host["image_id"], "sq.bench_base": base})
     python3 = docker("run", "--rm", "--entrypoint", "sh", tag, "-c", "command -v python3 || true")
     return {"scenario": template.name, "host": host["host"], "tag": tag, "image_id": image_id(tag), "base": base, "base_id": image_id(base),
@@ -291,16 +308,32 @@ def cmd_scenarios(args) -> None:
     sys.exit(1 if failed else 0)
 
 
+def build_offline_image(proxy: str | None) -> dict:
+    """Build `OFFLINE_TAG`: the shared base with iptables, which also has the curl the offline proof uses."""
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "Dockerfile").write_text(
+            f"FROM {HOST_BASE}\nRUN set -e; apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends iptables >/dev/null; "
+            "rm -rf /var/lib/apt/lists/*; iptables --version; ip6tables --version; curl --version | head -1\n")
+        seconds = classic_build(Path(tmp), OFFLINE_TAG, proxy, {"sq.base": HOST_BASE})
+    return {"tag": OFFLINE_TAG, "image_id": image_id(OFFLINE_TAG), "base": HOST_BASE, "build_seconds": seconds}
+
+
+def cmd_offline(args) -> None:
+    print(json.dumps(build_offline_image(args.proxy)))
+
+
 def cmd_bench(args) -> None:
-    """Layer droid on each benchmark task's own image; one JSON row per image."""
-    host = json.loads(args.host_images.read_text())["droid"]
+    """Layer the host CLI on each benchmark task's own image; one JSON row per image."""
+    host = json.loads(args.host_images.read_text())[args.host]
+    if image_id(host["tag"]) != host["image_id"]:  # Codex's package is copied from the tag, so it must still name the recorded image
+        sys.exit(f"{host['tag']} no longer names the image {args.host_images} records ({host['image_id'][:19]})")
     failed = 0
     with tempfile.TemporaryDirectory() as tmp:
-        droid = host_cli_binary(host, Path(tmp) / "droid")
+        cli = host_cli_file(host, Path(tmp) / args.host)
 
         def one(template):
             try:
-                return template, build_bench_image(template, host, args.proxy, droid)
+                return template, build_bench_image(template, host, args.proxy, cli)
             except (RuntimeError, ValueError) as error:
                 return template, str(error)
 
@@ -345,9 +378,13 @@ if __name__ == "__main__":
     c.set_defaults(fn=cmd_scenarios)
     s = sub.add_parser("bench")
     s.add_argument("--host-images", type=Path, required=True)
+    s.add_argument("--host", choices=BENCH_HOSTS, default="droid")
     s.add_argument("--task", type=Path, action="append", required=True)
     s.add_argument("--proxy", default=os.environ.get("LAB_BUILD_PROXY"), help="HTTP(S) proxy URL for builds (not a secret)")
     s.set_defaults(fn=cmd_bench)
+    o = sub.add_parser("offline")
+    o.add_argument("--proxy", default=os.environ.get("LAB_BUILD_PROXY"), help="HTTP(S) proxy URL for builds (not a secret)")
+    o.set_defaults(fn=cmd_offline)
     r = sub.add_parser("arms")
     r.add_argument("--src", type=Path, required=True)
     r.add_argument("--out", type=Path, required=True)

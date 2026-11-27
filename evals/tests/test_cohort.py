@@ -412,10 +412,11 @@ class AdmissionTest(unittest.TestCase):
             with self.assertRaises(SystemExit, msg=str(items)):
                 parse_spend(items, ["droid"])
 
-    def test_only_droid_takes_another_model_and_the_id_is_plain(self):
+    def test_only_droid_and_codex_take_another_model_and_the_id_is_plain(self):
         self.assertEqual(parse_models(["droid=deepseek-v4.1-flash"]), {"droid": "deepseek-v4.1-flash"})
+        self.assertEqual(parse_models(["codex=claude-fable-5-2"]), {"codex": "claude-fable-5-2"})
         self.assertEqual(parse_models([]), {})
-        for items in (["opencode=gpt-5.5"], ["droid="], ["droid=x y"], ["droid=m;id"], ["droid=-m"]):
+        for items in (["opencode=gpt-5.5"], ["claude-code=glm-5.3"], ["droid="], ["droid=x y"], ["droid=m;id"], ["droid=-m"]):
             with self.assertRaises(SystemExit, msg=str(items)):
                 parse_models(items)
 

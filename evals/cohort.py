@@ -46,12 +46,16 @@ HOSTS = {
     "claude-code": {"agent": "evals.agents:ArmClaude", "model": CLAUDE_MODEL},
     "codex": {"agent": "evals.agents:ArmCodex", "model": "gpt-5.4"},
 }
-# The environment variable that carries each host's key into its container.
+# The environment variable that carries each host's key to its agent: into the container, or for codex into its forwarder (`agents.gateway_forwarder`).
 HOST_KEY = {"droid": "FACTORY_API_KEY", "opencode": KEY_ENV, "claude-code": KEY_ENV, "codex": KEY_ENV}
 # Hosts whose spend is metered, and what one attempt's spend is: Factory credits for droid; for a gateway host the key's own counter is not
 # available, so the tokens the attempt recorded (the whole prompt plus the output).
 METERED_HOSTS = ("droid", *GATEWAY_HOSTS)
 EVALS_DIR = Path(__file__).resolve().parent
+# A verifier installs its test tools as a build does (TB2's test.sh fetches uv, a Python and pytest), so where builds need the lab's proxy the
+# verifier gets it too, by name: Harbor resolves `${NAME}` from its own environment, so the address stays out of the job's files.
+BUILD_PROXY_ENV = "LAB_BUILD_PROXY"
+VERIFIER_NO_PROXY = "localhost,127.0.0.1,::1"  # a task's own local services (pypi-server's test installs from localhost:8080)
 
 
 @dataclass(frozen=True)
@@ -342,6 +346,10 @@ async def attempt(cell: tuple, attempt_no: int, args, images: dict, arms: dict, 
     ]
     if not unit.verify:
         cmd.append("--disable-verification")
+    elif os.environ.get(BUILD_PROXY_ENV):
+        env[BUILD_PROXY_ENV] = os.environ[BUILD_PROXY_ENV]
+        proxy = "${" + BUILD_PROXY_ENV + "}"
+        cmd += ["--ve", f"http_proxy={proxy}", "--ve", f"https_proxy={proxy}", "--ve", f"no_proxy={VERIFIER_NO_PROXY}"]
     started = now()
     t0 = time.monotonic()
     proc = await asyncio.create_subprocess_exec(*cmd, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
@@ -432,9 +440,10 @@ def parse_spend(items: list[str], hosts: list[str]) -> dict[str, tuple[int, int]
     return spend
 
 
-# Hosts whose agent runs the model it is given (`-m`) and nothing else: Droid. The gateway agents also wire their default model into their
-# own configuration (OpenCode's provider list, Claude Code's tier variables), so an override would be half applied there.
-MODEL_HOSTS = ("droid",)
+# Hosts whose agent runs the model it is given (`-m`) and nothing else: Droid, and Codex, whose gateway provider entry names no model. OpenCode
+# and Claude Code also wire their default model into their own configuration (OpenCode's provider list, Claude Code's tier variables), so an
+# override would be half applied there.
+MODEL_HOSTS = ("droid", "codex")
 MODEL_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]*")
 
 
@@ -674,7 +683,7 @@ if __name__ == "__main__":
     ap.add_argument("--arms-together", action="store_true", help="start the arms of a group at once instead of one after another")
     ap.add_argument("--timeouts-are-outcomes", action="store_true",
                     help="benchmark runs: an attempt that ends at its task's agent time limit has failed the task and never counts toward a host stop")
-    ap.add_argument("--model", dest="model_items", action="append", default=[], metavar="HOST=MODEL", help="run a host on another model than its default (droid only)")
+    ap.add_argument("--model", dest="model_items", action="append", default=[], metavar="HOST=MODEL", help="run a host on another model than its default (droid and codex)")
     ap.add_argument("--spend", dest="spend_items", action="append", default=[], metavar="HOST=CAP:RESERVE",
                     help="required for droid (Factory credits) and the gateway hosts (tokens, prompt plus output): the cohort's cap on the host's spend and the reserve charged per attempt, "
                          "or HOST=uncapped when the operator watches that spend elsewhere")
